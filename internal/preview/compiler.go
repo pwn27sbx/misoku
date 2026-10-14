@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	checkboxRegex   = regexp.MustCompile(`^(\s*)[-*+]\s+\[([ xX])\]\s*(.*)$`)
+	checkboxRegex   = regexp.MustCompile(`^(\s*)[-*+]\s+\[([ xX-])\]\s*(.*)$`)
 	bulletRegex     = regexp.MustCompile(`^(\s*)[-*+]\s+(.*)$`)
 	numberedRegex   = regexp.MustCompile(`^(\s*)(\d+)[.)]\s+(.*)$`)
 	blockquoteRegex = regexp.MustCompile(`^\s*>\s?(.*)$`)
@@ -42,11 +42,13 @@ type styles struct {
 	codeBox   lipgloss.Style
 	codeLang  lipgloss.Style
 	rule      lipgloss.Style
+	look      Look
 }
 
 func newStyles(th theme.Theme) styles {
 	return styles{
 		th:    th,
+		look:  DefaultLook(),
 		text:  lipgloss.NewStyle().Foreground(th.Fg),
 		muted: lipgloss.NewStyle().Foreground(th.GreyFg2),
 		code:  lipgloss.NewStyle().Foreground(th.Orange).Background(th.OneBg),
@@ -191,13 +193,13 @@ func CompileWith(input string, th theme.Theme, contentWidth int, baseDir string,
 // CompileHits compiles and also returns the clickable regions of view
 // blocks (rows in the output, lines in the original document).
 func CompileHits(input string, th theme.Theme, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit) {
-	out, hits, _ = CompileBlocks(input, th, contentWidth, baseDir, cal)
+	out, hits, _ = CompileBlocks(input, th, DefaultLook(), contentWidth, baseDir, cal)
 	return out, hits
 }
 
 // CompileBlocks is CompileHits that also returns the note's draggable
 // blocks, sorted by row (a list item's children follow it).
-func CompileBlocks(input string, th theme.Theme, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block) {
+func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block) {
 	defer func() {
 		if r := recover(); r != nil {
 			out = fmt.Sprintf("Error rendering preview: %v", r)
@@ -207,7 +209,9 @@ func CompileBlocks(input string, th theme.Theme, contentWidth int, baseDir strin
 	if contentWidth < 10 {
 		contentWidth = 40
 	}
-	c := &compiler{st: newStyles(th), width: contentWidth, baseDir: baseDir, cal: cal}
+	st := newStyles(th)
+	st.look = look.withDefaults()
+	c := &compiler{st: st, width: contentWidth, baseDir: baseDir, cal: cal}
 	c.compile(input)
 
 	for len(c.out) > 0 && c.out[len(c.out)-1] == "" {
@@ -370,7 +374,10 @@ func (c *compiler) compile(input string) {
 			case folded:
 				arrow = "▸ "
 			}
-			prefix := arrow + []string{"󰉫 ", "󰉬 ", "󰉭 ", "󰉮 ", "󰉯 ", "󰉰 "}[level-1]
+			prefix := arrow + c.st.look.HeadingIcons[level-1]
+			if c.st.look.HeadingBackground {
+				st = st.Background(band(st.GetForeground().(lipgloss.Color), c.st.th.Bg))
+			}
 			c.blank()
 			if c.depth == 0 {
 				c.hits = append(c.hits, Hit{Row: len(c.out), H: 1, X1: c.width, Kind: "fold", Arg: key, Line: -1})
@@ -388,8 +395,15 @@ func (c *compiler) compile(input string) {
 				skipLevel = level
 				continue
 			}
+			if c.st.look.HeadingBackground {
+				for j, h := range heading {
+					if pad := c.width - ansi.StringWidth(h); pad > 0 {
+						heading[j] = h + st.Render(strings.Repeat(" ", pad))
+					}
+				}
+			}
 			c.emit(heading...)
-			if level == 1 {
+			if level == 1 && !c.st.look.HeadingBackground {
 				c.emit(c.st.headings[0].Render(strings.Repeat("━", min(c.width, max(ansi.StringWidth(m[2])+2, 8)))))
 			}
 			c.blank()
@@ -399,12 +413,19 @@ func (c *compiler) compile(input string) {
 			c.openBlock(i, listItemEnd(lines, i))
 			m := checkboxRegex.FindStringSubmatch(line)
 			indent := strings.Repeat(" ", len(m[1]))
-			if m[2] == "x" || m[2] == "X" {
-				box := lipgloss.NewStyle().Foreground(c.st.th.Green).Render("󰄲 ")
+			switch {
+			case m[2] == "-" && c.st.look.Todo == "":
+				// No todo glyph configured: "[-]" is just text in a bullet.
+				c.bulletLine(line, m[1], "[-] "+m[3])
+			case m[2] == "-":
+				box := lipgloss.NewStyle().Foreground(c.st.th.Yellow).Render(c.st.look.Todo + " ")
+				c.emit(c.wrapIndent(c.inline(m[3], c.st.text), indent+box, indent+"  ")...)
+			case m[2] == "x" || m[2] == "X":
+				box := lipgloss.NewStyle().Foreground(c.st.th.Green).Render(c.st.look.Checked + " ")
 				text := c.inline(m[3], c.st.muted.Strikethrough(true))
 				c.emit(c.wrapIndent(text, indent+box, indent+"  ")...)
-			} else {
-				box := lipgloss.NewStyle().Foreground(c.st.th.GreyFg2).Render("󰄱 ")
+			default:
+				box := lipgloss.NewStyle().Foreground(c.st.th.GreyFg2).Render(c.st.look.Unchecked + " ")
 				c.emit(c.wrapIndent(c.inline(m[3], c.st.text), indent+box, indent+"  ")...)
 			}
 
@@ -412,10 +433,7 @@ func (c *compiler) compile(input string) {
 			c.flushPara()
 			c.openBlock(i, listItemEnd(lines, i))
 			m := bulletRegex.FindStringSubmatch(line)
-			depth := len(m[1]) / 2
-			indent := strings.Repeat(" ", len(m[1]))
-			glyph := []string{"●", "○", "◆", "◇"}[depth%4]
-			c.emit(c.wrapIndent(c.inline(m[2], c.st.text), indent+c.st.bullet.Render(glyph)+" ", indent+"  ")...)
+			c.bulletLine(line, m[1], m[2])
 
 		case numberedRegex.MatchString(line):
 			c.flushPara()
@@ -469,4 +487,13 @@ func listItemEnd(lines []string, i int) int {
 		end++
 	}
 	return end
+}
+
+// bulletLine draws one bullet item: lead is its leading whitespace, text the
+// item text. The glyph comes from the look, by depth.
+func (c *compiler) bulletLine(_ string, lead, text string) {
+	depth := len(lead) / 2
+	indent := strings.Repeat(" ", len(lead))
+	glyph := c.st.look.Bullets[depth%len(c.st.look.Bullets)]
+	c.emit(c.wrapIndent(c.inline(text, c.st.text), indent+c.st.bullet.Render(glyph)+" ", indent+"  ")...)
 }

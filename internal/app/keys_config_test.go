@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -110,5 +111,26 @@ func TestConfigMistakesShowInTheStatusBar(t *testing.T) {
 	// Shown when Misoku opens; like Vim messages, the next key clears it.
 	if v := h.view(); !strings.Contains(v, `unknown action "toggle_explorr"`) {
 		t.Fatalf("a typo in the config should be reported on startup:\n%s", v)
+	}
+}
+
+func TestUIConfigReachesThePreview(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "# Title\n\n- [-] doing\n"); err != nil {
+		t.Fatal(err)
+	}
+	ui := config.UI{HeadingIcons: []string{"① "}}
+	ui.Checkbox.Todo = "󰥔"
+	h := newHarness(t, store, app.WithUI(ui))
+	h.keys("1")
+	v := h.view()
+	if !strings.Contains(v, "① Title") || !strings.Contains(v, "󰥔 doing") {
+		t.Fatalf("the preview should use the configured glyphs:\n%s", v)
+	}
+	// Levels not given keep their default icon.
+	h.keys("o## Sub")
+	h.key(tea.KeyEsc)
+	if v := h.view(); !strings.Contains(v, "󰉬 Sub") {
+		t.Fatalf("level 2 keeps its default icon:\n%s", v)
 	}
 }

@@ -105,3 +105,21 @@ func TestKeysAreReadAndSurviveASave(t *testing.T) {
 		t.Fatalf("saving dropped the unbound action: %+v", again.Keys)
 	}
 }
+
+func TestUISectionIsRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := `{"ui": {"heading_icons": ["① ", "② "], "heading_background": true,
+	  "bullets": ["●", "○"], "checkbox": {"unchecked": "󰄱", "checked": "󰱒", "todo": "󰥔"}}}`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ui := cfg.UI
+	if len(ui.HeadingIcons) != 2 || ui.HeadingIcons[1] != "② " || !ui.HeadingBackground ||
+		len(ui.Bullets) != 2 || ui.Checkbox.Checked != "󰱒" || ui.Checkbox.Todo != "󰥔" {
+		t.Fatalf("ui not read: %+v", ui)
+	}
+}

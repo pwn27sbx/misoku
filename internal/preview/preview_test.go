@@ -493,7 +493,7 @@ func TestFlowLeftToRight(t *testing.T) {
 func TestBlocksAndDrag(t *testing.T) {
 	th := theme.DefaultTheme()
 	md := "# Title\n\nFirst para\nstill first\n\n- item\n  - child\n- other\n\n```go\nx := 1\n```\n\n| a | b |\n| - | - |\n| 1 | 2 |"
-	_, _, blocks := preview.CompileBlocks(md, th, 80, "", preview.CalendarView{})
+	_, _, blocks := preview.CompileBlocks(md, th, preview.DefaultLook(), 80, "", preview.CalendarView{})
 	want := [][2]int{{0, 1}, {2, 4}, {5, 7}, {6, 7}, {7, 8}, {9, 12}, {13, 16}}
 	if len(blocks) != len(want) {
 		t.Fatalf("got %d blocks %+v, want %d", len(blocks), blocks, len(want))

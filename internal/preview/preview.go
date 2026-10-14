@@ -16,6 +16,7 @@ import (
 // Model represents the real-time compiled Markdown preview component.
 type Model struct {
 	theme      theme.Theme
+	look       Look
 	viewport   viewport.Model
 	width      int
 	height     int
@@ -65,6 +66,7 @@ func New(th theme.Theme) Model {
 
 	return Model{
 		theme:    th,
+		look:     DefaultLook(),
 		viewport: vp,
 		title:    "Untitled",
 		hover:    -1,
@@ -156,7 +158,7 @@ func (m *Model) recompile() {
 			return m.notes(target)
 		}
 	}
-	compiled, hits, blocks := CompileBlocks(m.rawContent, m.theme, vpWidth, m.baseDir, cal)
+	compiled, hits, blocks := CompileBlocks(m.rawContent, m.theme, m.look, vpWidth, m.baseDir, cal)
 	if len(m.backlinks) > 0 {
 		compiled, hits = m.appendBacklinks(compiled, hits, vpWidth)
 	}

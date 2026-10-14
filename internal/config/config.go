@@ -20,6 +20,27 @@ type Config struct {
 	// {"toggle_explorer": ["space e"]}. An empty list unbinds the action.
 	// See internal/keymap for the actions and their defaults.
 	Keys map[string][]string `json:"keys,omitempty"`
+	// UI changes how notes look in the preview. Anything left out keeps
+	// Misoku's default.
+	UI UI `json:"ui,omitzero"`
+}
+
+// UI is the "ui" section of config.json.
+type UI struct {
+	// HeadingIcons go before headings of level 1, 2, … (up to 6), e.g.
+	// ["① ", "② "]. Missing levels keep their default icon.
+	HeadingIcons []string `json:"heading_icons,omitempty"`
+	// HeadingBackground paints headings on a full-width band of their color,
+	// like render-markdown's "full" style in Neovim.
+	HeadingBackground bool `json:"heading_background,omitempty"`
+	// Bullets are used by list depth, cycling.
+	Bullets  []string `json:"bullets,omitempty"`
+	Checkbox struct {
+		Unchecked string `json:"unchecked,omitempty"`
+		Checked   string `json:"checked,omitempty"`
+		// Todo marks "- [-]" as in progress; empty leaves "[-]" as text.
+		Todo string `json:"todo,omitempty"`
+	} `json:"checkbox,omitzero"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

@@ -141,6 +141,31 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `explorer.delete` | `d`, `x`, `delete` | Delete (asks first) |
 | `explorer.find` | `\`, `f` | Find note |
 
+## Look
+
+The `ui` section of `config.json` changes how notes look in the preview.
+Anything left out keeps Misoku's default. For example, the look of a Neovim
+with render-markdown:
+
+```json
+{
+  "ui": {
+    "heading_icons": ["① ", "② ", "③ ", "④ ", "⑤ ", "⑥ "],
+    "heading_background": true,
+    "bullets": ["●", "○", "◆", "◇"],
+    "checkbox": { "unchecked": "󰄱", "checked": "󰱒", "todo": "󰥔" }
+  }
+}
+```
+
+| Key | What it does |
+| --- | --- |
+| `heading_icons` | Icon before headings of level 1 to 6; missing levels keep the default |
+| `heading_background` | Paints each heading on a full-width band of its color (the H1 underline is then left out) |
+| `bullets` | List bullets by depth, cycling |
+| `checkbox.unchecked`, `checkbox.checked` | Marks for `- [ ]` and `- [x]` |
+| `checkbox.todo` | Mark for `- [-]` (in progress). Without it, `[-]` stays plain text |
+
 ## Links
 
 Type `[[` to link to another note. Click a link in the preview, or press
