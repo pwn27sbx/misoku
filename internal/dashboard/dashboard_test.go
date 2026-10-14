@@ -49,8 +49,13 @@ func TestDashboardComponent(t *testing.T) {
 	}
 	db, _ = db.Update(tea.KeyMsg{Type: tea.KeyUp})
 	db, _ = db.Update(tea.KeyMsg{Type: tea.KeyUp})
+	// The last item is now the "work" project, listed after the recent notes.
+	if a, id := db.SelectedAction(); a != dashboard.ActionOpenProject || id != "work" {
+		t.Errorf("expected wrap-around to the last item, the work project, got %v %q", a, id)
+	}
+	db, _ = db.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if a, id := db.SelectedAction(); a != dashboard.ActionOpenRecent || id != "p1.md" {
-		t.Errorf("expected wrap-around to last recent note, got %v %q", a, id)
+		t.Errorf("expected the last recent note above the projects, got %v %q", a, id)
 	}
 }
 

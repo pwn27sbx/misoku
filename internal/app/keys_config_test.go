@@ -134,3 +134,27 @@ func TestUIConfigReachesThePreview(t *testing.T) {
 		t.Fatalf("level 2 keeps its default icon:\n%s", v)
 	}
 }
+
+func TestProjectKeyOpensTheFolderInTheExplorer(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "suelta", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("Alpha", "primera", "y"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("Trabajo", "cliente", "z"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	// Three recent notes take 1–3; the projects Alpha and Trabajo are 4 and 5.
+	h.keys("5")
+	v := h.view()
+	if !strings.Contains(v, "EXPLORER") || !strings.Contains(v, "cliente") || strings.Contains(v, "primera") {
+		t.Fatalf("the explorer should open with Trabajo (not Alpha) expanded:\n%s", v)
+	}
+	h.key(tea.KeyEnter) // on the folder: collapses it, proving it is the selection
+	if strings.Contains(h.view(), "cliente") {
+		t.Fatalf("Trabajo should be the selected row:\n%s", h.view())
+	}
+}

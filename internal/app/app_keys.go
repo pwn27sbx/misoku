@@ -120,8 +120,13 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		return m.runDashboardAction(a, id)
 	}
 	if len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
-		if i := int(s[0] - '1'); i < len(m.dashboard.RecentPages()) {
-			return m.openFile(m.dashboard.RecentPages()[i].ID)
+		i := int(s[0] - '1')
+		recent, projects := m.dashboard.RecentPages(), m.dashboard.Projects()
+		switch {
+		case i < len(recent):
+			return m.openFile(recent[i].ID)
+		case i-len(recent) < len(projects):
+			return m.openProject(projects[i-len(recent)].ID)
 		}
 		return nil
 	}
@@ -131,6 +136,8 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 
 func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 	switch a {
+	case dashboard.ActionOpenProject:
+		return m.openProject(id)
 	case dashboard.ActionNewPage:
 		return m.newDraft("")
 	case dashboard.ActionFind:
@@ -147,4 +154,13 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 		return m.openThemePicker()
 	}
 	return nil
+}
+
+// openProject shows a top-level folder from the home screen: the explorer
+// takes focus with that folder expanded and selected.
+func (m *Model) openProject(id string) tea.Cmd {
+	cmd := m.focusPane(focusSidebar)
+	m.sidebar.Expand(id)
+	m.sidebar.SetSelectedID(id)
+	return cmd
 }

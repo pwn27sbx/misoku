@@ -26,6 +26,7 @@ const (
 	ActionQuit
 	ActionOpenRecent
 	ActionThemes
+	ActionOpenProject
 	ActionNone
 )
 
@@ -40,6 +41,8 @@ type MenuItem struct {
 const (
 	blockWidth = 56
 	maxRecent  = 5
+	// Projects share the 1–9 keys with Recent, after it.
+	maxKeys = 9
 )
 
 // Model represents the start screen state.
@@ -50,6 +53,7 @@ type Model struct {
 	cursor      int
 	menuItems   []MenuItem
 	recentPages []core.Page
+	projects    []core.Page
 	totalNotes  int
 	workspace   string
 }
@@ -111,13 +115,33 @@ func (m *Model) SetRecentPages(pages []core.Page) {
 		recent = recent[:maxRecent]
 	}
 	m.recentPages = recent
+
+	// Projects are the top-level folders, alphabetically, like the project
+	// list of a Neovim dashboard but inside this workspace.
+	var projects []core.Page
+	for _, p := range pages {
+		if p.IsFolder && p.ParentID == "" {
+			projects = append(projects, p)
+		}
+	}
+	sort.SliceStable(projects, func(i, j int) bool {
+		return strings.ToLower(projects[i].Title) < strings.ToLower(projects[j].Title)
+	})
+	if room := maxKeys - len(recent); len(projects) > room {
+		projects = projects[:max(room, 0)]
+	}
+	m.projects = projects
 	m.cursor = min(m.cursor, m.itemCount()-1)
 }
+
+// Projects returns the folders listed under "Projects"; their keys follow
+// the recent notes' ones.
+func (m Model) Projects() []core.Page { return m.projects }
 
 // RecentPages returns the notes listed under "Recent", newest first.
 func (m Model) RecentPages() []core.Page { return m.recentPages }
 
-func (m Model) itemCount() int { return len(m.menuItems) + len(m.recentPages) }
+func (m Model) itemCount() int { return len(m.menuItems) + len(m.recentPages) + len(m.projects) }
 
 // itemAt resolves a selectable index to its action and (for recents) page ID.
 func (m Model) itemAt(i int) (Action, string) {
@@ -127,7 +151,11 @@ func (m Model) itemAt(i int) (Action, string) {
 	if i < len(m.menuItems) {
 		return m.menuItems[i].Action, ""
 	}
-	return ActionOpenRecent, m.recentPages[i-len(m.menuItems)].ID
+	i -= len(m.menuItems)
+	if i < len(m.recentPages) {
+		return ActionOpenRecent, m.recentPages[i].ID
+	}
+	return ActionOpenProject, m.projects[i-len(m.recentPages)].ID
 }
 
 // SelectedAction returns the action under the cursor (and the page ID for a
@@ -168,6 +196,9 @@ func (m Model) lines() []dashLine {
 	if recentRows > 0 {
 		recentRows += 2
 	}
+	if len(m.projects) > 0 {
+		recentRows += len(m.projects) + 2
+	}
 	needed := len(banner) + 4 + len(m.menuItems) + recentRows + 2
 	if m.height >= needed+2 {
 		bannerStyle := lipgloss.NewStyle().Foreground(th.Blue).Bold(true)
@@ -175,7 +206,7 @@ func (m Model) lines() []dashLine {
 			add(center(bannerStyle.Render(l)), -1)
 		}
 	} else {
-		add(center(lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("T S U Z U R I")), -1)
+		add(center(lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("M I S O K U")), -1)
 	}
 	add("", -1)
 	add(center(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("notes that live in plain Markdown files")), -1)
@@ -212,6 +243,16 @@ func (m Model) lines() []dashLine {
 			}
 			idx := len(m.menuItems) + i
 			add(button(idx, "", ui.Truncate(p.Title+".md", 26), sub, fmt.Sprint(i+1), th.NordBlue), idx)
+		}
+	}
+
+	if len(m.projects) > 0 {
+		add("", -1)
+		add(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("  󰉋  Projects"), -1)
+		for i, p := range m.projects {
+			idx := len(m.menuItems) + len(m.recentPages) + i
+			key := fmt.Sprint(len(m.recentPages) + i + 1)
+			add(button(idx, "󰉋", ui.Truncate(p.Title, 30), "", key, th.Yellow), idx)
 		}
 	}
 

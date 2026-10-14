@@ -178,6 +178,9 @@ func (m *Model) SetPages(pages []core.Page) {
 	m.ensureVisible()
 }
 
+// Expand opens the folder or note id in the tree.
+func (m *Model) Expand(id string) { m.expanded[id] = true }
+
 // SetSelectedID moves the cursor to id, expanding its ancestors (like
 // nvim-tree's "find file") so the row is visible.
 func (m *Model) SetSelectedID(id string) {

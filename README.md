@@ -52,6 +52,7 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 
 - **Plain Markdown files.** No database or lock-in: use git, sync the folder, open notes in any editor.
 - **A full workspace.** Start screen, file tree, tabs, statusline and 97 themes.
+- **Projects on the start screen**: the top-level folders of your notes, one key away (they follow the Recent notes on 1–9); opening one shows it expanded in the explorer.
 - **Modal keyboard editing** with mouse support, plus unsaved tabs and Save As.
 - **`/` block menu** for headings, to-dos, tables, callouts, code, images and more.
 - **Live preview** laid out like a page, with syntax highlighting, images and cover banners drawn in the terminal.
