@@ -65,6 +65,7 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
+- **Open notes stay in sync with the disk**: a note changed by another program reloads in place (the cursor stays put). If you have unsaved edits it is left alone, you are told, and saving asks before overwriting the other version.
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
 

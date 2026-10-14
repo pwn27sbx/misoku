@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -42,11 +43,13 @@ func treeSignature(pages []core.Page) string {
 	return b.String()
 }
 
-// checkWorkspace refreshes the explorer when the folder changed on disk,
+// checkWorkspace syncs open notes with the disk and refreshes the explorer
+// when the folder changed,
 // keeping the cursor on the same note even if rows above it came or went.
 // That also covers a rename in progress: it applies to the selected note,
 // which is still the same one after the refresh.
 func (m *Model) checkWorkspace() {
+	m.syncOpenBuffers()
 	pages := m.store.List()
 	if treeSignature(pages) == m.treeSig {
 		return
@@ -56,4 +59,32 @@ func (m *Model) checkWorkspace() {
 	if ok {
 		m.sidebar.SetSelectedID(selected.ID)
 	}
+}
+
+// syncOpenBuffers brings open notes up to date with the disk. A note with no
+// unsaved edits is reloaded in place, keeping the cursor; one with unsaved
+// edits is left alone and the user is told, on every check while the
+// conflict lasts, and saving it asks before overwriting (see saveBuffer).
+func (m *Model) syncOpenBuffers() {
+	for _, b := range m.buffers {
+		if b.draft() || b.isGraph() {
+			continue
+		}
+		p, err := m.store.Get(b.id)
+		if err != nil || p.Content == b.saved {
+			continue
+		}
+		if m.isDirty(b) {
+			m.setError(fmt.Sprintf("%q changed on disk; saving will ask before overwriting it", b.id))
+			continue
+		}
+		b.saved, b.text = p.Content, p.Content
+		if b.id == m.active {
+			m.content.ReplaceText(p.Content)
+			m.preview.SetPage(b.page())
+			m.refreshLinks()
+		}
+		m.setStatus(fmt.Sprintf("%q reloaded: it changed on disk", b.id))
+	}
+	m.refreshModified()
 }

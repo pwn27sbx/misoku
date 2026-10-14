@@ -253,9 +253,9 @@ func (m *Model) closeBuffer(id string, force bool) tea.Cmd {
 }
 
 // saveBuffer writes b to disk. A draft has no location yet, so Save As
-// opens first; after runs once the file is safely written.
+// opens first; a file that changed on disk since it was opened or last saved
+// asks before being overwritten. after runs once the file is safely written.
 func (m *Model) saveBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
-	text := m.liveText(b)
 	if b.isGraph() {
 		return nil
 	}
@@ -263,6 +263,27 @@ func (m *Model) saveBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		m.openSaveAs(b, after)
 		return nil
 	}
+	if disk, err := m.store.Get(b.id); err == nil && disk.Content != b.saved {
+		m.confirm = &confirmDialog{
+			title:   "Changed on disk",
+			message: []string{fmt.Sprintf("%s changed on disk since it was opened.", b.fileName()), "Overwrite it with your version?"},
+			buttons: []string{"Overwrite", "Cancel"},
+			danger:  true,
+			onChoose: func(m *Model, choice int) tea.Cmd {
+				if choice == 0 {
+					return m.writeBuffer(b, after)
+				}
+				return nil
+			},
+		}
+		return nil
+	}
+	return m.writeBuffer(b, after)
+}
+
+// writeBuffer writes b's text to its file, with no conflict check.
+func (m *Model) writeBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
+	text := m.liveText(b)
 	saved, err := m.store.Update(core.Page{ID: b.id, Title: b.title, Content: text})
 	if err != nil {
 		m.setError("Save failed: " + err.Error())
