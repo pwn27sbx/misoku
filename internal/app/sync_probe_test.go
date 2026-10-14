@@ -181,7 +181,12 @@ func TestSyncTakesOverWhenTheHolderDies(t *testing.T) {
 	if err := holder.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer holder.Process.Kill()
+	defer func() {
+		// Killed and waited before TempDir cleanup: Windows cannot delete
+		// the lock file a live process holds open.
+		holder.Process.Kill()
+		holder.Wait()
+	}()
 	buf := make([]byte, 64)
 	n, _ := out.Read(buf)
 	if !strings.Contains(string(buf[:n]), "locked") {

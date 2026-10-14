@@ -169,3 +169,11 @@ func syncSummary(msg syncDoneMsg) (string, bool) {
 
 // oneLine keeps git's multi-line messages on the single status row.
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// ReleaseSyncLock lets go of the vault's sync lock, so another Misoku window
+// can take over syncing it (S11). The window keeps no way back to it: a sync
+// asked for afterwards fails instead of running without the lock. Meant for
+// when the window is done with the vault; nothing calls it yet.
+func (m Model) ReleaseSyncLock() {
+	m.syncLock.Unlock() // safe on nil: this window never took it
+}

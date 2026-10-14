@@ -96,7 +96,11 @@ func window(t *testing.T, vault, cfgPath string, opts ...app.Option) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return newHarness(t, store, append([]app.Option{app.WithConfigPath(cfgPath)}, opts...)...)
+	h := newHarness(t, store, append([]app.Option{app.WithConfigPath(cfgPath)}, opts...)...)
+	// The vault's TempDir cleanup was registered earlier, so this runs
+	// first: Windows cannot delete the lock file while it is open.
+	t.Cleanup(func() { h.m.(app.Model).ReleaseSyncLock() })
+	return h
 }
 
 // update feeds msg to the model and returns its command without running it.
@@ -402,5 +406,20 @@ func TestSyncRequestGivesTheRealReasonWhenAnEntryWasSkipped(t *testing.T) {
 	v := h.view()
 	if !strings.Contains(v, "Sync is off") || !strings.Contains(v, skippedWarning) {
 		t.Fatalf("the request must name the skipped entry, not only say the folder is not listed:\n%s", v)
+	}
+}
+
+func TestReleasingTheSyncLockLetsAnotherWindowSync(t *testing.T) {
+	remote, vault := syncedVault(t)
+	cfg := syncConfig(t, vault)
+	first := window(t, vault, cfg)
+	first.finish(first.update(app.SyncNowMsg{}))
+	first.m.(app.Model).ReleaseSyncLock()
+
+	second := window(t, vault, cfg)
+	writeOutside(t, vault, "new.md", "fresh")
+	second.finish(second.update(app.SyncNowMsg{}))
+	if !onRemote(t, remote, "new.md") {
+		t.Fatalf("once released, another window takes the lock and syncs:\n%s", second.view())
 	}
 }
