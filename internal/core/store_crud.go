@@ -76,7 +76,7 @@ func writeText(abs, content string) error {
 	if old, err := os.ReadFile(abs); err == nil && strings.Contains(string(old), "\r\n") {
 		content = strings.ReplaceAll(content, "\n", "\r\n")
 	}
-	return os.WriteFile(abs, []byte(content), 0644)
+	return writeFileAtomic(abs, []byte(content))
 }
 
 func nextUntitled(absDir string) string {
