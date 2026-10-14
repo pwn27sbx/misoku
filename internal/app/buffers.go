@@ -1,7 +1,10 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -25,6 +28,7 @@ type buffer struct {
 	saved string // content as last written to disk ("" for drafts)
 	text  string // latest text; for the active tab, the editor is the truth
 	dir   string // drafts: default folder offered by Save As
+	gone  bool   // the file vanished from disk (deleted or renamed outside), see syncOpenBuffers
 }
 
 func (b *buffer) draft() bool { return isDraftID(b.id) }
@@ -263,6 +267,22 @@ func (m *Model) saveBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		m.openSaveAs(b, after)
 		return nil
 	}
+	if m.noteGone(b) {
+		// Writing blindly would fail, or after a rename recreate the old name
+		// next to the new one and duplicate the note: let the user choose.
+		m.confirm = &confirmDialog{
+			title:   "Not on disk",
+			message: []string{fmt.Sprintf("%s was deleted or renamed outside Misoku.", b.fileName()), "Recreate it at its old path with your version?"},
+			buttons: []string{"Recreate", "Cancel"},
+			onChoose: func(m *Model, choice int) tea.Cmd {
+				if choice == 0 {
+					return m.recreateBuffer(b, after)
+				}
+				return nil
+			},
+		}
+		return nil
+	}
 	if disk, err := m.store.Get(b.id); err == nil && disk.Content != b.saved {
 		m.confirm = &confirmDialog{
 			title:   "Changed on disk",
@@ -292,6 +312,42 @@ func (m *Model) writeBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 	}
 	b.saved, b.text = saved.Content, saved.Content
 	m.refreshGraph()
+	m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
+	m.refreshModified()
+	if after != nil {
+		return after(m)
+	}
+	return nil
+}
+
+// noteGone reports whether b's file is no longer on disk. Only a missing
+// path counts: an unreadable file is not gone, and saving it reports why.
+func (m *Model) noteGone(b *buffer) bool {
+	if b.draft() {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(m.store.Root(), filepath.FromSlash(b.id)))
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// warnGone tells the user b's note left the disk. Misoku cannot tell a
+// delete from a rename; after a rename the explorer shows the new name.
+func (m *Model) warnGone(b *buffer) {
+	m.setError(fmt.Sprintf("%q was deleted or renamed outside Misoku; saving will ask before recreating it", b.id))
+}
+
+// recreateBuffer writes b's text back at its old path after its file
+// vanished. SaveAs refuses to overwrite, so a file that reappeared meanwhile
+// is never clobbered.
+func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
+	text := m.liveText(b)
+	if _, err := m.store.SaveAs(path.Dir(b.id), path.Base(b.id), text); err != nil {
+		m.setError("Save failed: " + err.Error())
+		m.quitting = false
+		return nil
+	}
+	b.saved, b.text, b.gone = text, text, false
+	m.reloadTree()
 	m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
 	m.refreshModified()
 	if after != nil {

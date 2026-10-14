@@ -67,11 +67,23 @@ func (m *Model) checkWorkspace() {
 // unsaved edits is reloaded in place, keeping the cursor; one with unsaved
 // edits is left alone and the user is told, on every check while the
 // conflict lasts, and saving it asks before overwriting (see saveBuffer).
+// A note that is no longer on disk keeps its tab and text; the user is told
+// once, when it goes, and saving it asks before recreating it.
 func (m *Model) syncOpenBuffers() {
 	for _, b := range m.buffers {
 		if b.draft() || b.isGraph() {
 			continue
 		}
+		if m.noteGone(b) {
+			// Warn only on the change: the tab stays gone until the user acts,
+			// and repeating it every check would bury every other message.
+			if !b.gone {
+				b.gone = true
+				m.warnGone(b)
+			}
+			continue
+		}
+		b.gone = false
 		p, err := m.store.Get(b.id)
 		if err != nil || p.Content == b.saved {
 			continue
