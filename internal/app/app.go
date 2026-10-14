@@ -257,8 +257,11 @@ func (m *Model) movePane(delta int, wrap bool) tea.Cmd {
 
 // toggleSidebar is Ctrl+B: show and focus the explorer, or hide it when it
 // already has focus. Works from every editor mode.
+// toggleSidebar works like Snacks.explorer() in LazyVim: a visible explorer
+// is hidden in one press, whether it has the focus or not; a hidden one is
+// shown and focused.
 func (m *Model) toggleSidebar() tea.Cmd {
-	if m.sidebarOpen && m.focus == focusSidebar && m.viewMode == viewModeWorkspace {
+	if m.sidebarOpen && m.viewMode == viewModeWorkspace {
 		m.sidebarOpen = false
 		m.updateLayout()
 		return m.focusPane(focusEditor)

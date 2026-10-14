@@ -544,7 +544,8 @@ func TestCtrlBFocusesExplorerFromInsertMode(t *testing.T) {
 	}
 	h := newHarness(t, store)
 	h.keys("n") // draft in INSERT mode
-	h.send(tea.KeyMsg{Type: tea.KeyCtrlB})
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlB}) // explorer visible: hides it
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlB}) // hidden: shows it with the focus
 	if v := h.view(); !strings.Contains(v, "EXPLORER") || strings.Contains(v, "INSERT") {
 		t.Fatalf("expected explorer focus after Ctrl+B:\n%s", v)
 	}

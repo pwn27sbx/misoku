@@ -27,23 +27,22 @@ func openNote(t *testing.T, opts ...app.Option) *harness {
 
 func TestToggleExplorerCanMoveToALeaderKey(t *testing.T) {
 	h := openNote(t, app.WithKeys(map[string][]string{"toggle_explorer": {"space e"}}))
-	// Same as Ctrl+B by default: the first press focuses the explorer, the
-	// next one hides it, the one after shows it again.
+	// Like Snacks.explorer() in LazyVim: one press hides a visible explorer,
+	// even when it does not have the focus, the next one brings it back.
+	if !explorerVisible(h.view()) {
+		t.Fatalf("setup: explorer should start visible:\n%s", h.view())
+	}
+	h.keys(" e")
+	if explorerVisible(h.view()) {
+		t.Fatalf("one space e should hide the visible explorer:\n%s", h.view())
+	}
 	h.keys(" e")
 	if v := h.view(); !explorerVisible(v) || !strings.Contains(v, "EXPLORER") {
-		t.Fatalf("space e should focus the explorer:\n%s", v)
-	}
-	h.keys(" e")
-	if explorerVisible(h.view()) {
-		t.Fatalf("space e again should hide it:\n%s", h.view())
+		t.Fatalf("space e again should show the explorer with the focus:\n%s", v)
 	}
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlB})
-	if explorerVisible(h.view()) {
-		t.Fatalf("ctrl+b was replaced and must do nothing now:\n%s", h.view())
-	}
-	h.keys(" e")
 	if !explorerVisible(h.view()) {
-		t.Fatalf("space e should bring it back:\n%s", h.view())
+		t.Fatalf("ctrl+b was replaced and must do nothing now:\n%s", h.view())
 	}
 }
 
@@ -60,8 +59,8 @@ func TestCtrlShortcutsStillWorkWhileTyping(t *testing.T) {
 	h := openNote(t, app.WithKeys(map[string][]string{"toggle_explorer": {"ctrl+e"}}))
 	h.keys("A")
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlE})
-	if v := h.view(); !strings.Contains(v, "EXPLORER") || strings.Contains(v, "INSERT") {
-		t.Fatalf("ctrl+e should focus the explorer even from INSERT mode:\n%s", v)
+	if v := h.view(); explorerVisible(v) {
+		t.Fatalf("ctrl+e should hide the explorer even from INSERT mode:\n%s", v)
 	}
 }
 
