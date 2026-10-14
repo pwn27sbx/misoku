@@ -19,9 +19,19 @@ misoku.log
 # Release artifacts
 dist/
 
-# Release artifacts
-dist/
-
 # Local test notes
 /main.md
 /assets/
+
+# Secrets and local credentials: never commit them
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Local AI assistant settings
+.claude/
