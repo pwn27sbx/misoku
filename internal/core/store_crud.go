@@ -238,9 +238,11 @@ func (s *Store) renameFolder(p Page, abs string) (Page, error) {
 	return Page{ID: id, Title: newTitle, ParentID: parentID, IsFolder: true, UpdatedAt: modTime(abs)}, nil
 }
 
-// Delete removes a page (or folder) by ID. Deleting a page cascades to its
-// sidecar sub-pages folder, if any; deleting a folder removes everything
-// nested inside it.
+// Delete moves a page (or folder) to the Trash by ID (see moveToTrash; on a
+// system without one it is removed for good). Deleting a page takes its
+// sidecar sub-pages folder with it, if any; deleting a folder takes
+// everything nested inside it. Nothing is lost if the Trash refuses: the
+// error is returned and the files stay where they were.
 func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -252,19 +254,21 @@ func (s *Store) Delete(id string) error {
 	}
 
 	if info.IsDir() {
-		if err := os.RemoveAll(abs); err != nil {
+		if err := removePath(abs); err != nil {
 			return fmt.Errorf("failed to delete folder: %w", err)
 		}
 		return nil
 	}
 
-	if err := os.Remove(abs); err != nil {
+	if err := removePath(abs); err != nil {
 		return fmt.Errorf("failed to delete page: %w", err)
 	}
 
 	sidecar := strings.TrimSuffix(abs, mdExt)
 	if sInfo, err := os.Stat(sidecar); err == nil && sInfo.IsDir() {
-		_ = os.RemoveAll(sidecar)
+		if err := removePath(sidecar); err != nil {
+			return fmt.Errorf("deleted the page but not its sub-pages folder: %w", err)
+		}
 	}
 	return nil
 }

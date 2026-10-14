@@ -9,8 +9,18 @@ import (
 	"github.com/pwn27sbx/misoku/internal/core"
 )
 
+// realHome is the HOME the tests started with, before any t.Setenv.
+var realHome, _ = os.UserHomeDir()
+
 func newTestStore(t *testing.T) *core.Store {
 	t.Helper()
+	// Deleting moves notes to the Trash: keep the tests away from the real
+	// one. A test that already set its own HOME keeps it.
+	if h, _ := os.UserHomeDir(); h == realHome {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	}
 	store, err := core.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("unexpected error creating store: %v", err)

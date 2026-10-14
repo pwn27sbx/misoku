@@ -239,13 +239,17 @@ func (m *Model) confirmDelete(id string) {
 		m.setError("Not found: " + id)
 		return
 	}
-	msg := []string{"The file is removed from disk. This cannot be undone."}
+	what := "The file is"
 	if p.IsFolder {
-		msg = []string{"The folder and everything inside it are removed from disk.", "This cannot be undone."}
+		what = "The folder and everything inside it are"
 	} else if sidecar := strings.TrimSuffix(id, ".md"); sidecar != id {
 		if info, err := os.Stat(filepath.Join(m.store.Root(), filepath.FromSlash(sidecar))); err == nil && info.IsDir() {
-			msg = []string{"The note and all of its sub-notes are removed from disk.", "This cannot be undone."}
+			what = "The note and all of its sub-notes are"
 		}
+	}
+	msg := []string{what + " moved to the Trash.", "You can restore it from there."}
+	if !core.HasTrash() {
+		msg = []string{what + " removed from disk.", "This cannot be undone."}
 	}
 	m.confirm = &confirmDialog{
 		title:   "Delete " + id + "?",

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -122,5 +123,26 @@ func TestReloadKeepsTheCursorLine(t *testing.T) {
 	h.send(app.CheckWorkspaceMsg{})
 	if v := h.view(); !strings.Contains(v, "four") || !strings.Contains(v, "Ln 3") {
 		t.Fatalf("reload should keep the cursor on line 3:\n%s", v)
+	}
+}
+
+func TestDeleteDialogSaysTheNoteGoesToTheTrash(t *testing.T) {
+	if !core.HasTrash() {
+		t.Skip("deleting is permanent on this system")
+	}
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "Doomed", "x"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("e")
+	h.keys("d")
+	v := h.view()
+	if !strings.Contains(v, "moved to the Trash") || strings.Contains(v, "cannot be undone") {
+		t.Fatalf("the dialog should say the note goes to the Trash:\n%s", v)
+	}
+	h.key(tea.KeyEnter)
+	if len(store.List()) != 0 {
+		t.Fatalf("the note should leave the workspace, got %v", store.List())
 	}
 }
