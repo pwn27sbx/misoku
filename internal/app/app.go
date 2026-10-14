@@ -10,6 +10,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
 	"github.com/pwn27sbx/misoku/internal/graph"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
@@ -36,7 +37,7 @@ const (
 type Model struct {
 	store    *core.Store
 	theme    theme.Theme
-	keys     KeyMap
+	keys     keymap.Map
 	focus    focus
 	viewMode viewMode
 
@@ -128,7 +129,7 @@ func New(store *core.Store, opts ...Option) Model {
 	m := Model{
 		store:       store,
 		theme:       th,
-		keys:        DefaultKeyMap(),
+		keys:        defaultKeys(),
 		focus:       focusSidebar,
 		viewMode:    viewModeDashboard,
 		sidebarOpen: true,

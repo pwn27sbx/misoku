@@ -69,6 +69,78 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
 
+## Shortcuts
+
+Every shortcut can be changed in `config.json` (`~/.config/misoku/config.json`,
+`~/Library/Application Support/misoku/config.json` on macOS), in a `keys`
+section. Listing an action replaces all of its keys; an empty list turns it
+off:
+
+```json
+{
+  "keys": {
+    "toggle_explorer": ["space e"],
+    "focus_explorer": [],
+    "close_tab": ["space q", "ctrl+w"]
+  }
+}
+```
+
+Write keys the way the terminal names them (`ctrl+b`, `tab`, `shift+tab`,
+`G`, `\\`), or as a leader sequence: `space e` is Space, then `e`. Ctrl and
+Alt shortcuts of `quit`, `save`, `new_note`, `find_note` and
+`toggle_explorer` also work while typing; every other shortcut only works
+outside INSERT mode, so it never gets in the way of your text. The `?` help
+lists the keys you configured. A misspelled action, a malformed key, or a key
+given to two actions is reported in the status bar when Misoku starts.
+
+Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
+
+**General**
+
+| Action | Default keys | What it does |
+| --- | --- | --- |
+| `new_note` | `ctrl+n`, `space n` | New note (unsaved tab) |
+| `save` | `ctrl+s`, `space w` | Save (new notes: pick folder) |
+| `find_note` | `ctrl+p`, `\`, `space f` | Find note (opens in this tab) |
+| `toggle_explorer` | `ctrl+b` | Toggle explorer |
+| `focus_explorer` | `space e` | Focus explorer |
+| `next_pane` | `tab` | Next pane |
+| `prev_pane` | `shift+tab` | Previous pane |
+| `pane_left` | `ctrl+h` | Pane to the left |
+| `pane_right` | `ctrl+l` | Pane to the right |
+| `next_tab` | `]`, `space tab` | Next tab |
+| `prev_tab` | `[`, `space shift+tab` | Previous tab |
+| `close_tab` | `space x` | Close tab |
+| `toggle_preview` | `space p` | Toggle preview |
+| `themes` | `space t` | Themes |
+| `graph` | `space g` | Graph of this note's links |
+| `home` | `space d` | Home screen |
+| `help` | `?`, `space h`, `space ?` | This help |
+| `quit` | `ctrl+c` | Quit (asks to save) |
+
+**Explorer** (only while the explorer has focus)
+
+| Action | Default keys | What it does |
+| --- | --- | --- |
+| `explorer.up` | `up`, `k` | Move up |
+| `explorer.down` | `down`, `j` | Move down |
+| `explorer.top` | `g`, `home` | First item |
+| `explorer.bottom` | `G`, `end` | Last item |
+| `explorer.page_down` | `ctrl+d`, `pgdown` | Half page down |
+| `explorer.page_up` | `ctrl+u`, `pgup` | Half page up |
+| `explorer.open` | `enter` | Open note / expand |
+| `explorer.preview` | `o` | Preview note (folder: open) |
+| `explorer.expand` | `l`, `right` | Expand / open |
+| `explorer.collapse` | `h`, `left` | Collapse / go to parent |
+| `explorer.toggle_fold` | `z`, `space`, `tab` | Fold / unfold |
+| `explorer.collapse_all` | `W` | Collapse all |
+| `explorer.new_note` | `n`, `%` | New note in this folder |
+| `explorer.new_sub_note` | `a` | New sub-note |
+| `explorer.rename` | `r`, `e` | Rename |
+| `explorer.delete` | `d`, `x`, `delete` | Delete (asks first) |
+| `explorer.find` | `\`, `f` | Find note |
+
 ## Links
 
 Type `[[` to link to another note. Click a link in the preview, or press

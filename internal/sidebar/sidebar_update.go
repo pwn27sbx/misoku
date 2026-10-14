@@ -1,6 +1,7 @@
 package sidebar
 
 import (
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
@@ -52,31 +53,37 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		curr = items[m.cursor]
 	}
 
-	switch key.String() {
-	case "\\", "f":
+	k := key.String()
+	is := func(action string) bool { return m.keys.Direct(action, k) }
+	switch {
+	case is(keymap.ExplorerFind):
 		return m, findCmd
 
-	case "up", "k":
+	case is(keymap.ExplorerUp):
 		m.cursor--
-	case "down", "j":
+	case is(keymap.ExplorerDown):
 		m.cursor++
-	case "g", "home":
+	case is(keymap.ExplorerTop):
 		m.cursor = 0
-	case "G", "end":
+	case is(keymap.ExplorerBottom):
 		m.cursor = len(items) - 1
-	case "ctrl+d", "pgdown":
+	case is(keymap.ExplorerPageDown):
 		m.cursor += m.treeHeight() / 2
-	case "ctrl+u", "pgup":
+	case is(keymap.ExplorerPageUp):
 		m.cursor -= m.treeHeight() / 2
 
-	case "enter", "o":
+	case is(keymap.ExplorerOpen):
 		if hasCurr {
-			if key.String() == "o" && !curr.Page.IsFolder {
+			return m, m.activate(curr)
+		}
+	case is(keymap.ExplorerPreview):
+		if hasCurr {
+			if !curr.Page.IsFolder {
 				return m, selectCmd(curr.Page.ID)
 			}
 			return m, m.activate(curr)
 		}
-	case "l", "right":
+	case is(keymap.ExplorerExpand):
 		if hasCurr {
 			if curr.HasChildren && !curr.Expanded {
 				m.expanded[curr.Page.ID] = true
@@ -84,7 +91,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, selectCmd(curr.Page.ID)
 			}
 		}
-	case "h", "left":
+	case is(keymap.ExplorerCollapse):
 		if hasCurr {
 			if curr.HasChildren && curr.Expanded {
 				m.expanded[curr.Page.ID] = false
@@ -98,32 +105,31 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 		}
-	case "z", " ", "space", "tab":
+	case is(keymap.ExplorerToggleFold):
 		if hasCurr && curr.HasChildren {
 			m.expanded[curr.Page.ID] = !curr.Expanded
 		}
-	case "W":
+	case is(keymap.ExplorerCollapseAll):
 		m.expanded = map[string]bool{}
 
-	case "r", "e":
+	case is(keymap.ExplorerRename):
 		return m, m.StartRenaming()
-	case "n", "%":
+	case is(keymap.ExplorerNewNote):
 		parent := m.ContextParentID()
 		return m, func() tea.Msg { return core.PageCreatedMsg{Page: core.Page{ParentID: parent}} }
-	case "a":
+	case is(keymap.ExplorerNewSubNote):
 		if hasCurr {
 			parentID := curr.Page.ID
 			m.expanded[parentID] = true
 			return m, func() tea.Msg { return core.PageCreatedMsg{Page: core.Page{ParentID: parentID}} }
 		}
 		return m, func() tea.Msg { return core.PageCreatedMsg{} }
-	case "d", "x", "delete":
+	case is(keymap.ExplorerDelete):
 		if hasCurr {
 			id := curr.Page.ID
 			return m, func() tea.Msg { return core.PageDeletedMsg{ID: id} }
 		}
 	}
-
 	m.ensureVisible()
 	return m, nil
 }

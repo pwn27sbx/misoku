@@ -16,6 +16,10 @@ type Config struct {
 	// either a directory containing *.json palettes or a single .json
 	// palette file. Empty means the default OS config themes directory.
 	ThemesDir string `json:"themes_dir,omitempty"`
+	// Keys replaces the shortcuts of the listed actions, for example
+	// {"toggle_explorer": ["space e"]}. An empty list unbinds the action.
+	// See internal/keymap for the actions and their defaults.
+	Keys map[string][]string `json:"keys,omitempty"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

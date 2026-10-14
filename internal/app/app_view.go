@@ -87,7 +87,7 @@ func (m Model) View() string {
 			screen = ui.Overlay(screen, box, l.EditorX+x, l.BodyY+y)
 		}
 	case m.showKeymap:
-		box := RenderKeymapModal(m.theme, m.width, m.height)
+		box := RenderKeymapModal(m.theme, m.keys, m.width, m.height)
 		x, y := ui.Center(m.width, m.height, lipgloss.Width(box), lipgloss.Height(box))
 		screen = ui.Overlay(screen, box, x, y)
 	}

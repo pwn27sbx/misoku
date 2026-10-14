@@ -97,7 +97,7 @@ func main() {
 
 	log.Printf("Starting Misoku (workspace: %s)\n", store.Root())
 
-	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath))
+	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys))
 
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
 	if _, err := p.Run(); err != nil {

@@ -1,24 +1,86 @@
 package app
 
-import "github.com/charmbracelet/bubbles/key"
+import (
+	"strings"
 
-// KeyMap defines application-wide global keyboard shortcuts. These work in
-// every editor mode, VSCode-style.
-type KeyMap struct {
-	Quit          key.Binding
-	Save          key.Binding
-	NewPage       key.Binding
-	Find          key.Binding
-	ToggleSidebar key.Binding
+	"github.com/pwn27sbx/misoku/internal/keymap"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// WithKeys applies the "keys" section of config.json: each listed action gets
+// exactly those shortcuts. Mistakes are skipped and shown in the status bar.
+func WithKeys(user map[string][]string) Option {
+	return func(m *Model) {
+		km, warnings := keymap.New(user)
+		m.keys = km
+		m.sidebar.SetKeys(km)
+		if len(warnings) > 0 {
+			m.setError(strings.Join(warnings, "; "))
+		}
+	}
 }
 
-// DefaultKeyMap returns the default keybindings for Misoku.
-func DefaultKeyMap() KeyMap {
-	return KeyMap{
-		Quit:          key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")),
-		Save:          key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "save")),
-		NewPage:       key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "new note")),
-		Find:          key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("ctrl+p", "find note")),
-		ToggleSidebar: key.NewBinding(key.WithKeys("ctrl+b"), key.WithHelp("ctrl+b", "toggle explorer")),
+// generalActions are dispatched by the app outside the explorer's own keys,
+// in this order.
+var generalActions = []string{
+	keymap.Quit, keymap.Save, keymap.NewNote, keymap.FindNote,
+	keymap.ToggleExplorer, keymap.FocusExplorer,
+	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
+	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview,
+	keymap.Themes, keymap.Graph, keymap.Home, keymap.Help,
+}
+
+// globalActions also fire while typing (INSERT mode, renaming), but only
+// through Ctrl or Alt shortcuts, which never insert text.
+var globalActions = []string{keymap.Quit, keymap.Save, keymap.NewNote, keymap.ToggleExplorer, keymap.FindNote}
+
+// runAction performs one general action.
+func (m *Model) runAction(action string) tea.Cmd {
+	switch action {
+	case keymap.Quit:
+		return m.requestQuit(false)
+	case keymap.Save:
+		if b := m.activeBuffer(); b != nil {
+			return m.saveBuffer(b, nil)
+		}
+	case keymap.NewNote:
+		return m.newDraft(m.sidebar.ContextParentID())
+	case keymap.FindNote:
+		return m.startFind()
+	case keymap.ToggleExplorer:
+		return m.toggleSidebar()
+	case keymap.FocusExplorer:
+		return m.focusPane(focusSidebar)
+	case keymap.NextPane:
+		return m.movePane(1, true)
+	case keymap.PrevPane:
+		return m.movePane(-1, true)
+	case keymap.PaneLeft:
+		return m.movePane(-1, false)
+	case keymap.PaneRight:
+		return m.movePane(1, false)
+	case keymap.NextTab:
+		return m.cycleBuffer(1)
+	case keymap.PrevTab:
+		return m.cycleBuffer(-1)
+	case keymap.CloseTab:
+		return m.closeBuffer(m.active, false)
+	case keymap.TogglePreview:
+		return m.togglePreview()
+	case keymap.Themes:
+		return m.openThemePicker()
+	case keymap.Graph:
+		return m.openGraph()
+	case keymap.Home:
+		m.goHome()
+	case keymap.Help:
+		m.showKeymap = true
 	}
+	return nil
+}
+
+func defaultKeys() keymap.Map {
+	km, _ := keymap.New(nil)
+	return km
 }

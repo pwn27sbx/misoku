@@ -71,3 +71,37 @@ func TestSaveToBadPath(t *testing.T) {
 		t.Skip("OS accepted this path")
 	}
 }
+
+func TestKeysAreReadAndSurviveASave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := `{"theme": "onedark", "keys": {"toggle_explorer": ["space e"], "close_tab": []}}`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Keys["toggle_explorer"]; len(got) != 1 || got[0] != "space e" {
+		t.Fatalf("keys not read: %v", cfg.Keys)
+	}
+	if got, ok := cfg.Keys["close_tab"]; !ok || len(got) != 0 {
+		t.Fatalf("an empty list must be kept (it unbinds the action): %v", cfg.Keys)
+	}
+
+	// The theme picker loads, changes the theme and saves: keys must survive.
+	cfg.Theme = "nord"
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	again, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Theme != "nord" || len(again.Keys["toggle_explorer"]) != 1 {
+		t.Fatalf("saving the theme lost the keys: %+v", again)
+	}
+	if _, ok := again.Keys["close_tab"]; !ok {
+		t.Fatalf("saving dropped the unbound action: %+v", again.Keys)
+	}
+}

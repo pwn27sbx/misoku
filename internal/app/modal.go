@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -14,79 +15,94 @@ type keymapSection struct {
 	keys  [][2]string
 }
 
-var keymapSections = [][]keymapSection{
-	{
-		{"󰕭 GENERAL", [][2]string{
-			{"Ctrl+N", "New note (unsaved tab)"},
-			{"Ctrl+S", "Save (new notes: pick folder)"},
-			{"\\ / Ctrl+P", "Find note (opens in this tab)"},
-			{"Ctrl+B", "Toggle explorer"},
-			{"Tab", "Next pane"},
-			{"SPC Tab", "Next tab (SPC S-Tab: previous)"},
-			{"[ / ]", "Previous / next tab"},
-			{"SPC x", "Close tab"},
-			{"SPC p", "Toggle preview"},
-			{"SPC t", "Themes"},
-			{"SPC g", "Graph of this note's links"},
-			{"SPC d", "Home screen"},
-			{"Ctrl+C", "Quit (asks to save)"},
-		}},
-		{"󰙅 EXPLORER", [][2]string{
-			{"j / k", "Move"},
-			{"Enter / l", "Open note / expand"},
-			{"h", "Collapse / go to parent"},
-			{"n", "New note in this folder"},
-			{"a", "New sub-note"},
-			{"r", "Rename"},
-			{"d", "Delete (asks first)"},
-			{"\\", "Find note"},
-		}},
-	},
-	{
-		{" EDITOR · NORMAL", [][2]string{
-			{"i a A I", "Insert mode"},
-			{"Tab/S-Tab", "Indent / outdent (insert)"},
-			{"o / O", "New line below / above"},
-			{"h j k l", "Move"},
-			{"w / b", "Next / previous word"},
-			{"0 / $", "Line start / end"},
-			{"gg / G", "Top / bottom"},
-			{"Ctrl+D/U", "Half page down / up"},
-			{"x / dd", "Delete char / line"},
-			{"yy / p", "Copy line / paste"},
-			{"v / V", "Select, then y copy, d cut"},
-			{"/ (insert)", "Block menu: headings, lists…"},
-			{"[[ (insert)", "Link to a note"},
-			{"gd / gx", "Follow the link under the cursor"},
-		}},
-		{" COMMANDS", [][2]string{
-			{":w", "Save"},
-			{":w name", "Save as name.md"},
-			{":wq / :x", "Save and quit"},
-			{":q / :q!", "Quit / discard"},
-			{":bd", "Close tab"},
-			{":enew", "New note"},
-			{":colo name", "Switch theme"},
-			{":export [file]", "Export note as PDF"},
-			{":addrow/:addcol", "Table row / column"},
-		}},
-		{"󰍽 MOUSE", [][2]string{
-			{"Click", "Tabs, tree, cursor"},
-			{"Wheel", "Scroll any pane"},
-			{"< / > / T", "Calendar month (preview)"},
-			{"zM / zR", "Fold / unfold all (preview)"},
-		}},
-	},
+// helpGeneral and helpExplorer pick the configurable actions shown in the
+// help, in order; their keys come from the active keymap (config "keys").
+var helpGeneral = []string{
+	keymap.NewNote, keymap.Save, keymap.FindNote, keymap.ToggleExplorer,
+	keymap.FocusExplorer, keymap.NextPane, keymap.NextTab, keymap.PrevTab,
+	keymap.CloseTab, keymap.TogglePreview, keymap.Themes, keymap.Graph,
+	keymap.Home, keymap.Quit,
+}
+
+var helpExplorer = []string{
+	keymap.ExplorerDown, keymap.ExplorerUp, keymap.ExplorerOpen,
+	keymap.ExplorerCollapse, keymap.ExplorerNewNote, keymap.ExplorerNewSubNote,
+	keymap.ExplorerRename, keymap.ExplorerDelete, keymap.ExplorerFind,
+}
+
+// editorHelp is the fixed half of the help: Vim editing is not configurable.
+var editorHelp = []keymapSection{
+	{" EDITOR · NORMAL", [][2]string{
+		{"i a A I", "Insert mode"},
+		{"Tab/S-Tab", "Indent / outdent (insert)"},
+		{"o / O", "New line below / above"},
+		{"h j k l", "Move"},
+		{"w / b", "Next / previous word"},
+		{"0 / $", "Line start / end"},
+		{"gg / G", "Top / bottom"},
+		{"Ctrl+D/U", "Half page down / up"},
+		{"x / dd", "Delete char / line"},
+		{"yy / p", "Copy line / paste"},
+		{"v / V", "Select, then y copy, d cut"},
+		{"/ (insert)", "Block menu: headings, lists…"},
+		{"[[ (insert)", "Link to a note"},
+		{"gd / gx", "Follow the link under the cursor"},
+	}},
+	{" COMMANDS", [][2]string{
+		{":w", "Save"},
+		{":w name", "Save as name.md"},
+		{":wq / :x", "Save and quit"},
+		{":q / :q!", "Quit / discard"},
+		{":bd", "Close tab"},
+		{":enew", "New note"},
+		{":colo name", "Switch theme"},
+		{":export [file]", "Export note as PDF"},
+		{":addrow/:addcol", "Table row / column"},
+	}},
+	{"󰍽 MOUSE", [][2]string{
+		{"Click", "Tabs, tree, cursor"},
+		{"Wheel", "Scroll any pane"},
+		{"< / > / T", "Calendar month (preview)"},
+		{"zM / zR", "Fold / unfold all (preview)"},
+	}},
+}
+
+func keymapSections(km keymap.Map) [][]keymapSection {
+	section := func(title string, actions []string) keymapSection {
+		s := keymapSection{title: title}
+		for _, a := range actions {
+			if label := km.Label(a); label != "" {
+				s.keys = append(s.keys, [2]string{label, keymap.HelpText(a)})
+			}
+		}
+		return s
+	}
+	return [][]keymapSection{
+		{section("󰕭 GENERAL", helpGeneral), section("󰙅 EXPLORER", helpExplorer)},
+		editorHelp,
+	}
 }
 
 // RenderKeymapModal renders the cheatsheet panel (without positioning).
-func RenderKeymapModal(th theme.Theme, termWidth, termHeight int) string {
+func RenderKeymapModal(th theme.Theme, km keymap.Map, termWidth, termHeight int) string {
 	colW := 40
 	twoCols := termWidth >= colW*2+8
 	bg := lipgloss.NewStyle().Background(th.DarkerBg)
 	keyStyle := bg.Foreground(th.Blue).Bold(true)
 	descStyle := bg.Foreground(th.Fg)
 	headStyle := bg.Foreground(th.Purple).Bold(true)
+
+	sections := keymapSections(km)
+	// The key column fits the longest label, up to half the column.
+	keyW := 11
+	for _, col := range sections {
+		for _, sec := range col {
+			for _, k := range sec.keys {
+				keyW = max(keyW, lipgloss.Width(k[0]))
+			}
+		}
+	}
+	keyW = min(keyW, colW/2)
 
 	column := func(sections []keymapSection) []string {
 		var rows []string
@@ -96,15 +112,15 @@ func RenderKeymapModal(th theme.Theme, termWidth, termHeight int) string {
 			}
 			rows = append(rows, headStyle.Render(" "+s.title))
 			for _, k := range s.keys {
-				key := keyStyle.Render(" " + padRight(k[0], 11))
-				rows = append(rows, ui.FitLine(key+descStyle.Render(ui.Truncate(k[1], colW-13)), colW, bg))
+				key := keyStyle.Render(" " + padRight(ui.Truncate(k[0], keyW), keyW))
+				rows = append(rows, ui.FitLine(key+descStyle.Render(ui.Truncate(k[1], colW-keyW-2)), colW, bg))
 			}
 		}
 		return rows
 	}
 
-	left := column(keymapSections[0])
-	right := column(keymapSections[1])
+	left := column(sections[0])
+	right := column(sections[1])
 	var body []string
 	if twoCols {
 		n := max(len(left), len(right))

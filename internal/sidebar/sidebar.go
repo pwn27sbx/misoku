@@ -3,6 +3,7 @@ package sidebar
 
 import (
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -42,6 +43,7 @@ type Model struct {
 	workspace   string
 	activeID    string
 	modified    map[string]bool
+	keys        keymap.Map
 	width       int
 	height      int
 }
@@ -59,6 +61,7 @@ func New(th theme.Theme) Model {
 		expanded:    map[string]bool{},
 		modified:    map[string]bool{},
 		renameInput: ti,
+		keys:        defaultKeys(),
 		workspace:   "workspace",
 	}
 }
@@ -155,6 +158,14 @@ func (m *Model) ensureVisible() {
 	}
 	n := len(m.VisibleItems())
 	m.offset = max(0, min(m.offset, max(0, n-h)))
+}
+
+// SetKeys sets the explorer shortcuts (the explorer.* actions).
+func (m *Model) SetKeys(km keymap.Map) { m.keys = km }
+
+func defaultKeys() keymap.Map {
+	km, _ := keymap.New(nil)
+	return km
 }
 
 // SetPages updates the list of pages and clamps the selection cursor.

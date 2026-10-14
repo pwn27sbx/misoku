@@ -3,8 +3,8 @@ package app
 import (
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 
-	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -13,7 +13,7 @@ import (
 
 func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	s := k.String()
-	if key.Matches(k, m.keys.Quit) {
+	if m.keys.DirectModified(keymap.Quit, s) {
 		return m.requestQuit(false)
 	}
 	if m.viewMode == viewModeDashboard {
@@ -23,51 +23,37 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	sidebarBusy := m.focus == focusSidebar && m.sidebar.IsBusy()
 	editorBusy := m.focus == focusEditor && m.content.Mode() != content.ModeNormal && !m.graphActive()
 
-	// VSCode-style shortcuts work in every mode.
-	switch {
-	case key.Matches(k, m.keys.Save):
-		if b := m.activeBuffer(); b != nil {
-			return m.saveBuffer(b, nil)
+	// Ctrl/Alt shortcuts of the global actions work in every mode.
+	for _, a := range globalActions {
+		if m.keys.DirectModified(a, s) {
+			if a == keymap.NewNote && sidebarBusy {
+				break
+			}
+			return m.runAction(a)
 		}
-		return nil
-	case key.Matches(k, m.keys.NewPage) && !sidebarBusy:
-		return m.newDraft(m.sidebar.ContextParentID())
-	case key.Matches(k, m.keys.ToggleSidebar):
-		return m.toggleSidebar()
-	case key.Matches(k, m.keys.Find):
-		return m.startFind()
 	}
 
 	if !sidebarBusy && !editorBusy {
 		if m.leaderPending {
 			m.leaderPending = false
-			return m.handleLeader(s)
+			for _, a := range generalActions {
+				if m.keys.Leader(a, s) {
+					return m.runAction(a)
+				}
+			}
+			return nil
 		}
-		switch s {
-		case " ":
+		if m.keys.IsLeader(s) {
 			m.leaderPending = true
 			return nil
-		case "?":
-			m.showKeymap = true
-			return nil
-		case "tab":
-			return m.movePane(1, true)
-		case "shift+tab":
-			return m.movePane(-1, true)
-		case "ctrl+h":
-			return m.movePane(-1, false)
-		case "ctrl+l":
-			return m.movePane(1, false)
-		case "\\":
-			return m.openFinder()
-		case "[":
-			return m.cycleBuffer(-1)
-		case "]":
-			return m.cycleBuffer(1)
-		case "esc":
-			if m.focus != focusEditor && m.activeBuffer() != nil {
-				return m.focusPane(focusEditor)
+		}
+		for _, a := range generalActions {
+			if m.keys.Direct(a, s) {
+				return m.runAction(a)
 			}
+		}
+		if s == "esc" && m.focus != focusEditor && m.activeBuffer() != nil {
+			return m.focusPane(focusEditor)
 		}
 	}
 	m.leaderPending = false
@@ -98,47 +84,22 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
-// handleLeader runs NvChad-style <Space> mappings.
-func (m *Model) handleLeader(s string) tea.Cmd {
-	switch s {
-	case "e":
-		return m.focusPane(focusSidebar)
-	case "f":
-		return m.startFind()
-	case "n":
-		return m.newDraft(m.sidebar.ContextParentID())
-	case "x":
-		return m.closeBuffer(m.active, false)
-	case "p":
-		return m.togglePreview()
-	case "tab":
-		return m.cycleBuffer(1)
-	case "shift+tab":
-		return m.cycleBuffer(-1)
-	case "t":
-		return m.openThemePicker()
-	case "g":
-		return m.openGraph()
-	case "d":
-		m.goHome()
-	case "h", "?":
-		m.showKeymap = true
-	case "w":
-		if b := m.activeBuffer(); b != nil {
-			return m.saveBuffer(b, nil)
-		}
-	}
-	return nil
-}
-
 func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	s := k.String()
-	switch s {
-	case "n", "ctrl+n":
+	switch {
+	case m.keys.DirectModified(keymap.NewNote, s):
 		return m.newDraft("")
-	case "f", "\\", "ctrl+p":
+	case m.keys.DirectModified(keymap.FindNote, s):
 		return m.startFind()
-	case "e", "ctrl+b":
+	case m.keys.DirectModified(keymap.ToggleExplorer, s):
+		return m.focusPane(focusSidebar)
+	}
+	switch s {
+	case "n":
+		return m.newDraft("")
+	case "f", "\\":
+		return m.startFind()
+	case "e":
 		return m.focusPane(focusSidebar)
 	case "?":
 		m.showKeymap = true
