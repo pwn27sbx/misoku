@@ -54,13 +54,19 @@ type Model struct {
 	workspace   string
 }
 
+// banner is MISOKU in the figlet "Bloody" font, the same as the LazyVim
+// dashboard header. Every row has the same width so centring keeps the
+// letters aligned.
 var banner = []string{
-	`████████╗███████╗██╗   ██╗███████╗██╗   ██╗██████╗ ██╗`,
-	`╚══██╔══╝██╔════╝██║   ██║╚══███╔╝██║   ██║██╔══██╗██║`,
-	`   ██║   ███████╗██║   ██║  ███╔╝ ██║   ██║██████╔╝██║`,
-	`   ██║   ╚════██║██║   ██║ ███╔╝  ██║   ██║██╔══██╗██║`,
-	`   ██║   ███████║╚██████╔╝███████╗╚██████╔╝██║  ██║██║`,
-	`   ╚═╝   ╚══════╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝`,
+	` ███▄ ▄███▓ ██▓  ██████  ▒█████   ██ ▄█▀ █    ██ `,
+	`▓██▒▀█▀ ██▒▓██▒▒██    ▒ ▒██▒  ██▒ ██▄█▒  ██  ▓██▒`,
+	`▓██    ▓██░▒██▒░ ▓██▄   ▒██░  ██▒▓███▄░ ▓██  ▒██░`,
+	`▒██    ▒██ ░██░  ▒   ██▒▒██   ██░▓██ █▄ ▓▓█  ░██░`,
+	`▒██▒   ░██▒░██░▒██████▒▒░ ████▓▒░▒██▒ █▄▒▒█████▓ `,
+	`░ ▒░   ░  ░░▓  ▒ ▒▓▒ ▒ ░░ ▒░▒░▒░ ▒ ▒▒ ▓▒░▒▓▒ ▒ ▒ `,
+	`░  ░      ░ ▒ ░░ ░▒  ░ ░  ░ ▒ ▒░ ░ ░▒ ▒░░░▒░ ░ ░ `,
+	`░      ░    ▒ ░░  ░  ░  ░ ░ ░ ▒  ░ ░░ ░  ░░░ ░ ░ `,
+	`       ░    ░        ░      ░ ░  ░  ░      ░     `,
 }
 
 // New constructs a Dashboard model.
@@ -172,7 +178,7 @@ func (m Model) lines() []dashLine {
 		add(center(lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("T S U Z U R I")), -1)
 	}
 	add("", -1)
-	add(center(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("綴り · notes that live in plain Markdown files")), -1)
+	add(center(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("notes that live in plain Markdown files")), -1)
 	add("", -1)
 
 	button := func(idx int, icon, label, sub, key string, iconColor lipgloss.Color) string {
