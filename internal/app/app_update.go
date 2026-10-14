@@ -19,6 +19,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case CheckWorkspaceMsg:
 		m.checkWorkspace()
 		return m, checkWorkspaceLater()
+	case SyncNowMsg, core.SyncMsg:
+		return m, m.requestSync()
+	case syncDoneMsg:
+		m.finishSync(msg)
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.updateLayout()

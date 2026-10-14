@@ -1,6 +1,7 @@
 package gitsync_test
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,5 +71,28 @@ func TestLockIsFreedWhenTheHolderDies(t *testing.T) {
 			t.Fatalf("the lock was not released after the holder died (err=%v)", err)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// One lock per vault, kept inside its git folder: two windows on the same
+// vault meet on the same file, and the lock never shows up as a note to
+// commit.
+func TestLockVaultIsOnePerVaultAndInsideGit(t *testing.T) {
+	isolate(t)
+	dir := readyVault(t)
+	r := gitsync.New(dir, 10*time.Second)
+	first, ok, err := gitsync.LockVault(context.Background(), r)
+	if err != nil || !ok {
+		t.Fatalf("first window: ok=%v err=%v", ok, err)
+	}
+	defer first.Unlock()
+	if _, ok, err := gitsync.LockVault(context.Background(), gitsync.New(dir, 10*time.Second)); ok || err != nil {
+		t.Fatalf("a second window must see the vault locked: ok=%v err=%v", ok, err)
+	}
+	if changes, err := r.Status(context.Background()); err != nil || len(changes) != 0 {
+		t.Fatalf("the lock must not be a change in the vault: %v %v", changes, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "misoku-sync.lock")); err != nil {
+		t.Fatalf("the lock lives in the git folder: %v", err)
 	}
 }

@@ -21,7 +21,7 @@ var helpGeneral = []string{
 	keymap.NewNote, keymap.Save, keymap.FindNote, keymap.ToggleExplorer,
 	keymap.FocusExplorer, keymap.NextPane, keymap.NextTab, keymap.PrevTab,
 	keymap.CloseTab, keymap.TogglePreview, keymap.ExportPDF, keymap.Themes, keymap.Graph,
-	keymap.Home, keymap.Quit,
+	keymap.Home, keymap.SyncNow, keymap.Quit,
 }
 
 var helpExplorer = []string{
@@ -57,6 +57,7 @@ var editorHelp = []keymapSection{
 		{":enew", "New note"},
 		{":colo name", "Switch theme"},
 		{":export [file]", "Export note as PDF"},
+		{":sync", "Sync the vault with git"},
 		{":addrow/:addcol", "Table row / column"},
 	}},
 	{"󰍽 MOUSE", [][2]string{

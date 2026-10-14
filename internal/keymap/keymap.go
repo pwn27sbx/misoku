@@ -32,6 +32,7 @@ const (
 	Themes         = "themes"
 	Graph          = "graph"
 	Home           = "home"
+	SyncNow        = "sync_now"
 	Help           = "help"
 
 	ExplorerFind        = "explorer.find"
@@ -84,6 +85,7 @@ var Actions = []Info{
 	{Themes, "general", "Themes", []string{"space t"}},
 	{Graph, "general", "Graph of this note's links", []string{"space g"}},
 	{Home, "general", "Home screen", []string{"space d"}},
+	{SyncNow, "general", "Sync the vault with git now", []string{"space s"}},
 	{Help, "general", "This help", []string{"?", "space h", "space ?"}},
 	{Quit, "general", "Quit (asks to save)", []string{"ctrl+c"}},
 

@@ -66,6 +66,8 @@ func parseVimCommand(cmdStr, content string) any {
 		return core.ExportMsg{Path: arg}
 	case "graph":
 		return core.GraphMsg{}
+	case "sync":
+		return core.SyncMsg{}
 	case "colorscheme", "colo", "theme":
 		return core.ThemeMsg{Name: arg}
 	case "enew", "new", "e", "edit":

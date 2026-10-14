@@ -88,3 +88,6 @@ type FollowLinkMsg struct {
 	Line string
 	Col  int
 }
+
+// SyncMsg asks the app to sync the vault now (":sync").
+type SyncMsg struct{}

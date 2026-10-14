@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
+	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/graph"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
@@ -94,6 +96,11 @@ type Model struct {
 
 	graphNotes []core.Page // the workspace's notes and links, from disk
 	graphEdges []core.Edge
+
+	syncVault *config.Vault // this folder's sync.vaults entry; nil = sync off
+	syncOff   string        // why sync is off, shown when the user asks for one
+	syncLock  *gitsync.Lock // held for the whole session once taken (S11)
+	syncing   bool          // a sync command is running
 }
 
 // Option customises the app at construction.
@@ -119,7 +126,8 @@ func WithOpener(open func(string) error) Option {
 	return func(m *Model) { m.openURL = open }
 }
 
-// WithConfigPath saves theme changes to the given config file.
+// WithConfigPath saves theme changes to the given config file, and reads
+// its "sync" section to decide whether this folder syncs.
 func WithConfigPath(path string) Option {
 	return func(m *Model) { m.configPath = path }
 }
@@ -149,6 +157,7 @@ func New(store *core.Store, opts ...Option) Model {
 	for _, opt := range opts {
 		opt(&m)
 	}
+	m.setupSync()
 	m.themeStamp = theme.UserThemesStamp()
 	return m
 }
@@ -162,7 +171,7 @@ func tildePath(p string) string {
 
 // Init initializes child component commands.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.content.Init(), checkWorkspaceLater())
+	return tea.Batch(m.content.Init(), checkWorkspaceLater(), m.syncOnOpen())
 }
 
 func (m *Model) layout() Layout {
