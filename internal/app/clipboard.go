@@ -53,7 +53,7 @@ func (m *Model) renderToast(screen string) string {
 	}
 	th := m.theme
 	box := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(ui.Border()).
 		BorderForeground(th.Green).
 		BorderBackground(th.DarkerBg).
 		Background(th.DarkerBg).

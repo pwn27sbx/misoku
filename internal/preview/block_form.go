@@ -2,6 +2,7 @@ package preview
 
 import (
 	"fmt"
+	"github.com/pwn27sbx/misoku/internal/ui"
 	"strconv"
 	"strings"
 
@@ -78,12 +79,12 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 	out = append(out, "")
 
 	card := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(ui.Border()).
 		BorderForeground(th.Line).
 		Width(w-2).
 		Padding(0, 1)
 	input := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(ui.Border()).
 		BorderForeground(th.OneBg3).
 		Width(w - 6)
 

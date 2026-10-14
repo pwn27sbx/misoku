@@ -75,6 +75,8 @@ type Model struct {
 	notes          []core.Page        // every note, for resolving [[links]]
 	treeSig        string             // shape of the tree last read, see checkWorkspace
 	savedOnQuit    map[*buffer]bool   // tabs Save All already wrote, see continueSaveAll
+	modeIcon       string             // config ui.mode_icon: one icon for every mode
+	modifiedMark   string             // config ui.modified_mark: before a dirty tab name
 
 	toast    string
 	toastSeq int

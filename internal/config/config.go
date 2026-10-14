@@ -41,6 +41,15 @@ type UI struct {
 		// Todo marks "- [-]" as in progress; empty leaves "[-]" as text.
 		Todo string `json:"todo,omitempty"`
 	} `json:"checkbox,omitzero"`
+	// ModeIcon replaces the per-mode icon of the statusline with one icon
+	// for every mode, like lualine ("󱗞").
+	ModeIcon string `json:"mode_icon,omitempty"`
+	// Border is the frame of dialogs, menus and preview blocks: "rounded"
+	// (default) or "single".
+	Border string `json:"border,omitempty"`
+	// ModifiedMark goes before the tab name of a note with unsaved changes,
+	// like incline's "[+]".
+	ModifiedMark string `json:"modified_mark,omitempty"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

@@ -153,7 +153,10 @@ with render-markdown:
     "heading_icons": ["① ", "② ", "③ ", "④ ", "⑤ ", "⑥ "],
     "heading_background": true,
     "bullets": ["●", "○", "◆", "◇"],
-    "checkbox": { "unchecked": "󰄱", "checked": "󰱒", "todo": "󰥔" }
+    "checkbox": { "unchecked": "󰄱", "checked": "󰱒", "todo": "󰥔" },
+    "mode_icon": "󱗞",
+    "border": "single",
+    "modified_mark": "[+]"
   }
 }
 ```
@@ -165,6 +168,9 @@ with render-markdown:
 | `bullets` | List bullets by depth, cycling |
 | `checkbox.unchecked`, `checkbox.checked` | Marks for `- [ ]` and `- [x]` |
 | `checkbox.todo` | Mark for `- [-]` (in progress). Without it, `[-]` stays plain text |
+| `mode_icon` | One icon for every mode in the statusline, like lualine (`"󱗞"`) |
+| `border` | Frame of dialogs, menus and preview blocks: `rounded` (default) or `single` |
+| `modified_mark` | Shown before the tab name of a note with unsaved changes, like incline (`"[+]"`) |
 
 ## Links
 

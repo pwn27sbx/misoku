@@ -2,6 +2,7 @@ package preview
 
 import (
 	"fmt"
+	"github.com/pwn27sbx/misoku/internal/ui"
 	"regexp"
 	"sort"
 	"strings"
@@ -65,7 +66,7 @@ func newStyles(th theme.Theme) styles {
 		calloutBr: lipgloss.NewStyle().Foreground(th.Blue),
 		bullet:    lipgloss.NewStyle().Foreground(th.Blue),
 		codeBox: lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
+			BorderStyle(ui.Border()).
 			BorderForeground(th.Line).
 			Foreground(th.Fg).
 			Padding(0, 1),

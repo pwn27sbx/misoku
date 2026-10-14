@@ -80,7 +80,7 @@ func renderBoard(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 		lines := []string{pill + count}
 		perCol[i].hits = append(perCol[i].hits, Hit{Row: 0, H: 1, X1: colW, Kind: "board:col", Line: c.line, Index: i, Arg: c.name})
 		card := lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
+			BorderStyle(ui.Border()).
 			BorderForeground(th.Line).
 			Foreground(th.Fg).
 			Width(colW-2).

@@ -17,7 +17,7 @@ func panel(th theme.Theme, rows []string, inner int) string {
 		rows[i] = ui.FitLine(r, inner, bg)
 	}
 	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(ui.Border()).
 		BorderForeground(th.Blue).
 		BorderBackground(th.DarkerBg).
 		Render(strings.Join(rows, "\n"))

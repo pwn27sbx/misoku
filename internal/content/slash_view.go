@@ -103,7 +103,7 @@ func (m Model) SlashView() (string, int, int, bool) {
 		lines = append(lines, left+base.Render(strings.Repeat(" ", max(gap, 1)))+right)
 	}
 	box := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(ui.Border()).
 		BorderForeground(th.Line).
 		BorderBackground(th.DarkerBg).
 		Render(strings.Join(lines, "\n"))

@@ -48,6 +48,9 @@ func (m *Model) renderTab(b *buffer) (string, int) {
 	}
 	if m.isDirty(b) {
 		closeGlyph, closeFg = "●", th.Green
+		if m.modifiedMark != "" {
+			name = m.modifiedMark + " " + name
+		}
 	}
 
 	left := base.Foreground(iconFg).Render("  ") + base.Foreground(fg).Bold(active).Render(name)
@@ -157,6 +160,16 @@ func (m *Model) tabAt(x int) tabSpan {
 // Statusline (NvChad "default" style) and command line.
 
 func (m *Model) modeBlock() (string, lipgloss.Color) {
+	label, color := m.modeLabel()
+	if m.modeIcon != "" {
+		// " 󰙅 EXPLORER " → " 󱗞 EXPLORER ": same icon for every mode.
+		f := strings.Fields(label)
+		label = " " + m.modeIcon + " " + f[len(f)-1] + " "
+	}
+	return label, color
+}
+
+func (m *Model) modeLabel() (string, lipgloss.Color) {
 	th := m.theme
 	switch {
 	case m.viewMode == viewModeDashboard:

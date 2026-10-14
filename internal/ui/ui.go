@@ -145,3 +145,23 @@ func Paint(screen string, paint lipgloss.Style) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// border frames dialogs, menus and preview blocks (config ui.border).
+var border = lipgloss.RoundedBorder()
+
+// Border returns the frame style in use.
+func Border() lipgloss.Border { return border }
+
+// SetBorder chooses the frame style by name: "rounded" (default) or
+// "single". It reports false for an unknown name and keeps the current one.
+func SetBorder(name string) bool {
+	switch name {
+	case "rounded":
+		border = lipgloss.RoundedBorder()
+	case "single":
+		border = lipgloss.NormalBorder()
+	default:
+		return false
+	}
+	return true
+}
