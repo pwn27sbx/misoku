@@ -72,6 +72,7 @@ type Model struct {
 	writeClipboard func(string) error
 	openURL        func(string) error // opens links outside Misoku; nil = system opener
 	notes          []core.Page        // every note, for resolving [[links]]
+	treeSig        string             // shape of the tree last read, see checkWorkspace
 
 	toast    string
 	toastSeq int
@@ -155,7 +156,7 @@ func tildePath(p string) string {
 
 // Init initializes child component commands.
 func (m Model) Init() tea.Cmd {
-	return m.content.Init()
+	return tea.Batch(m.content.Init(), checkWorkspaceLater())
 }
 
 func (m *Model) layout() Layout {
@@ -176,7 +177,11 @@ func (m *Model) updateLayout() {
 }
 
 func (m *Model) reloadTree() {
-	pages := m.store.List()
+	m.applyTree(m.store.List())
+}
+
+func (m *Model) applyTree(pages []core.Page) {
+	m.treeSig = treeSignature(pages)
 	m.sidebar.SetPages(pages)
 	m.dashboard.SetRecentPages(pages)
 	m.notes = nil

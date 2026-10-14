@@ -16,6 +16,9 @@ import (
 // Update routes events down and handles events emitted up from child components.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case CheckWorkspaceMsg:
+		m.checkWorkspace()
+		return m, checkWorkspaceLater()
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.updateLayout()

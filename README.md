@@ -64,6 +64,7 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 - **2, 3 and 4 column layouts** from the `/` menu.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Fast search** across file names and note contents.
+- **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
 
