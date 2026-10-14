@@ -33,5 +33,6 @@ dist/
 id_rsa*
 id_ed25519*
 
-# Local AI assistant settings
+# Local AI assistant settings and generated registries (they hold local paths)
 .claude/
+.atl/
