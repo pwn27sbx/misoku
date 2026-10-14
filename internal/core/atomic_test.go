@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -33,7 +34,9 @@ func TestUpdateReplacesTheFileInOneStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(old) != "old version, complete" {
+	// Windows cannot replace a file that is open elsewhere: the save falls
+	// back to writing in place, so only the success and the result count.
+	if runtime.GOOS != "windows" && string(old) != "old version, complete" {
 		t.Fatalf("the file was rewritten in place; an open reader saw %q", old)
 	}
 	if got, _ := os.ReadFile(abs); string(got) != "new version" {
@@ -48,6 +51,9 @@ func TestUpdateReplacesTheFileInOneStep(t *testing.T) {
 }
 
 func TestUpdateKeepsTheFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix permission bits")
+	}
 	store := newTestStore(t)
 	if _, err := store.SaveAs("", "private", "x"); err != nil {
 		t.Fatal(err)

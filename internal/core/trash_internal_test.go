@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"testing"
 )
@@ -10,6 +11,9 @@ import (
 // crossDevice makes every rename fail the way it does between two volumes.
 func crossDevice(t *testing.T) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("deleting is permanent on Windows: there is no Trash to move to")
+	}
 	orig := renameFile
 	renameFile = func(from, to string) error {
 		return &os.LinkError{Op: "rename", Old: from, New: to, Err: syscall.EXDEV}
