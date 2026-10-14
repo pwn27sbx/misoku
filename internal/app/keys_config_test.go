@@ -1,6 +1,8 @@
 package app_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -155,5 +157,55 @@ func TestProjectKeyOpensTheFolderInTheExplorer(t *testing.T) {
 	h.key(tea.KeyEnter) // on the folder: collapses it, proving it is the selection
 	if strings.Contains(h.view(), "cliente") {
 		t.Fatalf("Trabajo should be the selected row:\n%s", h.view())
+	}
+}
+
+func pdfExists(t *testing.T, root string) bool {
+	t.Helper()
+	_, err := os.Stat(filepath.Join(root, "doc.pdf"))
+	return err == nil
+}
+
+func TestExportPDFHasALeaderShortcut(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "# Title\n\nbody"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	h.keys(" P")
+	if !pdfExists(t, store.Root()) {
+		t.Fatalf("space P should export doc.pdf next to the note:\n%s", h.view())
+	}
+}
+
+func TestExportPDFCanTakeSpacePWithPreviewMoved(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "# Title\n\nbody"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store, app.WithKeys(map[string][]string{
+		"export_pdf":     {"space p"},
+		"toggle_preview": {"space v"},
+	}))
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	if v := h.view(); strings.Contains(v, "bound to both") {
+		t.Fatalf("this config must not clash:\n%s", v)
+	}
+	before := h.view()
+	h.keys(" p")
+	if !pdfExists(t, store.Root()) {
+		t.Fatal("space p should export the PDF")
+	}
+	if !strings.Contains(h.view(), "Title") || h.view() == "" {
+		t.Fatal("exporting must not close the note")
+	}
+	_ = before
+	withPreview := strings.Count(h.view(), "Title")
+	h.keys(" v")
+	if strings.Count(h.view(), "Title") >= withPreview {
+		t.Fatalf("space v should now hide the preview:\n%s", h.view())
 	}
 }

@@ -134,6 +134,7 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `prev_tab` | `[`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
 | `toggle_preview` | `space p` | Toggle preview |
+| `export_pdf` | `space P` | Export note as PDF (same as `:export`) |
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |
 | `home` | `space d` | Home screen |

@@ -18,6 +18,7 @@ func TestDefaultsAreTodaysShortcuts(t *testing.T) {
 		keymap.Save:           {"ctrl+s", "space w"},
 		keymap.CloseTab:       {"space x"},
 		keymap.ExplorerDelete: {"d", "x", "delete"},
+		keymap.ExportPDF:      {"space P"},
 	}
 	for action, want := range cases {
 		if got := m.Keys(action); !reflect.DeepEqual(got, want) {
