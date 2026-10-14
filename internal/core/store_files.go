@@ -51,7 +51,7 @@ func (s *Store) ChildDir(parentID string) string {
 }
 
 // NormalizeNotePath cleans a user-supplied relative note path and forces the
-// ".md" extension (Tsuzuri only ever writes Markdown). It rejects absolute
+// ".md" extension (Misoku only ever writes Markdown). It rejects absolute
 // paths, hidden segments and anything that would escape the workspace.
 func NormalizeNotePath(dir, name string) (string, error) {
 	name = strings.TrimSpace(name)

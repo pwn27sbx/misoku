@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/app"
+	"github.com/pwn27sbx/misoku/internal/app"
 )
 
 func TestCalculateLayoutSplit(t *testing.T) {

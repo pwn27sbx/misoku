@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/export"
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/export"
+	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

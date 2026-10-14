@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/app"
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -432,11 +432,11 @@ func TestLongFileLoadsCompletely(t *testing.T) {
 func TestKeymapModalAndSmallScreens(t *testing.T) {
 	h := newHarness(t, newTestStore(t))
 	h.keys("?")
-	if v := h.view(); !strings.Contains(v, "TSUZURI KEYMAPS") {
+	if v := h.view(); !strings.Contains(v, "MISOKU KEYMAPS") {
 		t.Fatalf("expected keymap modal:\n%s", v)
 	}
 	h.key(tea.KeyEsc)
-	if v := h.view(); strings.Contains(v, "TSUZURI KEYMAPS") {
+	if v := h.view(); strings.Contains(v, "MISOKU KEYMAPS") {
 		t.Fatal("modal should close on Esc")
 	}
 
@@ -682,7 +682,7 @@ func TestSlashImageUsesFileBrowserAndCopiesIntoAssets(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // Windows
-	t.Setenv("TSUZURI_NATIVE_PICKER", "0")
+	t.Setenv("MISOKU_NATIVE_PICKER", "0")
 	dl := filepath.Join(home, "Downloads")
 	if err := os.MkdirAll(filepath.Join(dl, "trips"), 0o755); err != nil {
 		t.Fatal(err)
@@ -779,7 +779,7 @@ func TestSlashCoverSetsFrontMatter(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // Windows
-	t.Setenv("TSUZURI_NATIVE_PICKER", "0")
+	t.Setenv("MISOKU_NATIVE_PICKER", "0")
 	_ = os.MkdirAll(filepath.Join(home, "Downloads"), 0o755)
 	if err := os.WriteFile(filepath.Join(home, "Downloads", "gcp.png"), []byte("png"), 0o644); err != nil {
 		t.Fatal(err)

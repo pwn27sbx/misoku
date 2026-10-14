@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/highlight"
-	"github.com/jaisuriya-11/tsuzuri/internal/ui"
+	"github.com/pwn27sbx/misoku/internal/highlight"
+	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"

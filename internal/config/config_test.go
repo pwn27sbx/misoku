@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/config"
+	"github.com/pwn27sbx/misoku/internal/config"
 )
 
 func TestLoadSaveRoundTrip(t *testing.T) {

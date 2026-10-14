@@ -12,7 +12,7 @@ type KeyMap struct {
 	ToggleSidebar key.Binding
 }
 
-// DefaultKeyMap returns the default keybindings for Tsuzuri.
+// DefaultKeyMap returns the default keybindings for Misoku.
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		Quit:          key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")),

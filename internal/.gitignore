@@ -1,7 +1,7 @@
 # Compiled binary
 /bin/
-/tsuzuri
-tsuzuri.exe
+/misoku
+misoku.exe
 
 # Go test/build artifacts
 *.test

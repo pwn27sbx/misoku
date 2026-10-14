@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/content"
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/content"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

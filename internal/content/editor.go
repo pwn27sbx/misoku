@@ -5,9 +5,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/textarea"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/textarea"
+	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 // VimMode represents the operational mode of the editor.

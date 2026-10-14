@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 func TestCompiler(t *testing.T) {
@@ -94,7 +94,7 @@ func TestCompilerRegressions(t *testing.T) {
   <a href="https://x/ci"><img src="https://x/badge.svg" alt="CI"></a>
 </p>
 
-**Tsuzuri** (綴り — *spelling*) is a notebook. See [Bubble Tea](https://github.com/charmbracelet/bubbletea) and more words to force wrapping across several lines of output.
+**Misoku** (綴り — *spelling*) is a notebook. See [Bubble Tea](https://github.com/charmbracelet/bubbletea) and more words to force wrapping across several lines of output.
 
 | Key | Action |
 | :-- | :-- |
@@ -111,7 +111,7 @@ func TestCompilerRegressions(t *testing.T) {
 			t.Errorf("expected %q to be rendered, not shown raw:\n%s", bad, plain)
 		}
 	}
-	for _, want := range []string{"Tsuzuri", "spelling", "Bubble Tea", "CI", "New note", "┌"} {
+	for _, want := range []string{"Misoku", "spelling", "Bubble Tea", "CI", "New note", "┌"} {
 		if !strings.Contains(plain, want) {
 			t.Errorf("missing %q in:\n%s", want, plain)
 		}

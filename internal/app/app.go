@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/content"
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/dashboard"
-	"github.com/jaisuriya-11/tsuzuri/internal/graph"
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
-	"github.com/jaisuriya-11/tsuzuri/internal/sidebar"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/content"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/dashboard"
+	"github.com/pwn27sbx/misoku/internal/graph"
+	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/sidebar"
+	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -70,7 +70,7 @@ type Model struct {
 	statusErr bool
 
 	writeClipboard func(string) error
-	openURL        func(string) error // opens links outside Tsuzuri; nil = system opener
+	openURL        func(string) error // opens links outside Misoku; nil = system opener
 	notes          []core.Page        // every note, for resolving [[links]]
 
 	toast    string

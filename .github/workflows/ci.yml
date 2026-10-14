@@ -37,10 +37,10 @@ jobs:
         run: go test ./...
 
       - name: Build
-        run: go build ./cmd/tsuzuri
+        run: go build ./cmd/misoku
 
   # Build the Nix flake so a stale vendorHash or version fails here, not for
-  # users running `nix run github:jaisuriya-11/tsuzuri`.
+  # users running `nix run github:pwn27sbx/misoku`.
   nix:
     name: Nix build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -69,7 +69,7 @@ jobs:
 
       - name: Run
         if: steps.flake.outputs.present == 'true'
-        run: ./result/bin/tsuzuri --version
+        run: ./result/bin/misoku --version
 
   # Build the full release locally and install it on every platform the
   # installers and packages target.
@@ -157,8 +157,8 @@ jobs:
             try { Invoke-WebRequest 'http://127.0.0.1:8765/checksums.txt' -UseBasicParsing -TimeoutSec 2 | Out-Null; $up = $true; break } catch { Start-Sleep -Seconds 1 }
           }
           if (-not $up) { throw 'test server did not start' }
-          $env:TSUZURI_BASE_URL = 'http://127.0.0.1:8765'
-          $env:TSUZURI_INSTALL_DIR = "$PWD\bin"
+          $env:MISOKU_BASE_URL = 'http://127.0.0.1:8765'
+          $env:MISOKU_INSTALL_DIR = "$PWD\bin"
           ./install.ps1
-          & "$PWD\bin\tsuzuri.exe" --version
+          & "$PWD\bin\misoku.exe" --version
           Stop-Process $server

@@ -31,10 +31,10 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/sfnt"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/highlight"
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/highlight"
+	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 // Page layout, in millimetres and points.
@@ -116,7 +116,7 @@ func newDoc(opts Options, th theme.Theme) *doc {
 	p.SetMargins(margin, margin, margin)
 	p.SetAutoPageBreak(true, margin)
 	p.SetCellMargin(0)
-	p.SetCreator("Tsuzuri", true)
+	p.SetCreator("Misoku", true)
 	if opts.Title != "" {
 		p.SetTitle(opts.Title, true)
 	}

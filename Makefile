@@ -6,13 +6,13 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 all: fmt vet test build
 
 build:
-	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/tsuzuri ./cmd/tsuzuri
+	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/misoku ./cmd/misoku
 
 install:
-	go install -trimpath -ldflags "$(LDFLAGS)" ./cmd/tsuzuri
+	go install -trimpath -ldflags "$(LDFLAGS)" ./cmd/misoku
 
 run:
-	go run ./cmd/tsuzuri
+	go run ./cmd/misoku
 
 test:
 	go test ./...

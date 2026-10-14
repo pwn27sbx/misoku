@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/highlight"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/highlight"
+	"github.com/pwn27sbx/misoku/internal/theme"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"

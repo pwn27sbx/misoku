@@ -1,4 +1,4 @@
-// Command tsuzuri is the entry point for the Tsuzuri terminal notebook application.
+// Command misoku is the entry point for the Misoku terminal notebook application.
 package main
 
 import (
@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/app"
-	"github.com/jaisuriya-11/tsuzuri/internal/config"
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/export"
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/export"
+	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -35,8 +35,8 @@ func main() {
 		showVer    bool
 		listThemes bool
 	)
-	flag.StringVar(&dir, "dir", "", "workspace directory to open (defaults to $TSUZURI_WORKSPACE, then the current directory)")
-	flag.BoolVar(&showVer, "version", false, "print the Tsuzuri version and exit")
+	flag.StringVar(&dir, "dir", "", "workspace directory to open (defaults to $MISOKU_WORKSPACE, then the current directory)")
+	flag.BoolVar(&showVer, "version", false, "print the Misoku version and exit")
 	flag.StringVar(&themeName, "theme", "", "colour theme for this session (see --list-themes)")
 	flag.StringVar(&themesDir, "themes-dir", "", "directory or .json file with custom themes (overrides config themes_dir)")
 	flag.BoolVar(&listThemes, "list-themes", false, "list the available colour themes and exit")
@@ -59,7 +59,7 @@ func main() {
 	}
 
 	if showVer {
-		fmt.Printf("tsuzuri %s\n", version)
+		fmt.Printf("misoku %s\n", version)
 		return
 	}
 	if listThemes {
@@ -74,7 +74,7 @@ func main() {
 	}
 	if themeName != "" {
 		if _, ok := theme.Get(themeName); !ok {
-			fmt.Fprintf(os.Stderr, "Unknown theme %q (run tsuzuri --list-themes)\n", themeName)
+			fmt.Fprintf(os.Stderr, "Unknown theme %q (run misoku --list-themes)\n", themeName)
 			os.Exit(2)
 		}
 	}
@@ -95,27 +95,27 @@ func main() {
 	}
 	defer f.Close()
 
-	log.Printf("Starting Tsuzuri (workspace: %s)\n", store.Root())
+	log.Printf("Starting Misoku (workspace: %s)\n", store.Root())
 
 	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath))
 
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
 	if _, err := p.Run(); err != nil {
 		log.Printf("Fatal error running program: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Error running Tsuzuri application: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error running Misoku application: %v\n", err)
 		os.Exit(1)
 	}
 
-	log.Println("Tsuzuri exited cleanly.")
+	log.Println("Misoku exited cleanly.")
 }
 
 // resolveWorkspace picks the notes directory to open: an explicit --dir flag
-// wins, then $TSUZURI_WORKSPACE, falling back to the current directory.
+// wins, then $MISOKU_WORKSPACE, falling back to the current directory.
 func resolveWorkspace(flagDir string) string {
 	if flagDir != "" {
 		return flagDir
 	}
-	if envDir := os.Getenv("TSUZURI_WORKSPACE"); envDir != "" {
+	if envDir := os.Getenv("MISOKU_WORKSPACE"); envDir != "" {
 		return envDir
 	}
 	cwd, err := os.Getwd()
@@ -130,21 +130,21 @@ func resolveWorkspace(flagDir string) string {
 func logFilePath() string {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		return "tsuzuri.log"
+		return "misoku.log"
 	}
-	dir := filepath.Join(cacheDir, "tsuzuri")
+	dir := filepath.Join(cacheDir, "misoku")
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "tsuzuri.log"
+		return "misoku.log"
 	}
-	return filepath.Join(dir, "tsuzuri.log")
+	return filepath.Join(dir, "misoku.log")
 }
 
-// runExport handles "tsuzuri export note.md [-o out.pdf]".
+// runExport handles "misoku export note.md [-o out.pdf]".
 func runExport(args []string) int {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
 	out := fs.String("o", "", "output file or folder (defaults to the note's name with .pdf, next to it)")
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "Usage: tsuzuri export <note.md> [-o out.pdf]")
+		fmt.Fprintln(fs.Output(), "Usage: misoku export <note.md> [-o out.pdf]")
 		fs.PrintDefaults()
 	}
 	// Allow the flag after the note as well as before it.

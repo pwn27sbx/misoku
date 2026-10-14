@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/app"
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
+	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"

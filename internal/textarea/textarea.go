@@ -1,5 +1,5 @@
 // Vendored from github.com/charmbracelet/bubbles v1.0.0 (MIT, Copyright (c)
-// 2020-2025 Charmbracelet, Inc). Local changes are marked "tsuzuri:" and
+// 2020-2025 Charmbracelet, Inc). Local changes are marked "misoku:" and
 // live mostly in extra.go: no line limit, wider gutter, view scrolling and
 // click-to-position helpers that the upstream API does not expose.
 
@@ -32,7 +32,7 @@ const (
 	defaultHeight    = 6
 	defaultWidth     = 40
 	defaultCharLimit = 0 // no limit
-	defaultMaxHeight = 0 // tsuzuri: no line limit (99 truncated long files)
+	defaultMaxHeight = 0 // misoku: no line limit (99 truncated long files)
 	defaultMaxWidth  = 500
 
 	// XXX: in v2, make max lines dynamic and default max lines configurable.
@@ -240,10 +240,10 @@ type Model struct {
 	MaxHeight int
 
 	// LineColors optionally gives each rune of each line a foreground colour
-	// (syntax highlighting). tsuzuri addition.
+	// (syntax highlighting). misoku addition.
 	LineColors [][]lipgloss.Color
 
-	// SelectionStyle paints selected text (tsuzuri addition).
+	// SelectionStyle paints selected text (misoku addition).
 	SelectionStyle lipgloss.Style
 	selecting      bool
 	// SelectLinewise extends the selection to whole lines (Vim's V).
@@ -921,7 +921,7 @@ func (m *Model) SetWidth(w int) {
 
 	// Add line number width to reserved inner width.
 	if m.ShowLineNumbers {
-		const lnWidth = 6 // tsuzuri: up to 4 digits plus margins.
+		const lnWidth = 6 // misoku: up to 4 digits plus margins.
 		reservedInner += lnWidth
 	}
 
@@ -1131,7 +1131,7 @@ func (m Model) View() string {
 			style = m.style.computedText()
 		}
 
-		segStart := 0 // tsuzuri: rune offset of this wrapped segment in the line
+		segStart := 0 // misoku: rune offset of this wrapped segment in the line
 		for wl, wrappedLine := range wrappedLines {
 			off := segStart
 			segStart += len(wrappedLine)
@@ -1181,7 +1181,7 @@ func (m Model) View() string {
 				padding -= m.width - strwidth
 			}
 			if m.row == l && lineInfo.RowOffset == wl {
-				// tsuzuri: the cursor may sit just past a segment whose
+				// misoku: the cursor may sit just past a segment whose
 				// trailing space was trimmed above (wide CJK runes); clamp.
 				co := min(lineInfo.ColumnOffset, len(wrappedLine))
 				s.WriteString(m.paint(style, l, off, wrappedLine[:co]))
@@ -1227,7 +1227,7 @@ func (m Model) View() string {
 func (m Model) formatLineNumber(x any) string {
 	// XXX: ultimately we should use a max buffer height, which has yet to be
 	// implemented.
-	digits := 4 // tsuzuri: fixed gutter, see SetWidth
+	digits := 4 // misoku: fixed gutter, see SetWidth
 	return fmt.Sprintf(" %*v ", digits, x)
 }
 

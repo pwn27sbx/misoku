@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/textarea"
+	"github.com/pwn27sbx/misoku/internal/textarea"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

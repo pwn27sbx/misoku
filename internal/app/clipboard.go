@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/ui"
+	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"

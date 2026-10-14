@@ -1,53 +1,33 @@
 <div align="center">
 
-# Tsuzuri
+# Misoku
 
-### ~ 綴り • Terminal Markdown Notebook ~
+### ~ Terminal Markdown Notebook ~
 
 A block-based notebook for your terminal.
 Your notes stay plain Markdown files.
 
 <p>
-  <a href="https://github.com/jaisuriya-11/tsuzuri/actions/workflows/ci.yml"><img src="https://github.com/jaisuriya-11/tsuzuri/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/jaisuriya-11/tsuzuri/releases/latest"><img src="https://img.shields.io/github/v/release/jaisuriya-11/tsuzuri" alt="Release"></a>
+  <a href="https://github.com/pwn27sbx/misoku/actions/workflows/ci.yml"><img src="https://github.com/pwn27sbx/misoku/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/pwn27sbx/misoku/releases/latest"><img src="https://img.shields.io/github/v/release/pwn27sbx/misoku" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
-
-
-
-
-https://github.com/user-attachments/assets/edccf6de-940e-43ad-a4c2-cf73a77d7a37
-
 
 </div>
 
 ## Installation & Update
 
-**macOS and Linux**
+There are no release binaries yet. Build it from source with Go:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jaisuriya-11/tsuzuri/main/install.sh | sh
+git clone https://github.com/pwn27sbx/misoku
+cd misoku
+go build -o ~/.local/bin/misoku ./cmd/misoku
 ```
 
-Using [Homebrew](https://brew.sh/):
-```sh
-brew install tsuzuri
-```
+To update, `git pull` and run the same `go build`.
 
-**Windows** (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/jaisuriya-11/tsuzuri/main/install.ps1 | iex
-```
-
-**Manual download:** grab `tsuzuri-macos.tar.gz`, `tsuzuri-linux.tar.gz` or
-`tsuzuri-windows.zip` from the
-[latest release](https://github.com/jaisuriya-11/tsuzuri/releases/latest) and put
-`tsuzuri` on your `PATH`.
-
-**Go:** `go install github.com/jaisuriya-11/tsuzuri/cmd/tsuzuri@latest`
-
-Tsuzuri is a single binary with no dependencies. It runs on macOS (Intel and
+Misoku is a single binary with no dependencies. It runs on macOS (Intel and
 Apple Silicon), Windows 10/11 and any x86-64 Linux distribution. On other
 CPUs (e.g. Raspberry Pi), install with Go.
 A [Nerd Font](https://www.nerdfonts.com/) is recommended for icons.
@@ -56,17 +36,17 @@ A [Nerd Font](https://www.nerdfonts.com/) is recommended for icons.
 
 ```sh
 cd ~/notes        # any folder; your .md files show up in the explorer
-tsuzuri
+misoku
 ```
 
 Press `?` inside the app to see every shortcut.
 
 ```sh
-tsuzuri --dir ~/notes          # open a specific folder
-tsuzuri --theme <name>         # pick a theme for this session
-tsuzuri --list-themes
-tsuzuri --themes-dir <path>    # custom themes folder or single .json file
-tsuzuri export note.md         # write note.pdf next to the note (-o to pick the file)
+misoku --dir ~/notes          # open a specific folder
+misoku --theme <name>         # pick a theme for this session
+misoku --list-themes
+misoku --themes-dir <path>    # custom themes folder or single .json file
+misoku export note.md         # write note.pdf next to the note (-o to pick the file)
 ```
 
 ## Features
@@ -168,8 +148,8 @@ The preview shows `x = (−b ± √(b² − 4ac))/(2a)` and `E = mc²`. Greek le
 In the editor, `:export` writes the open note as a PDF next to it. `:export ~/Desktop/` or `:export report.pdf` picks another place. From the shell:
 
 ```sh
-tsuzuri export notes/plan.md               # notes/plan.pdf
-tsuzuri export notes/plan.md -o plan.pdf
+misoku export notes/plan.md               # notes/plan.pdf
+misoku export notes/plan.md -o plan.pdf
 ```
 
 The PDF is a printable A4 document with headings, lists, tables, syntax-highlighted code, equations and images. Boards, calendars, timelines, charts and flowcharts print in colour as they look in the preview.
@@ -192,18 +172,18 @@ Columns stack on narrow screens.
 
 Drop a JSON palette into the themes folder in your user config directory:
 
-- **Linux:** `~/.config/tsuzuri/themes/<name>.json`
-- **macOS:** `~/Library/Application Support/tsuzuri/themes/<name>.json`
-- **Windows:** `%APPDATA%\tsuzuri\themes\<name>.json`
+- **Linux:** `~/.config/misoku/themes/<name>.json`
+- **macOS:** `~/Library/Application Support/misoku/themes/<name>.json`
+- **Windows:** `%APPDATA%\misoku\themes\<name>.json`
 
 User themes appear automatically in the live theme picker (`Space` `t`) and in `--list-themes`. Bundled themes take precedence on a name collision.
 
 To use themes from a different folder (or a single palette file), set `themes_dir` in your config:
 
 - **config.json:** `{"theme": "onedark", "themes_dir": "~/my-themes"}` — a directory of `*.json` palettes, or one `.json` file
-- **flag:** `tsuzuri --themes-dir ~/my-themes` (overrides the config value)
+- **flag:** `misoku --themes-dir ~/my-themes` (overrides the config value)
 
-Example `~/.config/tsuzuri/themes/minimal.json`:
+Example `~/.config/misoku/themes/minimal.json`:
 
 ```json
 {
@@ -221,12 +201,12 @@ Example `~/.config/tsuzuri/themes/minimal.json`:
 Your notes are never touched. Remove the binary the way you installed it:
 
 ```sh
-rm -f /usr/local/bin/tsuzuri ~/.local/bin/tsuzuri   # macOS / Linux
+rm -f /usr/local/bin/misoku ~/.local/bin/misoku   # macOS / Linux
 ```
 
-On Windows, delete `%LOCALAPPDATA%\Programs\tsuzuri` and remove it from your
-`PATH`. Settings are in `~/.config/tsuzuri` (macOS: `~/Library/Application Support/tsuzuri`,
-Windows: `%APPDATA%\tsuzuri`).
+On Windows, delete `%LOCALAPPDATA%\Programs\misoku` and remove it from your
+`PATH`. Settings are in `~/.config/misoku` (macOS: `~/Library/Application Support/misoku`,
+Windows: `%APPDATA%\misoku`).
 
 ## Contributing
 

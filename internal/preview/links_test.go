@@ -6,9 +6,9 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 func testNotes(notes map[string]string) preview.NoteLookup {

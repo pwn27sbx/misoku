@@ -1,6 +1,6 @@
 # Binary outputs
 bin/
-/tsuzuri
+/misoku
 *.exe
 *.exe~
 *.dll
@@ -8,7 +8,7 @@ bin/
 *.dylib
 
 # Runtime log files
-tsuzuri.log
+misoku.log
 *.log
 
 # IDE & OS files

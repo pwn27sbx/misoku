@@ -9,8 +9,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 const everything = "---\nicon: x\n---\n# Title\n\nText with **bold**, *italic*, `code`, ~~gone~~ and [a link](https://example.com).\n\n" +

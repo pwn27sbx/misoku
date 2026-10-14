@@ -108,7 +108,7 @@ func defaultUserThemesPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "tsuzuri", "themes")
+	return filepath.Join(dir, "misoku", "themes")
 }
 
 // SetUserThemesPath points the theme registry at a user-supplied location:
@@ -142,8 +142,8 @@ func expandHome(path string) string {
 }
 
 // UserThemesDir returns the path to user-defined themes in the OS user config directory
-// ($XDG_CONFIG_HOME/tsuzuri/themes on Linux, ~/Library/Application Support/tsuzuri/themes
-// on macOS, and %APPDATA%\tsuzuri\themes on Windows), or the custom path set
+// ($XDG_CONFIG_HOME/misoku/themes on Linux, ~/Library/Application Support/misoku/themes
+// on macOS, and %APPDATA%\misoku\themes on Windows), or the custom path set
 // via SetUserThemesPath.
 // Bundled themes take precedence over user themes on name collision.
 func UserThemesDir() string {

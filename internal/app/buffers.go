@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -319,7 +319,7 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 		list = strings.Join(names[:3], ", ") + fmt.Sprintf(" and %d more", len(names)-3)
 	}
 	m.confirm = &confirmDialog{
-		title:   "Quit Tsuzuri?",
+		title:   "Quit Misoku?",
 		message: []string{fmt.Sprintf("%d unsaved: %s", len(dirty), list)},
 		buttons: []string{"Save All", "Discard", "Cancel"},
 		onChoose: func(m *Model, choice int) tea.Cmd {

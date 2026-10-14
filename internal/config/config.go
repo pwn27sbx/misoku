@@ -1,5 +1,5 @@
 // Package config persists user preferences (currently the colour theme) in
-// $XDG_CONFIG_HOME/tsuzuri/config.json (or the OS equivalent).
+// $XDG_CONFIG_HOME/misoku/config.json (or the OS equivalent).
 package config
 
 import (
@@ -25,7 +25,7 @@ func DefaultPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "tsuzuri", "config.json")
+	return filepath.Join(dir, "misoku", "config.json")
 }
 
 // Load reads the config at path. A missing file is not an error.

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/jaisuriya-11/tsuzuri/internal/ui"
 	"github.com/muesli/termenv"
+	"github.com/pwn27sbx/misoku/internal/ui"
 )
 
 func TestPaintAppliesDefaultColours(t *testing.T) {

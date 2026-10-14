@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/ui"
+	"github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

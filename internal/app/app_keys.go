@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/jaisuriya-11/tsuzuri/internal/content"
-	"github.com/jaisuriya-11/tsuzuri/internal/dashboard"
+	"github.com/pwn27sbx/misoku/internal/content"
+	"github.com/pwn27sbx/misoku/internal/dashboard"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"

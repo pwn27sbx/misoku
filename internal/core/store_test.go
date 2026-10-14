@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
+	"github.com/pwn27sbx/misoku/internal/core"
 )
 
 func newTestStore(t *testing.T) *core.Store {
@@ -364,12 +364,12 @@ func TestRenameKeepsContent(t *testing.T) {
 func TestListHidesFoldersWithoutMarkdown(t *testing.T) {
 	s := newTestStore(t)
 	root := s.Root()
-	for _, d := range []string{"bin", "cmd/tsuzuri", "docs/guides/deep", "empty"} {
+	for _, d := range []string{"bin", "cmd/misoku", "docs/guides/deep", "empty"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, "cmd/tsuzuri/main.go"), []byte("package main"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "cmd/misoku/main.go"), []byte("package main"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.SaveAs("docs/guides/deep", "howto", "x"); err != nil {

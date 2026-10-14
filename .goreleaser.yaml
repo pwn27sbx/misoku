@@ -1,12 +1,12 @@
 # GoReleaser config: https://goreleaser.com
 #
 # One download per platform:
-#   tsuzuri-macos.tar.gz    universal binary (Intel + Apple Silicon)
-#   tsuzuri-linux.tar.gz    x86-64, static: runs on every distribution
-#   tsuzuri-windows.zip     x64 (also runs on Windows on ARM via emulation)
+#   misoku-macos.tar.gz    universal binary (Intel + Apple Silicon)
+#   misoku-linux.tar.gz    x86-64, static: runs on every distribution
+#   misoku-windows.zip     x64 (also runs on Windows on ARM via emulation)
 version: 2
 
-project_name: tsuzuri
+project_name: misoku
 
 before:
   hooks:
@@ -14,9 +14,9 @@ before:
     - go test ./...
 
 builds:
-  - id: tsuzuri
-    main: ./cmd/tsuzuri
-    binary: tsuzuri
+  - id: misoku
+    main: ./cmd/misoku
+    binary: misoku
     env:
       # Pure Go and statically linked: no system libraries needed.
       - CGO_ENABLED=0
@@ -33,11 +33,11 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
 universal_binaries:
-  - id: tsuzuri
+  - id: misoku
     replace: true
 
 archives:
-  - id: tsuzuri
+  - id: misoku
     formats: [tar.gz]
     format_overrides:
       - goos: windows
@@ -62,15 +62,15 @@ release:
 
     **macOS / Linux**
     ```sh
-    curl -fsSL https://raw.githubusercontent.com/jaisuriya-11/tsuzuri/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.sh | sh
     ```
 
     **Windows (PowerShell)**
     ```powershell
-    irm https://raw.githubusercontent.com/jaisuriya-11/tsuzuri/main/install.ps1 | iex
+    irm https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.ps1 | iex
     ```
 
-    Or download the file for your system below and put `tsuzuri` on your `PATH`.
+    Or download the file for your system below and put `misoku` on your `PATH`.
 
 # The notes are the install header above, not a commit list.
 changelog:

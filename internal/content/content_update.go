@@ -3,7 +3,7 @@ package content
 import (
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/core"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"

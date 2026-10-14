@@ -3,8 +3,8 @@ package app
 import (
 	"strings"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/theme"
-	"github.com/jaisuriya-11/tsuzuri/internal/ui"
+	"github.com/pwn27sbx/misoku/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -130,7 +130,7 @@ func RenderKeymapModal(th theme.Theme, termWidth, termHeight int) string {
 		pad := max((width-lipgloss.Width(s))/2, 0)
 		return bg.Render(strings.Repeat(" ", pad)) + s
 	}
-	title := bg.Foreground(th.Blue).Render(" ") + bg.Foreground(th.Fg).Bold(true).Render("TSUZURI KEYMAPS")
+	title := bg.Foreground(th.Blue).Render(" ") + bg.Foreground(th.Fg).Bold(true).Render("MISOKU KEYMAPS")
 	rows := []string{center(title), ""}
 	rows = append(rows, body...)
 	rows = append(rows, "", center(bg.Foreground(th.GreyFg).Render("Esc / q / ? to close")))

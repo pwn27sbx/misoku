@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaisuriya-11/tsuzuri/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/preview"
 )
 
 func TestPrintableExpandsEmbeds(t *testing.T) {

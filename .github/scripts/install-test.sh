@@ -25,8 +25,8 @@ if [ "$up" -ne 1 ]; then
 	exit 1
 fi
 
-TSUZURI_BASE_URL="http://127.0.0.1:$port" \
-	TSUZURI_INSTALL_DIR="$PWD/bin" sh ./install.sh
-./bin/tsuzuri --version
-./bin/tsuzuri --list-themes | grep -q onedark
+MISOKU_BASE_URL="http://127.0.0.1:$port" \
+	MISOKU_INSTALL_DIR="$PWD/bin" sh ./install.sh
+./bin/misoku --version
+./bin/misoku --list-themes | grep -q onedark
 echo "install.sh OK"

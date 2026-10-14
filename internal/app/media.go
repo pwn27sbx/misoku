@@ -54,14 +54,14 @@ type mediaPickedMsg struct {
 var errNoDialog = errors.New("no native file dialog")
 
 // pickMedia opens the operating system's file dialog in the background; if
-// none is available (SSH, no desktop, TSUZURI_NATIVE_PICKER=0) the built-in
+// none is available (SSH, no desktop, MISOKU_NATIVE_PICKER=0) the built-in
 // browser takes over.
 func (m *Model) pickMedia(kind string) tea.Cmd {
 	k, ok := mediaKinds[kind]
 	if !ok {
 		return nil
 	}
-	if os.Getenv("TSUZURI_NATIVE_PICKER") == "0" {
+	if os.Getenv("MISOKU_NATIVE_PICKER") == "0" {
 		return m.openFileBrowser(kind)
 	}
 	m.setStatus(k.title + "… (a file dialog opened)")

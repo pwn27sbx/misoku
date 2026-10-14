@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// tsuzuri: helpers that are not part of the upstream bubbles textarea API.
+// misoku: helpers that are not part of the upstream bubbles textarea API.
 
 // YOffset returns the first visible visual (soft-wrapped) line.
 func (m Model) YOffset() int {

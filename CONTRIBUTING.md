@@ -1,22 +1,22 @@
-# Contributing to Tsuzuri
+# Contributing to Misoku
 
-Thanks for wanting to help! Tsuzuri is a terminal notebook that edits plain
+Thanks for wanting to help! Misoku is a terminal notebook that edits plain
 Markdown files, so every contribution should keep two promises:
 
-1. **Notes stay plain Markdown.** Anything Tsuzuri adds (views, answers,
+1. **Notes stay plain Markdown.** Anything Misoku adds (views, answers,
    covers) must be readable and editable as text in any other editor.
 2. **Nothing is lost by accident.** Unsaved work is never discarded without
    asking, and files are only written when the user saves.
 
 ## Ways to contribute
 
-- **Report a bug:** [open an issue](https://github.com/jaisuriya-11/tsuzuri/issues/new)
-  with your OS, terminal, `tsuzuri --version`, what you did, what you
+- **Report a bug:** [open an issue](https://github.com/pwn27sbx/misoku/issues/new)
+  with your OS, terminal, `misoku --version`, what you did, what you
   expected and what happened. A screenshot or the note that triggers it
   helps a lot. The debug log lives in your cache folder
-  (`~/Library/Caches/tsuzuri/tsuzuri.log` on macOS,
-  `~/.cache/tsuzuri/tsuzuri.log` on Linux,
-  `%LOCALAPPDATA%\tsuzuri\tsuzuri.log` on Windows).
+  (`~/Library/Caches/misoku/misoku.log` on macOS,
+  `~/.cache/misoku/misoku.log` on Linux,
+  `%LOCALAPPDATA%\misoku\misoku.log` on Windows).
 - **Suggest a feature:** open an issue describing the problem it solves
   before writing a large change, so we can agree on the approach first.
 - **Send a fix or feature:** small, focused pull requests are easiest to
@@ -29,25 +29,25 @@ You need the Go version listed in [`go.mod`](go.mod) and, ideally, a
 [Nerd Font](https://www.nerdfonts.com/) in your terminal.
 
 ```sh
-git clone https://github.com/jaisuriya-11/tsuzuri.git
-cd tsuzuri
+git clone https://github.com/pwn27sbx/misoku.git
+cd misoku
 make run      # run from source (opens the current folder as the workspace)
 make test     # run the test suite
-make          # fmt + vet + test + build into ./bin/tsuzuri
+make          # fmt + vet + test + build into ./bin/misoku
 ```
 
 Try your change against a scratch notes folder rather than the repository
 itself:
 
 ```sh
-go run ./cmd/tsuzuri --dir /tmp/tsuzuri-notes
+go run ./cmd/misoku --dir /tmp/misoku-notes
 ```
 
 ## Project layout
 
 | Package | What lives there |
 | :-- | :-- |
-| `cmd/tsuzuri` | Entry point, flags, config loading |
+| `cmd/misoku` | Entry point, flags, config loading |
 | `internal/app` | Root model: layout, keys, mouse, tabs, dialogs, view actions |
 | `internal/content` | Editor pane, `/` menu, table editing |
 | `internal/preview` | Markdown renderer, images, board/calendar/timeline/chart/form views |
@@ -55,7 +55,7 @@ go run ./cmd/tsuzuri --dir /tmp/tsuzuri-notes
 | `internal/dashboard` | Start screen |
 | `internal/core` | Filesystem store and messages (no UI code) |
 | `internal/highlight` | Syntax highlighting |
-| `internal/textarea` | Vendored bubbles textarea (changes marked `tsuzuri:`) |
+| `internal/textarea` | Vendored bubbles textarea (changes marked `misoku:`) |
 | `internal/theme` | Theme palettes (`palettes_gen.go` is generated) |
 | `internal/ui` | Exact-size layout helpers and overlays |
 | `internal/config` | Saved preferences |
@@ -66,7 +66,7 @@ go run ./cmd/tsuzuri --dir /tmp/tsuzuri-notes
 
 - Run `make` before pushing: code must be `gofmt`-formatted, pass
   `go vet` and all tests.
-- Keep the build pure Go (`CGO_ENABLED=0`). Tsuzuri ships as one static
+- Keep the build pure Go (`CGO_ENABLED=0`). Misoku ships as one static
   binary for macOS, Windows and every Linux distro, so no cgo or system
   libraries.
 - Match the surrounding style: small focused functions, comments that
