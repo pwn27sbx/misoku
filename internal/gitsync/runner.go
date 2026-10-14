@@ -78,8 +78,14 @@ func (r *Runner) Version(ctx context.Context) (string, bool, error) {
 // (its time limit, or the caller's context), the error matches the
 // context's error with errors.Is and still carries what git printed.
 func (r *Runner) Run(parent context.Context, args ...string) ([]byte, error) {
+	return r.runWith(parent, nil, nil, args...)
+}
+
+// runWith is Run with extra environment variables (such as GIT_INDEX_FILE)
+// and stdin fed from a buffer instead of the null device.
+func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte, args ...string) ([]byte, error) {
 	// Resolved before the time limit starts, so it never eats into it.
-	env := r.env()
+	env := append(r.env(), extraEnv...)
 	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
 
@@ -94,6 +100,9 @@ func (r *Runner) Run(parent context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Env = env
 	cmd.Stdin = nil // reads from the null device
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	// After a kill, give pipes held by orphaned children this long to close
@@ -121,7 +130,28 @@ func (r *Runner) Run(parent context.Context, args ...string) ([]byte, error) {
 	if msg == "" {
 		msg = err.Error()
 	}
-	return stdout.Bytes(), errors.New(msg)
+	return stdout.Bytes(), &gitError{msg: msg, cause: err}
+}
+
+// gitError is a git command that ran and failed. Its text is git's own
+// error output; Unwrap gives the *exec.ExitError, so callers can tell exit
+// codes apart (exitCode).
+type gitError struct {
+	msg   string
+	cause error
+}
+
+func (e *gitError) Error() string { return e.msg }
+func (e *gitError) Unwrap() error { return e.cause }
+
+// exitCode returns the exit code of a git command that ran and failed, or
+// -1 when err is not such a failure (git did not start, or was stopped).
+func exitCode(err error) int {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode()
+	}
+	return -1
 }
 
 // stoppedError is a command killed because its context ended. Its text
