@@ -4,6 +4,7 @@ package theme
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -179,6 +180,43 @@ func loadUserThemes() map[string]palette {
 		}
 	})
 	return userThemes
+}
+
+// UserThemesStamp fingerprints the user theme files (names, sizes and
+// modification times), so a change on disk can be noticed cheaply.
+func UserThemesStamp() string {
+	path := userThemesPath()
+	if path == "" {
+		return ""
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	stamp := func(fi os.FileInfo) string {
+		return fmt.Sprintf("%s|%d|%d;", fi.Name(), fi.Size(), fi.ModTime().UnixNano())
+	}
+	if !info.IsDir() {
+		return stamp(info)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		if fi, err := e.Info(); err == nil && !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".json") {
+			b.WriteString(stamp(fi))
+		}
+	}
+	return b.String()
+}
+
+// ReloadUserThemes drops the cached user palettes; the next lookup reads
+// them from disk again.
+func ReloadUserThemes() {
+	userThemesOnce = sync.Once{}
+	userThemes = nil
 }
 
 // addUserThemeFile parses one palette JSON file into the userThemes map.

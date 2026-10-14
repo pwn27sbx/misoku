@@ -77,6 +77,7 @@ type Model struct {
 	savedOnQuit    map[*buffer]bool   // tabs Save All already wrote, see continueSaveAll
 	modeIcon       string             // config ui.mode_icon: one icon for every mode
 	modifiedMark   string             // config ui.modified_mark: before a dirty tab name
+	themeStamp     string             // user theme files as last seen, see syncUserTheme
 
 	toast    string
 	toastSeq int
@@ -148,6 +149,7 @@ func New(store *core.Store, opts ...Option) Model {
 	for _, opt := range opts {
 		opt(&m)
 	}
+	m.themeStamp = theme.UserThemesStamp()
 	return m
 }
 

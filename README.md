@@ -283,6 +283,8 @@ Drop a JSON palette into the themes folder in your user config directory:
 
 User themes appear automatically in the live theme picker (`Space` `t`) and in `--list-themes`. Bundled themes take precedence on a name collision.
 
+Editing a user theme file while Misoku is open takes effect within a couple of seconds, without restarting: handy when another tool (such as a desktop theme switcher) rewrites the palette.
+
 To use themes from a different folder (or a single palette file), set `themes_dir` in your config:
 
 - **config.json:** `{"theme": "onedark", "themes_dir": "~/my-themes"}` — a directory of `*.json` palettes, or one `.json` file

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -49,6 +50,7 @@ func treeSignature(pages []core.Page) string {
 // That also covers a rename in progress: it applies to the selected note,
 // which is still the same one after the refresh.
 func (m *Model) checkWorkspace() {
+	m.syncUserTheme()
 	m.syncOpenBuffers()
 	pages := m.store.List()
 	if treeSignature(pages) == m.treeSig {
@@ -87,4 +89,20 @@ func (m *Model) syncOpenBuffers() {
 		m.setStatus(fmt.Sprintf("%q reloaded: it changed on disk", b.id))
 	}
 	m.refreshModified()
+}
+
+// syncUserTheme re-reads the user theme files when they changed on disk (a
+// tool such as Omarchy's theme switcher rewrites them) and re-applies the
+// theme in use, without saving anything. A bundled theme comes out the same,
+// since bundled names win over user files.
+func (m *Model) syncUserTheme() {
+	stamp := theme.UserThemesStamp()
+	if stamp == m.themeStamp {
+		return
+	}
+	m.themeStamp = stamp
+	theme.ReloadUserThemes()
+	if th, ok := theme.Get(m.theme.Name); ok {
+		m.applyTheme(th, false)
+	}
 }

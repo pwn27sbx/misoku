@@ -59,8 +59,19 @@ func New(th theme.Theme) Model {
 // SetTheme switches colours.
 func (m *Model) SetTheme(th theme.Theme) {
 	m.theme = th
+	// The cache is keyed by theme name, and a user theme can keep its name
+	// while its palette changes on disk: drop it on every theme change.
+	m.hl.valid = false
 	m.textarea.Cursor.Style = lipgloss.NewStyle().Foreground(th.Fg)
 	configureTextareaStyles(&m.textarea, th)
+	// The textarea draws through a pointer to its focused or blurred style,
+	// which can still point at an older copy's styles: re-apply the focus
+	// state so it points at the ones just set.
+	if m.textarea.Focused() {
+		m.textarea.Focus()
+	} else {
+		m.textarea.Blur()
+	}
 	value := m.cmdInput.Value()
 	m.cmdInput = createCommandInput(th)
 	m.cmdInput.SetValue(value)
