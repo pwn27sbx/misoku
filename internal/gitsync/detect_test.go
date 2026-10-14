@@ -2,6 +2,7 @@ package gitsync_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -245,9 +246,18 @@ type fileStamp struct {
 	size int64
 	mode fs.FileMode
 	mod  time.Time
+	sum  [sha256.Size]byte // contents, for regular files
 }
 
-// snapshot records every file under dir, .git included.
+// snapshot records every file and folder under dir, .git included: the
+// contents of each file, and the modification time of each folder, which
+// changes when anything is created or removed in it (a lock or temporary
+// file included, even if it is gone again).
+//
+// Each entry is read with os.Lstat, not the DirEntry's Info: on Windows
+// Info comes from the parent folder's listing, a copy NTFS updates lazily,
+// so a folder written during the test setup could show its new time only
+// after something (such as git) opened it, and look changed.
 func snapshot(t *testing.T, dir string) map[string]fileStamp {
 	t.Helper()
 	files := map[string]fileStamp{}
@@ -255,11 +265,19 @@ func snapshot(t *testing.T, dir string) map[string]fileStamp {
 		if err != nil {
 			return err
 		}
-		info, err := d.Info()
+		info, err := os.Lstat(p)
 		if err != nil {
 			return err
 		}
-		files[p] = fileStamp{info.Size(), info.Mode(), info.ModTime()}
+		st := fileStamp{size: info.Size(), mode: info.Mode(), mod: info.ModTime()}
+		if info.Mode().IsRegular() {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			st.sum = sha256.Sum256(data)
+		}
+		files[p] = st
 		return nil
 	})
 	if err != nil {
