@@ -2,6 +2,7 @@ package gitsync_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -190,5 +191,170 @@ func TestStatusParsesUnusualNames(t *testing.T) {
 		if !got[want] {
 			t.Errorf("status should list %q as is, got %v", want, changes)
 		}
+	}
+}
+
+// sshCommandOf runs git through r and returns the GIT_SSH_COMMAND it saw,
+// and whether it was set at all.
+func sshCommandOf(t *testing.T, r *gitsync.Runner) (string, bool) {
+	t.Helper()
+	out, err := r.Run(context.Background(), "-c", `alias.env=!env`, "env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range strings.Split(string(out), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimRight(l, "\r"), "GIT_SSH_COMMAND="); ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// unsetenv removes k for the rest of the test and restores it afterwards.
+func unsetenv(t *testing.T, k string) {
+	t.Setenv(k, "")
+	os.Unsetenv(k)
+}
+
+// git prefers GIT_SSH_COMMAND over GIT_SSH, so setting the first must not
+// silently throw away a program the user configured with the second, and
+// the no-prompt flag must be one that program understands.
+func TestBatchModeKeepsTheUsersSSHSetting(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "my tools")
+	for _, c := range []struct {
+		name, gitSSH, gitSSHCommand, coreSSHCommand string
+		want                                        string // "" means GIT_SSH_COMMAND must be left alone
+	}{
+		{name: "plain ssh", want: "ssh -o BatchMode=yes"},
+		{name: "GIT_SSH with OpenSSH", gitSSH: bin + "/ssh", want: "'" + bin + "/ssh' -o BatchMode=yes"},
+		{name: "GIT_SSH with plink", gitSSH: bin + "/plink.exe", want: "'" + bin + "/plink.exe' -batch"},
+		{name: "GIT_SSH with TortoisePlink", gitSSH: bin + "/TortoisePlink.exe", want: "'" + bin + "/TortoisePlink.exe'"},
+		{name: "BatchMode=no in the user's command", gitSSHCommand: "ssh -o BatchMode=no -p 2222", want: "ssh -o BatchMode=yes -o BatchMode=no -p 2222"},
+		{name: "quoted program with spaces", coreSSHCommand: `"` + bin + `/ssh" -i key`, want: `"` + bin + `/ssh" -o BatchMode=yes -i key`},
+		{name: "core.sshCommand beats GIT_SSH", gitSSH: bin + "/plink", coreSSHCommand: "ssh -i key", want: "ssh -o BatchMode=yes -i key"},
+		{name: "wrapper script", coreSSHCommand: bin + "/ssh-wrapper --flag", want: ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			isolate(t)
+			unsetenv(t, "GIT_SSH")
+			unsetenv(t, "GIT_SSH_COMMAND")
+			unsetenv(t, "GIT_SSH_VARIANT")
+			if c.gitSSH != "" {
+				t.Setenv("GIT_SSH", c.gitSSH)
+			}
+			if c.gitSSHCommand != "" {
+				t.Setenv("GIT_SSH_COMMAND", c.gitSSHCommand)
+			}
+			repo := newRepo(t)
+			if c.coreSSHCommand != "" {
+				if out, err := exec.Command("git", "-C", repo, "config", "core.sshCommand", c.coreSSHCommand).CombinedOutput(); err != nil {
+					t.Fatalf("%v %s", err, out)
+				}
+			}
+			got, set := sshCommandOf(t, gitsync.New(repo, 5*time.Second))
+			if c.want == "" {
+				if set && strings.Contains(got, "BatchMode") {
+					t.Fatalf("a wrapper of unknown kind must not get ssh options, got %q", got)
+				}
+				return
+			}
+			if got != c.want {
+				t.Fatalf("GIT_SSH_COMMAND = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// ssh.variant tells git (and Misoku) what kind of client a wrapper is.
+func TestSSHVariantConfigDecidesTheFlag(t *testing.T) {
+	isolate(t)
+	unsetenv(t, "GIT_SSH")
+	unsetenv(t, "GIT_SSH_COMMAND")
+	unsetenv(t, "GIT_SSH_VARIANT")
+	repo := newRepo(t)
+	for _, kv := range [][2]string{{"core.sshCommand", "my-ssh -i key"}, {"ssh.variant", "ssh"}} {
+		if out, err := exec.Command("git", "-C", repo, "config", kv[0], kv[1]).CombinedOutput(); err != nil {
+			t.Fatalf("%v %s", err, out)
+		}
+	}
+	if got, _ := sshCommandOf(t, gitsync.New(repo, 5*time.Second)); got != "my-ssh -o BatchMode=yes -i key" {
+		t.Fatalf("GIT_SSH_COMMAND = %q", got)
+	}
+}
+
+// A rename is two fields in -z output: the new path, then the original.
+// The original must not come back as an entry of its own, and the entries
+// after it must still parse.
+func TestStatusReportsRenames(t *testing.T) {
+	isolate(t)
+	repo := newRepo(t)
+	if err := os.WriteFile(filepath.Join(repo, "old name.md"), []byte("same content\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "-m", "init"}, {"mv", "old name.md", "new name.md"}} {
+		if out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, "zz.md"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changes, err := gitsync.New(repo, 5*time.Second).Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []gitsync.Change{{Code: "R ", Path: "new name.md"}, {Code: "??", Path: "zz.md"}}
+	if len(changes) != len(want) {
+		t.Fatalf("status = %q, want %q", changes, want)
+	}
+	for i := range want {
+		if changes[i] != want[i] {
+			t.Fatalf("status = %q, want %q", changes, want)
+		}
+	}
+}
+
+// What git printed before hanging (an ssh error, a host-key message) is
+// the only clue why it hung, so the timeout error keeps it.
+func TestTimeoutErrorKeepsGitsStderr(t *testing.T) {
+	isolate(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep from a POSIX shell")
+	}
+	r := gitsync.New(newRepo(t), time.Second)
+	_, err := r.Run(context.Background(), "-c", "alias.hang=!echo ssh: connect to host example: stuck >&2; sleep 30", "hang")
+	if err == nil {
+		t.Fatal("expected a timeout")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "no answer after 1s") || !strings.Contains(msg, "ssh: connect to host example: stuck") {
+		t.Fatalf("timeout error must name the limit and keep git's stderr, got %q", msg)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("a timeout must match context.DeadlineExceeded, got %v", err)
+	}
+}
+
+// When the caller gives up (it cancelled, or its own shorter deadline
+// passed), the error must say so instead of blaming the Runner's limit.
+func TestCallerStopIsNotReportedAsOurTimeout(t *testing.T) {
+	isolate(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep from a POSIX shell")
+	}
+	r := gitsync.New(newRepo(t), time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(300*time.Millisecond, cancel)
+	_, err := r.Run(ctx, "-c", "alias.hang=!sleep 30", "hang")
+	if err == nil || !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "cancelled") || strings.Contains(err.Error(), "no answer") {
+		t.Fatalf("a cancelled caller must be reported as cancellation, got %v", err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	_, err = r.Run(ctx, "-c", "alias.hang=!sleep 30", "hang")
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "1m0s") {
+		t.Fatalf("the caller's own deadline must not be reported as the Runner's 1m limit, got %v", err)
 	}
 }

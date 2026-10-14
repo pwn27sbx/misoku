@@ -7,10 +7,11 @@ import (
 	"syscall"
 )
 
-// detach starts git in a new session: it has no controlling terminal, so
-// nothing it runs (ssh, gpg, a credential helper) can open /dev/tty. On
-// timeout the whole session's process group is killed, children included.
-func detach(cmd *exec.Cmd) {
+// run runs cmd in a new session: it has no controlling terminal, so
+// nothing it runs (ssh, gpg, a credential helper) can open /dev/tty. When
+// cmd's context ends, the whole session's process group is killed,
+// children included.
+func run(cmd *exec.Cmd) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
@@ -18,4 +19,5 @@ func detach(cmd *exec.Cmd) {
 		}
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
+	return cmd.Run()
 }

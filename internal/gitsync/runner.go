@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -34,6 +35,13 @@ type Change struct{ Code, Path string }
 type Runner struct {
 	dir     string
 	timeout time.Duration
+
+	// sshOnce guards ssh, the GIT_SSH_COMMAND every command runs with
+	// (sshSet false: leave the user's environment alone). Reading the
+	// user's ssh setting costs a git process, so it is done once.
+	sshOnce sync.Once
+	ssh     string
+	sshSet  bool
 }
 
 // New returns a Runner for the repository at dir. Each command gets at most
@@ -66,9 +74,13 @@ func (r *Runner) Version(ctx context.Context) (string, bool, error) {
 }
 
 // Run runs git with args in the repository and returns its standard output.
-// A failure carries git's own error text.
-func (r *Runner) Run(ctx context.Context, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+// A failure carries git's own error text. When the command is stopped
+// (its time limit, or the caller's context), the error matches the
+// context's error with errors.Is and still carries what git printed.
+func (r *Runner) Run(parent context.Context, args ...string) ([]byte, error) {
+	// Resolved before the time limit starts, so it never eats into it.
+	env := r.env()
+	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
 
 	full := append([]string{
@@ -80,31 +92,50 @@ func (r *Runner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		"-c", "tag.gpgsign=false",
 	}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
-	cmd.Env = r.env(ctx)
+	cmd.Env = env
 	cmd.Stdin = nil // reads from the null device
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	detach(cmd)
 	// After a kill, give pipes held by orphaned children this long to close
 	// before Wait gives up on them.
 	cmd.WaitDelay = 2 * time.Second
 
-	err := cmd.Run()
-	if ctx.Err() == context.DeadlineExceeded {
-		return stdout.Bytes(), fmt.Errorf("git %s: no answer after %s", firstWord(args), r.timeout)
+	err := run(cmd)
+	if err == nil {
+		return stdout.Bytes(), nil
 	}
-	if err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
+	msg := strings.TrimSpace(stderr.String())
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		why := fmt.Sprintf("no answer after %s", r.timeout)
+		if perr := parent.Err(); errors.Is(perr, context.Canceled) {
+			why = "cancelled"
+		} else if perr != nil {
+			why = "the caller's time limit ran out"
 		}
-		return stdout.Bytes(), errors.New(msg)
+		why = "git " + firstWord(args) + ": " + why
+		if msg != "" {
+			why += ": " + msg
+		}
+		return stdout.Bytes(), &stoppedError{msg: why, cause: ctxErr}
 	}
-	return stdout.Bytes(), nil
+	if msg == "" {
+		msg = err.Error()
+	}
+	return stdout.Bytes(), errors.New(msg)
 }
 
+// stoppedError is a command killed because its context ended. Its text
+// says why in words and keeps git's stderr; Unwrap gives the context error.
+type stoppedError struct {
+	msg   string
+	cause error
+}
+
+func (e *stoppedError) Error() string { return e.msg }
+func (e *stoppedError) Unwrap() error { return e.cause }
+
 // env is the environment git runs with: the user's, with every prompt off.
-func (r *Runner) env(ctx context.Context) []string {
+func (r *Runner) env() []string {
 	env := os.Environ()
 	set := func(k, v string) {
 		for i, kv := range env {
@@ -120,27 +151,117 @@ func (r *Runner) env(ctx context.Context) []string {
 	set("SSH_ASKPASS_REQUIRE", "never") // ssh: never pop up an askpass helper
 	set("LC_ALL", "C")                  // stable messages to parse
 	set("LANGUAGE", "C")
-	set("GIT_SSH_COMMAND", r.sshCommand(ctx)+" -o BatchMode=yes")
+	r.sshOnce.Do(func() { r.ssh, r.sshSet = r.resolveSSH() })
+	if r.sshSet {
+		set("GIT_SSH_COMMAND", r.ssh)
+	}
 	return env
 }
 
-// sshCommand is the ssh the user already configured (GIT_SSH_COMMAND, then
-// core.sshCommand), so BatchMode is added to it instead of replacing it.
-func (r *Runner) sshCommand(ctx context.Context) string {
-	if c := strings.TrimSpace(os.Getenv("GIT_SSH_COMMAND")); c != "" {
-		return c
+// resolveSSH returns the ssh command the user already configured with its
+// no-prompt flag added, and false when it cannot be added safely.
+//
+// It follows git's own order (GIT_SSH_COMMAND, core.sshCommand, GIT_SSH,
+// plain ssh). GIT_SSH holds a program path, not a command line, and git
+// ignores it once GIT_SSH_COMMAND is set, so it is quoted into one. The
+// flag depends on the client: OpenSSH takes -o BatchMode=yes (first, as
+// OpenSSH keeps the first value it sees), plink takes -batch, and git
+// already passes -batch to TortoisePlink. A client of unknown kind gets
+// nothing: an option it does not understand would break every sync, and
+// git runs without a terminal and with SSH_ASKPASS_REQUIRE=never anyway.
+func (r *Runner) resolveSSH() (string, bool) {
+	cfg := r.sshConfig()
+	command, isCmdline := strings.TrimSpace(os.Getenv("GIT_SSH_COMMAND")), true
+	if command == "" {
+		command = cfg["core.sshcommand"]
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "-C", r.dir, "config", "--get", "core.sshCommand")
-	cmd.Stdin = nil
-	detach(cmd)
-	if out, err := cmd.Output(); err == nil {
-		if c := strings.TrimSpace(string(out)); c != "" {
-			return c
+	if command == "" {
+		if p := os.Getenv("GIT_SSH"); p != "" {
+			command, isCmdline = p, false
 		}
 	}
-	return "ssh"
+	if command == "" {
+		command = "ssh"
+	}
+	program, rest := command, ""
+	if isCmdline {
+		program, rest = splitProgram(command)
+	} else {
+		command = shellQuote(command)
+	}
+
+	variant := strings.ToLower(os.Getenv("GIT_SSH_VARIANT"))
+	if variant == "" {
+		variant = strings.ToLower(cfg["ssh.variant"])
+	}
+	if variant == "putty" { // git's other name for the plink variant
+		variant = "plink"
+	}
+	if variant == "" || variant == "auto" {
+		base := strings.Trim(program, `"'`)
+		if i := strings.LastIndexAny(base, `/\`); i >= 0 {
+			base = base[i+1:]
+		}
+		variant = strings.TrimSuffix(strings.ToLower(base), ".exe")
+	}
+	switch variant {
+	case "ssh":
+		if isCmdline {
+			return program + " -o BatchMode=yes" + rest, true
+		}
+		return command + " -o BatchMode=yes", true
+	case "plink":
+		if isCmdline {
+			return program + " -batch" + rest, true
+		}
+		return command + " -batch", true
+	case "tortoiseplink":
+		return command, true
+	}
+	return "", false
+}
+
+// sshConfig reads core.sshCommand and ssh.variant (keys come back
+// lowercased). A failure reads as "not configured": the lookup has its own
+// short limit and never blocks the command it is resolved for.
+func (r *Runner) sshConfig() map[string]string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "-C", r.dir, "config", "-z", "--get-regexp", `^(core\.sshcommand|ssh\.variant)$`)
+	cmd.Stdin = nil
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.WaitDelay = 2 * time.Second
+	cfg := map[string]string{}
+	if run(cmd) != nil {
+		return cfg
+	}
+	for _, entry := range bytes.Split(out.Bytes(), []byte{0}) {
+		if k, v, ok := strings.Cut(string(entry), "\n"); ok {
+			cfg[k] = strings.TrimSpace(v) // the last value wins, as in git
+		}
+	}
+	return cfg
+}
+
+// splitProgram splits a shell command line into its program (kept exactly
+// as written, quotes included) and the rest, which starts with a space or
+// is empty.
+func splitProgram(command string) (string, string) {
+	if q := command[0]; q == '"' || q == '\'' {
+		if end := strings.IndexByte(command[1:], q); end >= 0 {
+			return command[:end+2], command[end+2:]
+		}
+	}
+	if i := strings.IndexAny(command, " \t"); i >= 0 {
+		return command[:i], command[i:]
+	}
+	return command, ""
+}
+
+// shellQuote quotes s for the POSIX shell git runs GIT_SSH_COMMAND with.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Commit records the staged changes with message, without hooks or
