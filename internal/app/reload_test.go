@@ -146,3 +146,76 @@ func TestDeleteDialogSaysTheNoteGoesToTheTrash(t *testing.T) {
 		t.Fatalf("the note should leave the workspace, got %v", store.List())
 	}
 }
+
+func TestSaveAllOnQuitAsksAboutOutsideChangesAndKeepsEdits(t *testing.T) {
+	store := newTestStore(t)
+	for _, n := range []string{"alpha", "beta"} {
+		if _, err := store.SaveAs("", n, "base "+n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := newHarness(t, store)
+	h.keys("e") // explorer, cursor on alpha
+	h.key(tea.KeyEnter)
+	h.keys("A mine")
+	h.key(tea.KeyEsc)
+	h.keys(" e")
+	h.keys("j") // beta
+	h.key(tea.KeyEnter)
+	h.keys("A mine")
+	h.key(tea.KeyEsc)
+	if tabs := strings.Split(h.view(), "\n")[0]; !strings.Contains(tabs, "alpha.md") || !strings.Contains(tabs, "beta.md") {
+		t.Fatalf("setup: both notes should be open with edits: %q", tabs)
+	}
+	writeOutside(t, store.Root(), "alpha.md", "theirs alpha")
+	writeOutside(t, store.Root(), "beta.md", "theirs beta")
+	h.send(app.CheckWorkspaceMsg{})
+
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	h.keys("s") // Save All
+	if h.quit {
+		t.Fatalf("Save All must stop at the first conflict, not quit; alpha=%q beta=%q",
+			readNote(t, store.Root(), "alpha.md"), readNote(t, store.Root(), "beta.md"))
+	}
+	if !strings.Contains(h.view(), "Overwrite") {
+		t.Fatalf("expected the conflict question:\n%s", h.view())
+	}
+	h.key(tea.KeyEnter) // Overwrite the first
+	if h.quit {
+		t.Fatal("the second note is also in conflict: it must ask again before quitting")
+	}
+	h.key(tea.KeyEnter) // Overwrite the second
+	if !h.quit {
+		t.Fatalf("after both answers Save All should quit:\n%s", h.view())
+	}
+	for _, n := range []string{"alpha", "beta"} {
+		if got := readNote(t, store.Root(), n+".md"); got != "base "+n+" mine" {
+			t.Fatalf("%s should hold the edits, got %q", n, got)
+		}
+	}
+}
+
+func TestCancellingTheConflictDuringSaveAllStaysOpen(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "base"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("1")
+	h.keys("A mine")
+	h.key(tea.KeyEsc)
+	writeOutside(t, store.Root(), "doc.md", "theirs")
+	h.send(app.CheckWorkspaceMsg{})
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	h.keys("s")
+	h.key(tea.KeyEsc) // Cancel
+	if h.quit {
+		t.Fatal("cancelling must keep Misoku open")
+	}
+	if got := readNote(t, store.Root(), "doc.md"); got != "theirs" {
+		t.Fatalf("cancel must not write, got %q", got)
+	}
+	if !strings.Contains(h.view(), "base mine") {
+		t.Fatalf("the edits must still be in the editor:\n%s", h.view())
+	}
+}

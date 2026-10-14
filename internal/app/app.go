@@ -73,6 +73,7 @@ type Model struct {
 	openURL        func(string) error // opens links outside Misoku; nil = system opener
 	notes          []core.Page        // every note, for resolving [[links]]
 	treeSig        string             // shape of the tree last read, see checkWorkspace
+	savedOnQuit    map[*buffer]bool   // tabs Save All already wrote, see continueSaveAll
 
 	toast    string
 	toastSeq int

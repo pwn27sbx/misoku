@@ -3,11 +3,13 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -69,6 +71,72 @@ func moveToTrash(abs string) error {
 	return errNoTrash
 }
 
+// renameFile is os.Rename, replaceable in tests to simulate another volume.
+var renameFile = os.Rename
+
+// moveFile renames from to to. Between volumes (EXDEV), where a rename is
+// impossible, it copies everything and only then removes the original; if the
+// copy fails, the partial copy is removed and the original stays untouched.
+func moveFile(from, to string) error {
+	err := renameFile(from, to)
+	if !errors.Is(err, syscall.EXDEV) {
+		return err
+	}
+	if err := copyTree(from, to); err != nil {
+		os.RemoveAll(to)
+		return err
+	}
+	return os.RemoveAll(from)
+}
+
+// copyTree copies a file, symlink or folder, keeping permissions.
+func copyTree(from, to string) error {
+	info, err := os.Lstat(from)
+	if err != nil {
+		return err
+	}
+	switch {
+	case info.Mode()&os.ModeSymlink != 0:
+		target, err := os.Readlink(from)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, to)
+	case info.IsDir():
+		if err := os.Mkdir(to, info.Mode().Perm()); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(from)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := copyTree(filepath.Join(from, e.Name()), filepath.Join(to, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	in, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
+}
+
 // renameUnique moves abs into dir under its own name, or "name 2", "name 3"…
 // when taken. reserve, if set, runs first for the chosen name and may refuse
 // it (os.ErrExist) to try the next one.
@@ -92,7 +160,7 @@ func renameUnique(abs, dir string, reserve func(name string) error) (string, err
 				return "", err
 			}
 		}
-		if err := os.Rename(abs, dst); err != nil {
+		if err := moveFile(abs, dst); err != nil {
 			if reserve != nil {
 				os.Remove(filepath.Join(filepath.Dir(dir), "info", name+".trashinfo"))
 			}

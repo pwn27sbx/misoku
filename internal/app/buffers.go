@@ -347,6 +347,7 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 			switch choice {
 			case 0:
 				m.quitting = true
+				m.savedOnQuit = map[*buffer]bool{}
 				return m.continueSaveAll()
 			case 1:
 				return tea.Quit
@@ -361,14 +362,17 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 // where it should go, then quits.
 func (m *Model) continueSaveAll() tea.Cmd {
 	for _, b := range m.dirtyBuffers() {
+		if m.savedOnQuit[b] {
+			continue // already written once; never loop on a tab that stays dirty
+		}
+		m.savedOnQuit[b] = true
 		if b.draft() {
 			m.showBuffer(b)
-			return m.saveBuffer(b, func(m *Model) tea.Cmd { return m.continueSaveAll() })
 		}
-		m.saveBuffer(b, nil)
-		if !m.quitting {
-			return nil // a save failed; stay open
-		}
+		// One note at a time: a save may open a dialog (Save As for a draft, the
+		// changed-on-disk question), and the rest must wait for its answer.
+		// Cancelling it clears m.quitting and Save All stops there.
+		return m.saveBuffer(b, func(m *Model) tea.Cmd { return m.continueSaveAll() })
 	}
 	return tea.Quit
 }
