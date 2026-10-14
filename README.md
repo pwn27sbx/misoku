@@ -9,6 +9,7 @@ Your notes stay plain Markdown files.
 
 <p>
   <a href="https://github.com/pwn27sbx/misoku/actions/workflows/ci.yml"><img src="https://github.com/pwn27sbx/misoku/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/pwn27sbx/misoku/releases/latest"><img src="https://img.shields.io/github/v/release/pwn27sbx/misoku" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
@@ -16,15 +17,34 @@ Your notes stay plain Markdown files.
 
 ## Installation & Update
 
-There are no release binaries yet. Build it from source with Go:
+**macOS and Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.sh | sh
+```
+
+**Windows** (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.ps1 | iex
+```
+
+Run the same command again to update.
+
+**Manual download:** grab `misoku-macos.tar.gz`, `misoku-linux.tar.gz` or
+`misoku-windows.zip` from the
+[latest release](https://github.com/pwn27sbx/misoku/releases/latest) and put
+`misoku` on your `PATH`.
+
+**Go:** `go install github.com/pwn27sbx/misoku/cmd/misoku@latest`
+
+**From source:**
 
 ```sh
 git clone https://github.com/pwn27sbx/misoku
 cd misoku
 go build -o ~/.local/bin/misoku ./cmd/misoku
 ```
-
-To update, `git pull` and run the same `go build`.
 
 Misoku is a single binary with no dependencies. It runs on macOS (Intel and
 Apple Silicon), Windows 10/11 and any x86-64 Linux distribution. On other
