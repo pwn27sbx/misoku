@@ -3,7 +3,9 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pwn27sbx/misoku/internal/config"
 )
@@ -121,5 +123,132 @@ func TestUISectionIsRead(t *testing.T) {
 	if len(ui.HeadingIcons) != 2 || ui.HeadingIcons[1] != "② " || !ui.HeadingBackground ||
 		len(ui.Bullets) != 2 || ui.Checkbox.Checked != "󰱒" || ui.Checkbox.Todo != "󰥔" {
 		t.Fatalf("ui not read: %+v", ui)
+	}
+}
+
+func TestSyncSectionIsReadAndSurvivesASave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := `{"theme": "onedark", "sync": {"vaults": {"~/notes": {"interval": "5m", "device": "mac"}}}}`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := cfg.Sync.Vaults["~/notes"]; v.Interval != "5m" || v.Device != "mac" {
+		t.Fatalf("sync not read: %+v", cfg.Sync)
+	}
+
+	// The theme picker loads, changes the theme and saves: sync must survive
+	// exactly as written (still "~/notes", still "5m").
+	cfg.Theme = "nord"
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	again, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := again.Sync.Vaults["~/notes"]; !ok || v.Interval != "5m" || v.Device != "mac" {
+		t.Fatalf("saving the theme lost the sync section: %+v", again.Sync)
+	}
+}
+
+func TestNoSyncSectionIsNotWritten(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := config.Save(path, config.Config{Theme: "nord"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "sync") {
+		t.Fatalf("an unset sync section must not be written:\n%s", data)
+	}
+}
+
+func TestSyncParseExpandsHomeAndUsesDefaults(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
+	abs := filepath.Join(t.TempDir(), "elsewhere")
+	s := config.Sync{Vaults: map[string]config.SyncVault{
+		"~/notes":                               {Interval: "90s", Device: "mac"},
+		"~":                                     {},
+		abs:                                     {Interval: "1h"},
+		"~" + string(os.PathSeparator) + "deep": {},
+	}}
+	vaults, warnings := s.Parse()
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+	got := map[string]config.Vault{}
+	for _, v := range vaults {
+		got[v.Path] = v
+	}
+	notes, ok := got[filepath.Join(home, "notes")]
+	if !ok || notes.Interval != 90*time.Second || notes.Device != "mac" {
+		t.Fatalf("~/notes not expanded or parsed: %+v", vaults)
+	}
+	if v, ok := got[home]; !ok || v.Interval != config.DefaultSyncInterval {
+		t.Fatalf("~ alone must be the home folder with the default interval: %+v", vaults)
+	}
+	if v, ok := got[abs]; !ok || v.Interval != time.Hour {
+		t.Fatalf("absolute path not kept: %+v", vaults)
+	}
+	if _, ok := got[filepath.Join(home, "deep")]; !ok {
+		t.Fatalf("~ with the OS separator not expanded: %+v", vaults)
+	}
+	if v := got[home]; v.Device == "" || strings.ContainsAny(v.Device, `<>:"/\|?*`) {
+		t.Fatalf("default device must be a file-name-safe host name, got %q", v.Device)
+	}
+	if host, err := os.Hostname(); err == nil && !strings.ContainsAny(host, `<>:"/\|?*`) {
+		if want := strings.Trim(host, " ."); want != "" && got[home].Device != want {
+			t.Fatalf("default device = %q, want the host name %q", got[home].Device, want)
+		}
+	}
+}
+
+func TestSyncParseWarnsInsteadOfFailing(t *testing.T) {
+	good := filepath.Join(t.TempDir(), "good")
+	s := config.Sync{Vaults: map[string]config.SyncVault{
+		good:            {Interval: "soon"},
+		"relative/path": {},
+		"":              {},
+	}}
+	vaults, warnings := s.Parse()
+	if len(vaults) != 1 || vaults[0].Path != good {
+		t.Fatalf("only the absolute vault must stay: %+v", vaults)
+	}
+	if vaults[0].Interval != config.DefaultSyncInterval {
+		t.Fatalf("a bad interval must fall back to the default, got %v", vaults[0].Interval)
+	}
+	if len(warnings) != 3 {
+		t.Fatalf("want 3 warnings (bad interval, relative path, empty path), got %q", warnings)
+	}
+	for _, want := range []string{"soon", "relative/path"} {
+		if !strings.Contains(strings.Join(warnings, "\n"), want) {
+			t.Errorf("warnings must name %q: %q", want, warnings)
+		}
+	}
+
+	for _, bad := range []string{"0s", "-5m"} {
+		vs, ws := config.Sync{Vaults: map[string]config.SyncVault{good: {Interval: bad}}}.Parse()
+		if len(ws) != 1 || vs[0].Interval != config.DefaultSyncInterval {
+			t.Errorf("interval %q must warn and use the default: %+v %q", bad, vs, ws)
+		}
+	}
+}
+
+func TestSyncDeviceIsMadeFileNameSafe(t *testing.T) {
+	dir := t.TempDir()
+	vs, ws := config.Sync{Vaults: map[string]config.SyncVault{dir: {Device: ` my:mac/2? `}}}.Parse()
+	if len(ws) != 0 || len(vs) != 1 {
+		t.Fatalf("got %+v %q", vs, ws)
+	}
+	if vs[0].Device != "my-mac-2-" {
+		t.Fatalf("device = %q, want %q", vs[0].Device, "my-mac-2-")
 	}
 }

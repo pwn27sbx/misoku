@@ -5,8 +5,12 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 )
 
 // Config holds user preferences.
@@ -23,6 +27,113 @@ type Config struct {
 	// UI changes how notes look in the preview. Anything left out keeps
 	// Misoku's default.
 	UI UI `json:"ui,omitzero"`
+	// Sync lists the vaults Misoku keeps in sync with git. A folder that is
+	// not listed never syncs.
+	Sync Sync `json:"sync,omitzero"`
+}
+
+// Sync is the "sync" section of config.json:
+//
+//	{"sync": {"vaults": {"~/notes": {"interval": "5m", "device": "mac"}}}}
+//
+// It is kept as written (paths with "~", intervals as text) so that saving
+// another setting writes it back unchanged; Parse turns it into Vaults.
+type Sync struct {
+	Vaults map[string]SyncVault `json:"vaults,omitempty"`
+}
+
+// SyncVault is one entry of sync.vaults, as written in config.json.
+type SyncVault struct {
+	// Interval between syncs, such as "5m" or "90s". Empty means
+	// DefaultSyncInterval.
+	Interval string `json:"interval,omitempty"`
+	// Device names this computer in commits and conflict copies. Empty
+	// means the host name.
+	Device string `json:"device,omitempty"`
+}
+
+// DefaultSyncInterval is used when a vault sets no interval, or a bad one.
+const DefaultSyncInterval = 5 * time.Minute
+
+// Vault is a sync.vaults entry ready to use: an absolute path ("~"
+// expanded), a positive interval and a device name that is safe in a file
+// name.
+type Vault struct {
+	Path     string
+	Interval time.Duration
+	Device   string
+}
+
+// Parse returns the usable vaults, sorted by path, and a warning for each
+// value it could not use. A bad value never stops Misoku: a bad interval
+// falls back to DefaultSyncInterval, and a vault whose path cannot be
+// resolved is left out (it does not sync, which is the safe side).
+func (s Sync) Parse() ([]Vault, []string) {
+	var vaults []Vault
+	var warnings []string
+	for raw, sv := range s.Vaults {
+		path, err := expandHome(raw)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("sync: vault %q skipped: %v", raw, err))
+			continue
+		}
+		v := Vault{Path: path, Interval: DefaultSyncInterval, Device: safeDevice(sv.Device)}
+		if sv.Interval != "" {
+			d, err := time.ParseDuration(sv.Interval)
+			switch {
+			case err != nil:
+				warnings = append(warnings, fmt.Sprintf("sync: vault %q: interval %q is not a duration like \"5m\"; using %s", raw, sv.Interval, DefaultSyncInterval))
+			case d <= 0:
+				warnings = append(warnings, fmt.Sprintf("sync: vault %q: interval %q must be positive; using %s", raw, sv.Interval, DefaultSyncInterval))
+			default:
+				v.Interval = d
+			}
+		}
+		if v.Device == "" {
+			host, _ := os.Hostname()
+			v.Device = safeDevice(host)
+		}
+		if v.Device == "" {
+			v.Device = "device"
+		}
+		vaults = append(vaults, v)
+	}
+	sort.Slice(vaults, func(i, j int) bool { return vaults[i].Path < vaults[j].Path })
+	sort.Strings(warnings) // map order is random; keep messages stable
+	return vaults, warnings
+}
+
+// expandHome turns "~", "~/x" (and "~\x" on Windows) into a path under the
+// user's home folder. Relative paths are rejected: they would depend on the
+// folder Misoku happens to be started from.
+func expandHome(p string) (string, error) {
+	if p == "" {
+		return "", errors.New("empty path")
+	}
+	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, "~"+string(os.PathSeparator)) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		p = filepath.Join(home, p[1:])
+	}
+	if !filepath.IsAbs(p) {
+		return "", errors.New("the path must be absolute or start with ~")
+	}
+	return filepath.Clean(p), nil
+}
+
+// safeDevice makes name usable inside a file name on every OS: characters
+// Windows forbids become "-", and leading or trailing spaces and dots
+// (which Windows drops) are trimmed.
+func safeDevice(name string) string {
+	name = strings.Trim(name, " .")
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || strings.ContainsRune(`<>:"/\|?*`, r) {
+			return '-'
+		}
+		return r
+	}, name)
 }
 
 // UI is the "ui" section of config.json.
