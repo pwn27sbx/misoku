@@ -4,6 +4,10 @@ Rules for reviewing changes to Misoku, a terminal Markdown notebook written in
 Go (Bubble Tea). They are read by Gentleman Guardian Angel (`gga`) on every
 commit, and are a good starting point for any AI agent working on this repo.
 
+**Judge only what the commit changes.** The reviewer receives whole files, but
+the rules apply to new or modified code; existing code elsewhere in a file is
+not a reason to fail the commit.
+
 ## General
 
 REJECT if:
@@ -22,8 +26,9 @@ REJECT if:
   Ignoring an error is acceptable only for best-effort cleanup (closing a file,
   removing a temporary file) and must be obvious from the context or a comment.
 - Naked returns in functions longer than a few lines
-- Shelling out to an external program (for example `git`) without a context or
-  time limit
+- Running a background external program (for example `git` for sync) without a
+  context or time limit. Interactive helpers the user drives (file pickers) and
+  openers started with `Start()` (browser, file manager) are fine without one.
 - Blocking work (disk walks, network, external programs) inside the Bubble Tea
   `Update` loop instead of a `tea.Cmd`
 
@@ -37,7 +42,8 @@ PREFER:
 REJECT if:
 - A change can lose or overwrite a user's notes without asking (saves, deletes,
   renames, sync)
-- Notes written in place instead of through the atomic save in `internal/core`
+- An existing note overwritten in place instead of through the atomic save in
+  `internal/core` (creating a new, empty file directly is fine)
 - Deleting notes for good on macOS or Linux instead of moving them to the Trash
 
 ## Portability

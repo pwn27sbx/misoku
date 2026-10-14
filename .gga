@@ -1,0 +1,7 @@
+# Gentleman Guardian Angel: settings for this repository (they override
+# ~/.config/gga/config). Review rules live in AGENTS.md.
+
+# Go source only; tests are checked by `go test`, not against the
+# production rules (doc comments, "a test for every change").
+FILE_PATTERNS="*.go"
+EXCLUDE_PATTERNS="*_test.go"
