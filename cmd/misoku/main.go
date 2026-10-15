@@ -30,20 +30,14 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "export" {
 		os.Exit(runExport(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "sync" {
+		os.Exit(runSync(os.Args[2:]))
+	}
 
-	var (
-		dir        string
-		themeName  string
-		themesDir  string
-		showVer    bool
-		listThemes bool
-	)
-	flag.StringVar(&dir, "dir", "", "workspace directory to open (defaults to $MISOKU_WORKSPACE, then the current directory)")
-	flag.BoolVar(&showVer, "version", false, "print the Misoku version and exit")
-	flag.StringVar(&themeName, "theme", "", "colour theme for this session (see --list-themes)")
-	flag.StringVar(&themesDir, "themes-dir", "", "directory or .json file with custom themes (overrides config themes_dir)")
-	flag.BoolVar(&listThemes, "list-themes", false, "list the available colour themes and exit")
+	opts := defineFlags(flag.CommandLine)
+	flag.Usage = func() { usage(flag.CommandLine.Output()) }
 	flag.Parse()
+	dir, themeName, themesDir, showVer, listThemes := opts.dir, opts.theme, opts.themesDir, opts.showVer, opts.listThemes
 
 	cfgPath := config.DefaultPath()
 	cfg, err := config.Load(cfgPath)
@@ -114,6 +108,23 @@ func main() {
 	}
 
 	log.Println("Misoku exited cleanly.")
+}
+
+// options are the flags of `misoku` itself.
+type options struct {
+	dir, theme, themesDir string
+	showVer, listThemes   bool
+}
+
+// defineFlags declares misoku's flags on fs.
+func defineFlags(fs *flag.FlagSet) *options {
+	o := &options{}
+	fs.StringVar(&o.dir, "dir", "", "workspace directory to open (defaults to $MISOKU_WORKSPACE, then the current directory)")
+	fs.BoolVar(&o.showVer, "version", false, "print the Misoku version and exit")
+	fs.StringVar(&o.theme, "theme", "", "colour theme for this session (see --list-themes)")
+	fs.StringVar(&o.themesDir, "themes-dir", "", "directory or .json file with custom themes (overrides config themes_dir)")
+	fs.BoolVar(&o.listThemes, "list-themes", false, "list the available colour themes and exit")
+	return o
 }
 
 // pushOnQuit pushes what was saved in a synced vault once the screen has

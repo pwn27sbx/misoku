@@ -23,6 +23,12 @@ func Match(vaults []config.Vault, folder string) (config.Vault, bool) {
 	if Disabled() {
 		return config.Vault{}, false
 	}
+	return Listed(vaults, folder)
+}
+
+// Listed is Match whatever MISOKU_SYNC says: whether folder is in vaults,
+// for `misoku sync init`, which lists it when it is not.
+func Listed(vaults []config.Vault, folder string) (config.Vault, bool) {
 	for _, v := range vaults {
 		if sameDir(v.Path, folder) {
 			return v, true

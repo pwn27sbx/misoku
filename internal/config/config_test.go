@@ -252,3 +252,109 @@ func TestSyncDeviceIsMadeFileNameSafe(t *testing.T) {
 		t.Fatalf("device = %q, want %q", vs[0].Device, "my-mac-2-")
 	}
 }
+
+func TestAddSyncVaultKeepsEveryOtherSetting(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "config.json")
+	before := `{
+  "theme": "nord",
+  "keys": {"save": ["<C-s>"]},
+  "not_known_yet": {"a": [1, "two", null], "b": true},
+  "sync": {"other": 1, "vaults": {"~/old": {"device": "mac", "interval": "1m"}}}
+}`
+	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	added, err := config.AddSyncVault(path, "/notes/new")
+	if err != nil || !added {
+		t.Fatalf("AddSyncVault = %v, %v", added, err)
+	}
+	data, _ := os.ReadFile(path)
+	want := `{
+  "keys": {
+    "save": [
+      "<C-s>"
+    ]
+  },
+  "not_known_yet": {
+    "a": [
+      1,
+      "two",
+      null
+    ],
+    "b": true
+  },
+  "sync": {
+    "other": 1,
+    "vaults": {
+      "/notes/new": {},
+      "~/old": {
+        "device": "mac",
+        "interval": "1m"
+      }
+    }
+  },
+  "theme": "nord"
+}
+`
+	if string(data) != want {
+		t.Errorf("config is now:\n%s\nwant:\n%s", data, want)
+	}
+	c, err := config.Load(path)
+	if err != nil || c.Theme != "nord" || len(c.Sync.Vaults) != 2 || c.Sync.Vaults["~/old"].Device != "mac" {
+		t.Errorf("Load after AddSyncVault = %+v, %v", c, err)
+	}
+}
+
+func TestAddSyncVaultCreatesTheFile(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "misoku", "config.json")
+	added, err := config.AddSyncVault(path, `C:\notes`)
+	if err != nil || !added {
+		t.Fatalf("AddSyncVault = %v, %v", added, err)
+	}
+	data, _ := os.ReadFile(path)
+	if want := "{\n  \"sync\": {\n    \"vaults\": {\n      \"C:\\\\notes\": {}\n    }\n  }\n}\n"; string(data) != want {
+		t.Errorf("config is:\n%s\nwant:\n%s", data, want)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(path)); len(entries) != 1 {
+		t.Errorf("only config.json may be left, got %v", entries)
+	}
+}
+
+func TestAddSyncVaultLeavesAListedVaultAlone(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "config.json")
+	before := `{"sync":{"vaults":{"/notes":{"device":"desk"}}}}`
+	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	added, err := config.AddSyncVault(path, "/notes")
+	if err != nil || added {
+		t.Fatalf("AddSyncVault = %v, %v; want false, nil", added, err)
+	}
+	if data, _ := os.ReadFile(path); string(data) != before {
+		t.Errorf("a listed vault must leave the file byte for byte, got:\n%s", data)
+	}
+}
+
+func TestAddSyncVaultNeverRewritesAnUnreadableConfig(t *testing.T) {
+	t.Parallel()
+	for name, before := range map[string]string{
+		"not JSON":        `{"theme": "nord",`,
+		"sync not object": `{"sync": [1]}`,
+		"vaults not obj":  `{"sync": {"vaults": "x"}}`,
+		"top not object":  `[1, 2]`,
+	} {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if added, err := config.AddSyncVault(path, "/notes"); err == nil || added {
+			t.Errorf("%s: AddSyncVault = %v, %v; want an error", name, added, err)
+		}
+		if data, _ := os.ReadFile(path); string(data) != before {
+			t.Errorf("%s: the file must stay as it was, got:\n%s", name, data)
+		}
+	}
+}

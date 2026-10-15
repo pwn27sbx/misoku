@@ -1,6 +1,7 @@
 package gitsync
 
 import (
+	"context"
 	"path/filepath"
 	"time"
 )
@@ -26,4 +27,9 @@ func WriteRunMarker(gitDir string, pid int, start time.Time) error {
 // at start with time limit limit.
 func LeftoverIsMisokus(pid int, start time.Time, limit time.Duration, mod time.Time, killedNow, gitDiesWithMisoku bool) bool {
 	return leftoverIsMisokus(marker{pid: pid, start: start, limit: limit}, mod, killedNow, gitDiesWithMisoku)
+}
+
+// EnvFor is the environment r runs the git subcommand cmd with.
+func (r *Runner) EnvFor(ctx context.Context, cmd string) []string {
+	return r.envFor(ctx, cmd)
 }

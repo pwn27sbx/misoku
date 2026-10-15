@@ -253,7 +253,7 @@ func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string
 		case refused != "":
 			return SyncFailed, fmt.Errorf("origin refused the push (%s); nothing was lost, fix what origin says and sync again: %w", refused, err)
 		}
-		return remoteFailure("could not push to origin", err)
+		return remoteFailure(r, "could not push to origin", err)
 	}
 	res.Pushed = true
 	// Push updates origin/<branch> only through the fetch refspec; set it
@@ -275,7 +275,7 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 		return "", err
 	}
 	if _, err := r.Run(ctx, "fetch", "--quiet", "--no-tags", "origin", "+refs/heads/"+branch+":"+tracking); err != nil {
-		res.Outcome, res.Err = remoteFailure("could not fetch from origin", err)
+		res.Outcome, res.Err = remoteFailure(r, "could not fetch from origin", err)
 		res.Pending = pending(ctx, r, branch)
 		return "", nil
 	}
@@ -346,7 +346,7 @@ func (res *SyncResult) originBranch(ctx context.Context, r *Runner) (branch stri
 	if !errors.As(err, &gerr) && !errors.As(err, &serr) {
 		return "", false, SyncFailed, err // origin answered, but not as expected
 	}
-	o, err = remoteFailure("could not reach origin", err)
+	o, err = remoteFailure(r, "could not reach origin", err)
 	return "", false, o, err
 }
 

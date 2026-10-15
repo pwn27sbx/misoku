@@ -92,7 +92,11 @@ var opMarkers = []struct{ path, what, cmd string }{
 // paused vault must be left exactly as the user had it.
 //
 // Force-pushes on the remote are not detected here: that needs a fetch.
-func Detect(ctx context.Context, r *Runner) State {
+func Detect(ctx context.Context, r *Runner) State { return detect(ctx, r, true) }
+
+// detect is Detect; needOrigin false skips the check for origin, for
+// `misoku sync init`, which adds it.
+func detect(ctx context.Context, r *Runner, needOrigin bool) State {
 	paused := func(reason Reason, format string, args ...any) State {
 		return State{Status: Paused, Reason: reason, Message: fmt.Sprintf(format, args...)}
 	}
@@ -130,22 +134,20 @@ func Detect(ctx context.Context, r *Runner) State {
 		return paused(ReasonNotRepoRoot, "this vault is inside the git repository at %s; sync needs the vault to be the repository's top folder: open %s instead, or give the vault a repository of its own", filepath.FromSlash(top), filepath.FromSlash(top))
 	}
 
-	out, err = r.Run(ctx, "remote")
-	if err != nil {
-		return failed(err)
-	}
-	if !hasLine(string(out), "origin") {
-		return paused(ReasonNoRemote, "the repository has no remote named origin; add one with `git remote add origin <url>`")
-	}
-
-	for _, key := range []string{"user.name", "user.email"} {
-		out, err := r.Run(ctx, "config", "--get", key)
-		if err != nil && exitCode(err) != 1 { // 1: the key is not set
+	if needOrigin {
+		out, err = r.Run(ctx, "remote")
+		if err != nil {
 			return failed(err)
 		}
-		if strings.TrimSpace(string(out)) == "" {
-			return paused(ReasonNoIdentity, "git does not know who you are (%s is not set); run `git config --global user.name \"Your Name\"` and `git config --global user.email you@example.com`", key)
+		if !hasLine(string(out), "origin") {
+			return paused(ReasonNoRemote, "the repository has no remote named origin; add one with `git remote add origin <url>`")
 		}
+	}
+
+	if key, err := missingIdentity(ctx, r); err != nil {
+		return failed(err)
+	} else if key != "" {
+		return paused(ReasonNoIdentity, "%s", identityMessage(key))
 	}
 
 	// Checked before the detached HEAD: a rebase detaches HEAD, and its
@@ -196,6 +198,26 @@ func Detect(ctx context.Context, r *Runner) State {
 	}
 
 	return State{Status: Ready}
+}
+
+// missingIdentity returns the first of user.name and user.email git has no
+// value for, or "" when both are set.
+func missingIdentity(ctx context.Context, r *Runner) (string, error) {
+	for _, key := range []string{"user.name", "user.email"} {
+		out, err := r.Run(ctx, "config", "--get", key)
+		if err != nil && exitCode(err) != 1 { // 1: the key is not set
+			return "", err
+		}
+		if strings.TrimSpace(string(out)) == "" {
+			return key, nil
+		}
+	}
+	return "", nil
+}
+
+// identityMessage says that key is not set and how to set it.
+func identityMessage(key string) string {
+	return fmt.Sprintf("git does not know who you are (%s is not set); run `git config --global user.name \"Your Name\"` and `git config --global user.email you@example.com`", key)
 }
 
 // hasLine reports whether text has a line equal to want.

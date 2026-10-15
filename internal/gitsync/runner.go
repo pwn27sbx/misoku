@@ -51,11 +51,33 @@ type Runner struct {
 	// Commands that never take it (ls-remote, fetch, push) leave no marker:
 	// a lock seen after them can only be someone else's.
 	marker string
+
+	// interactive lets the network commands (askingCommands) ask the user,
+	// for `misoku sync init` in the foreground (NewInteractive).
+	interactive bool
 }
 
 // New returns a Runner for the repository at dir. Each command gets at most
 // timeout to finish.
 func New(dir string, timeout time.Duration) *Runner { return &Runner{dir: dir, timeout: timeout} }
+
+// NewInteractive returns a Runner for `misoku sync init`, which runs in
+// the foreground of the user's terminal (D8): its network commands
+// (ls-remote, fetch and push) run with the user's own environment, stdin
+// and terminal, so git, ssh or a credential helper may ask for a password
+// or to accept a new SSH host key, and Ctrl+C reaches them. Every other
+// command runs exactly as with New, prompts off.
+func NewInteractive(dir string, timeout time.Duration) *Runner {
+	return &Runner{dir: dir, timeout: timeout, interactive: true}
+}
+
+// askingCommands are the git commands that talk to the remote: the only
+// ones an interactive Runner lets ask. None of them takes the index lock,
+// so the marker recovery relies on (recover.go) never covers them.
+var askingCommands = map[string]bool{"ls-remote": true, "fetch": true, "push": true}
+
+// asks reports whether git subcommand cmd may ask the user.
+func (r *Runner) asks(cmd string) bool { return r.interactive && askingCommands[cmd] }
 
 var versionRe = regexp.MustCompile(`git version (\d+)\.(\d+)`)
 
@@ -94,7 +116,8 @@ func (r *Runner) Run(parent context.Context, args ...string) ([]byte, error) {
 // and stdin fed from a buffer instead of the null device.
 func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte, args ...string) ([]byte, error) {
 	// Resolved before the time limit starts, so it never eats into it.
-	env := append(r.env(parent), extraEnv...)
+	asks := r.asks(firstWord(args))
+	env := append(r.envFor(parent, firstWord(args)), extraEnv...)
 	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
 
@@ -132,7 +155,12 @@ func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte
 			_ = writeMarker(r.marker, pid, start, r.timeout)
 		}
 	}
-	err := run(cmd, started)
+	var err error
+	if asks {
+		err = runInTerminal(cmd, started)
+	} else {
+		err = run(cmd, started)
+	}
 	if marked {
 		// git is gone now. Killed at its time limit, it may have left
 		// index.lock behind: that lock is removed here. Otherwise git
@@ -202,19 +230,50 @@ type stoppedError struct {
 func (e *stoppedError) Error() string { return e.msg }
 func (e *stoppedError) Unwrap() error { return e.cause }
 
+// runInTerminal runs cmd as a plain child of Misoku, in the user's
+// terminal and with the user's stdin, so whatever git starts can ask the
+// user (NewInteractive). Ctrl+C reaches git and ssh as it reaches Misoku.
+func runInTerminal(cmd *exec.Cmd, started func(pid int)) error {
+	if cmd.Stdin == nil {
+		cmd.Stdin = os.Stdin
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if started != nil {
+		started(cmd.Process.Pid)
+	}
+	return cmd.Wait()
+}
+
+// envFor is the environment git subcommand cmd runs with: when it may ask
+// (asks), the user's own with only the language fixed; otherwise env's.
+func (r *Runner) envFor(ctx context.Context, cmd string) []string {
+	if r.asks(cmd) {
+		env := os.Environ()
+		setEnv(&env, "LC_ALL", "C") // stable messages to parse
+		setEnv(&env, "LANGUAGE", "C")
+		return env
+	}
+	return r.env(ctx)
+}
+
+// setEnv sets k to v in env, replacing a value already there.
+func setEnv(env *[]string, k, v string) {
+	for i, kv := range *env {
+		if strings.HasPrefix(kv, k+"=") {
+			(*env)[i] = k + "=" + v
+			return
+		}
+	}
+	*env = append(*env, k+"="+v)
+}
+
 // env is the environment git runs with: the user's, with every prompt off.
 // ctx bounds reading the user's ssh setting.
 func (r *Runner) env(ctx context.Context) []string {
 	env := os.Environ()
-	set := func(k, v string) {
-		for i, kv := range env {
-			if strings.HasPrefix(kv, k+"=") {
-				env[i] = k + "=" + v
-				return
-			}
-		}
-		env = append(env, k+"="+v)
-	}
+	set := func(k, v string) { setEnv(&env, k, v) }
 	set("GIT_TERMINAL_PROMPT", "0")     // no username/password questions
 	set("GCM_INTERACTIVE", "never")     // Git Credential Manager: no windows
 	set("SSH_ASKPASS_REQUIRE", "never") // ssh: never pop up an askpass helper
