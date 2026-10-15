@@ -91,3 +91,7 @@ type FollowLinkMsg struct {
 
 // SyncMsg asks the app to sync the vault now (":sync").
 type SyncMsg struct{}
+
+// SyncStatusMsg asks the app to show the vault's sync status (":sync
+// status").
+type SyncStatusMsg struct{}

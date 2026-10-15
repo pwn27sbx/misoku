@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/content"
@@ -97,10 +98,12 @@ type Model struct {
 	graphNotes []core.Page // the workspace's notes and links, from disk
 	graphEdges []core.Edge
 
-	syncVault *config.Vault // this folder's sync.vaults entry; nil = sync off
-	syncOff   string        // why sync is off, shown when the user asks for one
-	syncLock  *gitsync.Lock // held for the whole session once taken (S11)
-	syncing   bool          // a sync command is running
+	syncVault *config.Vault    // this folder's sync.vaults entry; nil = sync off
+	syncOff   string           // why sync is off, shown when the user asks for one
+	syncLock  *gitsync.Lock    // held for the whole session once taken (S11)
+	syncing   bool             // a sync command is running
+	now       func() time.Time // the clock; nil means time.Now
+	sync      syncState        // what the last sync said (S9)
 }
 
 // Option customises the app at construction.

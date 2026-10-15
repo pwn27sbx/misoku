@@ -40,6 +40,8 @@ const (
 	ReasonNoIdentity   Reason = "no-identity"   // user.name or user.email unset
 	ReasonDetachedHead Reason = "detached-head"
 	ReasonInProgress   Reason = "in-progress" // the user's merge, rebase, cherry-pick or revert
+	ReasonLocked       Reason = "locked"      // git's index.lock is held, and not by Misoku
+	ReasonGitFailed    Reason = "git-failed"  // git failed for another reason (a timeout, the disk); the next sync checks again
 )
 
 // State is the result of Check and Detect. Message is empty when Ready;
@@ -51,6 +53,9 @@ type State struct {
 	// Vault holds the matched vault's settings (set by Check when the
 	// folder is listed).
 	Vault config.Vault
+	// Lock is the index.lock that paused the vault (ReasonLocked), for the
+	// user to remove once sure no git runs (RemoveLeftoverLock).
+	Lock string
 }
 
 // Check decides whether Misoku may sync folder, the folder it opened. When
@@ -104,8 +109,18 @@ func Detect(ctx context.Context, r *Runner) State {
 		return paused(ReasonGitTooOld, "git %s is too old; sync needs git %s or newer, update git", version, MinVersion)
 	}
 
+	// Only git's own answers say how the vault is set up. Any other
+	// failure (a timeout, a slow or failing disk) says nothing about it, so
+	// it is reported as it is, without repair advice that would be wrong.
+	failed := func(err error) State {
+		return paused(ReasonGitFailed, "git failed while checking the vault (%v); sync checks again next time", redact(err))
+	}
+
 	out, err := r.Run(ctx, "rev-parse", "--show-toplevel")
 	if err != nil {
+		if exitCode(err) != 128 || !strings.Contains(err.Error(), "not a git repository") {
+			return failed(err)
+		}
 		return paused(ReasonNotARepo, "this vault is not a git repository (%v); set it up with `misoku sync init <url>`", err)
 	}
 	// D10: the repository must be the vault itself. In a subfolder of a
@@ -116,13 +131,19 @@ func Detect(ctx context.Context, r *Runner) State {
 	}
 
 	out, err = r.Run(ctx, "remote")
-	if err != nil || !hasLine(string(out), "origin") {
+	if err != nil {
+		return failed(err)
+	}
+	if !hasLine(string(out), "origin") {
 		return paused(ReasonNoRemote, "the repository has no remote named origin; add one with `git remote add origin <url>`")
 	}
 
 	for _, key := range []string{"user.name", "user.email"} {
 		out, err := r.Run(ctx, "config", "--get", key)
-		if err != nil || strings.TrimSpace(string(out)) == "" {
+		if err != nil && exitCode(err) != 1 { // 1: the key is not set
+			return failed(err)
+		}
+		if strings.TrimSpace(string(out)) == "" {
 			return paused(ReasonNoIdentity, "git does not know who you are (%s is not set); run `git config --global user.name \"Your Name\"` and `git config --global user.email you@example.com`", key)
 		}
 	}
@@ -135,22 +156,38 @@ func Detect(ctx context.Context, r *Runner) State {
 	for _, m := range opMarkers {
 		args = append(args, "--git-path", m.path)
 	}
+	args = append(args, "--git-path", "index.lock", "--git-path", markerName)
 	out, err = r.Run(ctx, args...)
 	if err != nil {
-		return paused(ReasonNotARepo, "git could not read the repository (%v)", err)
+		return failed(err)
 	}
 	paths := strings.Split(strings.TrimRight(string(out), "\r\n"), "\n")
-	for i, m := range opMarkers {
+	at := func(i int) string {
 		if i >= len(paths) {
-			break
+			return ""
 		}
 		p := strings.TrimSpace(paths[i])
-		if !filepath.IsAbs(p) {
+		if p != "" && !filepath.IsAbs(p) {
 			p = filepath.Join(r.dir, p) // relative to the folder git ran in
 		}
-		if _, err := os.Lstat(p); err == nil {
+		return p
+	}
+	exists := func(p string) bool {
+		_, err := os.Lstat(p)
+		return p != "" && err == nil
+	}
+	for i, m := range opMarkers {
+		if exists(at(i)) {
 			return paused(ReasonInProgress, "%s is in progress in this vault; finish it (`git %s --continue`) or cancel it (`git %s --abort`)", m.what, m.cmd, m.cmd)
 		}
+	}
+	// S13: a lock left by an interrupted sync of Misoku's own has its
+	// marker next to it, and SyncVault cleans it up. Any other lock is a
+	// git command of the user's, running or crashed: left alone (S2).
+	if lock := at(len(opMarkers)); exists(lock) && !exists(at(len(opMarkers)+1)) {
+		st := paused(ReasonLocked, "%s", lockedMessage(lock))
+		st.Lock = lock
+		return st
 	}
 	// symbolic-ref fails when HEAD points at a commit instead of a branch
 	// (and works on a branch with no commit yet).

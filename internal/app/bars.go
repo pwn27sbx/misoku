@@ -245,6 +245,13 @@ func (m *Model) statusline() string {
 	if b != nil {
 		parts = append(parts, fill.Foreground(th.GreyFg2).Render(" Markdown  "))
 	}
+	if text, alert := m.syncIndicator(); text != "" {
+		fg := th.GreyFg2
+		if alert {
+			fg = th.Red
+		}
+		parts = append(parts, fill.Foreground(fg).Render(text+"  "))
+	}
 	cwd := lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Red).Render("") +
 		lipgloss.NewStyle().Background(th.Red).Foreground(th.Bg).Render("󰉋 ") +
 		light.Foreground(th.Fg).Render(" "+ui.Truncate(filepath.Base(m.store.Root()), 20)+" ")

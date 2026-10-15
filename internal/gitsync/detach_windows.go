@@ -3,6 +3,7 @@
 package gitsync
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"syscall"
@@ -19,8 +20,9 @@ import (
 // (KILL_ON_JOB_CLOSE) kills whatever is left, also if Misoku dies first.
 //
 // git starts suspended and only resumes once it is in the job: a child
-// started before the assignment would escape it.
-func run(cmd *exec.Cmd) error {
+// started before the assignment would escape it. started, when not nil,
+// gets git's pid before git runs.
+func run(cmd *exec.Cmd, started func(pid int)) error {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return fmt.Errorf("create job object: %w", err)
@@ -48,6 +50,9 @@ func run(cmd *exec.Cmd) error {
 		return err
 	}
 	pid := uint32(cmd.Process.Pid)
+	if started != nil {
+		started(cmd.Process.Pid)
+	}
 	// If the job cannot be joined (an outer job that forbids nesting), git
 	// still runs and is still killed on timeout; only its children could
 	// outlive it, as they would without a job. Syncing beats refusing to.
@@ -102,3 +107,22 @@ func resume(pid uint32) error {
 	}
 	return nil
 }
+
+// processAlive reports whether a process with id pid runs. When it cannot
+// tell (no right to open it) it says yes: the safe side for recovery.
+func processAlive(pid int) bool {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		return !errors.Is(err, windows.ERROR_INVALID_PARAMETER) // no such process
+	}
+	defer windows.CloseHandle(h)
+	var code uint32
+	if err := windows.GetExitCodeProcess(h, &code); err != nil {
+		return true
+	}
+	const stillActive = 259
+	return code == stillActive
+}
+
+// gitDiesWithMisoku says whether git dies when Misoku does: yes, closing the job object kills it.
+const gitDiesWithMisoku = true

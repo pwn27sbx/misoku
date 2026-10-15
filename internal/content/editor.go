@@ -67,7 +67,13 @@ func parseVimCommand(cmdStr, content string) any {
 	case "graph":
 		return core.GraphMsg{}
 	case "sync":
-		return core.SyncMsg{}
+		switch arg {
+		case "":
+			return core.SyncMsg{}
+		case "status":
+			return core.SyncStatusMsg{}
+		}
+		return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :sync or :sync status)", Error: true}
 	case "colorscheme", "colo", "theme":
 		return core.ThemeMsg{Name: arg}
 	case "enew", "new", "e", "edit":

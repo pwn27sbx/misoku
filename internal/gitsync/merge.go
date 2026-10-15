@@ -294,6 +294,8 @@ func deviceOf(ctx context.Context, r *Runner, ours, theirs, p string) (string, e
 // folder, local time with no ":" so it is valid on Windows, and " 2",
 // " 3"... appended when the name is already taken in the union's tree or
 // on disk. Names are compared ignoring case, as on macOS and Windows.
+// FindConflictCopies finds these names on disk (conflictCopyRe): keep the
+// two in step.
 func conflictName(dir, p, device string, now time.Time, taken map[string]bool) (string, error) {
 	folder, base := path.Split(p)
 	ext := path.Ext(base)

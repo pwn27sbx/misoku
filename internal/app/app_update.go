@@ -24,6 +24,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case syncDoneMsg:
 		m.finishSync(msg)
 		return m, nil
+	case core.SyncStatusMsg:
+		return m, m.requestSyncStatus()
+	case lockRemovedMsg:
+		return m, m.lockRemoved(msg)
+	case syncStatusMsg:
+		m.showSyncStatus(msg)
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.updateLayout()

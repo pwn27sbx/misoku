@@ -27,12 +27,17 @@ func panel(th theme.Theme, rows []string, inner int) string {
 // Confirm dialog
 
 type confirmDialog struct {
-	title    string
-	message  []string
-	buttons  []string // the last button is always "cancel"
-	danger   bool     // paint the first button red (e.g. Delete)
-	selected int
-	onChoose func(m *Model, choice int) tea.Cmd
+	title   string
+	message []string
+	buttons []string // the last button is always "cancel"
+	danger  bool     // paint the first button red (e.g. Delete)
+	// deliberate takes a choice only from the arrow keys, Tab and Enter
+	// (or a click): no letter picks or moves to a button. For a dialog that
+	// can open on its own while the user types, where a stray letter must
+	// not choose for them.
+	deliberate bool
+	selected   int
+	onChoose   func(m *Model, choice int) tea.Cmd
 }
 
 type confirmGeom struct {
@@ -109,7 +114,15 @@ func (d *confirmDialog) update(m *Model, msg tea.Msg) (tea.Cmd, bool) {
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
+		key := msg.String()
+		if d.deliberate {
+			switch key {
+			case "left", "shift+tab", "up", "right", "tab", "down", "enter", "esc", "ctrl+c":
+			default:
+				return nil, false
+			}
+		}
+		switch key {
 		case "left", "h", "shift+tab", "up", "k":
 			d.selected = (d.selected - 1 + len(d.buttons)) % len(d.buttons)
 		case "right", "l", "tab", "down", "j":

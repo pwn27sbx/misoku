@@ -42,6 +42,13 @@ type Runner struct {
 	sshOnce sync.Once
 	ssh     string
 	sshSet  bool
+
+	// marker, when set, is the file SyncVault keeps while each of its git
+	// commands that take the index lock runs (takesIndexLock, recover.go),
+	// so a lock a dead git left behind can be told apart from the user's.
+	// Commands that never take it (ls-remote, fetch, push) leave no marker:
+	// a lock seen after them can only be someone else's.
+	marker string
 }
 
 // New returns a Runner for the repository at dir. Each command gets at most
@@ -109,7 +116,36 @@ func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte
 	// before Wait gives up on them.
 	cmd.WaitDelay = 2 * time.Second
 
-	err := run(cmd)
+	var started func(pid int)
+	marked := r.marker != "" && takesIndexLock(firstWord(args))
+	if marked {
+		start := time.Now()
+		if err := writeMarker(r.marker, 0, start, r.timeout); err != nil {
+			return nil, fmt.Errorf("could not note the running git: %w", err)
+		}
+		started = func(pid int) {
+			// Best effort: without the pid the marker still says the lock
+			// would be Misoku's, and recovery stays on the safe side (it
+			// never removes a lock whose git it cannot check).
+			_ = writeMarker(r.marker, pid, start, r.timeout)
+		}
+	}
+	err := run(cmd, started)
+	if marked {
+		// git is gone now. Killed at its time limit, it may have left
+		// index.lock behind: that lock is removed here. Otherwise git
+		// removed its own locks on the way out, and any lock there now is
+		// someone else's.
+		var ferr error
+		if ctx.Err() != nil {
+			ferr = recoverIndexLock(r.marker, true)
+		} else {
+			ferr = removeMarker(r.marker)
+		}
+		if err == nil && ferr != nil {
+			return stdout.Bytes(), ferr
+		}
+	}
 	if err == nil {
 		return stdout.Bytes(), nil
 	}
@@ -263,7 +299,7 @@ func (r *Runner) sshConfig() map[string]string {
 	cmd.Stdout = &out
 	cmd.WaitDelay = 2 * time.Second
 	cfg := map[string]string{}
-	if run(cmd) != nil {
+	if run(cmd, nil) != nil {
 		return cfg
 	}
 	for _, entry := range bytes.Split(out.Bytes(), []byte{0}) {
@@ -304,7 +340,9 @@ func (r *Runner) Commit(ctx context.Context, message string) ([]byte, error) {
 // NUL-separated output, so names with accents, spaces or quotes come back
 // exactly as they are on disk.
 func (r *Runner) Status(ctx context.Context) ([]Change, error) {
-	out, err := r.Run(ctx, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	// --no-optional-locks: status never takes the index lock (see
+	// indexLockCommands).
+	out, err := r.Run(ctx, "--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return nil, err
 	}
@@ -332,6 +370,9 @@ func firstWord(args []string) string {
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-c" || args[i] == "-C" {
 			i++
+			continue
+		}
+		if args[i] == "--no-optional-locks" {
 			continue
 		}
 		return args[i]
