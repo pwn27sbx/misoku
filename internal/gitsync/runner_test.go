@@ -316,6 +316,44 @@ func TestSSHVariantConfigDecidesTheFlag(t *testing.T) {
 	}
 }
 
+// A failed read of the user's ssh setting (git could not run, a time
+// limit on a loaded machine) is not taken as "nothing configured": that
+// would set GIT_SSH_COMMAND to plain ssh, which overrides core.sshCommand,
+// and keep it for the Runner's whole life. The command runs with the
+// user's setting left alone, and the next one reads it again.
+func TestFailedSSHLookupIsNotRemembered(t *testing.T) {
+	isolate(t)
+	unsetenv(t, "GIT_SSH")
+	unsetenv(t, "GIT_SSH_COMMAND")
+	unsetenv(t, "GIT_SSH_VARIANT")
+	dir := filepath.Join(t.TempDir(), "later")
+	r := gitsync.New(dir, 5*time.Second)
+	if got, ok := envValue(r.EnvFor(context.Background(), "fetch"), "GIT_SSH_COMMAND"); ok {
+		t.Fatalf("a failed lookup must leave GIT_SSH_COMMAND unset, got %q", got)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"config", "core.sshCommand", "ssh -i key"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("%v %s", err, out)
+		}
+	}
+	if got, _ := envValue(r.EnvFor(context.Background(), "fetch"), "GIT_SSH_COMMAND"); got != "ssh -o BatchMode=yes -i key" {
+		t.Fatalf("the next command must read the setting again, got %q", got)
+	}
+}
+
+// envValue returns the value of k in env.
+func envValue(env []string, k string) (string, bool) {
+	for _, kv := range env {
+		if v, ok := strings.CutPrefix(kv, k+"="); ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 // A rename is two fields in -z output: the new path, then the original.
 // The original must not come back as an entry of its own, and the entries
 // after it must still parse.

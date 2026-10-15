@@ -69,6 +69,17 @@ func readMarker(path string) (m marker, ok bool, err error) {
 	return m, true, nil
 }
 
+// markerStale is how long past its time limit a marked command may still
+// be running. Later, a live process with its pid is taken for another
+// program that got the pid (after a restart, say): waiting for it would
+// stop every sync for good. What its lock says is still checked.
+const markerStale = 10 * time.Minute
+
+// stale reports whether the marked command is long past its time limit.
+func (m marker) stale(now time.Time) bool {
+	return now.After(m.start.Add(m.limit + markerStale))
+}
+
 // removeMarker removes the marker at path, if any.
 func removeMarker(path string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -93,7 +104,7 @@ func recoverIndexLock(path string, killedNow bool) error {
 	if err != nil || !ok {
 		return err
 	}
-	if m.pid > 0 && processAlive(m.pid) {
+	if m.pid > 0 && processAlive(m.pid) && !m.stale(time.Now()) {
 		return fmt.Errorf("git (process %d) of an earlier sync is %w; sync tries again once it is done", m.pid, errGitStillRunning)
 	}
 	lock := filepath.Join(filepath.Dir(path), "index.lock")

@@ -242,6 +242,36 @@ func TestSyncParseWarnsInsteadOfFailing(t *testing.T) {
 	}
 }
 
+// One folder listed twice (written with ~ and as an absolute path, say)
+// gives one vault with the same settings every time, and a warning, instead
+// of whichever entry map order happened to put first.
+func TestSyncParseKeepsOneEntryPerFolder(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
+	abs := filepath.Join(home, "notes")
+	s := config.Sync{Vaults: map[string]config.SyncVault{
+		"~/notes":                      {Device: "tilde"},
+		abs:                            {Device: "absolute"},
+		abs + string(os.PathSeparator): {Device: "slash"},
+	}}
+	first := ""
+	for i := 0; i < 20; i++ {
+		vaults, warnings := s.Parse()
+		if len(vaults) != 1 || vaults[0].Path != abs {
+			t.Fatalf("want one vault at %s, got %+v", abs, vaults)
+		}
+		if first == "" {
+			first = vaults[0].Device
+		} else if vaults[0].Device != first {
+			t.Fatalf("the settings changed between reads: %q, then %q", first, vaults[0].Device)
+		}
+		if len(warnings) != 2 {
+			t.Fatalf("want a warning for each entry left out, got %q", warnings)
+		}
+	}
+}
+
 func TestSyncDeviceIsMadeFileNameSafe(t *testing.T) {
 	dir := t.TempDir()
 	vs, ws := config.Sync{Vaults: map[string]config.SyncVault{dir: {Device: ` my:mac/2? `}}}.Parse()

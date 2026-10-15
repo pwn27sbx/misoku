@@ -406,11 +406,11 @@ Everything else syncs, including the PDFs `:export` and `misoku export` write in
 | `another Misoku window syncs this vault` | Only one window syncs a vault; the others see its changes within seconds. When that window closes, the next sync here takes over. |
 | `… is in progress in this vault` | A merge, rebase, cherry-pick or revert you started is waiting: finish it (`git merge --continue`…) or cancel it (`git merge --abort`…). Sync waits and touches nothing. |
 | `HEAD is detached` | Check out your branch, for example `git switch main`. |
-| `a git lock file is in the way (.git/index.lock)` | A git command is running in the vault, or one stopped half-way. If no git is running, open `:sync status` and choose **Remove the lock and sync** (with the arrow keys or Tab, then Enter). Misoku removes a lock on its own only when it knows it left it itself. |
+| `a git lock file is in the way (.git/index.lock)` | A git command is running in the vault, or one stopped half-way. If no git is running, open `:sync status` and choose **Remove the lock and sync** (with the arrow keys or Tab, then Enter). If you typed before the status appeared, it leaves the choice out: open it again. Misoku removes a lock on its own only when it knows it left it itself. |
 | `this vault is inside the git repository at …` | See [a vault inside another repository](#set-up-a-vault). |
 | `… was rewritten (a force-push)` | Someone rewrote the repository's history. Sync stops so nothing is lost: compare with `git fetch origin` and `git log origin/main`, and join them by hand. |
 | `unrelated histories` | The vault and the repository share no history: join them once with `misoku sync init <url>`. |
-| `Sync stopped, it tries again next time` | Another computer pushed first, or a file changed during the sync: sync again. If the same message keeps coming back, read it in `:sync status`: it names the file in the way (for example a file left out whose name the repository also uses) and how to fix it. |
+| `Sync stopped, it tries again next time` | Another computer pushed first, a file changed during the sync, or a file could not be replaced because another app has it open (common on Windows): close it if so, and sync again. If the same message keeps coming back, read it in `:sync status`: it names the file in the way (for example a file left out whose name the repository also uses) and how to fix it. |
 | `git … is too old` / `git did not run` | Install or update git (2.38 or newer). |
 | `git does not know who you are` | Set `user.name` and `user.email` as the message shows. |
 

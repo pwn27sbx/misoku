@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +45,7 @@ func newTestStore(t *testing.T) *core.Store {
 
 // harness drives the model like the Bubble Tea runtime: every returned
 // command is executed and its message fed back in. Timer-based commands
-// (cursor blinks) are dropped.
+// (cursor blinks, toasts, the workspace poll) are dropped; see runCmd.
 type harness struct {
 	t     *testing.T
 	m     tea.Model
@@ -57,15 +59,47 @@ func newHarness(t *testing.T, store *core.Store, opts ...app.Option) *harness {
 	return h
 }
 
+// runCmd runs a command and returns its message. Commands that only wait
+// for a clock (cursor blinks, toasts, the workspace poll) are not run: a
+// test never waits for them. Every other command is waited for, however
+// slow the machine is; a fixed short wait used to drop a click's message on
+// a loaded CI runner and leave the previous note open.
 func runCmd(c tea.Cmd) tea.Msg {
+	if isTimer(c) {
+		return nil
+	}
 	ch := make(chan tea.Msg, 1)
 	go func() { ch <- c() }()
 	select {
 	case msg := <-ch:
 		return msg
-	case <-time.After(30 * time.Millisecond):
+	case <-time.After(cmdLimit):
 		return nil
 	}
+}
+
+// cmdLimit bounds a command that never returns, so a stuck test still ends.
+const cmdLimit = 10 * time.Second
+
+// timerFuncs are the function names of the commands that wait for a clock.
+var timerFuncs = []string{
+	"github.com/charmbracelet/bubbletea.Tick.",
+	"github.com/charmbracelet/bubbletea.Every.",
+	"github.com/charmbracelet/bubbles/cursor.(*Model).BlinkCmd.",
+}
+
+// isTimer reports whether c is one of the clock commands above.
+func isTimer(c tea.Cmd) bool {
+	fn := runtime.FuncForPC(reflect.ValueOf(c).Pointer())
+	if fn == nil {
+		return false
+	}
+	for _, prefix := range timerFuncs {
+		if strings.HasPrefix(fn.Name(), prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *harness) send(msgs ...tea.Msg) {

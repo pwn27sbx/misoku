@@ -430,6 +430,7 @@ func (m *Model) requestSyncStatus() tea.Cmd {
 		return nil
 	}
 	m.setStatus("Reading the sync status…")
+	m.statusKeys = m.keyCount
 	dir := m.store.Root()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
@@ -496,8 +497,14 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 		}
 	}
 	if s.leftover != nil && !m.syncing {
-		m.offerLockRemoval(*s.leftover, append(lines, "Sync stopped: "+lockedText+"."))
-		return
+		lines = append(lines, "Sync stopped: "+lockedText+".")
+		// Keys pressed since `:sync status` was asked for were meant for
+		// the note: the offer would take them (Tab, then Enter, removes).
+		if m.keyCount == m.statusKeys {
+			m.offerLockRemoval(*s.leftover, lines)
+			return
+		}
+		lines = append(lines, "To remove the lock, run :sync status again.")
 	}
 	m.openSyncStatus(lines)
 }

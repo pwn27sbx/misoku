@@ -40,6 +40,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		m.status = ""
+		m.keyCount++
 	}
 
 	// Modal layers own all input while open.

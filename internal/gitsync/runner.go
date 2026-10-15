@@ -281,13 +281,18 @@ func (r *Runner) env(ctx context.Context) []string {
 	set("LC_ALL", "C")                  // stable messages to parse
 	set("LANGUAGE", "C")
 	r.sshMu.Lock()
-	if !r.sshDone {
-		r.ssh, r.sshSet = r.resolveSSH(ctx)
-		// Stopped by the caller, the read may have missed the setting:
-		// the command fails anyway, and the next one reads it again.
-		r.sshDone = ctx.Err() == nil
-	}
 	ssh, sshSet := r.ssh, r.sshSet
+	if !r.sshDone {
+		var read bool
+		ssh, sshSet, read = r.resolveSSH(ctx)
+		// A read that failed (stopped by the caller, a time limit, git
+		// not running) may have missed the user's setting: this command
+		// leaves GIT_SSH_COMMAND alone, as setting it would override
+		// core.sshCommand, and the next command reads it again.
+		if read {
+			r.ssh, r.sshSet, r.sshDone = ssh, sshSet, true
+		}
+	}
 	r.sshMu.Unlock()
 	if sshSet {
 		set("GIT_SSH_COMMAND", ssh)
@@ -296,7 +301,8 @@ func (r *Runner) env(ctx context.Context) []string {
 }
 
 // resolveSSH returns the ssh command the user already configured with its
-// no-prompt flag added, and false when it cannot be added safely.
+// no-prompt flag added, and false when it cannot be added safely. read is
+// false when the user's git config could not be read: then nothing is set.
 //
 // It follows git's own order (GIT_SSH_COMMAND, core.sshCommand, GIT_SSH,
 // plain ssh). GIT_SSH holds a program path, not a command line, and git
@@ -306,8 +312,17 @@ func (r *Runner) env(ctx context.Context) []string {
 // already passes -batch to TortoisePlink. A client of unknown kind gets
 // nothing: an option it does not understand would break every sync, and
 // git runs without a terminal and with SSH_ASKPASS_REQUIRE=never anyway.
-func (r *Runner) resolveSSH(ctx context.Context) (string, bool) {
-	cfg := r.sshConfig(ctx)
+func (r *Runner) resolveSSH(ctx context.Context) (command string, set, read bool) {
+	cfg, read := r.sshConfig(ctx)
+	if !read {
+		return "", false, false
+	}
+	command, set = r.sshFrom(cfg)
+	return command, set, true
+}
+
+// sshFrom is resolveSSH once the user's git config cfg is read.
+func (r *Runner) sshFrom(cfg map[string]string) (string, bool) {
 	command, isCmdline := strings.TrimSpace(os.Getenv("GIT_SSH_COMMAND")), true
 	if command == "" {
 		command = cfg["core.sshcommand"]
@@ -359,10 +374,11 @@ func (r *Runner) resolveSSH(ctx context.Context) (string, bool) {
 }
 
 // sshConfig reads core.sshCommand and ssh.variant (keys come back
-// lowercased). A failure reads as "not configured": the lookup has its own
-// short limit, within ctx, so it never blocks the command it is resolved
-// for nor outlives its caller (Ctrl+C on quit stops it at once).
-func (r *Runner) sshConfig(parent context.Context) map[string]string {
+// lowercased), and whether git answered: neither key set is an answer, a
+// failure is not. The lookup has its own short limit, within ctx, so it
+// never blocks the command it is resolved for nor outlives its caller
+// (Ctrl+C on quit stops it at once).
+func (r *Runner) sshConfig(parent context.Context) (map[string]string, bool) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "-C", r.dir, "config", "-z", "--get-regexp", `^(core\.sshcommand|ssh\.variant)$`)
@@ -371,15 +387,16 @@ func (r *Runner) sshConfig(parent context.Context) map[string]string {
 	cmd.Stdout = &out
 	cmd.WaitDelay = 2 * time.Second
 	cfg := map[string]string{}
-	if run(cmd, nil) != nil {
-		return cfg
+	if err := run(cmd, nil); err != nil {
+		// Exit code 1: no key matched, so nothing is configured.
+		return cfg, ctx.Err() == nil && exitCode(err) == 1
 	}
 	for _, entry := range bytes.Split(out.Bytes(), []byte{0}) {
 		if k, v, ok := strings.Cut(string(entry), "\n"); ok {
 			cfg[k] = strings.TrimSpace(v) // the last value wins, as in git
 		}
 	}
-	return cfg
+	return cfg, true
 }
 
 // splitProgram splits a shell command line into its program (kept exactly

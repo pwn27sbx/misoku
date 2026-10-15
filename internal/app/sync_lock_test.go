@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -317,5 +318,39 @@ func TestDeleteDialogStillTakesItsLetter(t *testing.T) {
 	h.keys("d")
 	if len(store.List()) != 0 {
 		t.Fatal("the letter d must still choose Delete")
+	}
+}
+
+// `:sync status` reads in the background. If the user went back to typing
+// before it arrived, the offer to remove the lock does not open under
+// their keys (a Tab to indent, then Enter, would choose Remove): the status
+// shows without it, and says how to get it.
+func TestSyncStatusArrivingWhileTypingOffersNoRemoval(t *testing.T) {
+	t.Parallel()
+	remote, vault := syncedVault(t)
+	lock := leftoverLock(t, vault)
+	writeOutside(t, vault, "new.md", "fresh")
+	h := window(t, vault, syncConfig(t, vault))
+	h.finish(h.update(app.SyncNowMsg{}))
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	h.keys(":sync status")
+	h.update(tea.KeyMsg{Type: tea.KeyEnter}) // its command asks for the status, as below
+	pending := h.update(core.SyncStatusMsg{})
+	h.keys("i- item")
+	h.finish(pending)
+	v := h.view()
+	if strings.Contains(v, removeButton) {
+		t.Fatalf("the offer must not open while the user types:\n%s", v)
+	}
+	if !strings.Contains(noSpace(dialogText(v)), ":syncstatusagain") {
+		t.Fatalf("the status must say how to get the offer:\n%s", v)
+	}
+	h.key(tea.KeyTab)
+	if cmd := h.update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		runLong(t, cmd)
+	}
+	if !lockThere(t, lock) || onRemote(t, remote, "new.md") {
+		t.Fatal("typed keys must never remove the lock")
 	}
 }

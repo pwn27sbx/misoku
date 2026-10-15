@@ -125,6 +125,31 @@ func TestSyncWaitsWhileTheInterruptedGitStillRuns(t *testing.T) {
 	wantLock(t, lock, true)
 }
 
+// A marker whose pid now belongs to another long-running program (the pid
+// was reused, after a restart say) must not stop every sync for good: once
+// the marked command is long past its time limit, the pid says nothing.
+// Without a lock the sync goes on; a lock stays the user's to remove.
+func TestSyncIsNotStalledByAReusedPid(t *testing.T) {
+	t.Parallel()
+	remote, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
+	write(t, laptop, "a.md", "a\n")
+	gitDir := git(t, laptop, "rev-parse", "--absolute-git-dir")
+	if err := gitsync.WriteRunMarker(gitDir, os.Getpid(), time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
+	wantInSync(t, remote, laptop, "main")
+
+	write(t, laptop, "b.md", "b\n")
+	lock := interrupted(t, laptop, os.Getpid(), time.Now().Add(-time.Hour))
+	res := syncVault(t, laptop, "laptop", false)
+	var locked *gitsync.LockedError
+	if res.Outcome != gitsync.SyncFailed || !errors.As(res.Err, &locked) {
+		t.Fatalf("want the sync stopped on the lock for the user to decide, got %v: %v", res.Outcome, res.Err)
+	}
+	wantLock(t, lock, true)
+}
+
 // A lock older than the command Misoku's marker names was there before
 // that command: someone else's, so it stays.
 func TestSyncLeavesAnIndexLockOlderThanItsCommand(t *testing.T) {

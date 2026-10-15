@@ -455,9 +455,17 @@ func countPending(ctx context.Context, r *Runner, branch string) (int, error) {
 // (S12): the next sync retries. A file left out for being too big (D7), or
 // for being a nested repository or having a name Windows cannot use (S15),
 // at a path origin now has would block every sync the same way, so it is
-// named instead. Anything else is git's error.
+// named instead. A file git could not replace (on Windows, one open in
+// another app) stops the fast-forward half-way: the files already written
+// hold origin's version and go into the next commit, so retrying loses
+// nothing and finishes once the file is free. Anything else is git's error.
 func applyFailure(err error, commit CommitResult) (SyncOutcome, error) {
 	msg := err.Error()
+	for _, busy := range busyFileErrors {
+		if strings.Contains(msg, busy) {
+			return SyncRetry, fmt.Errorf("a file could not be replaced, perhaps because it is open in another app, so origin's changes were not all applied yet (nothing was lost; close it and sync again): %w", err)
+		}
+	}
 	if !strings.Contains(msg, "would be overwritten by merge") {
 		return SyncFailed, fmt.Errorf("could not apply origin's changes: %w", err)
 	}
@@ -476,6 +484,10 @@ func applyFailure(err error, commit CommitResult) (SyncOutcome, error) {
 	}
 	return SyncRetry, fmt.Errorf("a file changed while syncing, so origin's changes were not applied yet (nothing was lost; the next sync tries again): %w", err)
 }
+
+// busyFileErrors are git's messages for a working-tree file it could not
+// delete or write while moving the branch.
+var busyFileErrors = []string{"unable to unlink old", "unable to create file", "unable to write file"}
 
 // setUpstream makes origin/<branch> the upstream of the checked-out branch
 // (S4), writing the config only when it differs.

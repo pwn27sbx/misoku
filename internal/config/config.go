@@ -67,16 +67,32 @@ type Vault struct {
 // Parse returns the usable vaults, sorted by path, and a warning for each
 // value it could not use. A bad value never stops Misoku: a bad interval
 // falls back to DefaultSyncInterval, and a vault whose path cannot be
-// resolved is left out (it does not sync, which is the safe side).
+// resolved is left out (it does not sync, which is the safe side). A folder
+// listed twice (as "~/notes" and as its absolute path, say) keeps the entry
+// that sorts first, so the same settings win every time, and the others
+// are warned about.
 func (s Sync) Parse() ([]Vault, []string) {
 	var vaults []Vault
 	var warnings []string
-	for raw, sv := range s.Vaults {
+	raws := make([]string, 0, len(s.Vaults))
+	for raw := range s.Vaults {
+		raws = append(raws, raw)
+	}
+	// Map order is random: sorted, the same entry wins every time.
+	sort.Strings(raws)
+	seen := map[string]string{} // path -> the entry that set it
+	for _, raw := range raws {
+		sv := s.Vaults[raw]
 		path, err := expandHome(raw)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("sync: vault %q skipped: %v", raw, err))
 			continue
 		}
+		if first, ok := seen[path]; ok {
+			warnings = append(warnings, fmt.Sprintf("sync: vault %q skipped: it is the same folder as %q, whose settings are used", raw, first))
+			continue
+		}
+		seen[path] = raw
 		v := Vault{Path: path, Interval: DefaultSyncInterval, Device: safeDevice(sv.Device)}
 		if sv.Interval != "" {
 			d, err := time.ParseDuration(sv.Interval)

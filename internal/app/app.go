@@ -105,6 +105,12 @@ type Model struct {
 	syncRun   *syncRun         // the sync started last, to wait for on quit (S14)
 	now       func() time.Time // the clock; nil means time.Now
 	sync      syncState        // what the last sync said (S9)
+
+	// keyCount counts the keys pressed; statusKeys is keyCount when
+	// `:sync status` was asked for, so its answer can tell whether the
+	// user typed meanwhile.
+	keyCount   int
+	statusKeys int
 }
 
 // Option customises the app at construction.
