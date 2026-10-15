@@ -34,7 +34,10 @@ type stageEntry struct{ mode, oid string }
 //
 // Two paths that differ only in letter case are one file on macOS and
 // Windows, where applying both would overwrite one with the other: ours
-// keeps its name and theirs becomes a conflict copy, on every OS.
+// keeps its name and theirs becomes a conflict copy, on every OS. For the
+// same reason a file whose name, ignoring case, is a folder of the union
+// ("ideas" next to "Ideas/a.md") becomes a conflict copy, whichever side
+// it came from.
 //
 // No conflict marker ever reaches a file.
 func union(ctx context.Context, r *Runner, ours, theirs string, unrelated bool, device string, now time.Time) (string, []string, error) {
@@ -137,6 +140,9 @@ func resolveTree(ctx context.Context, r *Runner, tree string, conflicts map[stri
 	for p := range files {
 		s.taken[strings.ToLower(p)] = true
 	}
+	for f := range caseFolders(files) {
+		s.taken[f] = true // a copy named like a folder would clash with it
+	}
 	side := func(own map[string]stageEntry, p string, stage *stageEntry) *stageEntry {
 		if stage == nil {
 			return nil
@@ -228,6 +234,28 @@ func resolveTree(ctx context.Context, r *Runner, tree string, conflicts map[stri
 		}
 	}
 
+	// A file whose name, ignoring case, is a folder of other paths
+	// ("ideas" next to "Ideas/a.md"): merge-tree only sees two paths, but
+	// macOS and Windows hold one of them, and each device's next commit
+	// would delete the other. The file becomes a conflict copy, whichever
+	// side it came from, as when the case matches (movedAside), on every
+	// OS.
+	folders := caseFolders(s.files)
+	for _, p := range sortedKeys(s.files) {
+		if !folders[strings.ToLower(p)] {
+			continue
+		}
+		e := s.files[p]
+		s.remove(p)
+		from := theirs
+		if _, mine := oursFiles[p]; mine {
+			from = ours
+		}
+		if err := copyFrom(p, e, from, otherSide(from, ours, theirs)); err != nil {
+			return "", nil, err
+		}
+	}
+
 	if len(s.changes) == 0 {
 		return tree, nil, nil
 	}
@@ -283,6 +311,18 @@ func movedAside(p string, st *[4]*stageEntry, merged, oursFiles, theirsFiles map
 		}
 	}
 	return "", stageEntry{}, "", false
+}
+
+// caseFolders returns every folder of the paths in files (slash
+// separated), lowercased.
+func caseFolders(files map[string]stageEntry) map[string]bool {
+	folders := map[string]bool{}
+	for p := range files {
+		for d := path.Dir(p); d != "." && d != "/"; d = path.Dir(d) {
+			folders[strings.ToLower(d)] = true
+		}
+	}
+	return folders
 }
 
 // otherSide is theirs when from is ours, and ours otherwise.

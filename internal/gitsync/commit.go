@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 )
 
@@ -56,8 +57,12 @@ type CommitResult struct {
 // .DS_Store or files larger than MaxFileSize; a tracked file that grew past
 // the limit keeps its last committed version. Nor does it commit a nested
 // git repository or a new file whose name Windows cannot check out (S15):
-// both stay on disk, untouched, and are listed in Notices. With nothing to
-// commit it makes no commit. The message names device and carries a
+// both stay on disk, untouched, and are listed in Notices. Nor, on every
+// OS, a new file whose name differs from another's only in letter case
+// (CaseDuplicate), which macOS and Windows could not check out. On a disk
+// that ignores letter case, a tracked file that another tracked path
+// shadows (missing, or showing the other's content) keeps its committed
+// version (CaseClash). With nothing to commit it makes no commit. The message names device and carries a
 // "Misoku-Device: <device>" trailer (S1).
 //
 // It only touches the local repository: no fetch, merge or push. The
@@ -76,8 +81,13 @@ func CommitVault(ctx context.Context, r *Runner, device string) (res CommitResul
 	// its old path, and committing that alone would delete the note on
 	// every other device. The old path keeps syncing until the user
 	// renames the file to a name Windows can use.
+	// The same holds while a new file is left out as a case duplicate.
+	names, err := caseNamesOf(ctx, r, changes)
+	if err != nil {
+		return res, err
+	}
 	hold := slices.ContainsFunc(changes, func(c Change) bool {
-		return newPath(c) && !nestedRepo(c) && !ownFile(c.Path) && windowsNameProblem(c.Path) != ""
+		return newPath(c) && !nestedRepo(c) && !ownFile(c.Path) && (windowsNameProblem(c.Path) != "" || names.dup[c.Path])
 	})
 	var add, keepOut, restore []string
 	holdBack := func(p string, staged bool) {
@@ -113,6 +123,12 @@ func CommitVault(ctx context.Context, r *Runner, device string) (res CommitResul
 				settled[c.Path] = true
 				continue
 			}
+			if names.dup[c.Path] {
+				res.Notices = append(res.Notices, Notice{Kind: CaseDuplicate, Path: c.Path, LeftOut: true})
+				keepOut = append(keepOut, c.Path)
+				settled[c.Path] = true
+				continue
+			}
 			if n, ok := linkOutside(r.dir, c.Path); ok {
 				res.Notices = append(res.Notices, n)
 			}
@@ -120,12 +136,26 @@ func CommitVault(ctx context.Context, r *Runner, device string) (res CommitResul
 		}
 		if strings.Contains(c.Code, "D") {
 			settled[c.Path] = true // on its way out of the vault
+			if names.missing(c) {
+				res.Notices = append(res.Notices, Notice{Kind: CaseClash, Path: c.Path, LeftOut: true})
+				continue
+			}
 			if hold && (c.Code == " D" || c.Code == "D ") {
 				holdBack(c.Path, c.Code[0] == 'D')
 				continue
 			}
 		}
+		if names.overwritten(c) {
+			res.Notices = append(res.Notices, Notice{Kind: CaseClash, Path: c.Path, LeftOut: true})
+			settled[c.Path] = true
+			continue
+		}
 		add = append(add, c.Path)
+	}
+	for _, p := range names.shadowed {
+		if !slices.Contains(res.Notices, Notice{Kind: CaseClash, Path: p, LeftOut: true}) {
+			res.Notices = append(res.Notices, Notice{Kind: CaseClash, Path: p})
+		}
 	}
 	// What the vault already tracks is read once the commit is made, so
 	// reading it never delays the commit.
@@ -177,6 +207,110 @@ func CommitVault(ctx context.Context, r *Runner, device string) (res CommitResul
 	}
 	res.Committed, res.ID, res.Files = true, strings.TrimSpace(string(out)), files
 	return res, nil
+}
+
+// caseNames is what CommitVault needs to keep names that differ only in
+// letter case from reaching the repository or being lost to it. macOS and
+// Windows hold one file for "a.md" and "A.md", and one name for a file
+// "ideas" and a folder "Ideas"; Linux holds both. git sets core.ignorecase
+// on a disk that ignores case.
+type caseNames struct {
+	ignoreCase bool
+	files      map[string]int  // lowercased tracked file -> how many, gone ones aside
+	folders    map[string]bool // lowercased folders of those files
+	pairs      map[string]int  // lowercased tracked file -> how many, gone ones too
+	shadowed   []string        // tracked files another tracked path shadows, sorted
+	dup        map[string]bool // new paths left out as case duplicates
+}
+
+// caseNamesOf reads core.ignorecase and the tracked files.
+func caseNamesOf(ctx context.Context, r *Runner, changes []Change) (caseNames, error) {
+	n := caseNames{files: map[string]int{}, folders: map[string]bool{}, pairs: map[string]int{}, dup: map[string]bool{}}
+	gone, fresh := map[string]bool{}, map[string]bool{}
+	var news []string
+	for _, c := range changes {
+		if strings.Contains(c.Code, "D") {
+			gone[c.Path] = true
+		}
+		if c.Code[0] == 'R' {
+			gone[c.From] = true
+		}
+		if newPath(c) && !nestedRepo(c) && !ownFile(c.Path) {
+			news = append(news, c.Path)
+			fresh[c.Path] = true
+		}
+	}
+	out, err := r.Run(ctx, "config", "--bool", "core.ignorecase")
+	if err != nil && exitCode(err) != 1 { // 1 means unset
+		return n, err
+	}
+	n.ignoreCase = strings.TrimSpace(string(out)) == "true"
+	modes, err := tracked(ctx, r)
+	if err != nil {
+		return n, err
+	}
+	for p := range modes {
+		if !fresh[p] {
+			n.pairs[strings.ToLower(p)]++
+		}
+		if gone[p] || fresh[p] {
+			continue
+		}
+		n.files[strings.ToLower(p)]++
+		for d := path.Dir(p); d != "." && d != "/"; d = path.Dir(d) {
+			n.folders[strings.ToLower(d)] = true
+		}
+	}
+	// A new name taken by a tracked file, or by a new one earlier in
+	// byte order, is a duplicate, on every OS.
+	sort.Strings(news)
+	seen := map[string]bool{}
+	for _, p := range news {
+		lp := strings.ToLower(p)
+		n.dup[p] = n.files[lp] > 0 || seen[lp]
+		seen[lp] = true
+	}
+	// On a disk that ignores case, the tracked files it cannot hold apart
+	// are told about on every commit, edited or not, until one of them is
+	// renamed.
+	if n.ignoreCase {
+		for p := range modes {
+			lp := strings.ToLower(p)
+			if !fresh[p] && n.pairs[lp] > 1 {
+				n.shadowed = append(n.shadowed, p)
+			}
+		}
+		sort.Strings(n.shadowed)
+	}
+	return n, nil
+}
+
+// missing reports whether c is a tracked file missing from disk only
+// because the disk ignores case and another tracked path takes its name: a
+// folder ("ideas" next to "Ideas/a.md") or a file where one of its folders
+// should be. It also holds a tracked file whose name differs from
+// another's only in case ("a.md" next to "A.md"): the disk holds one file
+// for both, and renaming or deleting it shows both missing, though at
+// most one of them was ever there. Committing the deletion would delete it
+// on every device.
+func (n caseNames) missing(c Change) bool {
+	if !n.ignoreCase || c.Code != " D" {
+		return false
+	}
+	lp := strings.ToLower(c.Path)
+	clash := n.folders[lp] || n.pairs[lp] > 1
+	for d := path.Dir(lp); !clash && d != "." && d != "/"; d = path.Dir(d) {
+		clash = n.files[d] > 0
+	}
+	return clash
+}
+
+// overwritten reports whether c is a tracked file shown modified on a
+// disk that ignores case while another tracked file has its name ignoring
+// case: the disk holds one file for both, so the change may be the other's
+// content, and committing it would overwrite this one.
+func (n caseNames) overwritten(c Change) bool {
+	return n.ignoreCase && c.Code == " M" && n.files[strings.ToLower(c.Path)] > 1
 }
 
 // ownFile reports whether p (slash-separated) is one of the files Misoku

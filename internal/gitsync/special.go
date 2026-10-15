@@ -34,10 +34,24 @@ const (
 	// keeps syncing, and the user is asked to rename it.
 	WindowsName
 	// HeldDeletion is a tracked file deleted or renamed while a new file
-	// is left out for its name (WindowsName): the deletion is not
+	// is left out for its name (WindowsName, CaseDuplicate): the deletion is not
 	// committed, since it may be the old name of that file, so the file
 	// keeps syncing under this name until the other is renamed.
 	HeldDeletion
+	// CaseClash is a tracked file deleted on a disk that ignores letter
+	// case (macOS, Windows) while another tracked path takes its name
+	// ignoring case ("ideas" next to "Ideas/a.md", made on Linux): the
+	// disk can hold only one of them, so the deletion is not committed
+	// and the file keeps syncing until the user renames the one shown. Two
+	// tracked files that differ only in case are told about on every
+	// commit on such a disk, changed or not, and neither one's deletion
+	// or change is committed there.
+	CaseClash
+	// CaseDuplicate is a new file whose name differs from a tracked or
+	// another new one only in letter case ("A.md" next to "a.md"),
+	// possible on Linux: macOS and Windows cannot hold both, so it is left
+	// out of the commit until the user renames it.
+	CaseDuplicate
 )
 
 // Notice is a file CommitVault left out or committed with a warning (S15).
@@ -68,8 +82,12 @@ func (n Notice) String() string {
 			return n.Path + " has a name Windows cannot use (" + n.Detail + "), so it stays out of sync until you rename it to a valid name; a note renamed to it keeps syncing under its old name"
 		}
 		return n.Path + " has a name Windows cannot use (" + n.Detail + "): rename it, or a Windows computer cannot sync this vault"
+	case CaseClash:
+		return n.Path + " and another note or folder have names that differ only in letter case, so this computer holds only one of them: rename the file shown here and both sync again on every device"
+	case CaseDuplicate:
+		return n.Path + " has the name of another file, ignoring letter case, which macOS and Windows cannot hold together, so it stays out of sync until you rename it"
 	case HeldDeletion:
-		return n.Path + " was deleted or renamed, but it keeps syncing under this name until the files with names Windows cannot use are renamed"
+		return n.Path + " was deleted or renamed, but it keeps syncing under this name until the files left out for their names are renamed"
 	}
 	return n.Path
 }
