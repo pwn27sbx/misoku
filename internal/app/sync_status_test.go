@@ -133,6 +133,22 @@ func openSyncStatus(h *harness) string {
 	return h.view()
 }
 
+// dialogText is the text inside the dialog boxes of view, with the border,
+// the indentation and the line breaks removed, so a long line the dialog
+// wrapped (an error quoting a temporary path, whose length depends on the
+// OS) reads as one again.
+func dialogText(view string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(view, "\n") {
+		first, last := strings.Index(line, "│"), strings.LastIndex(line, "│")
+		if first < 0 || last <= first {
+			continue
+		}
+		b.WriteString(strings.TrimSpace(line[first+len("│") : last]))
+	}
+	return b.String()
+}
+
 // S9 `:sync status`: origin without its credentials, the branch, the last
 // error and the conflict copies found on disk now.
 func TestSyncStatusShowsTheDetail(t *testing.T) {
@@ -147,12 +163,14 @@ func TestSyncStatusShowsTheDetail(t *testing.T) {
 	writeOutside(t, vault, "sub/doc (conflict desk 2026-10-14 1530).md", "theirs")
 
 	v := openSyncStatus(h)
-	for _, want := range []string{"https://example.invalid/notes.git", "main", "does not appear to be a git repository", "sub/doc (conflict desk 2026-10-14 1530).md"} {
-		if !strings.Contains(v, want) {
+	text := dialogText(v)
+	for _, want := range []string{"https://example.invalid/notes.git", "Branch: main", "Last error", "does not appear to be a git repository", "sub/doc (conflict desk 2026-10-14 1530).md"} {
+		if !strings.Contains(text, want) {
 			t.Errorf(":sync status must show %q:\n%s", want, v)
 		}
 	}
-	if strings.Contains(v, "s3cret") {
+	// Unwrapped, so a credential split across two rows is caught too.
+	if strings.Contains(text, "s3cret") || strings.Contains(v, "s3cret") {
 		t.Fatalf(":sync status shows the credentials:\n%s", v)
 	}
 	h.key(tea.KeyEsc)
