@@ -201,19 +201,24 @@ func TestQuitWaitsForARunningSync(t *testing.T) {
 
 // hangingRemote makes origin an ssh remote whose ssh answers only after
 // pause (a shell sleep).
-func hangingRemote(t *testing.T, vault, pause string) {
+//
+// It returns the file the fake ssh creates as it starts, so a test can
+// tell when git reached the remote.
+func hangingRemote(t *testing.T, vault, pause string) (started string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake ssh is a shell script")
 	}
 	t.Setenv("GIT_SSH", "")
 	os.Unsetenv("GIT_SSH")
-	script := filepath.Join(t.TempDir(), "fake-ssh")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep "+pause+"\nexit 255\n"), 0o755); err != nil {
+	dir := t.TempDir()
+	script, started := filepath.Join(dir, "fake-ssh"), filepath.Join(dir, "started")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n: > '"+started+"'\nsleep "+pause+"\nexit 255\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("GIT_SSH_COMMAND", "sh '"+script+"'")
 	gitIn(t, vault, "remote", "set-url", "origin", "ssh://git@example.invalid/notes.git")
+	return started
 }
 
 // slack is how much past its limit quitting may run: the time to kill git
@@ -271,13 +276,28 @@ func TestQuitGivesUpOnARunningSyncAtTheLimit(t *testing.T) {
 // leaves the repository whole, the commit waiting for the next sync.
 func TestQuitCancelledStopsGitCleanly(t *testing.T) {
 	h, _, vault := syncedWindow(t)
-	hangingRemote(t, vault, "30")
+	started := hangingRemote(t, vault, "30")
 	writeOutside(t, vault, "new.md", "fresh")
 	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(300*time.Millisecond, cancel)
-	lines, took := quit(h, ctx, 20*time.Second)
-	if took > 300*time.Millisecond+slack {
-		t.Fatalf("a cancelled push took %s", took)
+	defer cancel()
+	// Ctrl+C once the push is waiting on the remote, whatever the load:
+	// by then the note is committed.
+	cancelled := make(chan time.Time, 1)
+	go func() {
+		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			if _, err := os.Stat(started); err == nil {
+				break
+			}
+		}
+		cancelled <- time.Now()
+		cancel()
+	}()
+	lines, _ := quit(h, ctx, 20*time.Second)
+	if _, err := os.Stat(started); err != nil {
+		t.Fatalf("the push never reached the remote: %v", err)
+	}
+	if took := time.Since(<-cancelled); took > slack {
+		t.Fatalf("a cancelled push took %s to stop", took)
 	}
 	wantQuitLines(t, lines, "Not pushed")
 	if !strings.Contains(lines[1], "cancelled") {

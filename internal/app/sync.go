@@ -65,6 +65,7 @@ type syncState struct {
 	lastErr  string    // the most recent error or pause message
 	errAt    time.Time
 	warnings []string              // skipped sync.vaults entries (config.Sync.Parse)
+	files    []string              // files the last commit left out or warned about (D7, S15)
 	leftover *gitsync.LeftoverLock // the lock the last sync stopped on
 }
 
@@ -234,6 +235,7 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 		return
 	}
 	s.pending = res.Pending
+	s.files = fileWarnings(res.Commit)
 	switch res.Outcome {
 	case gitsync.Synced:
 		s.kind, s.lastOK = syncOK, now
@@ -277,8 +279,12 @@ func syncSummary(msg syncDoneMsg) (string, bool) {
 		if n := len(res.Conflicts); n > 0 {
 			text += fmt.Sprintf(" · %d conflict %s: %s", n, plural(n, "copy", "copies"), strings.Join(res.Conflicts, ", "))
 		}
-		if big := bigFiles(res.Commit.Skipped); big != "" {
-			return text + " · " + big, true
+		// The same list the indicator counts and :sync status shows.
+		switch files := fileWarnings(res.Commit); {
+		case len(files) == 1:
+			return text + " · " + files[0], true
+		case len(files) > 1:
+			return text + fmt.Sprintf(" · %d files do not sync as they are · :sync status", len(files)), true
 		}
 		return text, false
 	case gitsync.SyncOffline:
@@ -293,16 +299,18 @@ func syncSummary(msg syncDoneMsg) (string, bool) {
 	return "Sync failed: " + why, true
 }
 
-// bigFiles names the files a sync left out for being too big (D7).
-func bigFiles(skipped []gitsync.BigFile) string {
-	if len(skipped) == 0 {
-		return ""
+// fileWarnings lists, one line each, the files a commit left out for being
+// too big (D7) and those that do not sync as plain files (S15), for
+// `:sync status`.
+func fileWarnings(c gitsync.CommitResult) []string {
+	var lines []string
+	for _, b := range c.Skipped {
+		lines = append(lines, b.Path+" is too big and stays out of sync")
 	}
-	names := make([]string, len(skipped))
-	for i, b := range skipped {
-		names[i] = b.Path
+	for _, n := range c.Notices {
+		lines = append(lines, n.String())
 	}
-	return strings.Join(names, ", ") + " " + plural(len(skipped), "is", "are") + " too big and stay" + plural(len(skipped), "s", "") + " out of sync"
+	return lines
 }
 
 func plural(n int, one, many string) string {
@@ -340,7 +348,11 @@ func (m *Model) syncIndicator() (string, bool) {
 		if n := len(s.copies); n > 0 {
 			return fmt.Sprintf("󰓦 %d %s", n, plural(n, "conflict", "conflicts")), true
 		}
-		return "󰓦 synced " + ago(m.clock().Sub(s.lastOK)), false
+		text := "󰓦 synced " + ago(m.clock().Sub(s.lastOK))
+		if n := len(s.files); n > 0 {
+			return text + fmt.Sprintf(" · %d %s to check", n, plural(n, "file", "files")), true
+		}
+		return text, false
 	}
 	return "", false
 }
@@ -471,6 +483,16 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 				break
 			}
 			lines = append(lines, "  "+c)
+		}
+	}
+	if n := len(s.files); n > 0 {
+		lines = append(lines, fmt.Sprintf("Files that do not sync as they are (%d):", n))
+		for i, f := range s.files {
+			if i == maxListed {
+				lines = append(lines, fmt.Sprintf("  … and %d more", n-maxListed))
+				break
+			}
+			lines = append(lines, "  "+f)
 		}
 	}
 	if s.leftover != nil && !m.syncing {

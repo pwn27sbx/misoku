@@ -165,7 +165,7 @@ func SyncVault(ctx context.Context, r *Runner, held *Lock, opts SyncOptions) Syn
 			if _, err := r.Run(ctx, "-c", "core.quotePath=false", "merge", "--ff-only", "--no-autostash", "--quiet", target); err != nil {
 				res.Conflicts = nil
 				res.Pending = pending(ctx, r, branch)
-				return stop(applyFailure(err, res.Commit.Skipped))
+				return stop(applyFailure(err, res.Commit))
 			}
 			res.Updated = true
 			if local, err = resolve(ctx, r, "HEAD"); err != nil {
@@ -452,19 +452,25 @@ func countPending(ctx context.Context, r *Runner, branch string) (int, error) {
 
 // applyFailure is the outcome of a `merge --ff-only` that would not move
 // the branch. A file the user saved during the sync is the expected case
-// (S12): the next sync retries. A file left out for being too big (D7) at
-// a path origin now has would block every sync the same way, so it is
+// (S12): the next sync retries. A file left out for being too big (D7), or
+// for being a nested repository or having a name Windows cannot use (S15),
+// at a path origin now has would block every sync the same way, so it is
 // named instead. Anything else is git's error.
-func applyFailure(err error, skipped []BigFile) (SyncOutcome, error) {
+func applyFailure(err error, commit CommitResult) (SyncOutcome, error) {
 	msg := err.Error()
 	if !strings.Contains(msg, "would be overwritten by merge") {
 		return SyncFailed, fmt.Errorf("could not apply origin's changes: %w", err)
 	}
 	for _, line := range strings.Split(msg, "\n") {
 		name := strings.TrimSpace(line)
-		for _, big := range skipped {
+		for _, big := range commit.Skipped {
 			if name == big.Path {
 				return SyncFailed, fmt.Errorf("%s is larger than %s, so it stays out of sync, and origin has a file with the same name: move or rename %s, then sync again: %w", big.Path, sizeLimit(), big.Path, err)
+			}
+		}
+		for _, n := range commit.Notices {
+			if n.LeftOut && (name == n.Path || strings.HasPrefix(name, n.Path+"/")) {
+				return SyncFailed, fmt.Errorf("%s; origin has a file at the same path, so its changes cannot be applied until you move or rename %s: %w", n, n.Path, err)
 			}
 		}
 	}

@@ -338,7 +338,7 @@ func TestStatusReportsRenames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []gitsync.Change{{Code: "R ", Path: "new name.md"}, {Code: "??", Path: "zz.md"}}
+	want := []gitsync.Change{{Code: "R ", Path: "new name.md", From: "old name.md"}, {Code: "??", Path: "zz.md"}}
 	if len(changes) != len(want) {
 		t.Fatalf("status = %q, want %q", changes, want)
 	}

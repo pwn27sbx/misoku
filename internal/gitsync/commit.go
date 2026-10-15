@@ -42,20 +42,27 @@ type CommitResult struct {
 	// Skipped lists the files left out for being too big, also when
 	// nothing was committed. The caller tells the user about them.
 	Skipped []BigFile
+	// Notices lists the files that do not sync as plain files (S15),
+	// sorted by path, also when nothing was committed: nested
+	// repositories and new files with names Windows cannot use are left
+	// out; submodules and links to outside the vault are committed as git
+	// stores them. The caller tells the user about them.
+	Notices []Notice
 }
 
 // CommitVault records every change in the vault as one local commit (S3):
 // new, modified, deleted and renamed files of any kind, images and other
 // attachments included. It never commits Misoku's temporary files,
 // .DS_Store or files larger than MaxFileSize; a tracked file that grew past
-// the limit keeps its last committed version. With nothing to commit it
-// makes no commit. The message names device and carries a
+// the limit keeps its last committed version. Nor does it commit a nested
+// git repository or a new file whose name Windows cannot check out (S15):
+// both stay on disk, untouched, and are listed in Notices. With nothing to
+// commit it makes no commit. The message names device and carries a
 // "Misoku-Device: <device>" trailer (S1).
 //
 // It only touches the local repository: no fetch, merge or push. The
 // caller holds the vault's Lock.
-func CommitVault(ctx context.Context, r *Runner, device string) (CommitResult, error) {
-	var res CommitResult
+func CommitVault(ctx context.Context, r *Runner, device string) (res CommitResult, err error) {
 	if err := ensureExcludes(ctx, r); err != nil {
 		return res, err
 	}
@@ -63,10 +70,31 @@ func CommitVault(ctx context.Context, r *Runner, device string) (CommitResult, e
 	if err != nil {
 		return res, err
 	}
-	var add, keepOut []string
+
+	// While a new file is left out for its name, no deletion is
+	// committed: a note renamed to such a name shows as the deletion of
+	// its old path, and committing that alone would delete the note on
+	// every other device. The old path keeps syncing until the user
+	// renames the file to a name Windows can use.
+	hold := slices.ContainsFunc(changes, func(c Change) bool {
+		return newPath(c) && !nestedRepo(c) && !ownFile(c.Path) && windowsNameProblem(c.Path) != ""
+	})
+	var add, keepOut, restore []string
+	holdBack := func(p string, staged bool) {
+		res.Notices = append(res.Notices, Notice{Kind: HeldDeletion, Path: p})
+		if staged {
+			restore = append(restore, p)
+		}
+	}
+	settled := map[string]bool{} // paths whose notice, if any, is decided here
 	for _, c := range changes {
 		if ownFile(c.Path) {
 			keepOut = append(keepOut, c.Path)
+			continue
+		}
+		if nestedRepo(c) {
+			p := strings.TrimSuffix(c.Path, "/")
+			res.Notices = append(res.Notices, Notice{Kind: NestedRepo, Path: p, LeftOut: true})
 			continue
 		}
 		if info, err := os.Lstat(filepath.Join(r.dir, filepath.FromSlash(c.Path))); err == nil && info.Mode().IsRegular() && info.Size() > MaxFileSize {
@@ -74,13 +102,41 @@ func CommitVault(ctx context.Context, r *Runner, device string) (CommitResult, e
 			keepOut = append(keepOut, c.Path)
 			continue
 		}
+		if c.Code[0] == 'R' && hold {
+			holdBack(c.From, true) // the rename's deletion half
+			settled[c.From] = true
+		}
+		if newPath(c) {
+			if why := windowsNameProblem(c.Path); why != "" {
+				res.Notices = append(res.Notices, Notice{Kind: WindowsName, Path: c.Path, Detail: why, LeftOut: true})
+				keepOut = append(keepOut, c.Path)
+				settled[c.Path] = true
+				continue
+			}
+			if n, ok := linkOutside(r.dir, c.Path); ok {
+				res.Notices = append(res.Notices, n)
+			}
+			settled[c.Path] = true
+		}
+		if strings.Contains(c.Code, "D") {
+			settled[c.Path] = true // on its way out of the vault
+			if hold && (c.Code == " D" || c.Code == "D ") {
+				holdBack(c.Path, c.Code[0] == 'D')
+				continue
+			}
+		}
 		add = append(add, c.Path)
 	}
+	// What the vault already tracks is read once the commit is made, so
+	// reading it never delays the commit.
+	defer res.noteTracked(ctx, r, settled)
 
 	// Whatever was staged by hand for a file Misoku leaves out goes back
 	// to its committed state, so the commit below cannot carry it. Before
 	// the first commit, reset takes it out of the index.
-	var staged []string
+	// A deletion held back above, staged by hand (`git rm`, `git mv`),
+	// goes back to the index the same way.
+	staged := restore
 	for _, c := range changes {
 		if c.Code[0] != ' ' && c.Code[0] != '?' && slices.Contains(keepOut, c.Path) {
 			staged = append(staged, c.Path)
@@ -205,4 +261,20 @@ func ensureExcludes(ctx context.Context, r *Runner) error {
 		err = cerr
 	}
 	return err
+}
+
+// noteTracked adds the notices about what the index already holds
+// (trackedNotices), except the paths this commit settled, and sorts them.
+// They are warnings only: when the index cannot be read (the sync was
+// cancelled, say), they are left out rather than failing a commit that
+// is already made; the next commit reads them again.
+func (res *CommitResult) noteTracked(ctx context.Context, r *Runner, settled map[string]bool) {
+	if modes, err := tracked(ctx, r); err == nil {
+		for _, n := range trackedNotices(r.dir, modes) {
+			if !settled[n.Path] {
+				res.Notices = append(res.Notices, n)
+			}
+		}
+	}
+	slices.SortFunc(res.Notices, func(a, b Notice) int { return strings.Compare(a.Path, b.Path) })
 }

@@ -28,8 +28,9 @@ import (
 const MinVersion = "2.38"
 
 // Change is one entry of `git status`: the two-letter XY code and the path,
-// exactly as stored on disk (no quoting or escaping).
-type Change struct{ Code, Path string }
+// exactly as stored on disk (no quoting or escaping). From is the original
+// path of a rename or copy (code R or C), empty otherwise.
+type Change struct{ Code, Path, From string }
 
 // Runner runs git inside one repository.
 type Runner struct {
@@ -429,10 +430,12 @@ func parseStatusZ(out []byte) []Change {
 			continue
 		}
 		code := string(f[:2])
-		changes = append(changes, Change{Code: code, Path: string(f[3:])})
-		if code[0] == 'R' || code[0] == 'C' {
+		c := Change{Code: code, Path: string(f[3:])}
+		if (code[0] == 'R' || code[0] == 'C') && i+1 < len(fields) {
 			i++ // a rename or copy is followed by its original path
+			c.From = string(fields[i])
 		}
+		changes = append(changes, c)
 	}
 	return changes
 }

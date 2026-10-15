@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -69,10 +68,9 @@ func TestCommitVaultMakesTheFirstCommit(t *testing.T) {
 	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
-	names := []string{"a.md", "img/photo.png", "ñandú con espacio.md", "it's.md"}
-	if runtime.GOOS != "windows" {
-		names = append(names, `quote"d.md`, "star*.md", ":colon.md")
-	}
+	// Names Windows cannot use stay out (S15): see
+	// TestCommitVaultLeavesOutNamesWindowsCannotUse.
+	names := []string{"a.md", "img/photo.png", "ñandú con espacio.md", "it's.md", "[brackets] & #hash.md", "a.b.c.md"}
 	for _, n := range names {
 		write(t, dir, n, "# "+n+"\n")
 	}

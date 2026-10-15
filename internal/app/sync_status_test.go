@@ -272,6 +272,9 @@ func TestSyncNamesBigFilesLeftOut(t *testing.T) {
 	if onRemote(t, remote, "big.png") {
 		t.Fatal("the big file must stay out of the commit")
 	}
+	if text := noSpace(dialogText(openSyncStatus(h))); !strings.Contains(text, noSpace("big.png is too big and stays out of sync")) {
+		t.Errorf(":sync status must name the big file:\n%s", text)
+	}
 }
 
 func TestSyncHelpListsSyncStatus(t *testing.T) {
