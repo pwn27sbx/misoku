@@ -66,6 +66,7 @@ misoku --theme <name>         # pick a theme for this session
 misoku --list-themes
 misoku --themes-dir <path>    # custom themes folder or single .json file
 misoku export note.md         # write note.pdf next to the note (-o to pick the file)
+misoku sync init <url>        # sync this folder through a git repository (see Sync)
 ```
 
 ## Features
@@ -90,6 +91,7 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
+- **Sync between computers** through a private git repository of your own, with no Misoku server: `misoku sync init <url>` once per computer, then `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
 
 ## Shortcuts
 
@@ -139,6 +141,7 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |
 | `home` | `space d` | Home screen |
+| `sync_now` | `space s` | Sync the vault with git now (same as `:sync`, see [Sync](#sync)) |
 | `help` | `?`, `space h`, `space ?` | This help |
 | `quit` | `ctrl+c` | Quit (asks to save) |
 
@@ -281,6 +284,135 @@ misoku export notes/plan.md -o plan.pdf
 ```
 
 The PDF is a printable A4 document with headings, lists, tables, syntax-highlighted code, equations and images. Boards, calendars, timelines, charts and flowcharts print in colour as they look in the preview.
+
+## Sync
+
+Misoku can keep a notes folder (a *vault*) the same on all your computers through a git repository you own: GitHub, GitLab, Gitea or your own server. There is no Misoku server, and your notes stay plain files with their full history in git.
+
+**How it works.** Sync is off until you set it up for a folder, and only folders listed in `sync.vaults` ever sync: Misoku never runs git anywhere else. In a listed vault, a sync commits everything that changed (notes, images, attachments, exported PDFs), fetches what your other computers pushed, joins both, and pushes. A sync runs:
+
+- when Misoku opens the vault;
+- when you type `:sync` or press `space s` (`sync_now`, configurable like any [shortcut](#shortcuts));
+- when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it.
+
+This version does not sync in the background on a timer, nor after each save: sync with `space s` before you leave a computer if you are not quitting Misoku. Syncs run in the background one at a time, so you can keep typing; each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync init`).
+
+**You need** git 2.38 or newer, a git identity (`git config --global user.name "Your Name"` and `user.email`), and an empty **private** repository, or the one your other computer already syncs with.
+
+### Set up a vault
+
+Run this once on each computer, in a terminal:
+
+```sh
+misoku sync init git@github.com:you/notes.git --dir ~/notes
+```
+
+`--dir` defaults to `$MISOKU_WORKSPACE`, then to the current folder. This is the only step that may ask you something: accepting the SSH key of a new host, or signing in. It works in each of these cases:
+
+| Case | What init does |
+| --- | --- |
+| **First computer**: the folder has notes, the repository is empty | Creates a git repository (branch `main`), commits every note and pushes them |
+| **Another computer**: the folder is empty or does not exist yet (its parent folder must exist), the repository has notes | Creates the folder if needed and brings the notes |
+| **Both have notes**, including a repository created with only a README | Joins the two once, keeping both versions of any file that differs (see [Conflicts](#conflicts)) |
+
+It also writes `.gitattributes` with `* -text`, so line endings never change between macOS, Linux and Windows (if the vault already has a `.gitattributes`, it is kept and init tells you to add that line); adds Misoku's temporary files and `.DS_Store` to `.git/info/exclude` (your `.gitignore` is not touched); sets up `origin`; and adds the folder to `sync.vaults` in your config, keeping every other setting. When it finishes, it lists, one line each, the files that do not sync as they are (see [What does not sync](#what-does-not-sync)).
+
+Running init again is safe: when everything is set up it prints `Already set up: … nothing changed.` It changes nothing and says why when the folder already has a different `origin`, when a merge, rebase, detached HEAD or git lock file of yours is pending, or when a Misoku window is syncing the same vault.
+
+**A vault inside another repository** (for example, your home folder is a git repository) is refused, because syncing it would commit that whole repository. Move the vault outside it, or run `git init` in the vault folder so it has a repository of its own, then run init again.
+
+### Configuration
+
+Init writes the entry for you; you can also list a vault by hand in `config.json` (the [same file](#shortcuts) as the shortcuts):
+
+```json
+{
+  "sync": {
+    "vaults": {
+      "~/notes": { "device": "laptop" }
+    }
+  }
+}
+```
+
+- The key is the vault's folder, absolute or starting with `~`.
+- `device` (optional) names this computer in commit messages and conflict copies. It defaults to the computer's name.
+- `interval` is accepted but not used yet: this version has no timed sync.
+
+To turn sync off for a moment without editing the config, start Misoku with `MISOKU_SYNC=0`: no git runs at all, and `:sync` says `Sync is off (MISOKU_SYNC=0)`.
+
+### Privacy
+
+Your notes are stored **unencrypted** in the repository: anyone who can read it can read them. **Keep the repository private.**
+
+Misoku never shows credentials: `:sync status`, messages and init's output print the URL without any user name, password or token in it. git itself, though, stores the URL you give exactly as written in the vault's `.git/config`. Prefer SSH keys or a credential helper (for GitHub over HTTPS, `gh auth setup-git`) to a token inside the URL.
+
+### Conflicts
+
+When two computers change different notes, or different parts of the same note, the changes are joined on their own. When both changed the **same lines** of a note (or the same image or file, or each created a note with the same name), **both versions are kept**: your version stays in the note and the other one goes next to it as a *conflict copy*:
+
+```text
+plan.md
+plan (conflict laptop 2026-10-15 1430).md
+```
+
+The name holds the computer the other version came from (left out when another tool made that change) and the local time, with no `:` so it is valid on Windows; ` 2`, ` 3`… is added if the name is taken. No conflict markers (`<<<<<<<`) ever go into your notes.
+
+**To resolve one**, compare the two files, copy what you want to keep into the note, and **delete the copy**. A copy is a file like any other: it syncs to your other computers, and deleting it deletes it everywhere. The status bar shows how many copies the vault holds, and `:sync status` lists them.
+
+A note deleted on one computer and edited on another is kept, with the edits. A note renamed differently on two computers keeps both names. Nothing is ever lost: the other version is either in a copy or in git's history.
+
+### Status
+
+The status bar shows the state of the last sync:
+
+| Indicator | Meaning |
+| --- | --- |
+| `syncing…` | A sync is running |
+| `synced just now`, `synced 5m ago` | All in step with the repository |
+| `· N files to check` | Some files do not sync as they are (see below) |
+| `N conflicts` | Conflict copies to resolve |
+| `offline · N pending` | The repository could not be reached; N commits wait to be pushed |
+| `sync will retry` | The sync stopped short; the next one tries again |
+| `sync paused` | Something needs you first; nothing was touched |
+| `sync paused, lock left · :sync status` | A git lock file stopped the sync (see [Troubleshooting](#troubleshooting)) |
+| `sync error` | The repository refused, or git failed |
+| `other window syncs` | Another Misoku window syncs this vault |
+
+`:sync status` shows the detail: state, remote (without credentials), branch, commits waiting to be pushed, when it last synced, the last error, the conflict copies on disk, and the files that do not sync as they are.
+
+### What does not sync
+
+| What | Why |
+| --- | --- |
+| Files over **50 MB** | GitHub refuses files over 100 MB, which would block every sync. A file that grows past the limit keeps its last committed version. |
+| Files your `.gitignore` ignores | Ignored files are respected |
+| Misoku's temporary save files and `.DS_Store` | Listed in `.git/info/exclude` |
+| A folder with its own git repository inside the vault | git would only record which commit it is on, not its files. Move it out of the vault, or ignore it. A git submodule syncs only its commit id. |
+| What a symbolic link points to outside the vault | Only the link itself syncs |
+| New files with a name Windows cannot use (`:`, `*`, `?` and similar, a name ending in a dot or a space, `CON`, `NUL`…) | They would stop every sync on a Windows computer. They stay out until you rename them; meanwhile, deletions are held back, so a note renamed to such a name keeps syncing under its old one. |
+
+Everything else syncs, including the PDFs `:export` and `misoku export` write into the vault. Each of these files gets one line, saying what to do, in `:sync status` and in the output of `misoku sync init`.
+
+### Troubleshooting
+
+| You see | What to do |
+| --- | --- |
+| `offline, N pending` | Nothing to do: the commits are safe in the vault and the next sync, once the network is back, pushes them. |
+| `origin's SSH host key is not known yet` | Run `misoku sync init <url>` in a terminal once and accept the key. |
+| `origin refused your SSH key` | Add your key to your account on the git host (and to `ssh-agent`). |
+| `could not sign in to origin` | For GitHub over HTTPS run `gh auth setup-git`, or set up your git credentials. If it still fails, run `misoku sync init <url>` in a terminal. |
+| `origin's SSH host key changed` | It can mean an attack or a reinstalled server: check the key with `ssh` in a terminal before syncing again. |
+| `another Misoku window syncs this vault` | Only one window syncs a vault; the others see its changes within seconds. When that window closes, the next sync here takes over. |
+| `… is in progress in this vault` | A merge, rebase, cherry-pick or revert you started is waiting: finish it (`git merge --continue`…) or cancel it (`git merge --abort`…). Sync waits and touches nothing. |
+| `HEAD is detached` | Check out your branch, for example `git switch main`. |
+| `a git lock file is in the way (.git/index.lock)` | A git command is running in the vault, or one stopped half-way. If no git is running, open `:sync status` and choose **Remove the lock and sync** (with the arrow keys or Tab, then Enter). Misoku removes a lock on its own only when it knows it left it itself. |
+| `this vault is inside the git repository at …` | See [a vault inside another repository](#set-up-a-vault). |
+| `… was rewritten (a force-push)` | Someone rewrote the repository's history. Sync stops so nothing is lost: compare with `git fetch origin` and `git log origin/main`, and join them by hand. |
+| `unrelated histories` | The vault and the repository share no history: join them once with `misoku sync init <url>`. |
+| `Sync stopped, it tries again next time` | Another computer pushed first, or a file changed during the sync: sync again. If the same message keeps coming back, read it in `:sync status`: it names the file in the way (for example a file left out whose name the repository also uses) and how to fix it. |
+| `git … is too old` / `git did not run` | Install or update git (2.38 or newer). |
+| `git does not know who you are` | Set `user.name` and `user.email` as the message shows. |
 
 ## Columns
 

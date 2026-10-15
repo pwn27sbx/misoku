@@ -766,3 +766,48 @@ func TestSyncInitWaitsForAnotherWindow(t *testing.T) {
 		t.Errorf("nothing may be committed, got %s commits", n)
 	}
 }
+
+// TestSyncInitReportsTheFilesThatDoNotSync checks that init tells, one
+// line each and in the app's words, about every file that does not sync
+// as a plain file (S15), not only the big ones.
+func TestSyncInitReportsTheFilesThatDoNotSync(t *testing.T) {
+	t.Parallel()
+	notices := []gitsync.Notice{
+		{Kind: gitsync.NestedRepo, Path: "code", LeftOut: true},
+		{Kind: gitsync.Submodule, Path: "lib"},
+		{Kind: gitsync.LinkOutside, Path: "out.md", Detail: "/etc/hosts"},
+		{Kind: gitsync.WindowsName, Path: "a:b.md", Detail: `":"`, LeftOut: true},
+		{Kind: gitsync.HeldDeletion, Path: "old.md"},
+	}
+	var res gitsync.InitResult
+	res.Sync.Commit.Notices = notices
+	var out bytes.Buffer
+	report(&out, res, "url")
+	lines := strings.Split(out.String(), "\n")
+	for _, n := range notices {
+		if !slices.Contains(lines, n.String()) {
+			t.Errorf("no line %q in:\n%s", n.String(), out.String())
+		}
+	}
+}
+
+// TestSyncInitReportsANestedRepository runs the real init on a vault that
+// holds a repository of its own: it is left out, and init says so.
+func TestSyncInitReportsANestedRepository(t *testing.T) {
+	t.Parallel()
+	needGit(t)
+	remote, dir := newRemote(t), t.TempDir()
+	writeFile(t, dir, "a.md", "a\n")
+	writeFile(t, dir, "code/main.go", "package main\n")
+	git(t, filepath.Join(dir, "code"), "init", "-q")
+
+	code, stdout, stderr := initVault(t, dir, remote, filepath.Join(t.TempDir(), "c.json"))
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	want := gitsync.Notice{Kind: gitsync.NestedRepo, Path: "code", LeftOut: true}.String()
+	wantOutput(t, stdout, want)
+	if _, ok := remoteFiles(t, remote)["code/main.go"]; ok {
+		t.Errorf("the nested repository must stay out of origin")
+	}
+}

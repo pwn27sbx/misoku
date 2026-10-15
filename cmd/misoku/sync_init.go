@@ -141,6 +141,11 @@ func report(w io.Writer, res gitsync.InitResult, url string) {
 	for _, big := range res.Sync.Commit.Skipped {
 		fmt.Fprintf(w, "Left out %s (%d MB): files that big do not sync.\n", big.Path, big.Size>>20)
 	}
+	// The files that do not sync as plain files (S15), in the words
+	// `:sync status` uses.
+	for _, n := range res.Sync.Commit.Notices {
+		fmt.Fprintln(w, n.String())
+	}
 	if res.Files > 0 {
 		noun := "files"
 		if res.Files == 1 {
