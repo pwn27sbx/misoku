@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,11 +130,29 @@ func TestSyncInitGitHubRemoteLosesNothing(t *testing.T) {
 			}
 		}
 	}
+	// Read as JSON: on Windows the path's backslashes are escaped in the
+	// file, so the raw text never holds the path as written.
 	data, _ := os.ReadFile(cfg)
-	for _, want := range []string{`"<C-s>": "save"`, `"x": "日本"`, filepath.ToSlash(dir)} {
-		if !strings.Contains(filepath.ToSlash(string(data)), want) {
-			t.Errorf("config lacks %s:\n%s", want, data)
+	var got struct {
+		Keymaps map[string]string `json:"keymaps"`
+		X       string            `json:"x"`
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("config is not valid JSON: %v\n%s", err, data)
+	}
+	if got.Keymaps["<C-s>"] != "save" || got.X != "日本" {
+		t.Errorf("other settings changed: %+v\n%s", got, data)
+	}
+	listed := false
+	for key := range listedVaults(t, cfg) {
+		a, errA := os.Stat(key)
+		b, errB := os.Stat(dir)
+		if filepath.Clean(key) == filepath.Clean(dir) || (errA == nil && errB == nil && os.SameFile(a, b)) {
+			listed = true
 		}
+	}
+	if !listed {
+		t.Errorf("sync.vaults lacks %s:\n%s", dir, data)
 	}
 }
 
