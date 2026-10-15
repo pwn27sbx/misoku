@@ -154,6 +154,32 @@ func dialogText(view string) string {
 	return b.String()
 }
 
+// noSpace drops every space and line break from s. The dialog may wrap a
+// line at a space (dialogText then glues the words together) or in the
+// middle of a word, so the tests compare the text without any.
+func noSpace(s string) string {
+	return strings.Join(strings.Fields(s), "")
+}
+
+// A wrapped line reads as one again whether the dialog wrapped it at a
+// space or in the middle of a word.
+func TestDialogTextJoinsWrappedRows(t *testing.T) {
+	t.Parallel()
+	const want = "does not appear to be a git repository"
+	for _, c := range []struct{ name, view string }{
+		{"at a space", "╭──────╮\n│ 'notes.git' does not  │\n│   appear to be a git repository │\n╰──────╯"},
+		{"mid-word", "╭──────╮\n│ 'notes.git' does not appea│\n│ r to be a git repository  │\n╰──────╯"},
+		{"one row", "│ 'notes.git' does not appear to be a git repository │"},
+	} {
+		if got := dialogText(c.view); !strings.Contains(noSpace(got), noSpace(want)) {
+			t.Errorf("%s: %q does not read as %q", c.name, got, want)
+		}
+	}
+	if got := dialogText("│ s3c│\n│ret │"); !strings.Contains(got, "s3cret") {
+		t.Errorf("a word split across rows must be joined, got %q", got)
+	}
+}
+
 // S9 `:sync status`: origin without its credentials, the branch, the last
 // error and the conflict copies found on disk now.
 func TestSyncStatusShowsTheDetail(t *testing.T) {
@@ -171,7 +197,7 @@ func TestSyncStatusShowsTheDetail(t *testing.T) {
 	v := openSyncStatus(h)
 	text := dialogText(v)
 	for _, want := range []string{"https://example.invalid/notes.git", "Branch: main", "Last error", "does not appear to be a git repository", "sub/doc (conflict desk 2026-10-14 1530).md"} {
-		if !strings.Contains(text, want) {
+		if !strings.Contains(noSpace(text), noSpace(want)) {
 			t.Errorf(":sync status must show %q:\n%s", want, v)
 		}
 	}
