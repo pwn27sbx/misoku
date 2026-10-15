@@ -12,6 +12,7 @@ import (
 )
 
 func TestOnlyOneHolderAtATime(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "sync.lock")
 	first, ok, err := gitsync.TryLock(path)
 	if err != nil || !ok {
@@ -31,6 +32,7 @@ func TestOnlyOneHolderAtATime(t *testing.T) {
 // The holder is a real process that gets killed: the operating system must
 // release its lock, with no stale file to clean up by hand.
 func TestLockIsFreedWhenTheHolderDies(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("MISOKU_LOCK_HOLDER") != "" {
 		if _, ok, err := gitsync.TryLock(os.Getenv("MISOKU_LOCK_HOLDER")); err != nil || !ok {
 			os.Exit(3)
@@ -78,6 +80,7 @@ func TestLockIsFreedWhenTheHolderDies(t *testing.T) {
 // vault meet on the same file, and the lock never shows up as a note to
 // commit.
 func TestLockVaultIsOnePerVaultAndInsideGit(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := readyVault(t)
 	r := gitsync.New(dir, 10*time.Second)

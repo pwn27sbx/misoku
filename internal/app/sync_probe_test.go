@@ -42,6 +42,7 @@ func fakeGit(t *testing.T, script string) string {
 // an edit typed while the sync runs (never saved) is kept, even when
 // the sync brings a remote change to that very note.
 func TestSyncKeepsAnEditTypedWhileItRuns(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -71,8 +72,10 @@ func TestSyncKeepsAnEditTypedWhileItRuns(t *testing.T) {
 // lost: after the sync and one more sync, both the user's text and the
 // remote text exist somewhere in the vault and on the remote.
 func TestSyncLosesNothingSavedWhileItRuns(t *testing.T) {
+	t.Parallel()
 	for _, delay := range []time.Duration{0, 5 * time.Millisecond, 20 * time.Millisecond, 60 * time.Millisecond, 150 * time.Millisecond} {
 		t.Run(delay.String(), func(t *testing.T) {
+			t.Parallel()
 			remote, vault := syncedVault(t)
 			h := window(t, vault, syncConfig(t, vault))
 			h.keys("1")
@@ -133,6 +136,7 @@ func remoteText(t *testing.T, remote string) string {
 
 // a remote change to an open clean note in a background tab reloads.
 func TestSyncReloadsACleanNoteInABackgroundTab(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1") // doc.md
@@ -174,6 +178,7 @@ func TestSyncHelperHoldsTheVaultLock(t *testing.T) {
 // another process holds the lock → this window does not sync; once
 // that process dies, the next sync request takes over.
 func TestSyncTakesOverWhenTheHolderDies(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	holder := exec.Command(os.Args[0], "-test.run=^TestSyncHelperHoldsTheVaultLock$")
 	holder.Env = append(os.Environ(), "MISOKU_TEST_HOLD_LOCK="+vault)
@@ -208,6 +213,7 @@ func TestSyncTakesOverWhenTheHolderDies(t *testing.T) {
 
 // two windows, one through a symlink to the vault, share the lock.
 func TestSyncSymlinkedVaultSharesTheLock(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("creating symlinks on Windows needs Developer Mode or admin rights")
 	}
@@ -315,6 +321,7 @@ func drain(h *harness, cmd tea.Cmd) {
 // :sync and sync_now behave the same (status while running,
 // one at a time, same outcome).
 func TestSyncCommandAndKeyBehaveTheSame(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -357,6 +364,7 @@ func TestSyncCommandAndKeyBehaveTheSame(t *testing.T) {
 
 // in INSERT mode "space s" types text and does not sync.
 func TestSyncKeyTypesTextInInsertMode(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -394,6 +402,7 @@ func TestSyncNeverBlocksUpdateOnAHungGit(t *testing.T) {
 
 // help lists sync_now with its key and :sync among the commands.
 func TestSyncHelpListsTheKeyAndCommand(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("?")

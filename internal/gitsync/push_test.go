@@ -43,6 +43,7 @@ func hangingSSH(t *testing.T, dir string) {
 
 // Without the vault's lock no git runs: nothing is committed or pushed.
 func TestPushVaultNeedsTheLock(t *testing.T) {
+	t.Parallel()
 	remote, _, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	before := git(t, desk, "rev-parse", "HEAD")
 	write(t, desk, "d.md", "desk\n")
@@ -57,6 +58,7 @@ func TestPushVaultNeedsTheLock(t *testing.T) {
 
 // S14: the vault's changes are committed and pushed.
 func TestPushVaultCommitsAndPushes(t *testing.T) {
+	t.Parallel()
 	remote, _, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, desk, "d.md", "desk\n")
 	res := pushVault(t, context.Background(), desk, 20*time.Second)
@@ -72,6 +74,7 @@ func TestPushVaultCommitsAndPushes(t *testing.T) {
 // Quitting never applies origin's changes to the files: it only commits
 // and pushes. When origin moved on, the commit waits for the next sync.
 func TestPushVaultNeverAppliesOriginsChanges(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "l.md", "laptop\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)

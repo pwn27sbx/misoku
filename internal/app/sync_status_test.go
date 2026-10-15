@@ -31,6 +31,7 @@ func wantBar(t *testing.T, h *harness, want string) {
 
 // S9: syncing, then synced and how long ago, by the app's clock.
 func TestSyncIndicatorShowsSyncingAndHowLongAgo(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	now := time.Date(2026, 10, 14, 15, 30, 0, 0, time.Local)
 	h := window(t, vault, syncConfig(t, vault), app.WithClock(func() time.Time { return now }))
@@ -46,6 +47,7 @@ func TestSyncIndicatorShowsSyncingAndHowLongAgo(t *testing.T) {
 
 // S7, S9: offline, with how many commits wait to be pushed.
 func TestSyncIndicatorShowsOfflineWithPending(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	if err := os.Rename(remote, remote+".gone"); err != nil {
 		t.Fatal(err)
@@ -58,6 +60,7 @@ func TestSyncIndicatorShowsOfflineWithPending(t *testing.T) {
 
 // S9: conflict copies on disk are counted, whichever sync made them.
 func TestSyncIndicatorShowsConflictCopies(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	writeOutside(t, vault, "doc (conflict desk 2026-10-14 1530).md", "theirs")
 	h := window(t, vault, syncConfig(t, vault))
@@ -66,6 +69,7 @@ func TestSyncIndicatorShowsConflictCopies(t *testing.T) {
 }
 
 func TestSyncIndicatorShowsPaused(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	gitIn(t, vault, "checkout", "-q", "--detach")
 	h := window(t, vault, syncConfig(t, vault))
@@ -74,6 +78,7 @@ func TestSyncIndicatorShowsPaused(t *testing.T) {
 }
 
 func TestSyncIndicatorShowsAnotherWindow(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	cfg := syncConfig(t, vault)
 	first := window(t, vault, cfg)
@@ -152,6 +157,7 @@ func dialogText(view string) string {
 // S9 `:sync status`: origin without its credentials, the branch, the last
 // error and the conflict copies found on disk now.
 func TestSyncStatusShowsTheDetail(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.finish(h.update(app.SyncNowMsg{}))
@@ -194,6 +200,7 @@ func TestSyncStatusRunsNoGitWhenOff(t *testing.T) {
 }
 
 func TestSyncCommandRejectsUnknownArguments(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	if v := openSyncStatus(h); !strings.Contains(v, "Sync status") {
@@ -209,6 +216,7 @@ func TestSyncCommandRejectsUnknownArguments(t *testing.T) {
 
 // An unreadable config file must not read as "not listed".
 func TestUnreadableConfigSaysSo(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	cfg := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(cfg, []byte("{not json"), 0o644); err != nil {
@@ -241,6 +249,7 @@ func TestSyncNamesBigFilesLeftOut(t *testing.T) {
 }
 
 func TestSyncHelpListsSyncStatus(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("?")
@@ -252,6 +261,7 @@ func TestSyncHelpListsSyncStatus(t *testing.T) {
 // A sync that stopped to try again (another device pushed first, a save
 // during the sync) is no error: the indicator must not say so in red.
 func TestSyncRetryIsNotShownAsAnError(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	gitDir := gitIn(t, vault, "rev-parse", "--absolute-git-dir")
 	// A marker naming a git that still runs (this test) makes the sync wait.

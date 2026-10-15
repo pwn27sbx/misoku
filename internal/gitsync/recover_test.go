@@ -53,6 +53,7 @@ func wantLock(t *testing.T, lock string, want bool) {
 // so a lock there now may be the user's: the sync stops on it, and only
 // the user's confirmation (RemoveLeftoverLock) removes it.
 func TestSyncLeftoverLockAfterMisokuDied(t *testing.T) {
+	t.Parallel()
 	remote, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "a.md", "a\n")
 	lock := interrupted(t, laptop, deadPid(t), time.Now().Add(-time.Second))
@@ -88,6 +89,7 @@ func TestSyncLeftoverLockAfterMisokuDied(t *testing.T) {
 // S13 + S2: a lock with no marker is the user's (or another program's):
 // sync pauses with a notice and touches nothing.
 func TestSyncNeverTouchesAnIndexLockItDidNotLeave(t *testing.T) {
+	t.Parallel()
 	_, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "a.md", "a\n")
 	lock := filepath.Join(laptop, ".git", "index.lock")
@@ -112,6 +114,7 @@ func TestSyncNeverTouchesAnIndexLockItDidNotLeave(t *testing.T) {
 
 // S13: while the git of the interrupted sync still runs, its lock is in use.
 func TestSyncWaitsWhileTheInterruptedGitStillRuns(t *testing.T) {
+	t.Parallel()
 	_, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	lock := interrupted(t, laptop, os.Getpid(), time.Now().Add(-time.Second))
 	res := syncVault(t, laptop, "laptop", false)
@@ -125,6 +128,7 @@ func TestSyncWaitsWhileTheInterruptedGitStillRuns(t *testing.T) {
 // A lock older than the command Misoku's marker names was there before
 // that command: someone else's, so it stays.
 func TestSyncLeavesAnIndexLockOlderThanItsCommand(t *testing.T) {
+	t.Parallel()
 	_, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	start := time.Now()
 	lock := interrupted(t, laptop, deadPid(t), start)
@@ -142,6 +146,7 @@ func TestSyncLeavesAnIndexLockOlderThanItsCommand(t *testing.T) {
 // its git, or where git dies with Misoku (Windows), and only for a lock
 // made while the command could run.
 func TestLeftoverIsMisokusDecision(t *testing.T) {
+	t.Parallel()
 	start := time.Now()
 	limit := 20 * time.Second
 	in, before, after := start.Add(time.Second), start.Add(-time.Minute), start.Add(time.Minute)
@@ -166,6 +171,7 @@ func TestLeftoverIsMisokusDecision(t *testing.T) {
 
 // RemoveLeftoverLock removes only the very lock the user was shown.
 func TestRemoveLeftoverLockOnlyRemovesTheLockAsShown(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lock := filepath.Join(dir, "index.lock")
 	if err := os.WriteFile(lock, []byte("a"), 0o644); err != nil {

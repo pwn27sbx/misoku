@@ -132,6 +132,7 @@ func parents(t *testing.T, dir, rev string) []string {
 }
 
 func TestSyncNeedsTheLock(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	res := gitsync.SyncVault(context.Background(), gitsync.New(dir, 10*time.Second), nil, gitsync.SyncOptions{Device: "mac"})
@@ -142,6 +143,7 @@ func TestSyncNeedsTheLock(t *testing.T) {
 }
 
 func TestSyncPushesToAnEmptyRemote(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	remote := newRemote(t)
 	dir := newRepo(t)
@@ -161,6 +163,7 @@ func TestSyncPushesToAnEmptyRemote(t *testing.T) {
 }
 
 func TestSyncWithNothingAnywhereDoesNothing(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	remote := newRemote(t)
 	dir := newRepo(t)
@@ -177,6 +180,7 @@ func TestSyncWithNothingAnywhereDoesNothing(t *testing.T) {
 }
 
 func TestSyncUsesTheRemotesDefaultBranch(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	remote := newRemote(t)
 	laptop := clone(t, remote)
@@ -210,6 +214,7 @@ func TestSyncUsesTheRemotesDefaultBranch(t *testing.T) {
 }
 
 func TestSyncFastForwards(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": "seed\n"})
 	write(t, laptop, "n.md", "new on laptop\n")
 	write(t, laptop, "seed.md", "seed edited\n")
@@ -229,6 +234,7 @@ func TestSyncFastForwards(t *testing.T) {
 }
 
 func TestSyncJoinsChangesFromBothDevices(t *testing.T) {
+	t.Parallel()
 	seed := "one\ntwo\nthree\nfour\nfive\n"
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": seed})
 	write(t, laptop, "x.md", "laptop note\n")
@@ -274,6 +280,7 @@ func conflict(t *testing.T, name, base, onLaptop, onDesk string) (remote, laptop
 }
 
 func TestSyncKeepsBothVersionsWhenTheSameLinesChanged(t *testing.T) {
+	t.Parallel()
 	remote, _, desk, res := conflict(t, "notes/n.md", "one\n", "from laptop\n", "from desk\n")
 	wantOutcome(t, res, gitsync.Synced)
 	copyName := "notes/n (conflict laptop " + stamp + ").md"
@@ -287,6 +294,7 @@ func TestSyncKeepsBothVersionsWhenTheSameLinesChanged(t *testing.T) {
 }
 
 func TestSyncKeepsTheEditedNoteOverTheDeletedOne(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"d1.md": "one\n", "d2.md": "two\n", "keep.md": "k\n"})
 	if err := os.Remove(filepath.Join(laptop, "d1.md")); err != nil {
 		t.Fatal(err)
@@ -310,6 +318,7 @@ func TestSyncKeepsTheEditedNoteOverTheDeletedOne(t *testing.T) {
 }
 
 func TestSyncKeepsBothNewNotesWithTheSameName(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "idea.md", "laptop idea\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -328,6 +337,7 @@ func TestSyncKeepsBothNewNotesWithTheSameName(t *testing.T) {
 }
 
 func TestSyncKeepsBothVersionsOfAnImage(t *testing.T) {
+	t.Parallel()
 	laptopBytes, deskBytes := "\x89PNG\x00\x01laptop\x00\xff", "\x89PNG\x00\x01desk\x00\xfe"
 	remote, _, desk, res := conflict(t, "img/photo.png", "\x89PNG\x00base", laptopBytes, deskBytes)
 	wantOutcome(t, res, gitsync.Synced)
@@ -456,6 +466,7 @@ func TestSyncRetriesWhenThePushIsRejected(t *testing.T) {
 }
 
 func TestSyncOfflineKeepsCommitsAndCountsThem(t *testing.T) {
+	t.Parallel()
 	remote, _, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	gone := remote + ".gone"
 	if err := os.Rename(remote, gone); err != nil {
@@ -492,6 +503,7 @@ func TestSyncOfflineKeepsCommitsAndCountsThem(t *testing.T) {
 }
 
 func TestSyncOfflineBeforeTheFirstPushCountsEveryCommit(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	git(t, dir, "remote", "add", "origin", filepath.Join(t.TempDir(), "missing.git"))
@@ -525,6 +537,7 @@ func unrelated(t *testing.T) (remote, vault string) {
 }
 
 func TestSyncRefusesUnrelatedHistories(t *testing.T) {
+	t.Parallel()
 	remote, vault := unrelated(t)
 	before, remoteBefore := git(t, vault, "rev-parse", "HEAD"), remoteHead(t, remote, "main")
 
@@ -545,6 +558,7 @@ func TestSyncRefusesUnrelatedHistories(t *testing.T) {
 }
 
 func TestSyncJoinsUnrelatedHistoriesWhenAllowed(t *testing.T) {
+	t.Parallel()
 	remote, vault := unrelated(t)
 	mine, theirs := git(t, vault, "rev-parse", "HEAD"), remoteHead(t, remote, "main")
 
@@ -566,6 +580,7 @@ func TestSyncJoinsUnrelatedHistoriesWhenAllowed(t *testing.T) {
 }
 
 func TestSyncStopsWhenTheRemoteRewroteItsHistory(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "x.md", "x\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -600,6 +615,7 @@ func TestSyncStopsWhenTheRemoteRewroteItsHistory(t *testing.T) {
 }
 
 func TestSyncKeepsBothNamesOfANoteRenamedDifferently(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"n.md": "the note\n"})
 	if err := os.Rename(filepath.Join(laptop, "n.md"), filepath.Join(laptop, "laptop name.md")); err != nil {
 		t.Fatal(err)
@@ -622,6 +638,7 @@ func TestSyncKeepsBothNamesOfANoteRenamedDifferently(t *testing.T) {
 }
 
 func TestConflictCopyNameSkipsNamesArrivingFromOrigin(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"n.md": "base\n"})
 	// The laptop brings a file whose name is the copy's, in another case:
 	// it is not on the desk's disk yet, only in the union.
@@ -764,6 +781,7 @@ func remove(t *testing.T, dir, name string) {
 }
 
 func TestSyncRenamedDifferentlyAndEditedKeepsBothCleanVersions(t *testing.T) {
+	t.Parallel()
 	body := "l2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\n"
 	remote, laptop, desk := pair(t, map[string]string{"n.md": "l1\n" + body})
 	rename(t, laptop, "n.md", "lap.md")
@@ -788,6 +806,7 @@ func TestSyncRenamedDifferentlyAndEditedKeepsBothCleanVersions(t *testing.T) {
 }
 
 func TestSyncKeepsBothNotesWhoseNamesDifferOnlyInCase(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "Note.md", "laptop\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -811,6 +830,7 @@ func TestSyncKeepsBothNotesWhoseNamesDifferOnlyInCase(t *testing.T) {
 }
 
 func TestSyncFetchesMainWhenTheRemotesHeadIsUnborn(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	parent := t.TempDir()
 	// A plain `git init --bare` whose HEAD names a branch nobody pushes.
@@ -850,6 +870,7 @@ func TestSyncFetchesMainWhenTheRemotesHeadIsUnborn(t *testing.T) {
 }
 
 func TestSyncKeepsAFileAndAFolderOfTheSameName(t *testing.T) {
+	t.Parallel()
 	_, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "Projects", "laptop file\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -861,6 +882,7 @@ func TestSyncKeepsAFileAndAFolderOfTheSameName(t *testing.T) {
 }
 
 func TestSyncKeepsBothVersionsOfANoteRenamedOnOneSide(t *testing.T) {
+	t.Parallel()
 	body := "l2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\n"
 	_, laptop, desk := pair(t, map[string]string{"n.md": "l1\n" + body})
 	rename(t, laptop, "n.md", "new.md")
@@ -872,6 +894,7 @@ func TestSyncKeepsBothVersionsOfANoteRenamedOnOneSide(t *testing.T) {
 }
 
 func TestSyncJoinsDifferentPartsOfOneNote(t *testing.T) {
+	t.Parallel()
 	_, laptop, desk := pair(t, map[string]string{"n.md": "a\nb\nc\nd\ne\n"})
 	write(t, laptop, "n.md", "A\nb\nc\nd\ne\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -886,6 +909,7 @@ func TestSyncJoinsDifferentPartsOfOneNote(t *testing.T) {
 }
 
 func TestSyncKeepsAMovedNoteDeletedElsewhere(t *testing.T) {
+	t.Parallel()
 	_, laptop, desk := pair(t, map[string]string{"n.md": "keep me\n"})
 	rename(t, laptop, "n.md", "moved/n.md")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -896,6 +920,7 @@ func TestSyncKeepsAMovedNoteDeletedElsewhere(t *testing.T) {
 }
 
 func TestSyncEmptyVaultTakesOriginsNotes(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	remote := newRemote(t)
 	other := clone(t, remote)
@@ -909,6 +934,7 @@ func TestSyncEmptyVaultTakesOriginsNotes(t *testing.T) {
 }
 
 func TestSyncOfflineTouchesNoFileOrCommit(t *testing.T) {
+	t.Parallel()
 	remote, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "l.md", "l\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -955,6 +981,7 @@ func TestSyncKeepsANewNoteSavedDuringSyncAtAnArrivingPath(t *testing.T) {
 }
 
 func TestSyncUnrelatedRefusedTouchesNothingAndAllowedKeepsEverything(t *testing.T) {
+	t.Parallel()
 	remote, vault := unrelated(t)
 	before := vaultHashes(t, vault)
 	head := git(t, vault, "rev-parse", "HEAD")
@@ -969,6 +996,7 @@ func TestSyncUnrelatedRefusedTouchesNothingAndAllowedKeepsEverything(t *testing.
 }
 
 func TestSyncRewrittenRemoteTouchesNoFileOrCommit(t *testing.T) {
+	t.Parallel()
 	_, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "x.md", "x\n")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
@@ -991,6 +1019,7 @@ func TestSyncRewrittenRemoteTouchesNoFileOrCommit(t *testing.T) {
 }
 
 func TestSyncKeepsEveryVersionInManyConflictsAtOnce(t *testing.T) {
+	t.Parallel()
 	seed := map[string]string{"a.md": "a\n", "b/c.md": "c\n", "img.png": "\x00base\xff", "del.md": "del\n"}
 	_, laptop, desk := pair(t, seed)
 	write(t, laptop, "a.md", "a lap\n")
@@ -1012,6 +1041,7 @@ func TestSyncKeepsEveryVersionInManyConflictsAtOnce(t *testing.T) {
 }
 
 func TestSyncKeepsANoteAddedToAFolderRenamedElsewhere(t *testing.T) {
+	t.Parallel()
 	_, laptop, desk := pair(t, map[string]string{"old/a.md": "a\n", "old/b.md": "b\n"})
 	rename(t, laptop, "old", "new")
 	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)

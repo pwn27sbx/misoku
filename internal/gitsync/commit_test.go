@@ -66,6 +66,7 @@ func withLimit(t *testing.T, n int64) {
 }
 
 func TestCommitVaultMakesTheFirstCommit(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	names := []string{"a.md", "img/photo.png", "ñandú con espacio.md", "it's.md"}
@@ -96,6 +97,7 @@ func TestCommitVaultMakesTheFirstCommit(t *testing.T) {
 }
 
 func TestCommitVaultRecordsEveryKindOfChange(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	write(t, dir, "a.md", "old\n")
@@ -127,6 +129,7 @@ func TestCommitVaultRecordsEveryKindOfChange(t *testing.T) {
 }
 
 func TestCommitVaultSaysWhenThereIsNothingToCommit(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := readyVault(t)
 	head := git(t, dir, "rev-parse", "HEAD")
@@ -147,6 +150,7 @@ func TestCommitVaultSaysWhenThereIsNothingToCommit(t *testing.T) {
 }
 
 func TestCommitVaultSaysOneFile(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := readyVault(t)
 	write(t, dir, "a.md", "changed\n")
@@ -157,6 +161,7 @@ func TestCommitVaultSaysOneFile(t *testing.T) {
 }
 
 func TestCommitVaultNeverCommitsTempFilesOrDSStore(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	write(t, dir, ".a.md.123456.tmp", "half written")
@@ -177,6 +182,7 @@ func TestCommitVaultNeverCommitsTempFilesOrDSStore(t *testing.T) {
 }
 
 func TestCommitVaultLeavesOutTrackedTempFilesAndDSStore(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	// Committed by hand before Misoku synced this vault.
@@ -210,6 +216,7 @@ func excludeOf(t *testing.T, dir string) string {
 }
 
 func TestCommitVaultWritesItsExclusionsOnce(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	ignore := "secret.md\r\n"
@@ -242,6 +249,7 @@ func TestCommitVaultWritesItsExclusionsOnce(t *testing.T) {
 }
 
 func TestCommitVaultCreatesTheExcludeFile(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	if err := os.RemoveAll(filepath.Join(dir, ".git", "info")); err != nil {

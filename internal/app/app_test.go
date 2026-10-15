@@ -27,8 +27,9 @@ var realHome, _ = os.UserHomeDir()
 func newTestStore(t *testing.T) *core.Store {
 	t.Helper()
 	// Deleting moves notes to the Trash: keep the tests away from the real
-	// one. A test that already set its own HOME keeps it.
-	if h, _ := os.UserHomeDir(); h == realHome {
+	// one, and from the one TestMain shares. A test that already set its own
+	// HOME keeps it.
+	if h, _ := os.UserHomeDir(); h == realHome || h == testHome {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 		t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))

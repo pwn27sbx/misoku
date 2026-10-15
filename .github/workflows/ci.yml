@@ -33,8 +33,22 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The tests start thousands of git processes in temporary folders, and
+      # Defender scans every one of them. Best effort: if the runner does not
+      # allow it, the tests still run, only slower.
+      - name: Keep Defender out of the temporary folder
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Add-MpPreference -ExclusionPath $env:RUNNER_TEMP -ErrorAction Stop
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+
+      # 20 minutes per package instead of go test's 10: a safety net for the
+      # slow Windows runner, not a budget to grow into.
       - name: Test
-        run: go test ./...
+        run: go test -timeout 20m ./...
 
       - name: Build
         run: go build ./cmd/misoku

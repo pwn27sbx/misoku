@@ -3,6 +3,7 @@ package gitsync_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,21 +15,47 @@ import (
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 )
 
-// isolate gives git an empty global config and no system config, so the
-// user's (or the CI image's) settings never leak into a test.
+// testIsolationEnv carries the folder TestMain made to a test binary that a
+// test starts again as a helper, so the helper reuses it instead of making
+// (and, when it is killed, leaving behind) one of its own.
+const testIsolationEnv = "MISOKU_GITSYNC_TEST_ISOLATION"
+
+// TestMain gives git an empty global config and no system config, so the
+// user's (or the CI image's) settings never leak into a test. It is the same
+// for every test, so it is set once here with os.Setenv: t.Setenv would
+// forbid t.Parallel, and the tests run in parallel.
+func TestMain(m *testing.M) {
+	os.Exit(runIsolated(m))
+}
+
+func runIsolated(m *testing.M) int {
+	if os.Getenv(testIsolationEnv) == "" {
+		dir, err := os.MkdirTemp("", "misoku-gitsync-test-")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "TestMain:", err)
+			return 1
+		}
+		defer os.RemoveAll(dir)
+		global := filepath.Join(dir, "gitconfig")
+		cfg := "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n"
+		if err := os.WriteFile(global, []byte(cfg), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, "TestMain:", err)
+			return 1
+		}
+		os.Setenv(testIsolationEnv, dir)
+		os.Setenv("GIT_CONFIG_GLOBAL", global)
+		os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	}
+	return m.Run()
+}
+
+// isolate skips a test that needs git when git is not installed. The
+// configuration git runs with is set for the whole package in TestMain.
 func isolate(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
-	dir := t.TempDir()
-	global := filepath.Join(dir, "gitconfig")
-	cfg := "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n"
-	if err := os.WriteFile(global, []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("GIT_CONFIG_GLOBAL", global)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 }
 
 func newRepo(t *testing.T) string {
@@ -41,6 +68,7 @@ func newRepo(t *testing.T) string {
 }
 
 func TestVersionCheck(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		out  string
 		ok   bool
@@ -61,6 +89,7 @@ func TestVersionCheck(t *testing.T) {
 }
 
 func TestRunnerNeverPrompts(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	r := gitsync.New(newRepo(t), 5*time.Second)
 	out, err := r.Run(context.Background(), "-c", `alias.env=!env`, "env")
@@ -76,6 +105,7 @@ func TestRunnerNeverPrompts(t *testing.T) {
 }
 
 func TestBatchModeKeepsTheUsersSSHCommand(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	repo := newRepo(t)
 	if out, err := exec.Command("git", "-C", repo, "config", "core.sshCommand", "ssh -i ~/.ssh/notes_key").CombinedOutput(); err != nil {
@@ -98,6 +128,7 @@ func TestBatchModeKeepsTheUsersSSHCommand(t *testing.T) {
 }
 
 func TestHooksAndSigningDoNotRun(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("hook scripts need a POSIX shell")
@@ -135,6 +166,7 @@ func TestHooksAndSigningDoNotRun(t *testing.T) {
 }
 
 func TestRunnerTimesOutAndKillsTheProcess(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sleep from a POSIX shell")
@@ -151,6 +183,7 @@ func TestRunnerTimesOutAndKillsTheProcess(t *testing.T) {
 }
 
 func TestRunnerHasNoTerminal(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("no /dev/tty on Windows")
@@ -168,6 +201,7 @@ func TestRunnerHasNoTerminal(t *testing.T) {
 }
 
 func TestStatusParsesUnusualNames(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	repo := newRepo(t)
 	for _, name := range []string{"ñandú.md", "with space.md", "quote\"d.md"} {
@@ -286,6 +320,7 @@ func TestSSHVariantConfigDecidesTheFlag(t *testing.T) {
 // The original must not come back as an entry of its own, and the entries
 // after it must still parse.
 func TestStatusReportsRenames(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	repo := newRepo(t)
 	if err := os.WriteFile(filepath.Join(repo, "old name.md"), []byte("same content\n"), 0o644); err != nil {
@@ -317,6 +352,7 @@ func TestStatusReportsRenames(t *testing.T) {
 // What git printed before hanging (an ssh error, a host-key message) is
 // the only clue why it hung, so the timeout error keeps it.
 func TestTimeoutErrorKeepsGitsStderr(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sleep from a POSIX shell")
@@ -338,6 +374,7 @@ func TestTimeoutErrorKeepsGitsStderr(t *testing.T) {
 // When the caller gives up (it cancelled, or its own shorter deadline
 // passed), the error must say so instead of blaming the Runner's limit.
 func TestCallerStopIsNotReportedAsOurTimeout(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sleep from a POSIX shell")

@@ -75,6 +75,7 @@ func syncedWindow(t *testing.T) (h *harness, remote, vault string) {
 // S14: what was saved is committed and pushed after the screen closes,
 // saying so on the terminal, and the lock is let go.
 func TestQuitPushesTheChanges(t *testing.T) {
+	t.Parallel()
 	h, remote, vault := syncedWindow(t)
 	writeOutside(t, vault, "new.md", "fresh")
 	lines, _ := quit(h, context.Background(), 20*time.Second)
@@ -90,6 +91,7 @@ func TestQuitPushesTheChanges(t *testing.T) {
 // Offline: one line says why, the commit stays for the next sync, and
 // quitting goes on as usual.
 func TestQuitOfflineKeepsTheCommitAndSaysWhy(t *testing.T) {
+	t.Parallel()
 	h, remote, vault := syncedWindow(t)
 	if err := os.Rename(remote, remote+".gone"); err != nil {
 		t.Fatal(err)
@@ -110,6 +112,7 @@ func TestQuitOfflineKeepsTheCommitAndSaysWhy(t *testing.T) {
 
 // A folder that does not sync runs no git and prints nothing on quit.
 func TestQuitDoesNothingWhenSyncIsOff(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	cfg := filepath.Join(t.TempDir(), "config.json")
 	if err := config.Save(cfg, config.Config{}); err != nil {
@@ -129,6 +132,7 @@ func TestQuitDoesNothingWhenSyncIsOff(t *testing.T) {
 // A window that never took the lock (another window syncs the vault)
 // leaves the syncing to the holder: nothing is printed or pushed.
 func TestQuitLeavesTheVaultToTheWindowHoldingTheLock(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	cfg := syncConfig(t, vault)
 	first := window(t, vault, cfg)
@@ -291,6 +295,7 @@ func TestQuitCancelledStopsGitCleanly(t *testing.T) {
 // The first sync, which takes the lock, may still be running at quit: its
 // lock is the one pushed with and then let go.
 func TestQuitTakesTheLockOfTheFirstSync(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	writeOutside(t, vault, "new.md", "fresh")
@@ -313,6 +318,7 @@ func TestQuitTakesTheLockOfTheFirstSync(t *testing.T) {
 // A vault the user left mid-way (here a detached HEAD from a terminal)
 // pauses the final push as it pauses every sync (S2): nothing is touched.
 func TestQuitRespectsAPausedVault(t *testing.T) {
+	t.Parallel()
 	h, remote, vault := syncedWindow(t)
 	gitIn(t, vault, "checkout", "-q", "--detach")
 	before := gitIn(t, vault, "rev-parse", "HEAD")

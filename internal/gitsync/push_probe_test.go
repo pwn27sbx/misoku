@@ -14,6 +14,7 @@ import (
 // terminal) is never removed by the final push, and nothing is committed
 // or pushed under it.
 func TestPushVaultLeavesTheUsersIndexLock(t *testing.T) {
+	t.Parallel()
 	remote, _, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	before := git(t, desk, "rev-parse", "HEAD")
 	write(t, desk, "d.md", "desk\n")
@@ -39,6 +40,7 @@ func TestPushVaultLeavesTheUsersIndexLock(t *testing.T) {
 // Before any sync set an upstream, PushVault asks origin for its default
 // branch and pushes there, as SyncVault does.
 func TestPushVaultWithoutUpstreamUsesOriginsDefault(t *testing.T) {
+	t.Parallel()
 	remote, _, desk := pair(t, map[string]string{"seed.md": "s\n"})
 	git(t, desk, "branch", "--unset-upstream")
 	write(t, desk, "d.md", "desk\n")

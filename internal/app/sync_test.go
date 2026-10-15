@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,25 +26,62 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// testIsolationEnv carries the folder TestMain made to a test binary that a
+// test starts again as a helper, so the helper reuses it instead of making
+// (and, when it is killed, leaving behind) one of its own.
+const testIsolationEnv = "MISOKU_APP_TEST_ISOLATION"
+
+// testHome is the throwaway HOME TestMain gives the package.
+var testHome string
+
+// TestMain gives every test a throwaway HOME (deleting moves notes to the
+// Trash: keep the tests away from the real one), sync not turned off by the
+// environment, and git an empty global config and no system config, so the
+// user's (or the CI image's) settings never leak into a test. It is the same
+// for every test, so it is set once here with os.Setenv: t.Setenv would
+// forbid t.Parallel, and the sync tests run in parallel.
+func TestMain(m *testing.M) {
+	os.Exit(runIsolated(m))
+}
+
+func runIsolated(m *testing.M) int {
+	if os.Getenv(testIsolationEnv) == "" {
+		dir, err := os.MkdirTemp("", "misoku-app-test-")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "TestMain:", err)
+			return 1
+		}
+		defer os.RemoveAll(dir)
+		home := filepath.Join(dir, "home")
+		global := filepath.Join(dir, "gitconfig")
+		cfg := "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n"
+		if err := os.Mkdir(home, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "TestMain:", err)
+			return 1
+		}
+		if err := os.WriteFile(global, []byte(cfg), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, "TestMain:", err)
+			return 1
+		}
+		os.Setenv(testIsolationEnv, dir)
+		os.Setenv("HOME", home)
+		os.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+		os.Unsetenv("MISOKU_SYNC")
+		os.Setenv("GIT_CONFIG_GLOBAL", global)
+		os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	}
+	testHome = os.Getenv("HOME")
+	return m.Run()
+}
+
 // syncedVault is a vault cloned from a local bare remote, holding doc.md
-// ("base") committed and pushed, with git configured only for the test.
+// ("base") committed and pushed, with git configured only for the test (in
+// TestMain).
 func syncedVault(t *testing.T) (remote, vault string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
-	t.Setenv("MISOKU_SYNC", "")
-	global := filepath.Join(home, "gitconfig")
-	cfg := "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n"
-	if err := os.WriteFile(global, []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("GIT_CONFIG_GLOBAL", global)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-
 	parent := t.TempDir()
 	gitIn(t, parent, "init", "-q", "--bare", "notes.git")
 	remote = filepath.Join(parent, "notes.git")
@@ -148,6 +186,7 @@ func initAsksForSync(h *harness) bool {
 }
 
 func TestOpeningAListedVaultSyncs(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	writeOutside(t, vault, "new.md", "written before opening")
 	h := window(t, vault, syncConfig(t, vault))
@@ -164,6 +203,7 @@ func TestOpeningAListedVaultSyncs(t *testing.T) {
 }
 
 func TestSyncNowKeySyncs(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -177,6 +217,7 @@ func TestSyncNowKeySyncs(t *testing.T) {
 }
 
 func TestSyncNowKeyIsConfigurable(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault), app.WithKeys(map[string][]string{"sync_now": {"ctrl+y"}}))
 	h.keys("1")
@@ -237,6 +278,7 @@ func TestSyncIsOffForUnlistedVaultsAndMISOKU_SYNC0(t *testing.T) {
 }
 
 func TestSyncRunsInTheBackgroundOneAtATime(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	writeOutside(t, vault, "new.md", "fresh")
@@ -266,6 +308,7 @@ func TestSyncRunsInTheBackgroundOneAtATime(t *testing.T) {
 }
 
 func TestSyncReloadsAnOpenUnmodifiedNote(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -278,6 +321,7 @@ func TestSyncReloadsAnOpenUnmodifiedNote(t *testing.T) {
 }
 
 func TestSyncNeverOverwritesAnUnsavedBuffer(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -302,6 +346,7 @@ func TestSyncNeverOverwritesAnUnsavedBuffer(t *testing.T) {
 }
 
 func TestOnlyOneWindowSyncsAVault(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	cfg := syncConfig(t, vault)
 	first := window(t, vault, cfg)
@@ -326,6 +371,7 @@ func TestOnlyOneWindowSyncsAVault(t *testing.T) {
 }
 
 func TestSyncPausesWhenTheVaultIsNotReady(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	gitIn(t, vault, "checkout", "-q", "--detach")
 	writeOutside(t, vault, "new.md", "fresh")
@@ -341,6 +387,7 @@ func TestSyncPausesWhenTheVaultIsNotReady(t *testing.T) {
 }
 
 func TestSyncCommandSyncs(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
 	h.keys("1")
@@ -390,6 +437,7 @@ func skippedVaultConfig(t *testing.T) string {
 const skippedWarning = `sync: vault "notes" skipped`
 
 func TestSkippedVaultEntryShowsItsWarning(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, skippedVaultConfig(t))
 	if v := h.view(); !strings.Contains(v, skippedWarning) {
@@ -398,6 +446,7 @@ func TestSkippedVaultEntryShowsItsWarning(t *testing.T) {
 }
 
 func TestSyncRequestGivesTheRealReasonWhenAnEntryWasSkipped(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, skippedVaultConfig(t))
 	if cmd := h.update(app.SyncNowMsg{}); cmd != nil {
@@ -410,6 +459,7 @@ func TestSyncRequestGivesTheRealReasonWhenAnEntryWasSkipped(t *testing.T) {
 }
 
 func TestReleasingTheSyncLockLetsAnotherWindowSync(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	cfg := syncConfig(t, vault)
 	first := window(t, vault, cfg)

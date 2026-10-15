@@ -61,6 +61,7 @@ func chooseRemove(h *harness) tea.Cmd {
 // (the user may be typing in a note): only the status bar says so, and
 // `:sync status`, opened on purpose, offers to remove it.
 func TestSyncLeftoverLockShowsOnlyInTheStatusBar(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	writeOutside(t, vault, "new.md", "fresh")
@@ -84,6 +85,7 @@ func TestSyncLeftoverLockShowsOnlyInTheStatusBar(t *testing.T) {
 
 // Confirming removes exactly that lock and syncs right away.
 func TestSyncConfirmedLockRemovalSyncs(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	writeOutside(t, vault, "new.md", "fresh")
@@ -105,6 +107,7 @@ func TestSyncConfirmedLockRemovalSyncs(t *testing.T) {
 // In `:sync status`, Cancel (or Enter alone, which starts on Cancel)
 // touches nothing.
 func TestSyncLockRemovalCancelledTouchesNothing(t *testing.T) {
+	t.Parallel()
 	for _, key := range []tea.KeyMsg{{Type: tea.KeyEsc}, {Type: tea.KeyEnter}} {
 		remote, vault := syncedVault(t)
 		lock := leftoverLock(t, vault)
@@ -126,6 +129,7 @@ func TestSyncLockRemovalCancelledTouchesNothing(t *testing.T) {
 
 // A lock that changed since the dialog showed it belongs to a running git.
 func TestSyncLockChangedSinceShownIsNotRemoved(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	writeOutside(t, vault, "new.md", "fresh")
@@ -146,6 +150,7 @@ func TestSyncLockChangedSinceShownIsNotRemoved(t *testing.T) {
 
 // `:sync status` offers the removal after a sync stopped on the lock.
 func TestSyncStatusOffersToRemoveTheLock(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	writeOutside(t, vault, "new.md", "fresh")
@@ -168,6 +173,7 @@ func TestSyncStatusOffersToRemoveTheLock(t *testing.T) {
 
 // D2: a folder that does not sync never gets the offer, and runs no git.
 func TestSyncOffNeverOffersLockRemoval(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	h := window(t, vault, syncConfig(t, t.TempDir()))
@@ -187,6 +193,7 @@ func TestSyncOffNeverOffersLockRemoval(t *testing.T) {
 // next keystroke to the dialog; a word starting with "r" removes the lock
 // without the dialog ever being read.
 func TestSyncLockDialogIgnoresTypingMeantForANote(t *testing.T) {
+	t.Parallel()
 	_, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	h := window(t, vault, syncConfig(t, vault))
@@ -205,6 +212,7 @@ func TestSyncLockDialogIgnoresTypingMeantForANote(t *testing.T) {
 // the lock was removed and taken again by a new git (same size,
 // new time) after the dialog appeared: confirming must not remove it.
 func TestSyncLockReplacedWithTheSameSizeIsNotRemoved(t *testing.T) {
+	t.Parallel()
 	remote, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
 	writeOutside(t, vault, "new.md", "fresh")
@@ -226,6 +234,7 @@ func TestSyncLockReplacedWithTheSameSizeIsNotRemoved(t *testing.T) {
 
 // Enter, Esc, q, c, space never remove.
 func TestSyncLockDialogKeysThatNeverRemove(t *testing.T) {
+	t.Parallel()
 	for _, k := range []tea.KeyMsg{{Type: tea.KeyEnter}, {Type: tea.KeyEsc}, {Type: tea.KeySpace}, {Type: tea.KeyRunes, Runes: []rune{'q'}}, {Type: tea.KeyRunes, Runes: []rune{'c'}}} {
 		_, vault := syncedVault(t)
 		lock := leftoverLock(t, vault)
@@ -247,6 +256,7 @@ func TestSyncLockDialogKeysThatNeverRemove(t *testing.T) {
 // Realistic note-writing typed while a sync stops on a leftover lock: no
 // dialog takes the keys, and none of them removes the lock.
 func TestSyncNoteWritingNeverRemovesTheLock(t *testing.T) {
+	t.Parallel()
 	runes := func(s string) []tea.Msg {
 		var out []tea.Msg
 		for _, r := range s {
@@ -272,6 +282,7 @@ func TestSyncNoteWritingNeverRemovesTheLock(t *testing.T) {
 		"two-tabs-enter":    cat(key(tea.KeyTab), key(tea.KeyTab), key(tea.KeyEnter)),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			_, vault := syncedVault(t)
 			lock := leftoverLock(t, vault)
 			h := window(t, vault, syncConfig(t, vault))

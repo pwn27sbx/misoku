@@ -46,6 +46,7 @@ func noSecret(t *testing.T, where, text string) {
 // carries a credential, neither the sync's error nor `:sync status` (Inspect)
 // shows it. Fetch side (origin's URL) and push side (pushurl) both.
 func TestSyncNeverShowsACredentialWhateverOriginAnswers(t *testing.T) {
+	t.Parallel()
 	type tc struct {
 		name, url string
 		push      bool // the credential is in pushurl; fetch goes to the real remote
@@ -68,6 +69,7 @@ func TestSyncNeverShowsACredentialWhateverOriginAnswers(t *testing.T) {
 		tc{"refused-push", "http://me:" + testSecret + "@127.0.0.1:1/notes.git", true})
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			remote, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 			_ = remote
 			write(t, laptop, "a.md", "a\n")
@@ -128,6 +130,7 @@ func TestSyncRedactsEveryPrintedURLShape(t *testing.T) {
 }
 
 func TestRedactURLHandlesOddShapes(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{
 		"https://me:" + testSecret + "@h/x":         "https://h/x",
 		"https://" + testSecret + "@h/x":            "https://h/x",
@@ -171,6 +174,7 @@ func vaultHash(t *testing.T, dir string) string {
 // command; a live git; a marker without pid) changes nothing in the
 // worktree, the index, or the refs.
 func TestSyncRefusedRecoveryChangesNothing(t *testing.T) {
+	t.Parallel()
 	for name, setup := range map[string]func(t *testing.T, dir string){
 		"older-lock": func(t *testing.T, dir string) {
 			start := time.Now()
@@ -186,6 +190,7 @@ func TestSyncRefusedRecoveryChangesNothing(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			_, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 			write(t, laptop, "a.md", "unsaved work\n")
 			setup(t, laptop)

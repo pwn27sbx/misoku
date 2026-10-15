@@ -76,6 +76,7 @@ func TestQuitRunsNoGitWhenOffOrWithoutTheLock(t *testing.T) {
 // turned down, nothing on disk changes, the commit stays, and the next sync
 // joins both sides without losing either version.
 func TestQuitRejectedPushLosesNothing(t *testing.T) {
+	t.Parallel()
 	h, remote, vault := syncedWindow(t)
 	pushFromDesk(t, remote, "doc.md", "from desk")
 	writeOutside(t, vault, "doc.md", "from laptop")

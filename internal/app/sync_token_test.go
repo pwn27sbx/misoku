@@ -11,6 +11,7 @@ import (
 // reached (offline) and that refuses (no server: connection refused) never
 // shows the token in the status bar or in `:sync status`.
 func TestSyncTokenNeverInBarOrStatus(t *testing.T) {
+	t.Parallel()
 	for _, url := range []string{
 		"http://me:s3cretTOKEN@127.0.0.1:1/notes.git",
 		"http://x-access-token:s3cretTOKEN@127.0.0.1:1/notes.git",

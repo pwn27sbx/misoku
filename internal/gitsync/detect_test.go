@@ -71,6 +71,7 @@ func fakeGit(t *testing.T, unixBody, windowsBody string) {
 }
 
 func TestReadyVault(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	st := detect(t, readyVault(t))
 	if st.Status != gitsync.Ready || st.Reason != "" || st.Message != "" {
@@ -80,6 +81,7 @@ func TestReadyVault(t *testing.T) {
 
 // A brand-new repository with no commit yet is on a branch: it can sync.
 func TestReadyBeforeTheFirstCommit(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	git(t, dir, "remote", "add", "origin", "file:///nowhere/notes.git")
@@ -115,6 +117,7 @@ func TestPausedOutsideARepository(t *testing.T) {
 }
 
 func TestPausedInASubfolderOfABiggerRepository(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	repo := readyVault(t)
 	sub := filepath.Join(repo, "notes")
@@ -126,6 +129,7 @@ func TestPausedInASubfolderOfABiggerRepository(t *testing.T) {
 }
 
 func TestPausedWithoutOrigin(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := newRepo(t)
 	wantPaused(t, detect(t, dir), gitsync.ReasonNoRemote, "git remote add origin")
@@ -155,6 +159,7 @@ func TestPausedWithoutIdentity(t *testing.T) {
 }
 
 func TestPausedOnDetachedHead(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := readyVault(t)
 	git(t, dir, "checkout", "-q", "--detach")
@@ -162,6 +167,7 @@ func TestPausedOnDetachedHead(t *testing.T) {
 }
 
 func TestPausedDuringARealMerge(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := readyVault(t)
 	git(t, dir, "checkout", "-q", "-b", "other")
@@ -179,6 +185,7 @@ func TestPausedDuringARealMerge(t *testing.T) {
 // A rebase detaches HEAD: the advice must be about the rebase, not about
 // switching branches (which would leave the rebase behind).
 func TestPausedDuringARealRebase(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	dir := readyVault(t)
 	git(t, dir, "checkout", "-q", "-b", "other")
@@ -196,6 +203,7 @@ func TestPausedDuringARealRebase(t *testing.T) {
 // Each operation is recognised by what git leaves in its git dir, wherever
 // that is (git rev-parse --git-path), including a linked worktree.
 func TestPausedDuringAnyOperation(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	for _, c := range []struct {
 		marker string
@@ -214,6 +222,7 @@ func TestPausedDuringAnyOperation(t *testing.T) {
 				name += " in a linked worktree"
 			}
 			t.Run(name, func(t *testing.T) {
+				t.Parallel()
 				dir := readyVault(t)
 				if worktree {
 					wt := filepath.Join(t.TempDir(), "wt")
@@ -287,6 +296,7 @@ func snapshot(t *testing.T, dir string) map[string]fileStamp {
 }
 
 func TestDetectionNeverTouchesTheRepository(t *testing.T) {
+	t.Parallel()
 	isolate(t)
 	ready := readyVault(t)
 	merging := readyVault(t)

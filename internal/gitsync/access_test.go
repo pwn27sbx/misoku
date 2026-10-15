@@ -120,6 +120,7 @@ func TestSyncErrorsNeverShowCredentials(t *testing.T) {
 // file too large) is not "another device pushed first": retrying would
 // loop forever. It is an error that says what origin answered.
 func TestSyncPushRefusedByOriginIsAnError(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("the remote's hook is a shell script")
 	}

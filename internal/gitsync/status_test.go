@@ -14,6 +14,7 @@ import (
 // S9: the copies are found on disk, wherever they are and whoever made
 // them, not only the ones the last sync created.
 func TestFindConflictCopiesSearchesTheDisk(t *testing.T) {
+	t.Parallel()
 	_, _, desk, res := conflict(t, "notes/n.md", "one\n", "from laptop\n", "from desk\n")
 	wantOutcome(t, res, gitsync.Synced)
 	for _, name := range []string{
@@ -43,6 +44,7 @@ func TestFindConflictCopiesSearchesTheDisk(t *testing.T) {
 }
 
 func TestRedactURLRemovesCredentials(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ in, want string }{
 		{"https://me:s3cret@example.com/notes.git", "https://example.com/notes.git"},
 		{"https://ghp_TOKEN@github.com/me/notes.git", "https://github.com/me/notes.git"},
@@ -61,6 +63,7 @@ func TestRedactURLRemovesCredentials(t *testing.T) {
 // S9 `:sync status`: origin without its credentials, the branch, what is
 // pending and the conflict copies on disk.
 func TestInspectDescribesTheVault(t *testing.T) {
+	t.Parallel()
 	_, _, desk, res := conflict(t, "n.md", "one\n", "from laptop\n", "from desk\n")
 	wantOutcome(t, res, gitsync.Synced)
 	write(t, desk, "new.md", "x")
