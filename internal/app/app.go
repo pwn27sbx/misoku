@@ -102,6 +102,7 @@ type Model struct {
 	syncOff   string           // why sync is off, shown when the user asks for one
 	syncLock  *gitsync.Lock    // held for the whole session once taken (S11)
 	syncing   bool             // a sync command is running
+	syncRun   *syncRun         // the sync started last, to wait for on quit (S14)
 	now       func() time.Time // the clock; nil means time.Now
 	sync      syncState        // what the last sync said (S9)
 }

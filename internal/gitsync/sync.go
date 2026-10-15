@@ -122,60 +122,26 @@ var testHookBeforeApply, testHookBeforePush func()
 // run git on a vault at a time (S11).
 func SyncVault(ctx context.Context, r *Runner, held *Lock, opts SyncOptions) SyncResult {
 	var res SyncResult
-	if held == nil || held.f == nil {
-		res.Err = errors.New("sync needs the vault's lock")
-		return res
-	}
 	now := time.Now
 	if opts.Now != nil {
 		now = opts.Now
 	}
-	stop := func(o SyncOutcome, err error) SyncResult {
-		res.Outcome, res.Err = o, redact(err)
-		if ctx.Err() != nil {
-			res.Outcome = SyncFailed
-		}
-		return res
+	stop := res.stopper(ctx)
+	if o, err := begin(ctx, r, held); err != nil {
+		return stop(o, err)
 	}
-
-	// S13: a sync that died half-way may have left git's index.lock. It is
-	// cleaned up only when it is Misoku's; then this sync simply redoes the
-	// work, as every step is safe to repeat.
-	out, err := r.Run(ctx, "rev-parse", "--absolute-git-dir")
-	if err != nil {
-		return stop(SyncFailed, err)
-	}
-	gitDir := filepath.FromSlash(strings.TrimSpace(string(out)))
-	marker := filepath.Join(gitDir, markerName)
-	if err := recoverIndexLock(marker, false); err != nil {
-		if errors.Is(err, errGitStillRunning) {
-			return stop(SyncRetry, err)
-		}
-		return stop(SyncFailed, err)
-	}
-	// A lock still there is someone else's (S2): leave it and stop.
-	if lock := filepath.Join(gitDir, "index.lock"); fileExists(lock) {
-		return stop(SyncFailed, &LockedError{Path: lock})
-	}
-	r.marker = marker
 	defer func() { r.marker = "" }()
 
+	var err error
 	if res.Commit, err = CommitVault(ctx, r, opts.Device); err != nil {
 		return stop(SyncFailed, fmt.Errorf("commit: %w", err))
 	}
 
-	branch, remoteEmpty, err := defaultBranch(ctx, r)
+	branch, remoteEmpty, o, err := res.originBranch(ctx, r)
 	if err != nil {
-		res.Pending = pending(ctx, r, "")
-		var gerr *gitError
-		var serr *stoppedError
-		if !errors.As(err, &gerr) && !errors.As(err, &serr) {
-			return stop(SyncFailed, err) // origin answered, but not as expected
-		}
-		return stop(remoteFailure("could not reach origin", err))
+		return stop(o, err)
 	}
 	res.Branch = branch
-	tracking := "refs/remotes/origin/" + branch
 	local, err := resolve(ctx, r, "HEAD")
 	if err != nil {
 		return stop(SyncFailed, err)
@@ -212,37 +178,90 @@ func SyncVault(ctx context.Context, r *Runner, held *Lock, opts SyncOptions) Syn
 		return res
 	}
 
-	ahead, err := countPending(ctx, r, branch)
-	if err != nil {
-		return stop(SyncFailed, fmt.Errorf("could not count the commits to push: %w", err))
-	}
-	if ahead > 0 {
-		if testHookBeforePush != nil {
-			testHookBeforePush()
-		}
-		out, err := r.Run(ctx, "push", "--porcelain", "origin", "HEAD:refs/heads/"+branch)
-		if err != nil {
-			res.Pending = ahead
-			switch rejected, refused := pushRefusal(out); {
-			case rejected:
-				return stop(SyncRetry, fmt.Errorf("another device pushed first; the next sync joins its changes: %w", err))
-			case refused != "":
-				return stop(SyncFailed, fmt.Errorf("origin refused the push (%s); nothing was lost, fix what origin says and sync again: %w", refused, err))
-			}
-			return stop(remoteFailure("could not push to origin", err))
-		}
-		res.Pushed = true
-		// Push updates origin/<branch> only through the fetch refspec;
-		// set it here so a custom refspec cannot leave the count stale.
-		if _, err := r.Run(ctx, "update-ref", tracking, local); err != nil {
-			return stop(SyncFailed, err)
-		}
+	if o, err := res.push(ctx, r, branch, local); err != nil {
+		return stop(o, err)
 	}
 	if err := setUpstream(ctx, r, branch); err != nil {
 		return stop(SyncFailed, err)
 	}
 	res.Outcome = Synced
 	return res
+}
+
+// stopper returns the function that ends a sync with outcome o and its
+// cause: credentials are removed from the cause, and a sync stopped by its
+// context (time limit, cancel) always ends as SyncFailed.
+func (res *SyncResult) stopper(ctx context.Context) func(SyncOutcome, error) SyncResult {
+	return func(o SyncOutcome, err error) SyncResult {
+		res.Outcome, res.Err = o, redact(err)
+		if ctx.Err() != nil {
+			res.Outcome = SyncFailed
+		}
+		return *res
+	}
+}
+
+// begin readies r for a sync's git commands. The caller must hold the
+// vault's lock (S11). A sync that died half-way may have left git's
+// index.lock (S13): it is cleaned up only when it is Misoku's; then this
+// sync simply redoes the work, as every step is safe to repeat. A lock
+// still there is someone else's (S2): the sync stops on it. On success r
+// keeps the marker of its git commands until the caller clears r.marker.
+func begin(ctx context.Context, r *Runner, held *Lock) (SyncOutcome, error) {
+	if held == nil || held.f == nil {
+		return SyncFailed, errors.New("sync needs the vault's lock")
+	}
+	out, err := r.Run(ctx, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return SyncFailed, err
+	}
+	gitDir := filepath.FromSlash(strings.TrimSpace(string(out)))
+	marker := filepath.Join(gitDir, markerName)
+	if err := recoverIndexLock(marker, false); err != nil {
+		if errors.Is(err, errGitStillRunning) {
+			return SyncRetry, err
+		}
+		return SyncFailed, err
+	}
+	if lock := filepath.Join(gitDir, "index.lock"); fileExists(lock) {
+		return SyncFailed, &LockedError{Path: lock}
+	}
+	r.marker = marker
+	return Synced, nil
+}
+
+// push sends the commits origin's branch lacks, local being HEAD. When
+// it fails the commits stay, counted in res.Pending, and the error says
+// why with the outcome to report.
+func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string) (SyncOutcome, error) {
+	ahead, err := countPending(ctx, r, branch)
+	if err != nil {
+		return SyncFailed, fmt.Errorf("could not count the commits to push: %w", err)
+	}
+	if ahead == 0 {
+		return Synced, nil
+	}
+	if testHookBeforePush != nil {
+		testHookBeforePush()
+	}
+	out, err := r.Run(ctx, "push", "--porcelain", "origin", "HEAD:refs/heads/"+branch)
+	if err != nil {
+		res.Pending = ahead
+		switch rejected, refused := pushRefusal(out); {
+		case rejected:
+			return SyncRetry, fmt.Errorf("another device pushed first; the next sync joins its changes: %w", err)
+		case refused != "":
+			return SyncFailed, fmt.Errorf("origin refused the push (%s); nothing was lost, fix what origin says and sync again: %w", refused, err)
+		}
+		return remoteFailure("could not push to origin", err)
+	}
+	res.Pushed = true
+	// Push updates origin/<branch> only through the fetch refspec; set it
+	// here so a custom refspec cannot leave the count stale.
+	if _, err := r.Run(ctx, "update-ref", "refs/remotes/origin/"+branch, local); err != nil {
+		return SyncFailed, err
+	}
+	return Synced, nil
 }
 
 // integrate fetches origin's branch and decides what the vault's branch
@@ -311,6 +330,24 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 	}
 	res.Conflicts = copies
 	return commit, nil
+}
+
+// originBranch asks origin for its default branch (defaultBranch). When
+// origin cannot be asked, the commits it lacks are counted in res.Pending
+// and the error comes with the outcome to report.
+func (res *SyncResult) originBranch(ctx context.Context, r *Runner) (branch string, empty bool, o SyncOutcome, err error) {
+	branch, empty, err = defaultBranch(ctx, r)
+	if err == nil {
+		return branch, empty, Synced, nil
+	}
+	res.Pending = pending(ctx, r, "")
+	var gerr *gitError
+	var serr *stoppedError
+	if !errors.As(err, &gerr) && !errors.As(err, &serr) {
+		return "", false, SyncFailed, err // origin answered, but not as expected
+	}
+	o, err = remoteFailure("could not reach origin", err)
+	return "", false, o, err
 }
 
 // defaultBranch asks origin for its default branch (S4). empty is true

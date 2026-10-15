@@ -2,12 +2,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/config"
@@ -100,13 +103,26 @@ func main() {
 	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI))
 
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
-	if _, err := p.Run(); err != nil {
+	final, err := p.Run()
+	if err != nil {
 		log.Printf("Fatal error running program: %v\n", err)
 		fmt.Fprintf(os.Stderr, "Error running Misoku application: %v\n", err)
 		os.Exit(1)
 	}
+	if m, ok := final.(app.Model); ok {
+		pushOnQuit(m)
+	}
 
 	log.Println("Misoku exited cleanly.")
+}
+
+// pushOnQuit pushes what was saved in a synced vault once the screen has
+// closed (S14), for at most app.QuitSyncLimit. Ctrl+C stops it at once:
+// git is killed and the commits wait for the next sync.
+func pushOnQuit(m app.Model) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	m.SyncOnQuit(ctx, os.Stderr, app.QuitSyncLimit)
 }
 
 // resolveWorkspace picks the notes directory to open: an explicit --dir flag

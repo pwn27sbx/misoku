@@ -124,7 +124,15 @@ func (m *Model) requestSync() tea.Cmd {
 	}
 	m.syncing = true
 	m.setStatus("Syncing…")
-	return runSync(m.store.Root(), *m.syncVault, m.syncLock)
+	run := &syncRun{done: make(chan struct{})}
+	m.syncRun = run
+	cmd := runSync(m.store.Root(), *m.syncVault, m.syncLock)
+	return func() tea.Msg {
+		msg := cmd().(syncDoneMsg)
+		run.msg = msg
+		close(run.done)
+		return msg
+	}
 }
 
 // runSync is the sync itself, run by Bubble Tea outside Update: it checks
@@ -517,7 +525,7 @@ func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 // ReleaseSyncLock lets go of the vault's sync lock, so another Misoku window
 // can take over syncing it (S11). The window keeps no way back to it: a sync
 // asked for afterwards fails instead of running without the lock. Meant for
-// when the window is done with the vault; nothing calls it yet.
+// when the window is done with the vault; SyncOnQuit releases it itself.
 func (m Model) ReleaseSyncLock() {
 	m.syncLock.Unlock() // safe on nil: this window never took it
 }

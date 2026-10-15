@@ -36,10 +36,12 @@ type Runner struct {
 	dir     string
 	timeout time.Duration
 
-	// sshOnce guards ssh, the GIT_SSH_COMMAND every command runs with
+	// sshMu guards ssh, the GIT_SSH_COMMAND every command runs with
 	// (sshSet false: leave the user's environment alone). Reading the
-	// user's ssh setting costs a git process, so it is done once.
-	sshOnce sync.Once
+	// user's ssh setting costs a git process, so it is done once
+	// (sshDone); a read cut short by the caller is done again next time.
+	sshMu   sync.Mutex
+	sshDone bool
 	ssh     string
 	sshSet  bool
 
@@ -92,7 +94,7 @@ func (r *Runner) Run(parent context.Context, args ...string) ([]byte, error) {
 // and stdin fed from a buffer instead of the null device.
 func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte, args ...string) ([]byte, error) {
 	// Resolved before the time limit starts, so it never eats into it.
-	env := append(r.env(), extraEnv...)
+	env := append(r.env(parent), extraEnv...)
 	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
 
@@ -201,7 +203,8 @@ func (e *stoppedError) Error() string { return e.msg }
 func (e *stoppedError) Unwrap() error { return e.cause }
 
 // env is the environment git runs with: the user's, with every prompt off.
-func (r *Runner) env() []string {
+// ctx bounds reading the user's ssh setting.
+func (r *Runner) env(ctx context.Context) []string {
 	env := os.Environ()
 	set := func(k, v string) {
 		for i, kv := range env {
@@ -217,9 +220,17 @@ func (r *Runner) env() []string {
 	set("SSH_ASKPASS_REQUIRE", "never") // ssh: never pop up an askpass helper
 	set("LC_ALL", "C")                  // stable messages to parse
 	set("LANGUAGE", "C")
-	r.sshOnce.Do(func() { r.ssh, r.sshSet = r.resolveSSH() })
-	if r.sshSet {
-		set("GIT_SSH_COMMAND", r.ssh)
+	r.sshMu.Lock()
+	if !r.sshDone {
+		r.ssh, r.sshSet = r.resolveSSH(ctx)
+		// Stopped by the caller, the read may have missed the setting:
+		// the command fails anyway, and the next one reads it again.
+		r.sshDone = ctx.Err() == nil
+	}
+	ssh, sshSet := r.ssh, r.sshSet
+	r.sshMu.Unlock()
+	if sshSet {
+		set("GIT_SSH_COMMAND", ssh)
 	}
 	return env
 }
@@ -235,8 +246,8 @@ func (r *Runner) env() []string {
 // already passes -batch to TortoisePlink. A client of unknown kind gets
 // nothing: an option it does not understand would break every sync, and
 // git runs without a terminal and with SSH_ASKPASS_REQUIRE=never anyway.
-func (r *Runner) resolveSSH() (string, bool) {
-	cfg := r.sshConfig()
+func (r *Runner) resolveSSH(ctx context.Context) (string, bool) {
+	cfg := r.sshConfig(ctx)
 	command, isCmdline := strings.TrimSpace(os.Getenv("GIT_SSH_COMMAND")), true
 	if command == "" {
 		command = cfg["core.sshcommand"]
@@ -289,9 +300,10 @@ func (r *Runner) resolveSSH() (string, bool) {
 
 // sshConfig reads core.sshCommand and ssh.variant (keys come back
 // lowercased). A failure reads as "not configured": the lookup has its own
-// short limit and never blocks the command it is resolved for.
-func (r *Runner) sshConfig() map[string]string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// short limit, within ctx, so it never blocks the command it is resolved
+// for nor outlives its caller (Ctrl+C on quit stops it at once).
+func (r *Runner) sshConfig(parent context.Context) map[string]string {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "-C", r.dir, "config", "-z", "--get-regexp", `^(core\.sshcommand|ssh\.variant)$`)
 	cmd.Stdin = nil
