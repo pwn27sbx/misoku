@@ -249,7 +249,12 @@ func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string
 		res.Pending = ahead
 		switch rejected, refused := pushRefusal(out); {
 		case rejected:
-			return SyncRetry, fmt.Errorf("another device pushed first; the next sync joins its changes: %w", err)
+			// git's own words ("use 'git pull'") are left out: Misoku joins
+			// origin itself, or stops when origin was rewritten.
+			if originRewritten(ctx, r, branch) {
+				return SyncRewritten, rewrittenError(branch, "the push was turned down")
+			}
+			return SyncRetry, errors.New("another device pushed first; the next sync joins its changes")
 		case refused != "":
 			return SyncFailed, fmt.Errorf("origin refused the push (%s); nothing was lost, fix what origin says and sync again: %w", refused, err)
 		}
@@ -262,6 +267,37 @@ func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string
 		return SyncFailed, err
 	}
 	return Synced, nil
+}
+
+// rewrittenError says origin's branch was rewritten and what stopped
+// because of it (S2), with what the user can do.
+func rewrittenError(branch, what string) error {
+	return fmt.Errorf("origin's %s was rewritten (a force-push), so %s to lose nothing; compare it with `git fetch origin` and `git log origin/%s`, and join it by hand", branch, what, branch)
+}
+
+// originRewritten reports whether origin's branch, asked for again after a
+// rejected push, no longer contains the last commit a sync took from it:
+// the S2 rule, without fetching. When that cannot be told (origin cannot
+// be reached, or its commit is not in the vault yet, so it came from a
+// push the vault has not fetched), it reports false.
+func originRewritten(ctx context.Context, r *Runner, branch string) bool {
+	old, err := resolve(ctx, r, "refs/remotes/origin/"+branch)
+	if err != nil || old == "" {
+		return false
+	}
+	out, err := r.Run(ctx, "ls-remote", "origin", "refs/heads/"+branch)
+	if err != nil {
+		return false
+	}
+	tip, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
+	if tip == "" {
+		return false
+	}
+	if _, err := r.Run(ctx, "cat-file", "-e", tip+"^{commit}"); err != nil {
+		return false
+	}
+	kept, err := isAncestor(ctx, r, old, tip)
+	return err == nil && !kept
 }
 
 // integrate fetches origin's branch and decides what the vault's branch
@@ -295,7 +331,7 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 				return "", err
 			}
 			res.Outcome = SyncRewritten
-			res.Err = fmt.Errorf("origin's %s was rewritten (a force-push), so sync stopped to lose nothing; compare it with `git fetch origin` and `git log origin/%s`, and join it by hand", branch, branch)
+			res.Err = rewrittenError(branch, "sync stopped")
 			res.Pending = pending(ctx, r, branch)
 			return "", nil
 		}

@@ -1,7 +1,10 @@
 package gitsync
 
 import (
+	"errors"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/pwn27sbx/misoku/internal/config"
 )
@@ -44,16 +47,18 @@ func Listed(vaults []config.Vault, folder string) (config.Vault, bool) {
 // strings, because strings disagree for one folder in ways that are hard to
 // normalise: symlinks, macOS's /var -> /private/var, Windows 8.3 short
 // names, and letter case on case-insensitive file systems (macOS and
-// Windows by default), where "Notes" and "notes" are one folder. A path
-// that does not exist matches nothing.
+// Windows by default), where "Notes" and "notes" are one folder.
+//
+// A folder that does not exist yet (`misoku sync init` creates it) cannot
+// be asked about, so then the cleaned paths are compared as text: a vault
+// listed as "~/notes" before the folder exists is still that folder. A
+// path that exists but is not a folder matches nothing.
 func sameDir(a, b string) bool {
-	ia, err := os.Stat(a)
-	if err != nil || !ia.IsDir() {
-		return false
+	ia, errA := os.Stat(a)
+	ib, errB := os.Stat(b)
+	if errA != nil || errB != nil {
+		return errors.Is(errA, fs.ErrNotExist) && errors.Is(errB, fs.ErrNotExist) &&
+			filepath.Clean(a) == filepath.Clean(b)
 	}
-	ib, err := os.Stat(b)
-	if err != nil || !ib.IsDir() {
-		return false
-	}
-	return os.SameFile(ia, ib)
+	return ia.IsDir() && ib.IsDir() && os.SameFile(ia, ib)
 }

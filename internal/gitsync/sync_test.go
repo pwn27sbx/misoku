@@ -1049,3 +1049,33 @@ func TestSyncKeepsANoteAddedToAFolderRenamedElsewhere(t *testing.T) {
 	wantOutcome(t, syncVault(t, desk, "desk", false), gitsync.Synced)
 	wantAllVersions(t, desk, "a\n", "b\n", "c desk\n")
 }
+
+// A note on one device and a folder of that name on the other: both stay,
+// the note as a conflict copy named for the device it came from, whichever
+// side it is on.
+func TestSyncKeepsANoteThatClashesWithAFolderAsAConflictCopy(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, fileOn, folderOn string }{
+		{"note on the syncing device", "desk", "laptop"},
+		{"note from origin", "laptop", "desk"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			remote, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
+			dirs := map[string]string{"laptop": laptop, "desk": desk}
+			write(t, dirs[tc.folderOn], "ideas/a.md", "in folder\n")
+			write(t, dirs[tc.fileOn], "ideas", "a file\n")
+			wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
+			res := syncVault(t, desk, "desk", false)
+			wantOutcome(t, res, gitsync.Synced)
+			copyName := "ideas (conflict " + tc.fileOn + " " + stamp + ")"
+			if !slices.Equal(res.Conflicts, []string{copyName}) {
+				t.Errorf("want one conflict copy %q, got %+v", copyName, res.Conflicts)
+			}
+			wantFile(t, desk, "ideas/a.md", "in folder\n")
+			wantFile(t, desk, copyName, "a file\n")
+			wantTree(t, desk, "ideas/a.md", copyName, "seed.md")
+			wantInSync(t, remote, desk, "main")
+		})
+	}
+}

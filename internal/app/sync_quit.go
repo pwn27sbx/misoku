@@ -95,6 +95,8 @@ func pushOnQuit(ctx context.Context, dir string, v config.Vault, lock *gitsync.L
 		return "Changes pushed."
 	case res.Outcome == gitsync.Synced:
 		return "Nothing new to push."
+	case res.Outcome == gitsync.SyncRewritten:
+		return "Not pushed, sync is paused: " + oneLine(errText(res.Err))
 	}
 	return "Not pushed, the next sync tries again: " + oneLine(errText(res.Err))
 }

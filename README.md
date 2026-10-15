@@ -360,7 +360,7 @@ The name holds the computer the other version came from (left out when another t
 
 **To resolve one**, compare the two files, copy what you want to keep into the note, and **delete the copy**. A copy is a file like any other: it syncs to your other computers, and deleting it deletes it everywhere. The status bar shows how many copies the vault holds, and `:sync status` lists them.
 
-A note deleted on one computer and edited on another is kept, with the edits. A note renamed differently on two computers keeps both names. Nothing is ever lost: the other version is either in a copy or in git's history.
+A note deleted on one computer and edited on another is kept, with the edits. A note renamed differently on two computers keeps both names. A note renamed on one computer and edited on the other ends as two notes, the renamed one and the edited one, and both are kept. Nothing is ever lost: the other version is either in a copy or in git's history.
 
 ### Status
 

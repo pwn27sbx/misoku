@@ -352,3 +352,21 @@ func TestQuitRespectsAPausedVault(t *testing.T) {
 		t.Fatal("quitting must release the sync lock")
 	}
 }
+
+// S2/S14: origin was rewritten (a force-push) after the window's last
+// sync, which paused: quitting does not push and says sync is paused
+// because origin was rewritten, not that the next sync joins it.
+func TestQuitAfterARewrittenOriginSaysSyncIsPaused(t *testing.T) {
+	t.Parallel()
+	h, remote, vault := syncedWindow(t)
+	desk := clone(t, remote)
+	gitIn(t, desk, "commit", "-q", "--amend", "-m", "rewrite")
+	gitIn(t, desk, "push", "-q", "-f", "origin", "HEAD:main")
+	h.finish(h.update(app.SyncNowMsg{}))
+	writeOutside(t, vault, "new.md", "fresh")
+	lines, _ := quit(h, context.Background(), 20*time.Second)
+	wantQuitLines(t, lines, "Not pushed, sync is paused: origin's main was rewritten")
+	if onRemote(t, remote, "new.md") {
+		t.Fatal("quitting must never push over a rewritten origin")
+	}
+}

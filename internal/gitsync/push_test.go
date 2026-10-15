@@ -2,9 +2,11 @@ package gitsync_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,4 +115,39 @@ func TestPushVaultStopsAtTheTimeLimit(t *testing.T) {
 		t.Error("the commit must stay for the next sync")
 	}
 	wantMissing(t, desk, ".git/index.lock")
+}
+
+// Quitting after origin was rewritten pauses like a sync does (S2): the
+// message says so, and git's own advice to pull is never shown.
+func TestPushVaultAfterARewrittenOriginSaysItWasRewritten(t *testing.T) {
+	t.Parallel()
+	_, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
+	git(t, laptop, "commit", "-q", "--amend", "-m", "rewrite")
+	git(t, laptop, "push", "-q", "-f", "origin", "main")
+	write(t, desk, "d.md", "desk\n")
+	wantOutcome(t, syncVault(t, desk, "desk", false), gitsync.SyncRewritten)
+	res := pushVault(t, context.Background(), desk, 20*time.Second)
+	wantOutcome(t, res, gitsync.SyncRewritten)
+	msg := fmt.Sprint(res.Err)
+	if !strings.Contains(msg, "origin's main was rewritten") || strings.Contains(msg, "git pull") || strings.Contains(msg, "hint:") {
+		t.Errorf("want the rewritten message without git's hints, got %q", msg)
+	}
+	if res.Pushed || res.Pending != 1 {
+		t.Errorf("want the desk's commit kept and pending, got %+v", res)
+	}
+}
+
+// When origin only moved on, quitting says another device pushed first,
+// without git's hints.
+func TestPushVaultRejectedLeavesOutGitsHints(t *testing.T) {
+	t.Parallel()
+	_, laptop, desk := pair(t, map[string]string{"seed.md": "s\n"})
+	write(t, laptop, "l.md", "laptop\n")
+	wantOutcome(t, syncVault(t, laptop, "laptop", false), gitsync.Synced)
+	write(t, desk, "d.md", "desk\n")
+	res := pushVault(t, context.Background(), desk, 20*time.Second)
+	wantOutcome(t, res, gitsync.SyncRetry)
+	if msg := fmt.Sprint(res.Err); msg != "another device pushed first; the next sync joins its changes" {
+		t.Errorf("got %q", msg)
+	}
 }

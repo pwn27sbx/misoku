@@ -146,8 +146,11 @@ func resolveTree(ctx context.Context, r *Runner, tree string, conflicts map[stri
 		}
 		return stage // the path is new to this side (a rename or a moved file)
 	}
-	copyOf := func(p string, e stageEntry) error {
-		device, err := deviceOf(ctx, r, ours, theirs, p)
+	// copyFrom keeps e, the version of p from the side whose commit is
+	// from, as a conflict copy named for the device that changed it there
+	// (other being the other side's commit).
+	copyFrom := func(p string, e stageEntry, from, other string) error {
+		device, err := deviceOf(ctx, r, other, from, p)
 		if err != nil {
 			return err
 		}
@@ -159,6 +162,7 @@ func resolveTree(ctx context.Context, r *Runner, tree string, conflicts map[stri
 		s.copies = append(s.copies, name)
 		return nil
 	}
+	copyOf := func(p string, e stageEntry) error { return copyFrom(p, e, theirs, ours) }
 
 	for _, p := range sortedKeys(conflicts) {
 		st := conflicts[p]
@@ -166,6 +170,17 @@ func resolveTree(ctx context.Context, r *Runner, tree string, conflicts map[stri
 		// sides) needs nothing: merge-tree's tree already drops the old
 		// name and holds both new ones.
 		mine, other := side(oursFiles, p, st[2]), side(theirsFiles, p, st[3])
+		if orig, e, from, ok := movedAside(p, st, s.files, oursFiles, theirsFiles, ours, theirs); ok {
+			// A note on one side, a folder of that name on the other:
+			// merge-tree keeps the note as "<name>~<commit>". It becomes a
+			// conflict copy named for the device it came from, so the
+			// user is told (S6, S9).
+			s.remove(p)
+			if err := copyFrom(orig, e, from, otherSide(from, ours, theirs)); err != nil {
+				return "", nil, err
+			}
+			continue
+		}
 		switch {
 		case mine != nil && other != nil:
 			s.set(p, *mine)
@@ -244,6 +259,40 @@ func resolveTree(ctx context.Context, r *Runner, tree string, conflicts map[stri
 	return strings.TrimSpace(string(out)), s.copies, nil
 }
 
+// movedAside reports whether merge-tree moved the file at orig out of the
+// way of a folder of the same name on the other side, keeping it at p
+// ("<orig>~<label>"), present in one stage only: orig is a file of that
+// side with the same content, and a folder in the merged files. It returns
+// orig, the file, and the commit of the side it came from.
+func movedAside(p string, st *[4]*stageEntry, merged, oursFiles, theirsFiles map[string]stageEntry, ours, theirs string) (string, stageEntry, string, bool) {
+	i := strings.LastIndex(p, "~")
+	if i <= 0 || (st[2] == nil) == (st[3] == nil) {
+		return "", stageEntry{}, "", false
+	}
+	orig := p[:i]
+	e, own, from := st[2], oursFiles, ours
+	if e == nil {
+		e, own, from = st[3], theirsFiles, theirs
+	}
+	if f, ok := own[orig]; !ok || f.oid != e.oid || f.mode != e.mode {
+		return "", stageEntry{}, "", false
+	}
+	for q := range merged {
+		if strings.HasPrefix(q, orig+"/") {
+			return orig, *e, from, true
+		}
+	}
+	return "", stageEntry{}, "", false
+}
+
+// otherSide is theirs when from is ours, and ours otherwise.
+func otherSide(from, ours, theirs string) string {
+	if from == ours {
+		return theirs
+	}
+	return ours
+}
+
 // lsTree lists every file of a tree or commit.
 func lsTree(ctx context.Context, r *Runner, treeish string) (map[string]stageEntry, error) {
 	out, err := r.Run(ctx, "ls-tree", "-r", "-z", "--full-tree", treeish)
@@ -271,7 +320,8 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// deviceOf returns the device that last changed p on theirs' side, from
+// deviceOf returns the device that last changed p on theirs' side (the
+// commits of theirs that ours lacks), from
 // its Misoku-Device trailer, made safe for a file name; "" when that
 // commit was not made by Misoku.
 func deviceOf(ctx context.Context, r *Runner, ours, theirs, p string) (string, error) {
