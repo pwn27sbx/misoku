@@ -611,3 +611,34 @@ func TestSyncSetupReportsAFailedSetupGitAsASentence(t *testing.T) {
 	}
 	wantOutput(t, out, "gh could not give git the access to GitHub (could not write the git config).\n", "Nothing was changed.")
 }
+
+// Inside another repository that does not track it, Enter gives the
+// notes a repository of their own and the assistant syncs them as usual;
+// the outer repository is left exactly as it was.
+func TestSyncSetupInsideAnotherRepositorySyncsWithARepositoryOfItsOwn(t *testing.T) {
+	f := newFakeGH(t, true)
+	outer := t.TempDir()
+	git(t, outer, "init", "-q", "-b", "main")
+	writeFile(t, outer, "readme.txt", "outer\n")
+	git(t, outer, "add", "readme.txt")
+	git(t, outer, "commit", "-q", "-m", "outer")
+	dir := filepath.Join(outer, "notes")
+	writeFile(t, dir, "hello.md", "# hello\n")
+	outerState := func() string {
+		return git(t, outer, "status", "--porcelain") + git(t, outer, "rev-parse", "HEAD") + git(t, outer, "ls-files", "--stage")
+	}
+	before := outerState()
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	// Create the repository of its own, start, create a new GitHub
+	// repository (the only choice), with the name it offers.
+	code, out := setup(t, dir, cfg, "\n\n1\n\n")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0:\n%s", code, out)
+	}
+	wantOutput(t, out, "Done:")
+	remote := filepath.Join(f.remotes, "ana", "notes.git")
+	wantFiles(t, "origin", remoteFiles(t, remote), map[string]string{"hello.md": "# hello\n", ".gitattributes": gitsync.Attributes})
+	if after := outerState(); after != before {
+		t.Errorf("the outer repository changed:\nbefore %s\nafter  %s", before, after)
+	}
+}

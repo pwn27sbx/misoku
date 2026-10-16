@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -136,5 +137,39 @@ func TestQuittingWaitsForARunningSyncSetupStep(t *testing.T) {
 	}
 	if _, ok := runCmd(cmd).(tea.QuitMsg); !ok {
 		t.Fatal("once setup ended, :q! must quit")
+	}
+}
+
+// Inside another repository the assistant asks before creating one of
+// its own; Enter creates it and goes on, and cancelling the next dialog
+// removes it again.
+func TestSyncSetupInsideTheAppOffersARepositoryOfItsOwn(t *testing.T) {
+	t.Parallel()
+	outer := t.TempDir()
+	if out, err := exec.Command("git", "-C", outer, "init", "-q").CombinedOutput(); err != nil {
+		t.Skipf("git init: %v %s", err, out)
+	}
+	vault := filepath.Join(outer, "notes")
+	writeOutside(t, vault, "a.md", "hello")
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	h := window(t, vault, cfg)
+	h.send(core.SyncSetupMsg{})
+	if text := noSpace(dialogText(h.view())); !strings.Contains(text, noSpace("This folder is inside another git repository. Create a separate one for your notes?")) {
+		t.Fatalf("the assistant must offer a repository of its own:\n%s", h.view())
+	}
+	if _, err := os.Lstat(filepath.Join(vault, ".git")); !os.IsNotExist(err) {
+		t.Fatalf("asking must not create anything: %v", err)
+	}
+	h.key(tea.KeyEnter) // Create
+	if !strings.Contains(h.view(), "Sync this vault") {
+		t.Fatalf("after creating it the assistant must go on:\n%s", h.view())
+	}
+	if _, err := os.Stat(filepath.Join(vault, ".git")); err != nil {
+		t.Fatalf("Enter must create the repository: %v", err)
+	}
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "was removed")
+	if _, err := os.Lstat(filepath.Join(vault, ".git")); !os.IsNotExist(err) {
+		t.Errorf("cancelling must remove the repository this run created: %v", err)
 	}
 }

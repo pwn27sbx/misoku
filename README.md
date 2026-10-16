@@ -312,7 +312,7 @@ misoku sync setup --dir ~/notes
 
 `--dir` defaults to `$MISOKU_WORKSPACE`, then to the current folder. The assistant:
 
-1. Says what will happen and waits for **Start**.
+1. Says what will happen and waits for **Start**. A vault inside another git repository is first offered a repository of its own ([a vault inside another repository](#set-up-a-vault-with-any-git-url)).
 2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed. If gh is not, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
 3. If git does not know your name and email, asks for them and saves them with `git config --global` only once you confirm.
 4. If gh is not signed in, runs `gh auth login --web`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs).
@@ -342,7 +342,7 @@ It also writes `.gitattributes` with `* -text`, so line endings never change bet
 
 Running init again is safe: when everything is set up it prints `Already set up: … nothing changed.` It changes nothing and says why when the folder already has a different `origin`, when a merge, rebase, detached HEAD or git lock file of yours is pending, or when a Misoku window is syncing the same vault.
 
-**A vault inside another repository** (for example, your home folder is a git repository) is refused, because syncing it would commit that whole repository. Move the vault outside it, or run `git init` in the vault folder so it has a repository of its own, then run init again.
+**A vault inside another repository** (for example, your home folder is a git repository) cannot sync as it is, because syncing it would commit that whole repository. `misoku sync setup` (and `:sync setup`) asks "This folder is inside another git repository. Create a separate one for your notes?": Enter runs `git init` in the vault folder and goes on, and the outer repository is not changed. If you cancel later in the same run (Ctrl+C at a question cancels too), that new repository is removed again while it has no commits (one with commits is left in place, and the message says so). `misoku sync init` does not ask: it refuses, changing nothing; move the vault outside, or run `git init` in the vault folder yourself, then run init again. When the outer repository tracks files in the vault folder, or has it as a submodule, both stop and change nothing, since your notes would end up in two repositories: move the notes to a folder outside it.
 
 ### Configuration
 

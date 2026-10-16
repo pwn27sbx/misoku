@@ -739,7 +739,12 @@ func TestSyncInitRefusesAFolderInsideAnotherRepository(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	wantOutput(t, stderr, "inside the git repository at", "git init")
+	// Non-interactive, init keeps refusing; it names both fixes, the
+	// assistant that offers the repository of its own among them.
+	wantOutput(t, stderr, "inside the git repository at", "git init", "misoku sync setup")
+	if _, err := os.Lstat(filepath.Join(dir, ".git")); !os.IsNotExist(err) {
+		t.Errorf("init must not create a repository of its own: %v", err)
+	}
 	if strings.Contains(stderr, "open ") {
 		t.Errorf("init must not advise opening the outer repository:\n%s", stderr)
 	}
@@ -748,6 +753,32 @@ func TestSyncInitRefusesAFolderInsideAnotherRepository(t *testing.T) {
 	}
 	if _, err := os.Stat(cfg); !os.IsNotExist(err) {
 		t.Errorf("a refused init must not write the config: %v", err)
+	}
+}
+
+// A folder the outer repository tracks gets no `git init` advice: the
+// notes would end up in two repositories.
+func TestSyncInitRefusesAFolderTheOuterRepositoryTracks(t *testing.T) {
+	t.Parallel()
+	needGit(t)
+	outer := t.TempDir()
+	git(t, outer, "init", "-q", "-b", "main")
+	dir := filepath.Join(outer, "notes")
+	writeFile(t, dir, "a.md", "a\n")
+	git(t, outer, "add", "notes/a.md")
+	remote, cfg := newRemote(t), filepath.Join(t.TempDir(), "config.json")
+	before := treeHash(t, outer)
+
+	code, stdout, stderr := initVault(t, dir, remote, cfg)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	wantOutput(t, stderr, "tracks files in this folder", "notes/a.md", "two repositories", "init changed nothing")
+	if strings.Contains(stderr, "git init") || strings.Contains(stderr, "sync setup") {
+		t.Errorf("a repository of its own is not the fix here:\n%s", stderr)
+	}
+	if treeHash(t, outer) != before {
+		t.Error("a refused init must change nothing")
 	}
 }
 

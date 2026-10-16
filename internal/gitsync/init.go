@@ -74,7 +74,8 @@ type InitResult struct {
 //
 // A folder already set up for that URL gets a plain sync, and
 // AlreadySetUp when nothing changed. It refuses, changing nothing, when
-// dir is inside another repository (D10), has another origin, or holds
+// dir is inside another repository (D10: it never runs `git init` there
+// itself, it names the fix; `misoku sync setup` asks first), has another origin, or holds
 // something of the user's half done (a merge, a rebase, a lock, a
 // detached HEAD). Changes that are only not committed yet are notes like
 // any other: the init commits them, as every sync does.
@@ -256,11 +257,7 @@ func folderState(ctx context.Context, r *Runner) (isRepo bool, origin string, er
 	if st.Reason == ReasonNotRepoRoot {
 		// D10, in init's words: Detect tells the app to open the outer
 		// repository instead, which is not what setting up a vault needs.
-		top, err := r.Run(ctx, "rev-parse", "--show-toplevel")
-		if err != nil {
-			return false, "", err
-		}
-		return false, "", fmt.Errorf("this folder is inside the git repository at %s, and syncing it would commit that whole repository; init changed nothing. Give the vault a repository of its own: move it outside %s, or run `git init` in this folder (the outer repository then sees it as a nested one), then run init again", filepath.FromSlash(strings.TrimSpace(string(top))), filepath.FromSlash(strings.TrimSpace(string(top))))
+		return false, "", nestedIn(ctx, r)
 	}
 	if st.Status != Ready {
 		return false, "", fmt.Errorf("%s; then run `misoku sync init <url>` again", st.Message)
@@ -279,6 +276,108 @@ func folderState(ctx context.Context, r *Runner) (isRepo bool, origin string, er
 		return false, "", err
 	}
 	return true, strings.TrimSpace(string(out)), nil
+}
+
+// nestedError is folderState's refusal of a folder inside another
+// repository (D10). Setup offers a repository of its own instead, unless
+// the outer repository tracks something in the folder: the notes would
+// then end up in two repositories.
+type nestedError struct {
+	// top is the outer repository's folder, as the system writes it.
+	top string
+	// tracked is a path the outer repository tracks in the folder, as git
+	// writes it from the outer top; "" when it tracks nothing there.
+	tracked string
+	// submodule: the folder itself is a submodule (a gitlink) of the
+	// outer repository.
+	submodule bool
+}
+
+// tracks reports whether the outer repository tracks the folder or
+// something in it.
+func (e *nestedError) tracks() bool { return e.submodule || e.tracked != "" }
+
+// message explains the refusal; what names the command that changed
+// nothing ("init" or "setup"). A folder the outer repository does not
+// track is told to get a repository of its own; one it tracks, not.
+func (e *nestedError) message(what string) string {
+	reason := fmt.Sprintf("the git repository at %s tracks files in this folder (%s)", e.top, e.tracked)
+	if e.submodule {
+		reason = fmt.Sprintf("this folder is a submodule of the git repository at %s", e.top)
+	}
+	if e.tracks() {
+		return fmt.Sprintf("%s, so a repository of its own would put your notes in two repositories; %s changed nothing. Move the notes to a folder outside %s, then run %s again", reason, what, e.top, what)
+	}
+	return fmt.Sprintf("this folder is inside the git repository at %s, and syncing it would commit that whole repository; %s changed nothing. Give the vault a repository of its own: move it outside %s, or run `git init` in this folder (the outer repository then sees it as a nested one), then run %s again; `misoku sync setup` offers to run `git init` for you", e.top, what, e.top, what)
+}
+
+// Error is the refusal in init's words.
+func (e *nestedError) Error() string { return e.message("init") }
+
+// nestedIn returns the nestedError for the folder r runs in, a subfolder
+// of another repository, saying whether that repository tracks the
+// folder, or git's own error.
+func nestedIn(ctx context.Context, r *Runner) error {
+	top, err := r.Run(ctx, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return err
+	}
+	prefix, err := r.Run(ctx, "rev-parse", "--show-prefix")
+	if err != nil {
+		return err
+	}
+	// The folder's path from the outer top, taken literally (a folder
+	// named "[notes]" is not a pattern): it matches the folder itself, a
+	// gitlink, and everything under it.
+	folder := strings.TrimSuffix(strings.TrimRight(string(prefix), "\r\n"), "/")
+	// On a case-insensitive file system (core.ignorecase, the default on
+	// macOS and Windows) the outer index may hold the folder under another
+	// case, after a rename such as notes to Notes: git still tracks it
+	// there, so the match ignores case too.
+	icase, err := ignoreCase(ctx, r)
+	if err != nil {
+		return err
+	}
+	magic, same := ":(top,literal)", func(a, b string) bool { return a == b }
+	if icase {
+		magic, same = ":(top,literal,icase)", strings.EqualFold
+	}
+	e := &nestedError{top: shownTop(r.dir, folder, strings.TrimSpace(string(top)), same)}
+	out, err := r.Run(ctx, "ls-files", "--stage", "--full-name", "-z", "--", magic+folder)
+	if err != nil {
+		return err
+	}
+	entry, _, _ := strings.Cut(string(out), "\x00")
+	if meta, path, ok := strings.Cut(entry, "\t"); ok {
+		e.tracked = path
+		e.submodule = same(path, folder) && strings.HasPrefix(meta, "160000 ")
+	}
+	return e
+}
+
+// shownTop is the outer repository's folder written as the vault's path
+// dir is, when dir ends with folder (its path from that top), so the
+// messages name both alike; otherwise git's top, which resolves symbolic
+// links (macOS's /var is /private/var).
+func shownTop(dir, folder, top string, same func(a, b string) bool) string {
+	d := filepath.ToSlash(filepath.Clean(dir))
+	if n := len(d) - len(folder) - 1; n > 0 && d[n] == '/' && same(d[n+1:], folder) {
+		return filepath.FromSlash(d[:n])
+	}
+	return filepath.FromSlash(top)
+}
+
+// ignoreCase reports whether git compares paths ignoring case in the
+// repository r runs in (core.ignorecase; unset means no).
+func ignoreCase(ctx context.Context, r *Runner) (bool, error) {
+	out, err := r.Run(ctx, "config", "--bool", "--get", "core.ignorecase")
+	if err != nil {
+		if exitCode(err) == 1 { // not set
+			return false, nil
+		}
+		return false, err
+	}
+	return strings.TrimSpace(string(out)) == "true", nil
 }
 
 // makeFolder creates dir when it is missing but its parent folder exists

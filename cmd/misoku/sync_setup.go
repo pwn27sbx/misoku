@@ -26,8 +26,17 @@ const setupTimeout = time.Minute
 
 // syncSetup is the setup assistant in the terminal (`misoku sync setup`):
 // it asks on stdout and reads the answers from stdin, one line each, and
-// runs gh's sign-in in the foreground. The end of the input cancels.
+// runs gh's sign-in in the foreground. The end of the input cancels, and
+// so does Ctrl+C while a question waits.
 func syncSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, cfgPath string) int {
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(interrupt)
+	return runSetup(ctx, args, stdin, stdout, stderr, cfgPath, interrupt)
+}
+
+// runSetup is syncSetup with the channel that brings Ctrl+C.
+func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, cfgPath string, interrupt <-chan os.Signal) int {
 	fs := flag.NewFlagSet("sync setup", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dirFlag := fs.String("dir", "", "vault folder (defaults to $MISOKU_WORKSPACE, then the current directory)")
@@ -54,7 +63,7 @@ func syncSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 		Dir: dir, ConfigPath: cfgPath, Timeout: setupTimeout, InitTimeout: initTimeout,
 		Interactive: true,
 	})
-	t := &setupTerminal{in: bufio.NewReader(stdin), stdin: stdin, out: stdout, err: stderr, s: s}
+	t := &setupTerminal{in: bufio.NewReader(stdin), stdin: stdin, out: stdout, err: stderr, s: s, interrupt: interrupt}
 	fmt.Fprintf(stdout, "Setting up sync of %s with GitHub.\n", dir)
 	step := t.work(ctx, s.Begin)
 	for {
@@ -65,7 +74,7 @@ func syncSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 			}
 			return 1
 		}
-		ans := t.ask(step)
+		ans := t.answer(step)
 		step = t.work(ctx, func(ctx context.Context) gitsync.SetupStep { return s.Next(ctx, ans) })
 	}
 }
@@ -76,11 +85,16 @@ type setupTerminal struct {
 	stdin    io.Reader
 	out, err io.Writer
 	s        *gitsync.Setup
+	// interrupt brings Ctrl+C: while a question waits it cancels, so the
+	// engine can undo what this run did (a repository it created). A
+	// Ctrl+C during a step stops that step's git and gh (work) and, if a
+	// question still follows, cancels it too.
+	interrupt <-chan os.Signal
 }
 
 // work runs one call of the assistant. Ctrl+C during it stops the git and
-// gh it runs, so it ends cleanly; while a question waits, Ctrl+C ends
-// Misoku at once, which is safe: nothing runs then.
+// gh it runs, so it ends cleanly; while a question waits, Ctrl+C cancels
+// (answer).
 func (t *setupTerminal) work(ctx context.Context, call func(context.Context) gitsync.SetupStep) gitsync.SetupStep {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -136,10 +150,27 @@ func (t *setupTerminal) yes(question string, def bool) bool {
 	return false
 }
 
+// answer asks what step needs, as ask does; Ctrl+C meanwhile is a
+// cancel. The question's read is then left waiting: the assistant ends
+// right after, and nothing reads its answer.
+func (t *setupTerminal) answer(step gitsync.SetupStep) gitsync.SetupAnswer {
+	got := make(chan gitsync.SetupAnswer, 1)
+	go func() { got <- t.ask(step) }()
+	select {
+	case ans := <-got:
+		return ans
+	case <-t.interrupt:
+		fmt.Fprintln(t.out)
+		return gitsync.SetupAnswer{}
+	}
+}
+
 // ask asks what step needs and returns the answer.
 func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 	cancel := gitsync.SetupAnswer{}
 	switch step.Ask {
+	case gitsync.AskOwnRepo:
+		return gitsync.SetupAnswer{OK: t.yes(step.Confirm, true)}
 	case gitsync.AskStart:
 		return gitsync.SetupAnswer{OK: t.yes("Start?", true)}
 	case gitsync.AskIdentity:

@@ -70,8 +70,13 @@ func (m *Model) setupNext(s *gitsync.Setup, ans gitsync.SetupAnswer) tea.Cmd {
 }
 
 // setupCancelled ends the assistant s from one of its dialogs, saying
-// what it changed before, if anything.
+// what it changed before, if anything. A repository the run created goes
+// through the engine, in the background: it runs git to see whether the
+// repository can be removed again.
 func (m *Model) setupCancelled(s *gitsync.Setup) tea.Cmd {
+	if s.MadeRepo() {
+		return m.setupNext(s, gitsync.SetupAnswer{})
+	}
 	m.setStatus(s.StopText("Sync setup cancelled"))
 	return nil
 }
@@ -83,6 +88,10 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 		m.status, m.statusErr = "", false
 	}
 	s, step := msg.s, msg.step
+	if step.Outcome == gitsync.SetupCancelled && len(step.Lines) > 0 {
+		m.setStatus(step.Lines[len(step.Lines)-1])
+		return nil
+	}
 	m.setupNotes = append(m.setupNotes, step.Notes...)
 	if m.confirm != nil || m.saveAs != nil || m.promptBox != nil || m.menuBox != nil {
 		// Another dialog came up meanwhile (it may be asking about
@@ -103,6 +112,10 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 	}
 	lines := append(append([]string{}, m.setupNotes...), step.Lines...)
 	switch step.Ask {
+	case gitsync.AskOwnRepo:
+		m.setupDialog(s, step.Title, append(lines, "", step.Confirm), []string{"Create", "Cancel"}, func(m *Model) tea.Cmd {
+			return m.setupNext(s, gitsync.SetupAnswer{OK: true})
+		})
 	case gitsync.AskStart:
 		m.setupDialog(s, step.Title, lines, []string{"Start", "Cancel"}, func(m *Model) tea.Cmd {
 			return m.setupNext(s, gitsync.SetupAnswer{OK: true})

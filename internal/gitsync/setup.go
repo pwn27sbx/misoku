@@ -55,6 +55,10 @@ const (
 	// AskRepoName: the name of the new private repository (Text), Default
 	// when empty.
 	AskRepoName
+	// AskOwnRepo: the folder is inside another git repository that does
+	// not track anything in it. Lines explain it and Confirm asks; on yes
+	// the assistant runs `git init` in the folder and goes on.
+	AskOwnRepo
 )
 
 // SetupOutcome is how the assistant ended.
@@ -89,7 +93,8 @@ type SetupStep struct {
 	Problem string
 	// Name and Email: AskIdentity's current values.
 	Name, Email string
-	// Confirm: AskIdentity's question before saving.
+	// Confirm: the yes-or-no question of AskIdentity (before saving) and
+	// of AskOwnRepo (before `git init`).
 	Confirm string
 	// Repos: AskRepo's choices, private ones first.
 	Repos []Repo
@@ -179,6 +184,11 @@ type Setup struct {
 	// stops before the end: it never says nothing changed when something
 	// did.
 	changed []string
+	// madeRepo: this run created the folder's repository (AskOwnRepo);
+	// madeAt is its line in changed. A cancel removes it while it has no
+	// commits.
+	madeRepo bool
+	madeAt   int
 }
 
 // NewSetup returns the assistant for opts.Dir. Nothing runs until Begin.
@@ -227,6 +237,11 @@ func (s *Setup) Begin(ctx context.Context) SetupStep {
 	if done, step := s.inspect(ctx); done {
 		return step
 	}
+	return s.startStep()
+}
+
+// startStep explains what will happen (AskStart).
+func (s *Setup) startStep() SetupStep {
 	s.at = AskStart
 	return SetupStep{Ask: AskStart, Title: "Sync this vault", Lines: []string{
 		"Your notes will be kept in a private GitHub repository and reach your other computers on their own.",
@@ -237,6 +252,8 @@ func (s *Setup) Begin(ctx context.Context) SetupStep {
 
 // inspect looks at the folder: when it already has an origin, or is one
 // setup must not touch, the run ends with done and the step saying why.
+// A folder inside another repository that does not track it is offered
+// a repository of its own (AskOwnRepo), also with done.
 // When git does not run, it says nothing: the git check after AskStart
 // tells the user how to fix it.
 func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
@@ -260,8 +277,16 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 		return false, SetupStep{}
 	}
 	isRepo, origin, err := folderState(ctx, r)
-	if err != nil {
-		return true, failed(redactText(err.Error()) + ". Setup changed nothing.")
+	var nested *nestedError
+	switch {
+	case errors.As(err, &nested) && !nested.tracks():
+		s.at = AskOwnRepo
+		return true, SetupStep{Ask: AskOwnRepo, Title: "A repository for your notes", Confirm: ownRepoQuestion, Lines: []string{
+			fmt.Sprintf("This folder is inside the git repository at %s, which does not track it. Syncing it as it is would commit that whole repository.", nested.top),
+			"Misoku can run `git init` here, so your notes get a repository of their own; the other repository is not changed.",
+		}}
+	case err != nil:
+		return true, failed(refusal(err))
 	}
 	if !isRepo || origin == "" {
 		return false, SetupStep{}
@@ -281,14 +306,30 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 	}}
 }
 
+// ownRepoQuestion is AskOwnRepo's question.
+const ownRepoQuestion = "This folder is inside another git repository. Create a separate one for your notes?"
+
+// refusal is folderState's refusal in setup's words.
+func refusal(err error) string {
+	var nested *nestedError
+	if errors.As(err, &nested) {
+		return nested.message("setup") + "."
+	}
+	return redactText(err.Error()) + ". Setup changed nothing."
+}
+
 // Next takes the answer to the step the previous call returned and goes
-// on to the next one.
+// on to the next one. A cancel removes the repository this run created,
+// if nothing was committed in it yet.
 func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 	if !ans.OK {
 		s.at = SetupFinished
+		s.undoRepo(ctx)
 		return SetupStep{Outcome: SetupCancelled, Title: "Sync setup", Lines: []string{s.StopText("Setup cancelled")}}
 	}
 	switch s.at {
+	case AskOwnRepo:
+		return s.ownRepo(ctx)
 	case AskStart:
 		return s.checkGit(ctx)
 	case AskIdentity:
@@ -301,6 +342,70 @@ func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 		return s.create(ctx, ans)
 	}
 	return s.fail("Setup has already ended; run it again.")
+}
+
+// MadeRepo reports whether this run created the folder's git repository
+// and still has it: a cancel then needs Next, which may remove it, rather
+// than StopText alone.
+func (s *Setup) MadeRepo() bool { return s.madeRepo }
+
+// ownRepo runs `git init` in the folder (AskOwnRepo's yes) and goes on
+// to AskStart. The folder is looked at again first: the outer repository
+// may have started tracking it, or the user may have made a repository
+// there, while the question waited.
+func (s *Setup) ownRepo(ctx context.Context) SetupStep {
+	r := New(s.opts.Dir, s.opts.Timeout)
+	_, _, err := folderState(ctx, r)
+	var nested *nestedError
+	switch {
+	case errors.As(err, &nested) && !nested.tracks():
+		if _, err := r.Run(ctx, "init", "--quiet", "--initial-branch=main"); err != nil {
+			return s.fail(fmt.Sprintf("git could not create a repository in this folder (%v).", redact(err)))
+		}
+		s.madeRepo, s.madeAt = true, len(s.changed)
+		s.changed = append(s.changed, "A git repository of its own was created in this folder")
+		step := s.startStep()
+		step.Notes = []string{"✓ created a git repository of its own for your notes"}
+		return step
+	case err != nil:
+		return s.fail(refusal(err))
+	}
+	// A repository of the folder's own already: as Begin would see it.
+	if done, step := s.inspect(ctx); done {
+		s.at = SetupFinished
+		return step
+	}
+	return s.startStep()
+}
+
+// undoRepo removes the repository this run created, when it still has
+// no commits: nothing in it is the user's yet. One with commits is left
+// in place, and the stop message says so.
+func (s *Setup) undoRepo(ctx context.Context) {
+	if !s.madeRepo {
+		return
+	}
+	s.madeRepo = false
+	head, err := resolve(ctx, New(s.opts.Dir, s.opts.Timeout), "HEAD")
+	gitDir := filepath.Join(s.opts.Dir, ".git")
+	switch {
+	case err != nil:
+		s.changed[s.madeAt] += fmt.Sprintf("; it was left in place, as git could not tell whether it has commits (%v)", redact(err))
+	case head != "":
+		s.changed[s.madeAt] += "; it already has commits, so it was left in place"
+	default:
+		// Only the folder git init made: a .git that is a file or a link
+		// now is not ours to delete.
+		if info, err := os.Lstat(gitDir); err != nil || !info.IsDir() {
+			s.changed[s.madeAt] += "; it was left in place, as " + gitDir + " is no longer the folder it created"
+			return
+		}
+		if err := os.RemoveAll(gitDir); err != nil {
+			s.changed[s.madeAt] += fmt.Sprintf("; it could not be removed again (%v): delete %s by hand", err, gitDir)
+			return
+		}
+		s.changed[s.madeAt] = "The git repository it created was removed"
+	}
 }
 
 // gitRunner runs git in the vault, or in its parent folder while the
