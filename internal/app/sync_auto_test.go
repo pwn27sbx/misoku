@@ -172,9 +172,10 @@ func TestTimedSyncWithAnUnusableIntervalWarnsAndUsesTheDefault(t *testing.T) {
 			clock := newTestClock()
 			start := clock.Now()
 			h := window(t, vault, intervalConfig(t, vault, bad), app.WithClock(clock.Now))
-			// The bar may cut the long warning; `:sync status` shows it all.
+			// The bar may cut the long warning; `:sync status` shows it all,
+			// wrapped over dialog rows that dialogText joins again.
 			h.send(core.SyncStatusMsg{})
-			if v := strings.Join(strings.Fields(h.view()), ""); !strings.Contains(v, `interval"`+bad+`"`) {
+			if v := noSpace(dialogText(h.view())); !strings.Contains(v, `interval"`+bad+`"`) {
 				t.Fatalf("the unusable interval must be reported:\n%s", h.view())
 			}
 			h.key(tea.KeyEnter)
@@ -208,7 +209,7 @@ func TestTimedSyncOffNeverSyncsOnItsOwn(t *testing.T) {
 		t.Fatal("a sync asked for still runs")
 	}
 	h.send(core.SyncStatusMsg{})
-	if v := strings.Join(strings.Fields(h.view()), ""); !strings.Contains(v, "Timedsync:off") {
+	if v := noSpace(dialogText(h.view())); !strings.Contains(v, "Timedsync:off") {
 		t.Fatalf("`:sync status` must say timed sync is off:\n%s", h.view())
 	}
 }

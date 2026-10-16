@@ -48,10 +48,11 @@ func TestOpenNoteReloadsWhenChangedOnDisk(t *testing.T) {
 	}
 }
 
-// copiesOf returns the text of each conflict copy of stem+".md" in dir.
+// copiesOf returns the text of each conflict copy of stem+".md" in dir,
+// suffixed ones (" 2", " 3"...) included.
 func copiesOf(t *testing.T, dir, stem string) []string {
 	t.Helper()
-	paths, err := filepath.Glob(filepath.Join(dir, stem+" (conflict *).md"))
+	paths, err := filepath.Glob(filepath.Join(dir, stem+" (conflict *"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -339,7 +339,7 @@ func TestSavingOverAnEditFromAnotherDeviceKeepsBothVersions(t *testing.T) {
 	}
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
 	copyName := "doc (conflict " + clock.Now().Format("2006-01-02 1504") + ").md"
-	if v := strings.Join(strings.Fields(h.view()), ""); !strings.Contains(v, strings.Join(strings.Fields(copyName), "")) {
+	if bar := noSpace(statusBar(h)); !strings.Contains(bar, noSpace(copyName)) {
 		t.Fatalf("the bar must name the copy:\n%s", h.view())
 	}
 	h.keys(" ") // the user keeps typing
