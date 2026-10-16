@@ -58,6 +58,11 @@ cd ~/notes        # any folder; your .md files show up in the explorer
 misoku
 ```
 
+The first time you run `misoku` outside a folder of notes, a welcome asks
+where your notes live: start new ones (in `~/Notes`), bring them from
+another computer, or use the current folder. Misoku remembers your choice
+and opens it every time after.
+
 Press `?` inside the app to see every shortcut.
 
 ```sh

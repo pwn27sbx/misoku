@@ -65,18 +65,10 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	})
 	t := &setupTerminal{in: bufio.NewReader(stdin), stdin: stdin, out: stdout, err: stderr, s: s, interrupt: interrupt}
 	fmt.Fprintf(stdout, "Setting up sync of %s with GitHub.\n", dir)
-	step := t.work(ctx, s.Begin)
-	for {
-		t.show(step)
-		if step.Ask == gitsync.SetupFinished {
-			if step.Outcome == gitsync.SetupDone || step.Outcome == gitsync.SetupAlready {
-				return 0
-			}
-			return 1
-		}
-		ans := t.answer(step)
-		step = t.work(ctx, func(ctx context.Context) gitsync.SetupStep { return s.Next(ctx, ans) })
+	if step := t.run(ctx); step.Outcome == gitsync.SetupDone || step.Outcome == gitsync.SetupAlready {
+		return 0
 	}
+	return 1
 }
 
 // setupTerminal asks the assistant's questions in the terminal.
@@ -90,6 +82,20 @@ type setupTerminal struct {
 	// Ctrl+C during a step stops that step's git and gh (work) and, if a
 	// question still follows, cancels it too.
 	interrupt <-chan os.Signal
+}
+
+// run drives the assistant from Begin to its end, asking in the
+// terminal, and returns its last step.
+func (t *setupTerminal) run(ctx context.Context) gitsync.SetupStep {
+	step := t.work(ctx, t.s.Begin)
+	for {
+		t.show(step)
+		if step.Ask == gitsync.SetupFinished {
+			return step
+		}
+		ans := t.answer(step)
+		step = t.work(ctx, func(ctx context.Context) gitsync.SetupStep { return t.s.Next(ctx, ans) })
+	}
 }
 
 // work runs one call of the assistant. Ctrl+C during it stops the git and
@@ -154,14 +160,22 @@ func (t *setupTerminal) yes(question string, def bool) bool {
 // cancel. The question's read is then left waiting: the assistant ends
 // right after, and nothing reads its answer.
 func (t *setupTerminal) answer(step gitsync.SetupStep) gitsync.SetupAnswer {
-	got := make(chan gitsync.SetupAnswer, 1)
-	go func() { got <- t.ask(step) }()
+	return interruptible(t, func() gitsync.SetupAnswer { return t.ask(step) }, gitsync.SetupAnswer{})
+}
+
+// interruptible runs question, which reads from t, and returns its
+// answer, or cancel when Ctrl+C comes first (t.interrupt). The read is
+// then left waiting: the caller stops asking, and nothing reads its
+// answer.
+func interruptible[T any](t *setupTerminal, question func() T, cancel T) T {
+	got := make(chan T, 1)
+	go func() { got <- question() }()
 	select {
 	case ans := <-got:
 		return ans
 	case <-t.interrupt:
 		fmt.Fprintln(t.out)
-		return gitsync.SetupAnswer{}
+		return cancel
 	}
 }
 
@@ -193,7 +207,7 @@ func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 		for i, r := range step.Repos {
 			fmt.Fprintf(t.out, "  %d) %s  %s\n", i+1, r.Name, visibility(r))
 		}
-		fmt.Fprintf(t.out, "  %d) Create a new private repository\n", len(step.Repos)+1)
+		fmt.Fprintf(t.out, "  %d) %s\n", len(step.Repos)+1, step.NewChoice)
 		text, ok := t.line("Number or name (Enter cancels): ")
 		if !ok || text == "" {
 			return cancel

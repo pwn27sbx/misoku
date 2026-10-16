@@ -292,3 +292,22 @@ func TestNotesFolderExpandsHome(t *testing.T) {
 		t.Errorf("a relative notes_dir must be an error")
 	}
 }
+
+// ExpandHome reads a folder as notes_dir is read: "~" is the home
+// folder, an absolute path stays, a relative one is an error.
+func TestExpandHome(t *testing.T) {
+	t.Parallel()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home folder:", err)
+	}
+	abs := filepath.Join(t.TempDir(), "Notes")
+	for in, want := range map[string]string{"~": home, "~/Notes": filepath.Join(home, "Notes"), abs: abs} {
+		if got, err := config.ExpandHome(in); err != nil || got != want {
+			t.Errorf("ExpandHome(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	if _, err := config.ExpandHome("Notes"); err == nil {
+		t.Error("a relative folder must be an error")
+	}
+}

@@ -43,9 +43,9 @@ func main() {
 	dir, themeName, themesDir, showVer, listThemes := opts.dir, opts.theme, opts.themesDir, opts.showVer, opts.listThemes
 
 	cfgPath := config.DefaultPath()
-	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Ignoring unreadable config %s: %v\n", cfgPath, err)
+	cfg, cfgErr := config.Load(cfgPath)
+	if cfgErr != nil {
+		fmt.Fprintf(os.Stderr, "Ignoring unreadable config %s: %v\n", cfgPath, cfgErr)
 	}
 	// Custom themes location must be registered before any theme lookup.
 	if themesDir == "" {
@@ -82,6 +82,15 @@ func main() {
 	choice := pickWorkspace(workspaceInput{Flag: dir, Arg: folder, Env: os.Getenv("MISOKU_WORKSPACE"), Config: cfg, Getwd: os.Getwd})
 	if choice.Warning != "" {
 		fmt.Fprintln(os.Stderr, choice.Warning)
+	}
+	home, _ := os.UserHomeDir() // without one, only the root and system folders are no place for notes
+	if welcomeDue(welcomeCheck{Choice: choice, ConfigPath: cfgPath, ConfigErr: cfgErr, Config: cfg, Home: home,
+		Terminal: isTerminal(os.Stdin) && isTerminal(os.Stdout)}) {
+		dir, code := greet(cfgPath, cfg, home, choice)
+		if dir == "" {
+			os.Exit(code)
+		}
+		choice = workspaceChoice{Dir: dir, Source: fromNotesDir}
 	}
 	if choice.Source == notesDirMissing {
 		// Opening would create it empty, beside the user's real notes.
@@ -120,6 +129,17 @@ func main() {
 	}
 
 	log.Println("Misoku exited cleanly.")
+}
+
+// greet shows the welcome in the terminal and returns the folder to open,
+// or "" and the exit code. Ctrl+C cancels a question that waits.
+func greet(cfgPath string, cfg config.Config, home string, choice workspaceChoice) (string, int) {
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(interrupt)
+	o := welcomeFor(choice, cfg, home, os.Getwd)
+	o.Stdin, o.Out, o.Err, o.ConfigPath, o.Interrupt = os.Stdin, os.Stdout, os.Stderr, cfgPath, interrupt
+	return runWelcome(context.Background(), o)
 }
 
 // options are the flags of `misoku` itself.

@@ -150,6 +150,11 @@ func parseInterval(text string) (time.Duration, string) {
 	return d, ""
 }
 
+// ExpandHome turns a folder written in the config ("~", "~/x" or an
+// absolute path) into an absolute path, as notes_dir and sync.vaults are
+// read: a relative path is an error.
+func ExpandHome(p string) (string, error) { return expandHome(p) }
+
 // expandHome turns "~", "~/x" (and "~\x" on Windows) into a path under the
 // user's home folder. Relative paths are rejected: they would depend on the
 // folder Misoku happens to be started from.

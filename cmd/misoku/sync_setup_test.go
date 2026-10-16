@@ -117,3 +117,77 @@ func TestSyncSetupInterruptAtAQuestionCancels(t *testing.T) {
 		t.Errorf("the repository the interrupted run created must go: %v", err)
 	}
 }
+
+// A vault folder that does not exist yet inside another repository is
+// offered a repository of its own too; cancelling removes the folder and
+// the repository this run created, and the outer repository is as it was.
+func TestSyncSetupOffersARepositoryOfItsOwnForAMissingFolder(t *testing.T) {
+	t.Parallel()
+	needGit(t)
+	outer := t.TempDir()
+	git(t, outer, "init", "-q", "-b", "main")
+	writeFile(t, outer, "dotfile", "x\n")
+	dir := filepath.Join(outer, "notes")
+	before := treeHash(t, outer)
+	var out bytes.Buffer
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	code := syncSetup(context.Background(), []string{"--dir", dir}, strings.NewReader("\n"), &out, &out, cfg)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1 (cancelled):\n%s", code, out.String())
+	}
+	wantOutput(t, out.String(),
+		"This folder is inside another git repository. Create a separate one for your notes? [Y/n]",
+		"Start? [Y/n]", "was removed")
+	if _, err := os.Lstat(dir); !os.IsNotExist(err) {
+		t.Errorf("the folder the cancelled run created must go: %v", err)
+	}
+	if treeHash(t, outer) != before {
+		t.Error("the cancelled setup changed the outer repository")
+	}
+}
+
+// A missing folder the outer repository still tracks files in is
+// refused, as an existing one is, and nothing is left behind.
+func TestSyncSetupRefusesAMissingFolderTheOuterRepositoryTracks(t *testing.T) {
+	t.Parallel()
+	needGit(t)
+	outer := t.TempDir()
+	git(t, outer, "init", "-q", "-b", "main")
+	writeFile(t, outer, "notes/a.md", "a\n")
+	git(t, outer, "add", "-A")
+	git(t, outer, "commit", "-q", "-m", "notes")
+	dir := filepath.Join(outer, "notes")
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	code := syncSetup(context.Background(), []string{"--dir", dir}, strings.NewReader(""), &out, &out, cfg)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1 (refused):\n%s", code, out.String())
+	}
+	wantOutput(t, out.String(), "tracks files in this folder")
+	if _, err := os.Lstat(dir); !os.IsNotExist(err) {
+		t.Errorf("the refused setup left the folder: %v", err)
+	}
+}
+
+// Saying no to a repository of its own leaves a missing folder missing:
+// looking at it creates nothing.
+func TestSyncSetupDeclinedForAMissingFolderCreatesNothing(t *testing.T) {
+	t.Parallel()
+	needGit(t)
+	outer := t.TempDir()
+	git(t, outer, "init", "-q", "-b", "main")
+	dir := filepath.Join(outer, "notes")
+	var out bytes.Buffer
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	code := syncSetup(context.Background(), []string{"--dir", dir}, strings.NewReader("n\n"), &out, &out, cfg)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1 (cancelled):\n%s", code, out.String())
+	}
+	wantOutput(t, out.String(), "Setup cancelled; nothing was changed.")
+	if _, err := os.Lstat(dir); !os.IsNotExist(err) {
+		t.Errorf("the folder was created: %v", err)
+	}
+}

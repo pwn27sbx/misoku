@@ -209,7 +209,7 @@ func (m *Model) askRepo(s *gitsync.Setup, step gitsync.SetupStep) {
 		items = append(items, label)
 	}
 	create := len(items)
-	items = append(items, "Create a new private repository")
+	items = append(items, step.NewChoice)
 	typed := -1
 	if len(shown) < len(step.Repos) {
 		typed = len(items)

@@ -75,6 +75,10 @@ const (
 	SetupCancelled
 	// SetupFailed: something must be fixed first; Lines say what.
 	SetupFailed
+	// SetupStartNotes: with SetupOptions.Bring, the user has no notes on
+	// another computer; the front end starts new notes instead. Lines say
+	// what the run changed before (its identity, say), if anything.
+	SetupStartNotes
 )
 
 // SetupStep is what the assistant says and asks next.
@@ -98,6 +102,10 @@ type SetupStep struct {
 	Confirm string
 	// Repos: AskRepo's choices, private ones first.
 	Repos []Repo
+	// NewChoice: the label of AskRepo's last choice (Choice ==
+	// len(Repos)): a new private repository, or, with SetupOptions.Bring,
+	// starting new notes.
+	NewChoice string
 	// Default: AskRepoName's suggested name.
 	Default string
 	// Repo: the repository the vault syncs with, once known.
@@ -171,6 +179,11 @@ type SetupOptions struct {
 	// Now gives the local time used in conflict copy names; nil means
 	// time.Now.
 	Now func() time.Time
+	// Bring is the welcome's "Bring my notes from another computer": the
+	// notes come from a repository the user already has, so AskRepo offers
+	// no new repository; its last choice ends the run with
+	// SetupStartNotes instead.
+	Bring bool
 }
 
 // Setup is one run of the assistant. Its calls are made one at a time.
@@ -189,6 +202,13 @@ type Setup struct {
 	// commits.
 	madeRepo bool
 	madeAt   int
+	// newDir: the folder does not exist yet and is inside another
+	// repository; AskOwnRepo's yes creates it before `git init`.
+	newDir bool
+	// madeDir: this run created the folder; dirAt is its line in changed.
+	// A cancel or a failure removes it once it is empty again.
+	madeDir bool
+	dirAt   int
 }
 
 // NewSetup returns the assistant for opts.Dir. Nothing runs until Begin.
@@ -207,6 +227,11 @@ func NewSetup(opts SetupOptions) *Setup {
 	}
 	return &Setup{opts: opts}
 }
+
+// SameFolder reports whether a and b are the same folder, as the operating
+// system sees it (see Listed): symlinks, letter case and macOS's /var ->
+// /private/var do not make two folders of one.
+func SameFolder(a, b string) bool { return sameDir(a, b) }
 
 // githubHost is the only host the assistant signs in to.
 const githubHost = "github.com"
@@ -243,12 +268,27 @@ func (s *Setup) Begin(ctx context.Context) SetupStep {
 // startStep explains what will happen (AskStart).
 func (s *Setup) startStep() SetupStep {
 	s.at = AskStart
+	if s.opts.Bring {
+		return SetupStep{Ask: AskStart, Title: "Bring your notes", Lines: []string{
+			"Your notes come from the private GitHub repository your other computer syncs with, and stay in sync from then on.",
+			ghAccessLine,
+		}}
+	}
 	return SetupStep{Ask: AskStart, Title: "Sync this vault", Lines: []string{
 		"Your notes will be kept in a private GitHub repository and reach your other computers on their own.",
-		"You need a GitHub account. Misoku signs in with gh, GitHub's command-line tool, which keeps the access: Misoku never sees or stores it.",
+		ghAccessLine,
 		"In the repository your notes are not encrypted, so it stays private.",
 	}}
 }
+
+// ghAccessLine says who keeps the access to GitHub.
+const ghAccessLine = "You need a GitHub account. Misoku signs in with gh, GitHub's command-line tool, which keeps the access: Misoku never sees or stores it."
+
+// Labels of AskRepo's last choice (SetupStep.NewChoice).
+const (
+	createChoice = "Create a new private repository"
+	freshChoice  = "I don't have notes on another computer → Start my notes"
+)
 
 // inspect looks at the folder: when it already has an origin, or is one
 // setup must not touch, the run ends with done and the step saying why.
@@ -266,7 +306,7 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 		if p, err := os.Stat(filepath.Dir(dir)); err != nil || !p.IsDir() {
 			return true, failed(fmt.Sprintf("%s does not exist, nor does its folder %s; create it first, or choose another folder.", dir, filepath.Dir(dir)))
 		}
-		return false, SetupStep{}
+		return s.inspectNew(ctx)
 	case err != nil:
 		return true, failed(err.Error())
 	case !info.IsDir():
@@ -281,10 +321,7 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 	switch {
 	case errors.As(err, &nested) && !nested.tracks():
 		s.at = AskOwnRepo
-		return true, SetupStep{Ask: AskOwnRepo, Title: "A repository for your notes", Confirm: ownRepoQuestion, Lines: []string{
-			fmt.Sprintf("This folder is inside the git repository at %s, which does not track it. Syncing it as it is would commit that whole repository.", nested.top),
-			"Misoku can run `git init` here, so your notes get a repository of their own; the other repository is not changed.",
-		}}
+		return true, ownRepoStep(nested)
 	case err != nil:
 		return true, failed(refusal(err))
 	}
@@ -306,6 +343,46 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 	}}
 }
 
+// ownRepoStep offers the folder inside nested's repository a repository
+// of its own (AskOwnRepo).
+func ownRepoStep(nested *nestedError) SetupStep {
+	return SetupStep{Ask: AskOwnRepo, Title: "A repository for your notes", Confirm: ownRepoQuestion, Lines: []string{
+		fmt.Sprintf("This folder is inside the git repository at %s, which does not track it. Syncing it as it is would commit that whole repository.", nested.top),
+		"Misoku can run `git init` here, so your notes get a repository of their own; the other repository is not changed.",
+	}}
+}
+
+// inspectNew looks at a folder that does not exist yet as inspect looks
+// at an existing one: inside another repository it is offered a
+// repository of its own (AskOwnRepo, which creates the folder on yes), or
+// refused when that repository tracks files there. git can only be asked
+// about a folder that exists, so it is made empty for that moment and
+// removed again before anything else happens.
+func (s *Setup) inspectNew(ctx context.Context) (bool, SetupStep) {
+	dir := s.opts.Dir
+	if _, ok, err := New(filepath.Dir(dir), s.opts.Timeout).Version(ctx); err != nil || !ok {
+		return false, SetupStep{} // the git check after AskStart says how to fix git
+	}
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		return true, failed(fmt.Sprintf("Setup could not look at %s (%v). Setup changed nothing.", dir, err))
+	}
+	_, _, err := folderState(ctx, New(dir, s.opts.Timeout))
+	if rerr := os.Remove(dir); rerr != nil {
+		return true, failed(fmt.Sprintf("Setup made the empty folder %s to look at it and could not remove it again (%v); delete it, then run setup again.", dir, rerr))
+	}
+	var nested *nestedError
+	switch {
+	case errors.As(err, &nested) && !nested.tracks():
+		s.at, s.newDir = AskOwnRepo, true
+		return true, ownRepoStep(nested)
+	case errors.As(err, &nested):
+		return true, failed(refusal(err))
+	}
+	// Not inside another repository (or git could not tell): InitVault
+	// creates the folder and checks it again.
+	return false, SetupStep{}
+}
+
 // ownRepoQuestion is AskOwnRepo's question.
 const ownRepoQuestion = "This folder is inside another git repository. Create a separate one for your notes?"
 
@@ -324,7 +401,7 @@ func refusal(err error) string {
 func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 	if !ans.OK {
 		s.at = SetupFinished
-		s.undoRepo(ctx)
+		s.undo(ctx)
 		return SetupStep{Outcome: SetupCancelled, Title: "Sync setup", Lines: []string{s.StopText("Setup cancelled")}}
 	}
 	switch s.at {
@@ -341,26 +418,34 @@ func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 	case AskRepoName:
 		return s.create(ctx, ans)
 	}
-	return s.fail("Setup has already ended; run it again.")
+	return s.fail(ctx, "Setup has already ended; run it again.")
 }
 
-// MadeRepo reports whether this run created the folder's git repository
-// and still has it: a cancel then needs Next, which may remove it, rather
-// than StopText alone.
-func (s *Setup) MadeRepo() bool { return s.madeRepo }
+// MadeRepo reports whether this run created the folder's git repository,
+// or the folder, and still has it: a cancel then needs Next, which may
+// remove it, rather than StopText alone.
+func (s *Setup) MadeRepo() bool { return s.madeRepo || s.madeDir }
 
 // ownRepo runs `git init` in the folder (AskOwnRepo's yes) and goes on
 // to AskStart. The folder is looked at again first: the outer repository
 // may have started tracking it, or the user may have made a repository
 // there, while the question waited.
 func (s *Setup) ownRepo(ctx context.Context) SetupStep {
+	if s.newDir {
+		s.newDir = false
+		made, err := makeFolder(s.opts.Dir)
+		if err != nil {
+			return s.fail(ctx, err.Error()+".")
+		}
+		s.noteFolder(made)
+	}
 	r := New(s.opts.Dir, s.opts.Timeout)
 	_, _, err := folderState(ctx, r)
 	var nested *nestedError
 	switch {
 	case errors.As(err, &nested) && !nested.tracks():
 		if _, err := r.Run(ctx, "init", "--quiet", "--initial-branch=main"); err != nil {
-			return s.fail(fmt.Sprintf("git could not create a repository in this folder (%v).", redact(err)))
+			return s.fail(ctx, fmt.Sprintf("git could not create a repository in this folder (%v).", redact(err)))
 		}
 		s.madeRepo, s.madeAt = true, len(s.changed)
 		s.changed = append(s.changed, "A git repository of its own was created in this folder")
@@ -368,7 +453,7 @@ func (s *Setup) ownRepo(ctx context.Context) SetupStep {
 		step.Notes = []string{"✓ created a git repository of its own for your notes"}
 		return step
 	case err != nil:
-		return s.fail(refusal(err))
+		return s.fail(ctx, refusal(err))
 	}
 	// A repository of the folder's own already: as Begin would see it.
 	if done, step := s.inspect(ctx); done {
@@ -376,6 +461,44 @@ func (s *Setup) ownRepo(ctx context.Context) SetupStep {
 		return step
 	}
 	return s.startStep()
+}
+
+// noteFolder records that this run created the folder, when made.
+func (s *Setup) noteFolder(made bool) {
+	if made && !s.madeDir {
+		s.madeDir, s.dirAt = true, len(s.changed)
+		s.changed = append(s.changed, "The folder "+s.opts.Dir+" was created")
+	}
+}
+
+// noteInit records the folder and the repository InitVault created, for
+// a run that stops after it.
+func (s *Setup) noteInit(res InitResult) {
+	s.noteFolder(res.CreatedFolder)
+	if res.CreatedRepo && !s.madeRepo {
+		s.madeRepo, s.madeAt = true, len(s.changed)
+		s.changed = append(s.changed, "A git repository was created in "+s.opts.Dir)
+	}
+}
+
+// undo removes what this run created and nothing uses yet: its
+// repository while it has no commits, then its folder once that is empty
+// again. What stays is said in changed.
+func (s *Setup) undo(ctx context.Context) {
+	s.undoRepo(ctx)
+	if !s.madeDir {
+		return
+	}
+	s.madeDir = false
+	if err := os.Remove(s.opts.Dir); err != nil {
+		if entries, rerr := os.ReadDir(s.opts.Dir); rerr == nil && len(entries) > 0 {
+			s.changed[s.dirAt] += "; it was left in place, as it is not empty"
+			return
+		}
+		s.changed[s.dirAt] += fmt.Sprintf("; it could not be removed again (%v)", err)
+		return
+	}
+	s.changed[s.dirAt] = "The folder " + s.opts.Dir + " it created was removed"
 }
 
 // undoRepo removes the repository this run created, when it still has
@@ -425,15 +548,15 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 	r := s.gitRunner()
 	version, ok, err := r.Version(ctx)
 	if err != nil {
-		return s.fail(fmt.Sprintf("git did not run (%v). Install git %s or newer, then run setup again.", err, MinVersion))
+		return s.fail(ctx, fmt.Sprintf("git did not run (%v). Install git %s or newer, then run setup again.", err, MinVersion))
 	}
 	if !ok {
-		return s.fail(fmt.Sprintf("git %s is too old: sync needs git %s or newer. Update git, then run setup again.", version, MinVersion))
+		return s.fail(ctx, fmt.Sprintf("git %s is too old: sync needs git %s or newer. Update git, then run setup again.", version, MinVersion))
 	}
 	notes := []string{"✓ git " + version}
 	path, err := exec.LookPath(s.opts.GH)
 	if err != nil {
-		return s.fail(
+		return s.fail(ctx,
 			"gh, GitHub's command-line tool, is not installed: setup uses it to sign in to GitHub.",
 			GHInstallHint(s.opts.OS),
 		)
@@ -446,7 +569,7 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 	}
 	name, email, err := identity(ctx, r)
 	if err != nil {
-		return s.fail(redactText(err.Error()))
+		return s.fail(ctx, redactText(err.Error()))
 	}
 	if name == "" || email == "" {
 		s.at = AskIdentity
@@ -492,11 +615,11 @@ func (s *Setup) saveIdentity(ctx context.Context, ans SetupAnswer) SetupStep {
 	}
 	r := s.gitRunner()
 	if _, err := r.Run(ctx, "config", "--global", "user.name", name); err != nil {
-		return s.fail(fmt.Sprintf("git could not save user.name (%v).", redact(err)))
+		return s.fail(ctx, fmt.Sprintf("git could not save user.name (%v).", redact(err)))
 	}
 	if _, err := r.Run(ctx, "config", "--global", "user.email", email); err != nil {
 		s.changed = append(s.changed, "Your git name was saved")
-		return s.fail(fmt.Sprintf("git could not save user.email (%v).", redact(err)))
+		return s.fail(ctx, fmt.Sprintf("git could not save user.email (%v).", redact(err)))
 	}
 	s.changed = append(s.changed, "Your git name and email were saved")
 	step := s.checkSignIn(ctx)
@@ -549,7 +672,7 @@ func (s *Setup) signedInNow(ctx context.Context) bool {
 // signedIn goes on after the front end ran SignInCommand.
 func (s *Setup) signedIn(ctx context.Context) SetupStep {
 	if !s.signedInNow(ctx) {
-		return s.fail("You are not signed in to GitHub (the sign-in did not finish). Run setup again to try once more.")
+		return s.fail(ctx, "You are not signed in to GitHub (the sign-in did not finish). Run setup again to try once more.")
 	}
 	step := s.listRepos(ctx)
 	step.Notes = append([]string{"✓ signed in to GitHub"}, step.Notes...)
@@ -560,11 +683,11 @@ func (s *Setup) signedIn(ctx context.Context) SetupStep {
 func (s *Setup) listRepos(ctx context.Context) SetupStep {
 	out, err := s.gh(ctx, "repo", "list", "--json", "nameWithOwner,visibility,url", "--limit", "1000")
 	if err != nil {
-		return s.fail(fmt.Sprintf("gh could not list your repositories (%v).", err))
+		return s.fail(ctx, fmt.Sprintf("gh could not list your repositories (%v).", err))
 	}
 	var repos []Repo
 	if err := json.Unmarshal(out, &repos); err != nil {
-		return s.fail(fmt.Sprintf("gh listed your repositories in a way Misoku does not understand (%v).", err))
+		return s.fail(ctx, fmt.Sprintf("gh listed your repositories in a way Misoku does not understand (%v).", err))
 	}
 	// Private first: they are the ones that can be picked.
 	sort.SliceStable(repos, func(i, j int) bool { return repos[i].Private() && !repos[j].Private() })
@@ -572,15 +695,22 @@ func (s *Setup) listRepos(ctx context.Context) SetupStep {
 	return s.askRepo("")
 }
 
+// askRepo asks which repository to sync with (AskRepo).
 func (s *Setup) askRepo(problem string) SetupStep {
 	s.at = AskRepo
-	return SetupStep{Ask: AskRepo, Title: "Which repository keeps this vault?", Repos: s.repos, Problem: problem, Lines: []string{
+	if s.opts.Bring {
+		return SetupStep{Ask: AskRepo, Title: "Which repository has your notes?", Repos: s.repos, NewChoice: freshChoice, Problem: problem, Lines: []string{
+			"Pick the repository your other computer syncs with.",
+		}}
+	}
+	return SetupStep{Ask: AskRepo, Title: "Which repository keeps this vault?", Repos: s.repos, NewChoice: createChoice, Problem: problem, Lines: []string{
 		"Pick the repository your other computer already syncs with, or create a new private one.",
 	}}
 }
 
 // pick takes the chosen repository: a private one is connected, a public
-// one refused (notes are stored unencrypted), "new" asks for a name.
+// one refused (notes are stored unencrypted), "new" asks for a name, or,
+// with Bring, ends the run so the front end starts new notes.
 func (s *Setup) pick(ctx context.Context, ans SetupAnswer) SetupStep {
 	choice := ans.Choice
 	if text := strings.TrimSpace(ans.Text); text != "" {
@@ -597,6 +727,10 @@ func (s *Setup) pick(ctx context.Context, ans SetupAnswer) SetupStep {
 		}
 	}
 	switch {
+	case choice == len(s.repos) && s.opts.Bring:
+		s.at = SetupFinished
+		s.undo(ctx)
+		return SetupStep{Outcome: SetupStartNotes, Title: "Start my notes", Lines: []string{s.StopText("No notes to bring")}}
 	case choice == len(s.repos):
 		s.at = AskRepoName
 		return SetupStep{Ask: AskRepoName, Title: "Name of the new private repository", Default: RepoName(s.opts.Dir),
@@ -651,14 +785,14 @@ func (s *Setup) create(ctx context.Context, ans SetupAnswer) SetupStep {
 	// Before creating anything: a repository made for a vault that then
 	// cannot sync with it would be left half done.
 	if err := s.setupGit(ctx); err != nil {
-		return s.fail(err.Error() + ".")
+		return s.fail(ctx, err.Error()+".")
 	}
 	out, err := s.gh(ctx, "repo", "create", name, "--private")
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "already exists") {
 			return again(fmt.Sprintf("A repository named %s already exists in your GitHub account; choose another name.", name))
 		}
-		return s.fail(fmt.Sprintf("GitHub did not create the repository (%v).", err))
+		return s.fail(ctx, fmt.Sprintf("GitHub did not create the repository (%v).", err))
 	}
 	page := ""
 	for _, f := range strings.Fields(string(out)) {
@@ -670,7 +804,7 @@ func (s *Setup) create(ctx context.Context, ans SetupAnswer) SetupStep {
 	host, path, _ := strings.Cut(u, "/")
 	if host == "" || strings.Count(strings.Trim(path, "/"), "/") != 1 {
 		s.changed = append(s.changed, "the private repository "+name+" was created on GitHub")
-		return s.fail(fmt.Sprintf("GitHub created the repository %s, but gh did not say where it is. Run setup again and pick it from the list.", name))
+		return s.fail(ctx, fmt.Sprintf("GitHub created the repository %s, but gh did not say where it is. Run setup again and pick it from the list.", name))
 	}
 	s.changed = append(s.changed, "the private repository "+strings.TrimSuffix(strings.Trim(path, "/"), ".git")+" was created on GitHub")
 	return s.connect(ctx, Repo{Name: strings.TrimSuffix(strings.Trim(path, "/"), ".git"), Visibility: "PRIVATE", URL: page}, true)
@@ -691,7 +825,7 @@ func (s *Setup) setupGit(ctx context.Context) error {
 func (s *Setup) connect(ctx context.Context, repo Repo, created bool) SetupStep {
 	if !created {
 		if err := s.setupGit(ctx); err != nil {
-			return s.fail(err.Error() + ".")
+			return s.fail(ctx, err.Error()+".")
 		}
 	}
 	s.at = SetupFinished
@@ -704,20 +838,22 @@ func (s *Setup) connect(ctx context.Context, repo Repo, created bool) SetupStep 
 	again := fmt.Sprintf("The repository %s is on GitHub: fix that, then run setup again and pick it.", repo.Name)
 	res, err := InitVault(ctx, s.opts.Dir, InitOptions{URL: url, Device: s.vault.Device, Timeout: s.opts.InitTimeout, Now: s.opts.Now, NoPrompt: !s.opts.Interactive})
 	if err != nil {
-		return s.fail(append(lines, err.Error()+".", again)...)
+		s.noteInit(res)
+		return s.fail(ctx, append(lines, err.Error()+".", again)...)
 	}
 	if res.CreatedFolder {
 		lines = append(lines, "Created the folder "+s.opts.Dir+".")
 	}
 	lines = append(lines, res.Report(shown)...)
 	if res.Sync.Outcome != Synced {
-		return s.fail(append(lines, errText(res.Sync.Err)+"; nothing was lost.", again)...)
+		s.noteInit(res)
+		return s.fail(ctx, append(lines, errText(res.Sync.Err)+"; nothing was lost.", again)...)
 	}
 	interval := s.vault.Interval
 	if !s.listed {
 		if _, err := config.AddSyncVault(s.opts.ConfigPath, s.opts.Dir); err != nil {
 			key, _ := json.Marshal(s.opts.Dir)
-			return s.fail(append(lines, fmt.Sprintf("The vault is set up, but it could not be listed in the config (%v); add it to sync.vaults by hand: {\"sync\": {\"vaults\": {%s: {}}}}", err, key))...)
+			return s.fail(ctx, append(lines, fmt.Sprintf("The vault is set up, but it could not be listed in the config (%v); add it to sync.vaults by hand: {\"sync\": {\"vaults\": {%s: {}}}}", err, key))...)
 		}
 		lines = append(lines, fmt.Sprintf("Added %s to sync.vaults in %s.", s.opts.Dir, s.opts.ConfigPath))
 	}
@@ -744,9 +880,11 @@ func errText(err error) string {
 }
 
 // fail ends the run with lines saying what went wrong, and a last line
-// saying what the run changed before it stopped.
-func (s *Setup) fail(lines ...string) SetupStep {
+// saying what the run changed before it stopped. What it created and is
+// still unused (see undo) is removed first.
+func (s *Setup) fail(ctx context.Context, lines ...string) SetupStep {
 	s.at = SetupFinished
+	s.undo(ctx)
 	last := "Nothing was changed."
 	if len(s.changed) > 0 {
 		last = "Setup stopped. " + s.changes()
