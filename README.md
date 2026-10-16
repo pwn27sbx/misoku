@@ -31,7 +31,7 @@ irm https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.ps1 | iex
 
 Run the same command again to update.
 
-On macOS and Linux this one command installs two programs side by side:
+On every system this one command installs two programs side by side:
 **misoku**, and **gh**, GitHub's command-line tool, which Misoku signs in to
 GitHub with to sync your notes. gh is a pinned version whose checksum is
 written in the installer, and every download is checked: a mismatch stops
@@ -46,8 +46,17 @@ the install.
   then close the window and open a new Terminal. Without git, it offers to
   install it with your distribution's package manager (this needs your
   password).
-- A `misoku` already on your `PATH` is updated where it is, and a gh you
-  installed yourself (Homebrew, apt…) is left alone and used as it is.
+- **Windows:** both go to `%LOCALAPPDATA%\Programs\misoku`, which is added
+  to your user `PATH` (`misoku` works in the same window; other windows see
+  it once reopened). Without git, it installs it with
+  `winget install --id Git.Git -e --source winget` when winget is there
+  (Windows may ask for permission; if it fails, the install still finishes),
+  and otherwise links to [git-scm.com](https://git-scm.com/download/win).
+  Misoku finds a new git in `%ProgramFiles%\Git\cmd` even before the window
+  sees the new `PATH`. Works in Windows PowerShell 5.1 and PowerShell 7.
+- On macOS and Linux a `misoku` already on your `PATH` is updated where it
+  is. On every system a gh you installed yourself (Homebrew, apt, winget…)
+  is left alone and used as it is.
   Running the installer again updates only the gh it installed.
 - git is needed only to sync; Misoku works without it.
 
@@ -338,7 +347,7 @@ misoku sync setup --dir ~/notes
 `--dir` defaults to `$MISOKU_WORKSPACE`, then to the current folder. The assistant:
 
 1. Says what will happen and waits for **Start**. A vault inside another git repository is first offered a repository of its own ([a vault inside another repository](#set-up-a-vault-with-any-git-url)).
-2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed: on your `PATH`, or next to `misoku`, where the macOS and Linux installer puts it. On a Mac where Apple's installer for git is still running, it asks you to press Enter once it finishes. If gh is not installed, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
+2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed: on your `PATH`, or next to `misoku`, where the installer puts it. On a Mac where Apple's installer for git is still running, it asks you to press Enter once it finishes. If gh is not installed, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
 3. If gh is not signed in, runs `gh auth login --web --git-protocol https --hostname github.com`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs). gh asks nothing else: the flags answer its questions, and it does not ask about git's credentials, which step 6 sets up. On a computer with no browser to open (Linux without a desktop, or WSL without `wslview`), the dialog says so: open https://github.com/login/device on any device, sign in and enter the code gh shows.
 4. If git does not know your name and email, asks for them, already filled in from your GitHub account: your profile name (or your login, when the profile has none) and GitHub's private address, `<id>+<login>@users.noreply.github.com`, which keeps your own email out of your notes' history. Change them if you like; they are saved with `git config --global` only once you confirm. If gh cannot tell, you type them.
 5. Lets you **create a new private repository** (it offers the vault folder's name) or **pick one of yours** from a list. Public (and organization-internal) repositories are marked and refused: your notes are stored unencrypted. To use one, make it private on GitHub first.

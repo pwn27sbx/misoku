@@ -50,3 +50,14 @@ func SetAppleInstallingGit(running func() bool) func() {
 	appleInstallingGit = func(context.Context) bool { return running() }
 	return func() { appleInstallingGit = old }
 }
+
+// SetGOOS makes the git lookup behave as on goos. The returned function
+// restores it.
+func SetGOOS(goos string) func() {
+	old := runtimeGOOS
+	runtimeGOOS = goos
+	return func() { runtimeGOOS = old }
+}
+
+// GitProgram is the git program Runner starts.
+func GitProgram() string { return gitProgram() }

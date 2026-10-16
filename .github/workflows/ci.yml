@@ -192,3 +192,19 @@ jobs:
           ./install.ps1
           & "$PWD\bin\misoku.exe" --version
           Stop-Process $server
+      # The harness builds its fake misoku.exe and gh.exe with Go.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Offline: fake releases of Misoku and gh as file:// URLs
+      # (MISOKU_BASE_URL, MISOKU_GH_BASE_URL). gh installed and marked, a gh
+      # that is not ours left alone, ours updated, bad checksums abort with
+      # nothing installed, MISOKU_GH_SHA256 ignored over the network, git
+      # through winget, and `irm | iex`; under PowerShell 7 and 5.1.
+      - name: Installer checks (offline, PowerShell 7)
+        shell: pwsh
+        run: ./scripts/test-install.ps1 -Shell pwsh
+      - name: Installer checks (offline, Windows PowerShell 5.1)
+        shell: pwsh
+        run: ./scripts/test-install.ps1 -Shell powershell

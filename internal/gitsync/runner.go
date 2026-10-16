@@ -130,7 +130,7 @@ func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte
 		"-c", "commit.gpgsign=false",
 		"-c", "tag.gpgsign=false",
 	}, args...)
-	cmd := exec.CommandContext(ctx, "git", full...)
+	cmd := exec.CommandContext(ctx, gitProgram(), full...)
 	cmd.Env = env
 	cmd.Stdin = nil // reads from the null device
 	if stdin != nil {
@@ -398,7 +398,7 @@ func (r *Runner) sshFrom(cfg map[string]string) (string, bool) {
 func (r *Runner) sshConfig(parent context.Context) (map[string]string, bool) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "-C", r.dir, "config", "-z", "--get-regexp", `^(core\.sshcommand|ssh\.variant)$`)
+	cmd := exec.CommandContext(ctx, gitProgram(), "-C", r.dir, "config", "-z", "--get-regexp", `^(core\.sshcommand|ssh\.variant)$`)
 	cmd.Stdin = nil
 	var out bytes.Buffer
 	cmd.Stdout = &out
