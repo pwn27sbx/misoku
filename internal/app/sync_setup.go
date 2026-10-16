@@ -69,9 +69,10 @@ func (m *Model) setupNext(s *gitsync.Setup, ans gitsync.SetupAnswer) tea.Cmd {
 	return m.setupWork(s, func(ctx context.Context) gitsync.SetupStep { return s.Next(ctx, ans) })
 }
 
-// setupCancelled ends the assistant from one of its dialogs.
-func (m *Model) setupCancelled() tea.Cmd {
-	m.setStatus("Sync setup cancelled; nothing was changed")
+// setupCancelled ends the assistant s from one of its dialogs, saying
+// what it changed before, if anything.
+func (m *Model) setupCancelled(s *gitsync.Setup) tea.Cmd {
+	m.setStatus(s.StopText("Sync setup cancelled"))
 	return nil
 }
 
@@ -94,7 +95,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 			m.setStatus(step.Lines[len(step.Lines)-1])
 			return nil
 		}
-		m.setStatus("Sync setup stopped: another dialog is open; nothing was changed")
+		m.setStatus(s.StopText("Sync setup stopped: another dialog is open"))
 		return nil
 	}
 	if step.Problem != "" {
@@ -103,13 +104,13 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 	lines := append(append([]string{}, m.setupNotes...), step.Lines...)
 	switch step.Ask {
 	case gitsync.AskStart:
-		m.setupDialog(step.Title, lines, []string{"Start", "Cancel"}, func(m *Model) tea.Cmd {
+		m.setupDialog(s, step.Title, lines, []string{"Start", "Cancel"}, func(m *Model) tea.Cmd {
 			return m.setupNext(s, gitsync.SetupAnswer{OK: true})
 		})
 	case gitsync.AskIdentity:
 		return m.askIdentity(s, step)
 	case gitsync.AskSignIn:
-		m.setupDialog(step.Title, lines, []string{"Sign in", "Cancel"}, func(m *Model) tea.Cmd {
+		m.setupDialog(s, step.Title, lines, []string{"Sign in", "Cancel"}, func(m *Model) tea.Cmd {
 			return m.execProcess(s.SignInCommand(), func(error) tea.Msg {
 				// gh said how it went on the terminal; Next asks gh
 				// whether it is signed in now.
@@ -144,16 +145,16 @@ func (m *Model) quitHeld() bool {
 	return true
 }
 
-// setupDialog shows lines with the buttons; the first goes on, the last
-// cancels.
-func (m *Model) setupDialog(title string, lines, buttons []string, onGo func(*Model) tea.Cmd) {
+// setupDialog shows lines of the assistant s with the buttons; the first
+// goes on, the last cancels.
+func (m *Model) setupDialog(s *gitsync.Setup, title string, lines, buttons []string, onGo func(*Model) tea.Cmd) {
 	m.confirm = &confirmDialog{
 		title:   title,
 		message: m.wrapLines(lines),
 		buttons: buttons,
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			if choice != 0 {
-				return m.setupCancelled()
+				return m.setupCancelled(s)
 			}
 			return onGo(m)
 		},
@@ -170,7 +171,7 @@ func (m *Model) askIdentity(s *gitsync.Setup, step gitsync.SetupStep) tea.Cmd {
 	return m.prompt("Your name, for git", step.Name, hint, func(m *Model, name string) tea.Cmd {
 		return m.prompt("Your email, for git", step.Email, hint, func(m *Model, email string) tea.Cmd {
 			lines := []string{step.Confirm, "", "Name: " + name, "Email: " + email}
-			m.setupDialog("Save your git identity", lines, []string{"Save", "Cancel"}, func(m *Model) tea.Cmd {
+			m.setupDialog(s, "Save your git identity", lines, []string{"Save", "Cancel"}, func(m *Model) tea.Cmd {
 				return m.setupNext(s, gitsync.SetupAnswer{OK: true, Name: name, Email: email})
 			})
 			return nil
@@ -208,7 +209,7 @@ func (m *Model) askRepo(s *gitsync.Setup, step gitsync.SetupStep) {
 		case typed:
 			return m.prompt("Repository name", "", "Such as notes or you/notes", func(m *Model, name string) tea.Cmd {
 				if name == "" {
-					return m.setupCancelled()
+					return m.setupCancelled(s)
 				}
 				return m.setupNext(s, gitsync.SetupAnswer{OK: true, Text: name})
 			})

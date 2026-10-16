@@ -134,3 +134,54 @@ func TestSyncSetupInsideTheAppAsksForTheIdentityWithAWholeHint(t *testing.T) {
 		t.Fatalf("the name question must show its whole hint:\n%s", view)
 	}
 }
+
+// saveIdentityInTheApp starts the assistant with no git identity and
+// answers its questions up to the Save button, which it returns pressed:
+// the command that saves the identity, not run yet.
+func saveIdentityInTheApp(t *testing.T) (*harness, tea.Cmd) {
+	t.Helper()
+	fakeGitHub(t, "[]", false) // not signed in: sign-in comes next
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.send(core.SyncSetupMsg{})
+	h.key(tea.KeyEnter) // Start
+	h.keys("Ana Ruiz")
+	h.key(tea.KeyEnter)
+	h.keys("ana@example.com")
+	h.key(tea.KeyEnter)
+	if !strings.Contains(h.view(), "Save your git identity") {
+		t.Fatalf("the identity must be confirmed:\n%s", h.view())
+	}
+	return h, h.update(tea.KeyMsg{Type: tea.KeyEnter}) // Save
+}
+
+// wantChangesSaid checks the bar says the identity was saved, and never
+// that nothing changed.
+func wantChangesSaid(t *testing.T, h *harness) {
+	t.Helper()
+	bar := statusBar(h)
+	if !strings.Contains(bar, "Your git name and email were saved") || !strings.Contains(bar, "Nothing else changed") {
+		t.Errorf("the bar must say what changed:\n%s", bar)
+	}
+	if strings.Contains(strings.ToLower(bar), "nothing was changed") {
+		t.Errorf("the identity was saved, yet the bar says nothing changed:\n%s", bar)
+	}
+}
+
+func TestSyncSetupCancelledInTheAppAfterSavingTheIdentitySaysWhatChanged(t *testing.T) {
+	h, save := saveIdentityInTheApp(t)
+	h.finish(save)
+	if !strings.Contains(h.view(), "Sign in to GitHub") {
+		t.Fatalf("after saving, the assistant must offer to sign in:\n%s", h.view())
+	}
+	h.key(tea.KeyEsc) // Cancel
+	wantChangesSaid(t, h)
+}
+
+func TestSyncSetupStoppedByAnotherDialogAfterSavingTheIdentitySaysWhatChanged(t *testing.T) {
+	h, save := saveIdentityInTheApp(t)
+	h.send(core.SyncStatusMsg{}) // another dialog opens while the step runs
+	h.finish(save)
+	wantChangesSaid(t, h)
+}

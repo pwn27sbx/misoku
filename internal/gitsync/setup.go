@@ -286,11 +286,7 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 	if !ans.OK {
 		s.at = SetupFinished
-		line := "Setup cancelled; nothing was changed."
-		if len(s.changed) > 0 {
-			line = "Setup cancelled. " + s.changes()
-		}
-		return SetupStep{Outcome: SetupCancelled, Title: "Sync setup", Lines: []string{line}}
+		return SetupStep{Outcome: SetupCancelled, Title: "Sync setup", Lines: []string{s.StopText("Setup cancelled")}}
 	}
 	switch s.at {
 	case AskStart:
@@ -390,14 +386,14 @@ func (s *Setup) saveIdentity(ctx context.Context, ans SetupAnswer) SetupStep {
 		return again("Type an email such as you@example.com.")
 	}
 	r := s.gitRunner()
-	for _, kv := range [][2]string{{"user.name", name}, {"user.email", email}} {
-		if _, err := r.Run(ctx, "config", "--global", kv[0], kv[1]); err != nil {
-			return s.fail(fmt.Sprintf("git could not save %s (%v).", kv[0], redact(err)))
-		}
-		if kv[0] == "user.name" {
-			s.changed = append(s.changed, "Your git name and email were saved")
-		}
+	if _, err := r.Run(ctx, "config", "--global", "user.name", name); err != nil {
+		return s.fail(fmt.Sprintf("git could not save user.name (%v).", redact(err)))
 	}
+	if _, err := r.Run(ctx, "config", "--global", "user.email", email); err != nil {
+		s.changed = append(s.changed, "Your git name was saved")
+		return s.fail(fmt.Sprintf("git could not save user.email (%v).", redact(err)))
+	}
+	s.changed = append(s.changed, "Your git name and email were saved")
 	step := s.checkSignIn(ctx)
 	step.Notes = append([]string{"✓ git knows you: " + name + " <" + email + ">"}, step.Notes...)
 	return step
@@ -651,6 +647,17 @@ func (s *Setup) fail(lines ...string) SetupStep {
 		last = "Setup stopped. " + s.changes()
 	}
 	return failed(append(lines, last)...)
+}
+
+// StopText is what to say when the run stops early: what (such as "Setup
+// cancelled"), then "; nothing was changed." or, when the run already
+// changed something (a confirmed identity, git's access through gh), what
+// it changed and "Nothing else changed.".
+func (s *Setup) StopText(what string) string {
+	if len(s.changed) == 0 {
+		return what + "; nothing was changed."
+	}
+	return what + ". " + s.changes()
 }
 
 // changes says what the run changed, and that nothing else did.
