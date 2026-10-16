@@ -7,7 +7,9 @@ package gitsync_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -69,6 +71,10 @@ func TestTrackedCheckIsLiteralAndWholeComponent(t *testing.T) {
 		{"a/b/Notes", "a/b/Notes/deep/x.md", false},
 		{"a/b/Notes", "a/b/x.md", true},
 	} {
+		// Windows forbids * ? < > | : " in file names.
+		if runtime.GOOS == "windows" && strings.ContainsAny(c.rel+c.tracked, `*?<>|:"`) {
+			continue
+		}
 		outer, dir := vaultIn(t, c.rel, c.tracked)
 		before := outerState(t, outer)
 		step := newSetup(t, dir, filepath.Join(t.TempDir(), "config.json")).Begin(context.Background())
@@ -159,7 +165,7 @@ func TestTrackedUnderAnotherCaseStops(t *testing.T) {
 	t.Parallel()
 	isolate(t)
 	outer, _ := vaultIn(t, "x", "notes/b.md")
-	if gitIn(t, outer, "config", "--bool", "core.ignorecase") != "true" {
+	if !ignoresCase(t, outer) {
 		t.Skip("case-sensitive file system")
 	}
 	if err := os.Rename(filepath.Join(outer, "notes"), filepath.Join(outer, "tmp-rename")); err != nil {
@@ -196,7 +202,7 @@ func TestSubmoduleUnderAnotherCaseStops(t *testing.T) {
 	t.Parallel()
 	isolate(t)
 	outer, _ := vaultIn(t, "x", "")
-	if gitIn(t, outer, "config", "--bool", "core.ignorecase") != "true" {
+	if !ignoresCase(t, outer) {
 		t.Skip("case-sensitive file system")
 	}
 	gitIn(t, outer, "update-index", "--add", "--cacheinfo", "160000,"+gitIn(t, outer, "rev-parse", "HEAD")+",notes")
@@ -229,4 +235,18 @@ func TestOuterFolderIsShownAsTheVaultPathIsWritten(t *testing.T) {
 	if !strings.Contains(stepText(step), "repository at "+outer+" ") || !strings.Contains(stepText(step), "outside "+outer+",") {
 		t.Errorf("the stop must name %s:\n%s", outer, stepText(step))
 	}
+}
+
+// ignoresCase reports whether the repository in dir compares paths
+// ignoring case (core.ignorecase; unset, as on Linux, means no).
+func ignoresCase(t *testing.T, dir string) bool {
+	t.Helper()
+	out, err := exec.Command("git", "-C", dir, "config", "--bool", "--get", "core.ignorecase").Output()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 {
+			return false // not set
+		}
+		t.Fatalf("git config core.ignorecase: %v", err)
+	}
+	return strings.TrimSpace(string(out)) == "true"
 }
