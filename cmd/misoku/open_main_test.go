@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -76,7 +77,9 @@ func TestOpenPrecedenceThroughMain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		code, out := runProbe(t, home, t.TempDir(), tt.env, tt.args...)
-		if code != 1 || !strings.Contains(out, `Could not open workspace "`+tt.want+`"`) {
+		// main prints the folder with %q, which doubles the backslashes of
+		// a Windows path: quote it the same way.
+		if code != 1 || !strings.Contains(out, "Could not open workspace "+strconv.Quote(tt.want)+":") {
 			t.Errorf("%s: exit %d, want 1 opening %s:\n%s", tt.name, code, tt.want, out)
 		}
 	}
