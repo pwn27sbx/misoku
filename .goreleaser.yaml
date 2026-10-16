@@ -3,6 +3,7 @@
 # One download per platform:
 #   misoku-macos.tar.gz    universal binary (Intel + Apple Silicon)
 #   misoku-linux.tar.gz    x86-64, static: runs on every distribution
+#   misoku-linux-arm64.tar.gz  arm64 (Raspberry Pi, ARM servers), static too
 #   misoku-windows.zip     x64 (also runs on Windows on ARM via emulation)
 version: 2
 
@@ -23,8 +24,6 @@ builds:
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     ignore:
-      - goos: linux
-        goarch: arm64
       - goos: windows
         goarch: arm64
     flags:
@@ -45,7 +44,7 @@ archives:
     # Version-free names so https://github.com/…/releases/latest/download/…
     # always points at the newest build.
     name_template: >-
-      {{ .ProjectName }}-{{ if eq .Os "darwin" }}macos{{ else }}{{ .Os }}{{ end }}
+      {{ .ProjectName }}-{{ if eq .Os "darwin" }}macos{{ else }}{{ .Os }}{{ end }}{{ if and (eq .Os "linux") (eq .Arch "arm64") }}-arm64{{ end }}
     files:
       - README.md
       - LICENSE

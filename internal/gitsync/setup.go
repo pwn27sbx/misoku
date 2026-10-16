@@ -215,7 +215,14 @@ type Setup struct {
 	// A cancel or a failure removes it once it is empty again.
 	madeDir bool
 	dirAt   int
+	// waitedGit: git did not run while Apple's installer for it did, so
+	// Begin could not look at the folder; the next git check does.
+	waitedGit bool
 }
+
+// appleGitProblem is AskStart's Problem while Apple's installer for git
+// runs.
+const appleGitProblem = "Apple is installing git; press Enter when it finishes."
 
 // NewSetup returns the assistant for opts.Dir. Nothing runs until Begin.
 func NewSetup(opts SetupOptions) *Setup {
@@ -583,6 +590,14 @@ func (s *Setup) gitRunner() *Runner {
 func (s *Setup) checkGit(ctx context.Context) SetupStep {
 	r := s.gitRunner()
 	version, ok, err := r.Version(ctx)
+	if err != nil && s.opts.OS == "darwin" && appleInstallingGit(ctx) {
+		// git comes with Apple's Command Line Tools, which the installer
+		// started: Start (Enter) checks again once they are in.
+		s.waitedGit = true
+		step := s.startStep()
+		step.Problem = appleGitProblem
+		return step
+	}
 	if err != nil {
 		return s.fail(ctx, fmt.Sprintf("git did not run (%v). Install git %s or newer, then run setup again.", err, MinVersion))
 	}
@@ -590,7 +605,15 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 		return s.fail(ctx, fmt.Sprintf("git %s is too old: sync needs git %s or newer. Update git, then run setup again.", version, MinVersion))
 	}
 	notes := []string{"✓ git " + version}
-	path, err := exec.LookPath(s.opts.GH)
+	if s.waitedGit {
+		// Begin could not look at the folder without git: it does now.
+		s.waitedGit = false
+		if done, step := s.inspect(ctx); done {
+			step.Notes = append(notes, step.Notes...)
+			return step
+		}
+	}
+	path, err := lookGH(s.opts.GH)
 	if err != nil {
 		return s.fail(ctx,
 			"gh, GitHub's command-line tool, is not installed: setup uses it to sign in to GitHub.",

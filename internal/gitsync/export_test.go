@@ -33,3 +33,20 @@ func LeftoverIsMisokus(pid int, start time.Time, limit time.Duration, mod time.T
 func (r *Runner) EnvFor(ctx context.Context, cmd string) []string {
 	return r.envFor(ctx, cmd)
 }
+
+// SetExecutable makes the gh lookup take path as Misoku's own executable.
+// The returned function restores it.
+func SetExecutable(path string) func() {
+	old := executable
+	executable = func() (string, error) { return path, nil }
+	return func() { executable = old }
+}
+
+// SetAppleInstallingGit makes the git check on macOS see Apple's
+// installer for git running when running returns true. The returned
+// function restores it.
+func SetAppleInstallingGit(running func() bool) func() {
+	old := appleInstallingGit
+	appleInstallingGit = func(context.Context) bool { return running() }
+	return func() { appleInstallingGit = old }
+}
