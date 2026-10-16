@@ -175,9 +175,13 @@ func (m *Model) setupDialog(s *gitsync.Setup, title string, lines, buttons []str
 }
 
 // askIdentity asks for the name, then the email, then whether to save
-// them in git's global settings.
+// them in git's global settings. Values filled in from the GitHub account
+// come already typed: Enter takes them, and they can be edited.
 func (m *Model) askIdentity(s *gitsync.Setup, step gitsync.SetupStep) tea.Cmd {
 	hint := "git writes it in your notes' history"
+	if step.FromGitHub {
+		hint = "From your GitHub account; change it if you like"
+	}
 	if step.Problem != "" {
 		hint = step.Problem
 	}

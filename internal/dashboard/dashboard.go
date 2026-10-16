@@ -27,6 +27,8 @@ const (
 	ActionOpenRecent
 	ActionThemes
 	ActionOpenProject
+	// ActionSyncSetup opens the sync setup assistant (`:sync setup`).
+	ActionSyncSetup
 	ActionNone
 )
 
@@ -86,6 +88,34 @@ func New(th theme.Theme) Model {
 			{Key: "q", Icon: "󰩈", Label: "Quit", Action: ActionQuit},
 		},
 	}
+}
+
+// syncItem is the entry that sets up sync; SetSyncSetup shows it before
+// Keymaps. Its icon is nf-md-sync, as in the status bar.
+var syncItem = MenuItem{Key: "s", Icon: "\U000f04e6", Label: "Sync between computers", Action: ActionSyncSetup}
+
+// SetSyncSetup shows the "Sync between computers" entry (key s) when
+// offered is true, and removes it otherwise: the app offers it while the
+// open folder does not sync. The cursor stays on the item it was on.
+func (m *Model) SetSyncSetup(offered bool) {
+	items := make([]MenuItem, 0, len(m.menuItems)+1)
+	for i, it := range m.menuItems {
+		if it.Action == ActionSyncSetup {
+			if m.cursor > i {
+				m.cursor-- // the items below move up a row
+			}
+			continue
+		}
+		if offered && it.Action == ActionKeymap {
+			if m.cursor >= len(items) {
+				m.cursor++ // the items from here move down a row
+			}
+			items = append(items, syncItem)
+		}
+		items = append(items, it)
+	}
+	m.menuItems = items
+	m.cursor = min(m.cursor, m.itemCount()-1)
 }
 
 // SetSize updates dimensions.

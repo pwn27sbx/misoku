@@ -108,6 +108,13 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		return m.openThemePicker()
 	case "g":
 		return m.openGraph()
+	case "s":
+		// Only while the entry shows: a folder that syncs has nothing to
+		// set up.
+		if m.syncOffered() {
+			return m.startSetup()
+		}
+		return nil
 	case "q":
 		return m.requestQuit(false)
 	case "esc":
@@ -152,6 +159,8 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 		return m.openFile(id)
 	case dashboard.ActionThemes:
 		return m.openThemePicker()
+	case dashboard.ActionSyncSetup:
+		return m.startSetup()
 	}
 	return nil
 }

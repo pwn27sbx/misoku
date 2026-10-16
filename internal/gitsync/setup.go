@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,14 +41,16 @@ const (
 	SetupFinished SetupAsk = iota
 	// AskStart: Lines explain what will happen; start, or cancel.
 	AskStart
-	// AskIdentity: git has no name or email. Name and Email are the
-	// values git has (possibly empty); the answer brings both, and OK only
-	// once the user confirmed Confirm, the question about saving them in
-	// git's global settings.
+	// AskIdentity: git has no name or email; it comes after the sign-in.
+	// Name and Email are the values git has, with a missing one filled in
+	// from the GitHub account when gh can tell (FromGitHub), else empty;
+	// the answer brings both, and OK only once the user confirmed Confirm,
+	// the question about saving them in git's global settings.
 	AskIdentity
-	// AskSignIn: gh is not signed in to GitHub. Lines explain it; on yes
-	// the front end runs SignInCommand in the foreground of the terminal,
-	// then calls Next with OK.
+	// AskSignIn: gh is not signed in to GitHub. Lines explain it (and,
+	// on a computer with no browser to open, where to sign in instead); on
+	// yes the front end runs SignInCommand in the foreground of the
+	// terminal, then calls Next with OK.
 	AskSignIn
 	// AskRepo: pick one of Repos (Choice), name one (Text), or create a
 	// new private repository (Choice == len(Repos)).
@@ -97,6 +100,9 @@ type SetupStep struct {
 	Problem string
 	// Name and Email: AskIdentity's current values.
 	Name, Email string
+	// FromGitHub: AskIdentity filled in a missing Name or Email from the
+	// signed-in GitHub account; the user confirms or edits them.
+	FromGitHub bool
 	// Confirm: the yes-or-no question of AskIdentity (before saving) and
 	// of AskOwnRepo (before `git init`).
 	Confirm string
@@ -240,8 +246,38 @@ const githubHost = "github.com"
 // run in the foreground of the user's terminal: gh shows a one-time code
 // and opens the browser, and keeps the access itself. It has no time
 // limit: the user drives it, and Ctrl+C stops it.
+//
+// gh asks nothing of its own: the flags answer its questions about the
+// host and the protocol, and the environment answers "Authenticate Git
+// with your GitHub credentials?" (see withGHHelper).
 func (s *Setup) SignInCommand() *exec.Cmd {
-	return exec.Command(s.opts.GH, "auth", "login", "--web", "--git-protocol", "https", "--hostname", githubHost)
+	cmd := exec.Command(s.opts.GH, "auth", "login", "--web", "--git-protocol", "https", "--hostname", githubHost)
+	cmd.Env = withGHHelper(os.Environ())
+	return cmd
+}
+
+// ghHelper is gh's git credential helper, as `gh auth setup-git` writes it.
+const ghHelper = "!gh auth git-credential"
+
+// withGHHelper adds to env, for git alone and for this one run, gh's
+// credential helper for github.com. Seeing it, `gh auth login` takes git
+// as set up and does not ask whether to set it up: setup does that itself
+// later, with `gh auth setup-git`, once the user picked a repository. git
+// reads the GIT_CONFIG_COUNT pairs after its config files; settings the
+// user's environment already carries this way are kept.
+func withGHHelper(env []string) []string {
+	n := 0
+	for _, kv := range env {
+		if v, ok := strings.CutPrefix(kv, "GIT_CONFIG_COUNT="); ok {
+			if c, err := strconv.Atoi(v); err == nil && c > 0 {
+				n = c
+			}
+		}
+	}
+	setEnv(&env, "GIT_CONFIG_COUNT", strconv.Itoa(n+1))
+	setEnv(&env, fmt.Sprintf("GIT_CONFIG_KEY_%d", n), "credential.https://"+githubHost+".helper")
+	setEnv(&env, fmt.Sprintf("GIT_CONFIG_VALUE_%d", n), ghHelper)
+	return env
 }
 
 // Begin reads the config and the folder, without changing anything. A
@@ -541,8 +577,8 @@ func (s *Setup) gitRunner() *Runner {
 	return New(dir, s.opts.Timeout)
 }
 
-// checkGit checks git's version, that gh is installed, and git's
-// identity (steps 2 and 3). gh comes before the identity, so a missing gh
+// checkGit checks git's version and that gh is installed (step 2), then
+// goes on to the sign-in. gh comes before the identity, so a missing gh
 // never leaves an identity saved for nothing.
 func (s *Setup) checkGit(ctx context.Context) SetupStep {
 	r := s.gitRunner()
@@ -567,24 +603,71 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 			notes = append(notes, "✓ gh "+m[1])
 		}
 	}
-	name, email, err := identity(ctx, r)
-	if err != nil {
-		return s.fail(ctx, redactText(err.Error()))
-	}
-	if name == "" || email == "" {
-		s.at = AskIdentity
-		return identityStep(name, email, "", notes)
-	}
 	step := s.checkSignIn(ctx)
 	step.Notes = append(notes, step.Notes...)
 	return step
 }
 
-// identityStep asks for git's name and email.
-func identityStep(name, email, problem string, notes []string) SetupStep {
+// identityStep asks for git's name and email; fromGitHub says a missing
+// one was filled in from the GitHub account.
+func identityStep(name, email, problem string, notes []string, fromGitHub bool) SetupStep {
+	lines := []string{"git does not know your name and email yet: it writes them in every change it records (your notes' history)."}
+	if fromGitHub {
+		lines = append(lines, "Misoku filled them in from your GitHub account (the email is GitHub's private address for you); change them if you like.")
+	}
 	return SetupStep{Ask: AskIdentity, Title: "Your name for git", Notes: notes, Name: name, Email: email, Problem: problem,
-		Lines:   []string{"git does not know your name and email yet: it writes them in every change it records (your notes' history)."},
+		FromGitHub: fromGitHub, Lines: lines,
 		Confirm: "Save them in git's global settings (git config --global), for every repository on this computer?"}
+}
+
+// askIdentity checks git's identity once signed in (step 4): when git
+// lacks the name or the email, it asks for them, filling in what is
+// missing from the GitHub account; otherwise it lists the repositories.
+func (s *Setup) askIdentity(ctx context.Context) SetupStep {
+	name, email, err := identity(ctx, s.gitRunner())
+	if err != nil {
+		return s.fail(ctx, redactText(err.Error()))
+	}
+	if name != "" && email != "" {
+		return s.listRepos(ctx)
+	}
+	s.at = AskIdentity
+	ghName, ghEmail, ok := s.githubIdentity(ctx)
+	if !ok {
+		return identityStep(name, email, "", nil, false)
+	}
+	if name == "" {
+		name = ghName
+	}
+	if email == "" {
+		email = ghEmail
+	}
+	return identityStep(name, email, "", nil, true)
+}
+
+// githubIdentity suggests a git name and email from the signed-in GitHub
+// account (`gh api user`): the profile's name, or the login when it has
+// none, and GitHub's private address <id>+<login>@users.noreply.github.com,
+// which keeps the user's own email out of the history. ok is false when gh
+// cannot tell; that is not an error: the user then types them, as before.
+func (s *Setup) githubIdentity(ctx context.Context) (name, email string, ok bool) {
+	out, err := s.gh(ctx, "api", "user")
+	if err != nil {
+		return "", "", false
+	}
+	var user struct {
+		Login string `json:"login"`
+		ID    int64  `json:"id"`
+		Name  string `json:"name"`
+	}
+	if err := json.Unmarshal(out, &user); err != nil || user.Login == "" || user.ID <= 0 {
+		return "", "", false
+	}
+	name = strings.TrimSpace(user.Name)
+	if name == "" {
+		name = user.Login
+	}
+	return name, fmt.Sprintf("%d+%s@users.noreply.github.com", user.ID, user.Login), true
 }
 
 // identity returns git's user.name and user.email, "" for one not set.
@@ -606,7 +689,7 @@ func identity(ctx context.Context, r *Runner) (name, email string, err error) {
 // saveIdentity sets the confirmed name and email globally.
 func (s *Setup) saveIdentity(ctx context.Context, ans SetupAnswer) SetupStep {
 	name, email := strings.TrimSpace(ans.Name), strings.TrimSpace(ans.Email)
-	again := func(problem string) SetupStep { return identityStep(name, email, problem, nil) }
+	again := func(problem string) SetupStep { return identityStep(name, email, problem, nil, false) }
 	switch {
 	case name == "" || strings.ContainsAny(name, "\n<>"):
 		return again("Type your name (any name: it is only shown in the history).")
@@ -622,7 +705,7 @@ func (s *Setup) saveIdentity(ctx context.Context, ans SetupAnswer) SetupStep {
 		return s.fail(ctx, fmt.Sprintf("git could not save user.email (%v).", redact(err)))
 	}
 	s.changed = append(s.changed, "Your git name and email were saved")
-	step := s.checkSignIn(ctx)
+	step := s.listRepos(ctx)
 	step.Notes = append([]string{"✓ git knows you: " + name + " <" + email + ">"}, step.Notes...)
 	return step
 }
@@ -634,18 +717,48 @@ func validEmail(email string) bool {
 	return at > 0 && at < len(email)-1 && !strings.ContainsAny(email, " \t\n<>")
 }
 
-// checkSignIn checks gh is signed in to GitHub (step 4).
+// checkSignIn checks gh is signed in to GitHub (step 3).
 func (s *Setup) checkSignIn(ctx context.Context) SetupStep {
 	if s.signedInNow(ctx) {
-		step := s.listRepos(ctx)
-		step.Notes = append([]string{"✓ signed in to GitHub"}, step.Notes...)
-		return step
+		return s.afterSignIn(ctx)
 	}
 	s.at = AskSignIn
-	return SetupStep{Ask: AskSignIn, Title: "Sign in to GitHub", Lines: []string{
+	lines := []string{
 		"Sign in to GitHub: gh shows a one-time code and opens your browser.",
 		"Sign in there and enter the code. gh keeps the access in your system's keychain; Misoku never sees it.",
-	}}
+	}
+	if browserMissing(s.opts.OS) {
+		lines = append(lines, "This computer has no browser gh can open: when gh shows the address https://github.com/login/device, open it on any device (your phone works), sign in and enter the code.")
+	}
+	return SetupStep{Ask: AskSignIn, Title: "Sign in to GitHub", Lines: lines}
+}
+
+// afterSignIn goes on once gh is signed in: the identity, then the
+// repositories.
+func (s *Setup) afterSignIn(ctx context.Context) SetupStep {
+	step := s.askIdentity(ctx)
+	step.Notes = append([]string{"✓ signed in to GitHub"}, step.Notes...)
+	return step
+}
+
+// browserMissing reports whether gh finds no browser to open on the system
+// goos names, and only prints the sign-in address: Linux without a desktop
+// (no opener on PATH), or WSL without wslview, whose xdg-open has no
+// browser behind it. gh uses GH_BROWSER or BROWSER first, when set.
+func browserMissing(goos string) bool {
+	if goos != "linux" || os.Getenv("GH_BROWSER") != "" || os.Getenv("BROWSER") != "" {
+		return false
+	}
+	openers := []string{"xdg-open", "x-www-browser", "www-browser", "wslview"}
+	if os.Getenv("WSL_DISTRO_NAME") != "" {
+		openers = []string{"wslview"}
+	}
+	for _, o := range openers {
+		if _, err := exec.LookPath(o); err == nil {
+			return false
+		}
+	}
+	return true
 }
 
 var ghVersionRe = regexp.MustCompile(`gh version (\S+)`)
@@ -674,9 +787,7 @@ func (s *Setup) signedIn(ctx context.Context) SetupStep {
 	if !s.signedInNow(ctx) {
 		return s.fail(ctx, "You are not signed in to GitHub (the sign-in did not finish). Run setup again to try once more.")
 	}
-	step := s.listRepos(ctx)
-	step.Notes = append([]string{"✓ signed in to GitHub"}, step.Notes...)
-	return step
+	return s.afterSignIn(ctx)
 }
 
 // listRepos lists the user's repositories (step 5).

@@ -173,3 +173,71 @@ func TestSyncSetupInsideTheAppOffersARepositoryOfItsOwn(t *testing.T) {
 		t.Errorf("cancelling must remove the repository this run created: %v", err)
 	}
 }
+
+// The home screen offers "Sync between computers" while the folder is not
+// connected (not listed in sync.vaults), and s opens the assistant.
+func TestHomeOffersSyncBetweenComputersWhileTheFolderIsNotConnected(t *testing.T) {
+	t.Parallel()
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	if !strings.Contains(h.view(), "Sync between computers") {
+		t.Fatalf("a folder that does not sync must be offered sync:\n%s", h.view())
+	}
+	h.keys("s")
+	if !strings.Contains(h.view(), "Sync this vault") {
+		t.Fatalf("s must open the setup assistant:\n%s", h.view())
+	}
+}
+
+// A connected folder (listed in sync.vaults) is not offered sync, and s
+// does nothing there.
+func TestHomeHidesSyncBetweenComputersOnAConnectedFolder(t *testing.T) {
+	t.Parallel()
+	_, vault := syncedVault(t)
+	h := window(t, vault, syncConfig(t, vault))
+	if strings.Contains(h.view(), "Sync between computers") {
+		t.Fatalf("a folder that syncs must not be offered sync:\n%s", h.view())
+	}
+	if cmd := h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}); cmd != nil {
+		t.Error("s must do nothing on the home screen of a folder that syncs")
+	}
+}
+
+// With no config file to list the folder in, the assistant cannot run:
+// the entry is not offered.
+func TestHomeHidesSyncBetweenComputersWithoutAConfigFile(t *testing.T) {
+	t.Parallel()
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, "")
+	if strings.Contains(h.view(), "Sync between computers") {
+		t.Fatalf("without a config file sync must not be offered:\n%s", h.view())
+	}
+}
+
+// Enter on the selected "Sync between computers" opens the assistant too.
+func TestHomeSyncBetweenComputersOpensTheAssistantOnEnter(t *testing.T) {
+	t.Parallel()
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	for i := 0; i < 4; i++ { // New Note, Find Note, Open Explorer, Themes
+		h.key(tea.KeyDown)
+	}
+	h.key(tea.KeyEnter)
+	if !strings.Contains(h.view(), "Sync this vault") {
+		t.Fatalf("Enter on the sync entry must open the setup assistant:\n%s", h.view())
+	}
+}
+
+// MISOKU_SYNC=0 turns sync off: the home screen does not offer it.
+func TestHomeHidesSyncBetweenComputersWhenSyncIsTurnedOff(t *testing.T) {
+	t.Setenv("MISOKU_SYNC", "0")
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	if strings.Contains(h.view(), "Sync between computers") {
+		t.Fatalf("with sync turned off, sync must not be offered:\n%s", h.view())
+	}
+}

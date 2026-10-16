@@ -76,8 +76,10 @@ type syncState struct {
 
 // setupSync reads the "sync" section of the config file and decides, once,
 // whether this folder syncs. It runs no git: a folder that is not listed,
-// or MISOKU_SYNC=0, must never start one.
+// or MISOKU_SYNC=0, must never start one. The home screen offers "Sync
+// between computers" while the folder is not connected (see syncOffered).
 func (m *Model) setupSync() {
+	defer func() { m.dashboard.SetSyncSetup(m.syncOffered()) }()
 	m.syncBase = m.clock()
 	m.syncOff = "Sync is off: this folder is not listed in sync.vaults"
 	if gitsync.Disabled() {
@@ -113,6 +115,14 @@ func (m *Model) setupSync() {
 		why = m.status + "; " + why
 	}
 	m.setError(why)
+}
+
+// syncOffered reports whether the home screen offers to set up sync: the
+// folder is not connected, that is, not listed in sync.vaults (what every
+// sync and `:sync status` go by), and the setup assistant can run (there is
+// a config file to list it in, and MISOKU_SYNC=0 did not turn sync off).
+func (m *Model) syncOffered() bool {
+	return m.syncVault == nil && m.configPath != "" && !gitsync.Disabled()
 }
 
 // syncOnOpen is the sync a listed vault gets when Misoku opens it (S4).

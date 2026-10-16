@@ -31,6 +31,7 @@ const fakeToken = "gho_FAKEtoken1234567890abcdef"
 //   - loggedin: present when signed in; `auth login` creates it when the
 //     file login says ok, and fails like a cancelled sign-in otherwise.
 //   - repos.json: what `repo list` prints; listfail makes it fail.
+//   - user.json: what `api user` prints; without it, it fails.
 //   - remotes/ana/<name>.git: the repositories; `repo create` makes one
 //     (bare) and fails like GitHub when it exists.
 const fakeGHScript = `#!/bin/sh
@@ -63,6 +64,12 @@ case "$1 $2" in
 		exit 1
 	fi
 	git config --global "credential.https://github.com.helper" "!gh auth git-credential" || exit 1 ;;
+"api user")
+	if [ ! -f "$d/user.json" ]; then
+		echo "HTTP 401: Bad credentials (https://api.github.com/user)" >&2
+		exit 1
+	fi
+	cat "$d/user.json" ;;
 "repo list")
 	if [ -f "$d/listfail" ]; then
 		echo "HTTP 502: bad gateway for https://ana:` + fakeToken + `@api.github.com/graphql" >&2
@@ -640,5 +647,55 @@ func TestSyncSetupInsideAnotherRepositorySyncsWithARepositoryOfItsOwn(t *testing
 	wantFiles(t, "origin", remoteFiles(t, remote), map[string]string{"hello.md": "# hello\n", ".gitattributes": gitsync.Attributes})
 	if after := outerState(); after != before {
 		t.Errorf("the outer repository changed:\nbefore %s\nafter  %s", before, after)
+	}
+}
+
+// anaUser is the fake GitHub account, as `gh api user` prints it.
+const anaUser = `{"login":"ana","id":583231,"name":"Ana Ruiz","email":null}`
+
+// Without an identity, the sign-in comes first, then the identity, filled
+// in from the GitHub account: Enter confirms it as it is.
+func TestSyncSetupSignsInThenTakesTheIdentityFromGitHub(t *testing.T) {
+	f := newFakeGH(t, false)
+	f.writeGlobal(t, false)
+	writeFile(t, f.dir, "login", "ok")
+	writeFile(t, f.dir, "user.json", anaUser)
+	dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
+	// Start, sign in, the name and the email as offered, save, create a
+	// new repository with the name it offers.
+	code, out := setup(t, dir, cfg, "\n\n\n\ny\n1\n\n")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0:\n%s", code, out)
+	}
+	signIn, identity := strings.Index(out, "4F2A-91KD"), strings.Index(out, "git does not know your name")
+	if signIn < 0 || identity < 0 || signIn > identity {
+		t.Errorf("the sign-in (at %d) must come before the identity (at %d):\n%s", signIn, identity, out)
+	}
+	wantOutput(t, out, "from your GitHub account", "Your name [Ana Ruiz]:", "Your email [583231+ana@users.noreply.github.com]:")
+	if got := git(t, dir, "config", "--global", "user.name"); got != "Ana Ruiz" {
+		t.Errorf("user.name = %q, want Ana Ruiz", got)
+	}
+	if got := git(t, dir, "config", "--global", "user.email"); got != "583231+ana@users.noreply.github.com" {
+		t.Errorf("user.email = %q, want GitHub's private address", got)
+	}
+}
+
+// The identity GitHub suggests can be changed before it is saved.
+func TestSyncSetupLetsTheUserEditTheIdentityFromGitHub(t *testing.T) {
+	f := newFakeGH(t, true)
+	f.writeGlobal(t, false)
+	writeFile(t, f.dir, "user.json", anaUser)
+	dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
+	// Start, another name, the email as offered, save, cancel at the
+	// repository.
+	code, out := setup(t, dir, cfg, "\nBea\n\ny\n\n")
+	if code != 1 {
+		t.Errorf("exit %d, want 1 (cancelled at the repository):\n%s", code, out)
+	}
+	if got := git(t, dir, "config", "--global", "user.name"); got != "Bea" {
+		t.Errorf("user.name = %q, want the edited Bea", got)
+	}
+	if got := git(t, dir, "config", "--global", "user.email"); got != "583231+ana@users.noreply.github.com" {
+		t.Errorf("user.email = %q, want GitHub's private address", got)
 	}
 }

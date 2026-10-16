@@ -98,7 +98,7 @@ misoku sync init <url>        # sync this folder through any git repository, SSH
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
-- **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
+- **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `s` on the start screen, or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
 
 ## Shortcuts
 
@@ -309,7 +309,7 @@ Misoku can keep a notes folder (a *vault*) the same on all your computers throug
 
 ### Set up a vault with GitHub (recommended)
 
-With a GitHub account, the assistant sets everything up. In Misoku, open the vault and type `:sync setup`; or, in a terminal:
+With a GitHub account, the assistant sets everything up. In Misoku, open the vault and press `s` on the start screen (**Sync between computers**, shown while the folder does not sync yet, that is, while it is not listed in `sync.vaults`; it goes away once setup succeeds) or type `:sync setup`; or, in a terminal:
 
 ```sh
 misoku sync setup --dir ~/notes
@@ -319,8 +319,8 @@ misoku sync setup --dir ~/notes
 
 1. Says what will happen and waits for **Start**. A vault inside another git repository is first offered a repository of its own ([a vault inside another repository](#set-up-a-vault-with-any-git-url)).
 2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed. If gh is not, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
-3. If git does not know your name and email, asks for them and saves them with `git config --global` only once you confirm.
-4. If gh is not signed in, runs `gh auth login --web`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs).
+3. If gh is not signed in, runs `gh auth login --web --git-protocol https --hostname github.com`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs). gh asks nothing else: the flags answer its questions, and it does not ask about git's credentials, which step 6 sets up. On a computer with no browser to open (Linux without a desktop, or WSL without `wslview`), the dialog says so: open https://github.com/login/device on any device, sign in and enter the code gh shows.
+4. If git does not know your name and email, asks for them, already filled in from your GitHub account: your profile name (or your login, when the profile has none) and GitHub's private address, `<id>+<login>@users.noreply.github.com`, which keeps your own email out of your notes' history. Change them if you like; they are saved with `git config --global` only once you confirm. If gh cannot tell, you type them.
 5. Lets you **create a new private repository** (it offers the vault folder's name) or **pick one of yours** from a list. Public (and organization-internal) repositories are marked and refused: your notes are stored unencrypted. To use one, make it private on GitHub first.
 6. Runs `gh auth setup-git`, so git uses gh's access and every later sync, in the background, signs in without asking. Then it connects the vault over HTTPS exactly as `misoku sync init` does (all three cases below), and lists it in `sync.vaults`.
 7. Says what it did, that the vault now syncs every 5 minutes and when you quit, and what to do on your other computer: run `:sync setup` (or `misoku sync setup`) there and pick the same repository.
