@@ -34,9 +34,12 @@ func main() {
 		os.Exit(runSync(os.Args[2:]))
 	}
 
-	opts := defineFlags(flag.CommandLine)
 	flag.Usage = func() { usage(flag.CommandLine.Output()) }
-	flag.Parse()
+	opts, folder, err := parseOpenArgs(flag.CommandLine, os.Args[1:])
+	if err != nil { // a bad flag has already exited (flag.ExitOnError)
+		usage(os.Stderr)
+		os.Exit(2)
+	}
 	dir, themeName, themesDir, showVer, listThemes := opts.dir, opts.theme, opts.themesDir, opts.showVer, opts.listThemes
 
 	cfgPath := config.DefaultPath()
@@ -76,7 +79,16 @@ func main() {
 		}
 	}
 
-	workspace := resolveWorkspace(dir)
+	choice := pickWorkspace(workspaceInput{Flag: dir, Arg: folder, Env: os.Getenv("MISOKU_WORKSPACE"), Config: cfg, Getwd: os.Getwd})
+	if choice.Warning != "" {
+		fmt.Fprintln(os.Stderr, choice.Warning)
+	}
+	if choice.Source == notesDirMissing {
+		// Opening would create it empty, beside the user's real notes.
+		fmt.Fprintln(os.Stderr, missingNotesMessage(choice.Dir))
+		os.Exit(1)
+	}
+	workspace := choice.Dir
 
 	store, err := core.NewStore(workspace)
 	if err != nil {
@@ -119,7 +131,7 @@ type options struct {
 // defineFlags declares misoku's flags on fs.
 func defineFlags(fs *flag.FlagSet) *options {
 	o := &options{}
-	fs.StringVar(&o.dir, "dir", "", "workspace directory to open (defaults to $MISOKU_WORKSPACE, then the current directory)")
+	fs.StringVar(&o.dir, "dir", "", "folder to open, like misoku <folder> (defaults to $MISOKU_WORKSPACE, then notes_dir in the config, then the current folder)")
 	fs.BoolVar(&o.showVer, "version", false, "print the Misoku version and exit")
 	fs.StringVar(&o.theme, "theme", "", "colour theme for this session (see --list-themes)")
 	fs.StringVar(&o.themesDir, "themes-dir", "", "directory or .json file with custom themes (overrides config themes_dir)")
@@ -136,20 +148,13 @@ func pushOnQuit(m app.Model) {
 	m.SyncOnQuit(ctx, os.Stderr, app.QuitSyncLimit)
 }
 
-// resolveWorkspace picks the notes directory to open: an explicit --dir flag
-// wins, then $MISOKU_WORKSPACE, falling back to the current directory.
+// resolveWorkspace picks the vault folder of `misoku sync init` and
+// `misoku sync setup`: an explicit --dir flag wins, then
+// $MISOKU_WORKSPACE, falling back to the current directory. Unlike
+// misoku itself, they never use notes_dir: they set up the folder they
+// are pointed at.
 func resolveWorkspace(flagDir string) string {
-	if flagDir != "" {
-		return flagDir
-	}
-	if envDir := os.Getenv("MISOKU_WORKSPACE"); envDir != "" {
-		return envDir
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	return cwd
+	return pickWorkspace(workspaceInput{Flag: flagDir, Env: os.Getenv("MISOKU_WORKSPACE"), Getwd: os.Getwd}).Dir
 }
 
 // logFilePath keeps the debug log out of the user's notes workspace,
@@ -175,16 +180,9 @@ func runExport(args []string) int {
 		fs.PrintDefaults()
 	}
 	// Allow the flag after the note as well as before it.
-	var notes []string
-	for len(args) > 0 {
-		if err := fs.Parse(args); err != nil {
-			return 2
-		}
-		if fs.NArg() == 0 {
-			break
-		}
-		notes = append(notes, fs.Arg(0))
-		args = fs.Args()[1:]
+	notes, err := positionals(fs, args)
+	if err != nil {
+		return 2
 	}
 	if len(notes) != 1 {
 		fs.Usage()

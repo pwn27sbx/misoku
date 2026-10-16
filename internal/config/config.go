@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -30,6 +32,9 @@ type Config struct {
 	// Sync lists the vaults Misoku keeps in sync with git. A folder that is
 	// not listed never syncs.
 	Sync Sync `json:"sync,omitzero"`
+	// NotesDir is the folder `misoku` opens when no folder is given: an
+	// absolute path or one starting with "~". See NotesFolder.
+	NotesDir string `json:"notes_dir,omitempty"`
 }
 
 // Sync is the "sync" section of config.json:
@@ -232,16 +237,44 @@ func Load(path string) (Config, error) {
 }
 
 // Save writes the config to path, creating its directory.
+//
+// Settings of Config are written from c (an empty one is left out); every
+// other key already in the file is kept as it was, so a version of Misoku
+// that does not know a setting (notes_dir, say) never drops it. Like
+// AddSyncVault, it writes through a symlinked config, keeps the file's
+// permissions, replaces the file in one rename, and never rewrites a file
+// that is not a JSON object.
 func Save(path string, c Config) error {
 	if path == "" {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(c, "", "  ")
+	raw, err := marshal(c)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return err
+	}
+	_, err = editFile(path, func(top map[string]json.RawMessage) (bool, error) {
+		for _, key := range knownKeys() {
+			delete(top, key)
+		}
+		maps.Copy(top, fields)
+		return true, nil
+	})
+	return err
+}
+
+// knownKeys lists the JSON keys of Config's fields: the settings Save
+// writes from a Config rather than keeping from the file.
+func knownKeys() []string {
+	t := reflect.TypeFor[Config]()
+	keys := make([]string, 0, t.NumField())
+	for i := range t.NumField() {
+		if name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ","); name != "" && name != "-" {
+			keys = append(keys, name)
+		}
+	}
+	return keys
 }

@@ -61,7 +61,8 @@ misoku
 Press `?` inside the app to see every shortcut.
 
 ```sh
-misoku --dir ~/notes          # open a specific folder
+misoku ~/notes                # open a specific folder (same as --dir ~/notes)
+misoku                        # no folder: $MISOKU_WORKSPACE, else notes_dir in your config, else this folder
 misoku --theme <name>         # pick a theme for this session
 misoku --list-themes
 misoku --themes-dir <path>    # custom themes folder or single .json file

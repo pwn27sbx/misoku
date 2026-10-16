@@ -27,8 +27,11 @@ import (
 // With mainArgsEnv set, the test binary runs main() with those arguments
 // instead, so a test can check what the real command line does.
 func TestMain(m *testing.M) {
-	if args := os.Getenv(mainArgsEnv); args != "" {
-		os.Args = append([]string{"misoku"}, strings.Split(args, "\n")...)
+	if args, ok := os.LookupEnv(mainArgsEnv); ok {
+		os.Args = []string{"misoku"}
+		if args != "" { // empty: misoku with no arguments
+			os.Args = append(os.Args, strings.Split(args, "\n")...)
+		}
 		main()
 		os.Exit(0)
 	}
@@ -41,12 +44,19 @@ const mainArgsEnv = "MISOKU_CMD_TEST_MAIN_ARGS"
 // its exit code and output.
 func runMain(t *testing.T, args ...string) (int, string) {
 	t.Helper()
+	return runMainIn(t, t.TempDir(), args...)
+}
+
+// runMainIn is runMain with home as the home, cache and config folder,
+// so a test can write a config there first (see configIn).
+// $MISOKU_WORKSPACE is cleared: the user's own never leaks in.
+func runMainIn(t *testing.T, home string, args ...string) (int, string) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
-	home := t.TempDir()
-	cmd.Env = append(os.Environ(), mainArgsEnv+"="+strings.Join(args, "\n"),
-		"HOME="+home, "XDG_CACHE_HOME="+home, "XDG_CONFIG_HOME="+home, "LOCALAPPDATA="+home, "APPDATA="+home)
+	cmd.Env = append(os.Environ(), mainArgsEnv+"="+strings.Join(args, "\n"), "MISOKU_WORKSPACE=",
+		"HOME="+home, "USERPROFILE="+home, "XDG_CACHE_HOME="+home, "XDG_CONFIG_HOME="+home, "LOCALAPPDATA="+home, "APPDATA="+home)
 	out, err := cmd.CombinedOutput()
 	code := 0
 	if ee, ok := err.(*exec.ExitError); ok {

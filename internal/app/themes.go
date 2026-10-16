@@ -13,8 +13,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// applyTheme recolours every component. persist also saves the choice.
-func (m *Model) applyTheme(th theme.Theme, persist bool) {
+// applyTheme recolours every component. persist also saves the choice;
+// it reports false, with the error already shown, when that save failed,
+// so the caller does not cover the error with a success status.
+func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
 	m.theme = th
 	m.dashboard.SetTheme(th)
 	m.sidebar.SetTheme(th)
@@ -26,8 +28,10 @@ func (m *Model) applyTheme(th theme.Theme, persist bool) {
 		cfg.Theme = th.Name
 		if err := config.Save(m.configPath, cfg); err != nil {
 			m.setError("Could not save theme: " + err.Error())
+			return false
 		}
 	}
+	return true
 }
 
 // setThemeByName applies and saves a theme, reporting unknown names.
@@ -37,8 +41,9 @@ func (m *Model) setThemeByName(name string) {
 		m.setError(fmt.Sprintf("E185: Cannot find color scheme '%s'", name))
 		return
 	}
-	m.applyTheme(th, true)
-	m.setStatus("Theme: " + th.Name)
+	if m.applyTheme(th, true) {
+		m.setStatus("Theme: " + th.Name)
+	}
 }
 
 // themePicker is NvChad's theme switcher: the highlighted theme is applied
@@ -117,8 +122,9 @@ func (p *themePicker) close(m *Model, keep bool) {
 		m.applyTheme(p.original, false)
 		return
 	}
-	m.applyTheme(m.theme, true)
-	m.setStatus("Theme: " + m.theme.Name)
+	if m.applyTheme(m.theme, true) {
+		m.setStatus("Theme: " + m.theme.Name)
+	}
 }
 
 type themeGeom struct{ x, y, w, h int }

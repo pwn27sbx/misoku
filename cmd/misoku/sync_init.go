@@ -58,19 +58,12 @@ func syncInit(ctx context.Context, args []string, stdout, stderr io.Writer, cfgP
 		fs.PrintDefaults()
 	}
 	// Allow the flag after the URL as well as before it.
-	var urls []string
-	for {
-		if err := fs.Parse(args); err != nil {
-			if errors.Is(err, flag.ErrHelp) {
-				return 0 // asked for: the usage is already printed
-			}
-			return 2
+	urls, err := positionals(fs, args)
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0 // asked for: the usage is already printed
 		}
-		if fs.NArg() == 0 {
-			break
-		}
-		urls = append(urls, fs.Arg(0))
-		args = fs.Args()[1:]
+		return 2
 	}
 	if len(urls) != 1 || strings.TrimSpace(urls[0]) == "" {
 		fs.Usage()
@@ -140,7 +133,8 @@ func report(w io.Writer, res gitsync.InitResult, url string) {
 // usage is `misoku --help`: the commands, then the flags.
 func usage(w io.Writer) {
 	fmt.Fprint(w, `Usage:
-  misoku [flags]                           open the notes in a folder
+  misoku [folder] [flags]                  open your notes: the folder given, else $MISOKU_WORKSPACE,
+                                           else notes_dir in the config, else the current folder
   misoku export <note.md> [-o out.pdf]     export a note to PDF
   misoku sync setup [--dir <folder>]       sync a folder through a private GitHub repository (recommended)
   misoku sync init <url> [--dir <folder>]  set up git sync of a folder with any git URL (SSH, other services)

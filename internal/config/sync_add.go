@@ -23,6 +23,36 @@ import (
 // not an object, is never rewritten: the error says why. The new file
 // replaces the old one in one rename, so a failed write leaves the old one.
 func AddSyncVault(path, vault string) (bool, error) {
+	return editFile(path, func(top map[string]json.RawMessage) (bool, error) {
+		sync, err := object(top["sync"], `"sync" in `+path)
+		if err != nil {
+			return false, err
+		}
+		vaults, err := object(sync["vaults"], `"sync.vaults" in `+path)
+		if err != nil {
+			return false, err
+		}
+		if _, ok := vaults[vault]; ok {
+			return false, nil
+		}
+		vaults[vault] = json.RawMessage("{}")
+		if sync["vaults"], err = marshal(vaults); err != nil {
+			return false, err
+		}
+		top["sync"], err = marshal(sync)
+		return err == nil, err
+	})
+}
+
+// editFile reads the config file at path as raw JSON keys, lets edit
+// change them, and writes the file back only when edit reports a change.
+// Keys edit leaves alone are written back as they were, those this
+// version of Misoku does not know included. The file is written with
+// two-space indentation and its keys sorted; a symlinked config has its
+// target written (the link stays), the file keeps its permissions, and the
+// new file replaces the old one in one rename. A file that is not a JSON
+// object is never rewritten: the error says why.
+func editFile(path string, edit func(top map[string]json.RawMessage) (bool, error)) (bool, error) {
 	if path == "" {
 		return false, errors.New("there is no config folder on this system")
 	}
@@ -38,22 +68,8 @@ func AddSyncVault(path, vault string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	sync, err := object(top["sync"], `"sync" in `+path)
-	if err != nil {
-		return false, err
-	}
-	vaults, err := object(sync["vaults"], `"sync.vaults" in `+path)
-	if err != nil {
-		return false, err
-	}
-	if _, ok := vaults[vault]; ok {
-		return false, nil
-	}
-	vaults[vault] = json.RawMessage("{}")
-	if sync["vaults"], err = marshal(vaults); err != nil {
-		return false, err
-	}
-	if top["sync"], err = marshal(sync); err != nil {
+	changed, err := edit(top)
+	if err != nil || !changed {
 		return false, err
 	}
 	out, err := marshal(top)
