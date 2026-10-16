@@ -86,7 +86,7 @@ misoku sync init <url>        # sync this folder through a git repository (see S
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
-- **Open notes stay in sync with the disk**: a note changed by another program reloads in place (the cursor stays put). If you have unsaved edits it is left alone, you are told, and saving asks before overwriting the other version.
+- **Open notes stay in sync with the disk**: a note changed by another program reloads in place (the cursor stays put). If you have unsaved edits it is left alone and you are told; saving then keeps both versions: yours in the note, the one on disk in a conflict copy next to it (`note (conflict 2026-10-16 0905).md`), and the status bar says `Both kept: …` with the copy's name. Nothing is asked and nothing is lost.
 - **Open notes deleted or renamed elsewhere are kept**: the tab stays open with its text and you are warned once; saving asks before recreating the note at its old path, so a rename is never silently duplicated.
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
@@ -292,10 +292,11 @@ Misoku can keep a notes folder (a *vault*) the same on all your computers throug
 **How it works.** Sync is off until you set it up for a folder, and only folders listed in `sync.vaults` ever sync: Misoku never runs git anywhere else. In a listed vault, a sync commits everything that changed (notes, images, attachments, exported PDFs), fetches what your other computers pushed, joins both, and pushes. A sync runs:
 
 - when Misoku opens the vault;
+- every 5 minutes while Misoku is open (the vault's [`interval`](#configuration)), counted from the last sync;
 - when you type `:sync` or press `space s` (`sync_now`, configurable like any [shortcut](#shortcuts));
 - when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it.
 
-This version does not sync in the background on a timer, nor after each save: sync with `space s` before you leave a computer if you are not quitting Misoku. Syncs run in the background one at a time, so you can keep typing; each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync init`).
+**After you save**, Misoku commits your changes locally once you stop saving for a few seconds, so a burst of saves makes one commit. This commit uses no network: the next sync pushes it. Syncs and these commits run in the background one at a time, so you can keep typing; a save made while one runs goes into the next commit, and a sync you ask for while a commit runs starts right after it. Each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync init`).
 
 **You need** git 2.38 or newer, a git identity (`git config --global user.name "Your Name"` and `user.email`), and an empty **private** repository, or the one your other computer already syncs with.
 
@@ -329,7 +330,7 @@ Init writes the entry for you; you can also list a vault by hand in `config.json
 {
   "sync": {
     "vaults": {
-      "~/notes": { "device": "laptop" }
+      "~/notes": { "device": "laptop", "interval": "10m" }
     }
   }
 }
@@ -337,7 +338,7 @@ Init writes the entry for you; you can also list a vault by hand in `config.json
 
 - The key is the vault's folder, absolute or starting with `~`.
 - `device` (optional) names this computer in commit messages and conflict copies. It defaults to the computer's name.
-- `interval` is accepted but not used yet: this version has no timed sync.
+- `interval` (optional) is how often Misoku syncs on its own while it is open, such as `"10m"`, `"90s"` or `"1h"`. It defaults to `"5m"` and must be at least `"1m"`: a value Misoku cannot use (shorter, zero, negative, or not a duration) is reported in the status bar (with the outcome of the sync on opening) and in `:sync status`, and the 5-minute default is used. `"off"` turns timed sync off: the vault still syncs on opening, when you ask and when you quit, and saves are still committed. `:sync status` shows the interval in use (`Timed sync: every 5m`).
 
 To turn sync off for a moment without editing the config, start Misoku with `MISOKU_SYNC=0`: no git runs at all, and `:sync` says `Sync is off (MISOKU_SYNC=0)`.
 
@@ -360,6 +361,8 @@ The name holds the computer the other version came from (left out when another t
 
 **To resolve one**, compare the two files, copy what you want to keep into the note, and **delete the copy**. A copy is a file like any other: it syncs to your other computers, and deleting it deletes it everywhere. The status bar shows how many copies the vault holds, and `:sync status` lists them.
 
+**A note you are editing when a sync brings another computer's edit of it** is not reloaded while you have unsaved changes. When you save, your version goes into the note and the other one into a conflict copy next to it, named the same way but without the computer's name (`plan (conflict 2026-10-15 1430).md`); the status bar says `Both kept: …` with the copy's name.
+
 A note deleted on one computer and edited on another is kept, with the edits. A note renamed differently on two computers keeps both names. A note renamed on one computer and edited on the other ends as two notes, the renamed one and the edited one, and both are kept. Nothing is ever lost: the other version is either in a copy or in git's history.
 
 ### Status
@@ -368,7 +371,7 @@ The status bar shows the state of the last sync:
 
 | Indicator | Meaning |
 | --- | --- |
-| `syncing…` | A sync is running |
+| `syncing…` | A sync is running (the commit after a save shows nothing) |
 | `synced just now`, `synced 5m ago` | All in step with the repository |
 | `· N files to check` | Some files do not sync as they are (see below) |
 | `N conflicts` | Conflict copies to resolve |
@@ -379,7 +382,9 @@ The status bar shows the state of the last sync:
 | `sync error` | The repository refused, or git failed |
 | `other window syncs` | Another Misoku window syncs this vault |
 
-`:sync status` shows the detail: state, remote (without credentials), branch, commits waiting to be pushed, when it last synced, the last error, the conflict copies on disk, and the files that do not sync as they are.
+A sync that starts on its own only writes to the status line when it made conflict copies, reloaded an open note, or hit a new problem; otherwise the indicator says how it went.
+
+`:sync status` shows the detail: state, remote (without credentials), branch, how often timed sync runs, commits waiting to be pushed, when it last synced, the last error, the conflict copies on disk, and the files that do not sync as they are.
 
 ### What does not sync
 

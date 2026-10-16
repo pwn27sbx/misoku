@@ -44,8 +44,10 @@ type Sync struct {
 
 // SyncVault is one entry of sync.vaults, as written in config.json.
 type SyncVault struct {
-	// Interval between syncs, such as "5m" or "90s". Empty means
-	// DefaultSyncInterval.
+	// Interval between timed syncs, such as "5m" or "90s", at least
+	// MinSyncInterval. Empty means DefaultSyncInterval; IntervalOff turns
+	// timed sync off (the vault still syncs on opening, on request and on
+	// quitting).
 	Interval string `json:"interval,omitempty"`
 	// Device names this computer in commits and conflict copies. Empty
 	// means the host name.
@@ -55,18 +57,23 @@ type SyncVault struct {
 // DefaultSyncInterval is used when a vault sets no interval, or a bad one.
 const DefaultSyncInterval = 5 * time.Minute
 
+// MinSyncInterval is the shortest interval a vault may set.
+const MinSyncInterval = time.Minute
+
 // Vault is a sync.vaults entry ready to use: an absolute path ("~"
-// expanded), a positive interval and a device name that is safe in a file
-// name.
+// expanded), an interval and a device name that is safe in a file name.
 type Vault struct {
-	Path     string
+	Path string
+	// Interval is the time between timed syncs, at least MinSyncInterval;
+	// 0 means timed sync is off.
 	Interval time.Duration
 	Device   string
 }
 
 // Parse returns the usable vaults, sorted by path, and a warning for each
 // value it could not use. A bad value never stops Misoku: a bad interval
-// falls back to DefaultSyncInterval, and a vault whose path cannot be
+// (unreadable, not positive or shorter than MinSyncInterval) falls back to
+// DefaultSyncInterval, and a vault whose path cannot be
 // resolved is left out (it does not sync, which is the safe side). A folder
 // listed twice (as "~/notes" and as its absolute path, say) keeps the entry
 // that sorts first, so the same settings win every time, and the others
@@ -95,14 +102,10 @@ func (s Sync) Parse() ([]Vault, []string) {
 		seen[path] = raw
 		v := Vault{Path: path, Interval: DefaultSyncInterval, Device: safeDevice(sv.Device)}
 		if sv.Interval != "" {
-			d, err := time.ParseDuration(sv.Interval)
-			switch {
-			case err != nil:
-				warnings = append(warnings, fmt.Sprintf("sync: vault %q: interval %q is not a duration like \"5m\"; using %s", raw, sv.Interval, DefaultSyncInterval))
-			case d <= 0:
-				warnings = append(warnings, fmt.Sprintf("sync: vault %q: interval %q must be positive; using %s", raw, sv.Interval, DefaultSyncInterval))
-			default:
-				v.Interval = d
+			d, warning := parseInterval(sv.Interval)
+			v.Interval = d
+			if warning != "" {
+				warnings = append(warnings, fmt.Sprintf("sync: vault %q: interval %q %s; using %s", raw, sv.Interval, warning, DefaultSyncInterval))
 			}
 		}
 		if v.Device == "" {
@@ -117,6 +120,29 @@ func (s Sync) Parse() ([]Vault, []string) {
 	sort.Slice(vaults, func(i, j int) bool { return vaults[i].Path < vaults[j].Path })
 	sort.Strings(warnings) // map order is random; keep messages stable
 	return vaults, warnings
+}
+
+// IntervalOff is the interval that turns timed sync off for a vault.
+const IntervalOff = "off"
+
+// parseInterval reads a vault's interval: IntervalOff gives 0 (no timed
+// sync); a value it cannot use gives DefaultSyncInterval and says why.
+func parseInterval(text string) (time.Duration, string) {
+	if strings.EqualFold(strings.TrimSpace(text), IntervalOff) {
+		return 0, ""
+	}
+	d, err := time.ParseDuration(text)
+	switch {
+	case err != nil:
+		return DefaultSyncInterval, `is not a duration like "5m" (or "off")`
+	case d <= 0:
+		return DefaultSyncInterval, "must be positive"
+	case d < MinSyncInterval:
+		// Fetching and pushing every few seconds would only load the
+		// remote: saves are committed right away anyway.
+		return DefaultSyncInterval, "is shorter than the minimum, " + MinSyncInterval.String()
+	}
+	return d, ""
 }
 
 // expandHome turns "~", "~/x" (and "~\x" on Windows) into a path under the

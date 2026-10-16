@@ -105,6 +105,19 @@ type Model struct {
 	syncRun   *syncRun         // the sync started last, to wait for on quit (S14)
 	now       func() time.Time // the clock; nil means time.Now
 	sync      syncState        // what the last sync said (S9)
+	// syncBase is when the last sync started or ended (or the window
+	// opened): the next timed sync is due an interval later.
+	syncBase time.Time
+	// commitDue is set by a save that is not committed yet; lastSave is
+	// when the last save was. See autoSync.
+	commitDue bool
+	lastSave  time.Time
+	// syncQueued is a sync asked for while the commit after a save ran:
+	// it starts when that commit ends.
+	syncQueued bool
+	// syncWarn is the config's sync warnings for this vault, still to be
+	// shown with the outcome of the first sync.
+	syncWarn string
 
 	// keyCount counts the keys pressed; statusKeys is keyCount when
 	// `:sync status` was asked for, so its answer can tell whether the

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/gitsync"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -283,26 +284,51 @@ func (m *Model) saveBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		}
 		return nil
 	}
-	if disk, err := m.store.Get(b.id); err == nil && disk.Content != b.saved {
-		m.confirm = &confirmDialog{
-			title:   "Changed on disk",
-			message: []string{fmt.Sprintf("%s changed on disk since it was opened.", b.fileName()), "Overwrite it with your version?"},
-			buttons: []string{"Overwrite", "Cancel"},
-			danger:  true,
-			onChoose: func(m *Model, choice int) tea.Cmd {
-				if choice == 0 {
-					return m.writeBuffer(b, after)
-				}
-				return nil
-			},
+	if disk, err := m.store.Get(b.id); err == nil && disk.Content != b.saved && disk.Content != m.liveText(b) {
+		if !m.isDirty(b) {
+			// Nothing of the user's to write: show the disk's version, as
+			// the workspace poll would.
+			m.syncOpenBuffers()
+			if after != nil {
+				return after(m)
+			}
+			return nil
 		}
-		return nil
+		return m.keepBothAndWrite(b, disk.Content, after)
 	}
 	return m.writeBuffer(b, after)
 }
 
+// keepBothAndWrite saves b over a file that changed on disk since it was
+// opened (another device's edit a sync brought, another app): neither
+// version is lost and nothing is asked. The version on disk goes first to a
+// conflict copy next to the note, named as a sync names them (S6) but
+// without the device, which the app does not know; then the note gets the
+// user's version. When the copy cannot be written, nothing is.
+func (m *Model) keepBothAndWrite(b *buffer, theirs string, after func(*Model) tea.Cmd) tea.Cmd {
+	name, err := gitsync.ConflictCopyName(m.store.Root(), b.id, "", m.clock())
+	if err == nil {
+		_, err = m.store.SaveAs(path.Dir(name), path.Base(name), theirs)
+	}
+	if err != nil {
+		m.setError("Not saved: the version on disk could not be kept (" + err.Error() + ")")
+		m.quitting = false
+		return nil
+	}
+	m.reloadTree()
+	// Short, so the status bar shows the copy's name whole.
+	return m.writeBufferNote(b, after, "Both kept: "+path.Base(name))
+}
+
 // writeBuffer writes b's text to its file, with no conflict check.
 func (m *Model) writeBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
+	return m.writeBufferNote(b, after, "")
+}
+
+// writeBufferNote is writeBuffer; a note, when not empty, replaces the
+// message that says the file was written and is shown as needing
+// attention.
+func (m *Model) writeBufferNote(b *buffer, after func(*Model) tea.Cmd, note string) tea.Cmd {
 	text := m.liveText(b)
 	saved, err := m.store.Update(core.Page{ID: b.id, Title: b.title, Content: text})
 	if err != nil {
@@ -311,8 +337,13 @@ func (m *Model) writeBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		return nil
 	}
 	b.saved, b.text = saved.Content, saved.Content
+	m.noteSaved()
 	m.refreshGraph()
-	m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
+	if note != "" {
+		m.setError(note)
+	} else {
+		m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
+	}
 	m.refreshModified()
 	if after != nil {
 		return after(m)
@@ -347,6 +378,7 @@ func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		return nil
 	}
 	b.saved, b.text, b.gone = text, text, false
+	m.noteSaved()
 	m.reloadTree()
 	m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
 	m.refreshModified()
@@ -363,6 +395,7 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 	if err != nil {
 		return err
 	}
+	m.noteSaved()
 	wasActive := b.id == m.active
 	b.id, b.title, b.saved, b.text, b.dir = p.ID, p.Title, text, text, ""
 	if wasActive {

@@ -19,8 +19,9 @@ const QuitSyncLimit = 10 * time.Second
 // the window can still wait for it once Bubble Tea, which stops before the
 // sync ends, no longer delivers its result (S14).
 type syncRun struct {
-	done chan struct{} // closed when the sync has finished
-	msg  syncDoneMsg   // what it said; read only once done is closed
+	done  chan struct{} // closed when the sync has finished
+	msg   syncDoneMsg   // what it said; read only once done is closed
+	local bool          // only the commit after a save (CommitLocal)
 }
 
 // SyncOnQuit is what a synced vault gets once Misoku's screen has closed

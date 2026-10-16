@@ -337,11 +337,11 @@ func TestSyncNeverOverwritesAnUnsavedBuffer(t *testing.T) {
 		t.Fatalf("the user must be told the note changed on disk:\n%s", v)
 	}
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if v := h.view(); !strings.Contains(v, "Overwrite") {
-		t.Fatalf("saving over what the sync brought must ask first:\n%s", v)
+	if got := readNote(t, vault, "doc.md"); got != "base mine" {
+		t.Fatalf("saving writes the user's version to the note, got %q", got)
 	}
-	if got := readNote(t, vault, "doc.md"); got != "from desk" {
-		t.Fatalf("nothing is written before the answer, got %q", got)
+	if got := copiesOf(t, vault, "doc"); len(got) != 1 || got[0] != "from desk" {
+		t.Fatalf("what the sync brought must be kept in a conflict copy, got %q", got)
 	}
 }
 

@@ -20,6 +20,9 @@ const (
 	syncTimeout    = 5 * time.Minute
 	// statusTimeout limits reading `:sync status`.
 	statusTimeout = 30 * time.Second
+	// saveCommitDelay is how long saves must pause before they are
+	// committed, so a burst of saves makes one commit.
+	saveCommitDelay = 3 * time.Second
 )
 
 // SyncNowMsg asks the app to sync the vault now, as the sync_now key and
@@ -31,6 +34,8 @@ type SyncNowMsg struct{}
 
 // syncDoneMsg brings a finished sync command back to Update.
 type syncDoneMsg struct {
+	local  bool          // only the commit after a save, not a sync
+	auto   bool          // started on its own, not asked for
 	lock   *gitsync.Lock // the vault's lock when this window holds it
 	paused gitsync.State // why the vault cannot sync now (Detect), when Status is Paused
 	busy   bool          // another window holds the lock
@@ -73,6 +78,7 @@ type syncState struct {
 // whether this folder syncs. It runs no git: a folder that is not listed,
 // or MISOKU_SYNC=0, must never start one.
 func (m *Model) setupSync() {
+	m.syncBase = m.clock()
 	m.syncOff = "Sync is off: this folder is not listed in sync.vaults"
 	if gitsync.Disabled() {
 		m.syncOff = "Sync is off (MISOKU_SYNC=0)"
@@ -98,6 +104,10 @@ func (m *Model) setupSync() {
 	why := strings.Join(warnings, "; ")
 	if m.syncVault == nil {
 		m.syncOff += " (" + why + ")"
+	} else {
+		// The sync on opening replaces this message before the screen
+		// first shows it: that sync says it again (finishSync).
+		m.syncWarn = why
 	}
 	if m.status != "" {
 		why = m.status + "; " + why
@@ -113,23 +123,69 @@ func (m *Model) syncOnOpen() tea.Cmd {
 	return func() tea.Msg { return SyncNowMsg{} }
 }
 
-// requestSync starts a sync in the background, one at a time (D6).
+// requestSync starts the sync the user asked for in the background, one
+// at a time (D6). Asked for while the commit after a save runs, it starts
+// as soon as that commit ends.
 func (m *Model) requestSync() tea.Cmd {
 	switch {
 	case m.syncVault == nil:
 		m.setStatus(m.syncOff)
 		return nil
+	case m.syncing && m.syncRun != nil && m.syncRun.local:
+		m.syncQueued = true
+		m.setStatus("Syncing…")
+		return nil
 	case m.syncing:
 		m.setStatus("Already syncing…")
 		return nil
 	}
-	m.syncing = true
 	m.setStatus("Syncing…")
-	run := &syncRun{done: make(chan struct{})}
+	return m.startSync(false, false)
+}
+
+// noteSaved records that a note was written to disk, so that the commit
+// after a save (autoSync) picks it up. A folder that does not sync keeps
+// nothing: it never runs git.
+func (m *Model) noteSaved() {
+	if m.syncVault == nil {
+		return
+	}
+	m.commitDue, m.lastSave = true, m.clock()
+}
+
+// autoSync is what a listed vault does on its own, on each tick of the
+// workspace poll (v0.6.0): a sync every interval, counted from the last
+// sync, unless the interval is off (S4); otherwise, once saves have paused
+// for saveCommitDelay, a local commit of what was saved, with no network
+// (S3): the next sync pushes it. Nothing starts while a sync or commit
+// runs: the tick after it ends tries again, so no save is left out.
+func (m *Model) autoSync() tea.Cmd {
+	if m.syncVault == nil || m.syncing {
+		return nil
+	}
+	now := m.clock()
+	if every := m.syncVault.Interval; every > 0 && now.Sub(m.syncBase) >= every {
+		return m.startSync(false, true)
+	}
+	if m.commitDue && now.Sub(m.lastSave) >= saveCommitDelay {
+		return m.startSync(true, true)
+	}
+	return nil
+}
+
+// startSync starts a sync, or with local only the commit after a save, in
+// the background. Either commits everything saved so far.
+func (m *Model) startSync(local, auto bool) tea.Cmd {
+	m.syncing, m.commitDue = true, false
+	if !local {
+		m.syncBase = m.clock()
+	}
+	run := &syncRun{done: make(chan struct{}), local: local}
 	m.syncRun = run
-	cmd := runSync(m.store.Root(), *m.syncVault, m.syncLock)
+	cmd := runSync(m.store.Root(), *m.syncVault, m.syncLock, local)
 	return func() tea.Msg {
 		msg := cmd().(syncDoneMsg)
+		msg.auto = auto
 		run.msg = msg
 		close(run.done)
 		return msg
@@ -138,14 +194,15 @@ func (m *Model) requestSync() tea.Cmd {
 
 // runSync is the sync itself, run by Bubble Tea outside Update: it checks
 // the vault is ready (S2), takes the vault's lock the first time and then
-// keeps it for the whole session (S11), syncs, and looks for the conflict
-// copies left on disk (S9).
-func runSync(dir string, v config.Vault, held *gitsync.Lock) tea.Cmd {
+// keeps it for the whole session (S11), syncs (with local, only commits:
+// gitsync.CommitLocal), and looks for the conflict copies left on disk
+// (S9).
+func runSync(dir string, v config.Vault, held *gitsync.Lock, local bool) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 		defer cancel()
 		r := gitsync.New(dir, syncGitTimeout)
-		done := syncDoneMsg{lock: held}
+		done := syncDoneMsg{lock: held, local: local}
 		st := gitsync.Detect(ctx, r)
 		ready := st.Status == gitsync.Ready
 		if !ready {
@@ -155,7 +212,12 @@ func runSync(dir string, v config.Vault, held *gitsync.Lock) tea.Cmd {
 			done.lock, done.err, done.busy = l, err, err == nil && !ok
 		}
 		if ready && done.lock != nil {
-			done.res = gitsync.SyncVault(ctx, r, done.lock, gitsync.SyncOptions{Device: v.Device})
+			opts := gitsync.SyncOptions{Device: v.Device}
+			if local {
+				done.res = gitsync.CommitLocal(ctx, r, done.lock, opts)
+			} else {
+				done.res = gitsync.SyncVault(ctx, r, done.lock, opts)
+			}
 		}
 		lock := st.Lock
 		var locked *gitsync.LockedError
@@ -188,23 +250,48 @@ func (m *Model) clock() time.Time {
 // finishSync records a finished sync and shows how it went. When it brought
 // changes, open notes and the explorer are refreshed through the same check
 // the workspace poll runs, which reloads notes without unsaved edits and
-// never touches the ones with edits.
-func (m *Model) finishSync(msg syncDoneMsg) {
+// never touches the ones with edits. A sync that started on its own speaks
+// only when it made conflict copies or hit a new problem: the indicator
+// shows the rest, and the status line stays with what the user was doing.
+// A sync asked for during the commit after a save starts now.
+func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	m.syncing = false
+	if !msg.local {
+		m.syncBase = m.clock()
+	}
 	if msg.lock != nil {
 		m.syncLock = msg.lock
 	}
+	kind, lastErr := m.sync.kind, m.sync.lastErr
 	m.recordSync(msg)
 	text, isErr := syncSummary(msg)
+	news := isErr && (m.sync.kind != kind || m.sync.lastErr != lastErr)
+	speak := !msg.auto || news || len(msg.res.Conflicts) > 0
 	if msg.res.Updated {
+		status, statusErr := m.status, m.statusErr
 		m.status, m.statusErr = "", false
 		m.checkWorkspace()
-		if m.status != "" {
+		switch {
+		case !speak && m.status == "":
+			m.status, m.statusErr = status, statusErr
+		case m.status != "":
 			text += " · " + m.status
 			isErr = isErr || m.statusErr
+			speak = true
 		}
 	}
-	m.status, m.statusErr = text, isErr
+	if speak {
+		if m.syncWarn != "" {
+			text, isErr = text+" · "+m.syncWarn, true
+			m.syncWarn = ""
+		}
+		m.status, m.statusErr = text, isErr
+	}
+	if m.syncQueued {
+		m.syncQueued = false
+		return m.requestSync()
+	}
+	return nil
 }
 
 // recordSync keeps what a finished sync says for the indicator.
@@ -238,7 +325,16 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	s.files = fileWarnings(res.Commit)
 	switch res.Outcome {
 	case gitsync.Synced:
-		s.kind, s.lastOK = syncOK, now
+		// A local commit says nothing about origin: the indicator keeps
+		// the last sync's state, with the new pending count.
+		switch {
+		case !msg.local:
+			s.kind, s.lastOK = syncOK, now
+		case s.kind == syncBusy:
+			// This window took the lock over: no other window syncs now,
+			// and nothing is known of origin until the next sync.
+			s.kind = syncUnknown
+		}
 	case gitsync.SyncOffline:
 		fail(syncOffline, errText(res.Err))
 	case gitsync.SyncUnrelated, gitsync.SyncRewritten:
@@ -326,7 +422,7 @@ func (m *Model) syncIndicator() (string, bool) {
 	if m.syncVault == nil {
 		return "", false
 	}
-	if m.syncing {
+	if m.syncing && (m.syncRun == nil || !m.syncRun.local) {
 		return "󰓦 syncing…", false
 	}
 	s := m.sync
@@ -355,6 +451,18 @@ func (m *Model) syncIndicator() (string, bool) {
 		return text, false
 	}
 	return "", false
+}
+
+// every says how often timed sync runs.
+func every(d time.Duration) string {
+	if d <= 0 {
+		return "off"
+	}
+	text := strings.TrimSuffix(d.String(), "0s")
+	if strings.HasSuffix(text, "h0m") {
+		text = strings.TrimSuffix(text, "0m")
+	}
+	return "every " + text
 }
 
 // ago says how long d is, roughly.
@@ -415,6 +523,12 @@ func (m *Model) lockRemoved(msg lockRemovedMsg) tea.Cmd {
 		return nil
 	}
 	m.sync.leftover = nil
+	if m.syncing {
+		// A sync started on its own meanwhile: this one follows it.
+		m.syncQueued = true
+		m.setStatus("Syncing…")
+		return nil
+	}
 	return m.requestSync()
 }
 
@@ -458,6 +572,7 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 		"State: " + state,
 		"Remote: " + orNone(info.Remote),
 		"Branch: " + orNone(info.Branch),
+		"Timed sync: " + every(m.syncVault.Interval),
 		fmt.Sprintf("Pending: %d %s to push", info.Pending, plural(info.Pending, "commit", "commits")),
 	}
 	if !s.lastOK.IsZero() {

@@ -18,12 +18,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case CheckWorkspaceMsg:
 		m.checkWorkspace()
-		return m, checkWorkspaceLater()
+		return m, tea.Batch(checkWorkspaceLater(), m.autoSync())
 	case SyncNowMsg, core.SyncMsg:
 		return m, m.requestSync()
 	case syncDoneMsg:
-		m.finishSync(msg)
-		return m, nil
+		return m, m.finishSync(msg)
 	case core.SyncStatusMsg:
 		return m, m.requestSyncStatus()
 	case lockRemovedMsg:

@@ -48,7 +48,25 @@ func TestOpenNoteReloadsWhenChangedOnDisk(t *testing.T) {
 	}
 }
 
-func TestUnsavedEditsAreNotReplacedAndSaveAsksFirst(t *testing.T) {
+// copiesOf returns the text of each conflict copy of stem+".md" in dir.
+func copiesOf(t *testing.T, dir, stem string) []string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(dir, stem+" (conflict *).md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var texts []string
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		texts = append(texts, string(b))
+	}
+	return texts
+}
+
+func TestUnsavedEditsAreNotReplacedAndSaveKeepsBothVersions(t *testing.T) {
 	store := newTestStore(t)
 	if _, err := store.SaveAs("", "doc", "base"); err != nil {
 		t.Fatal(err)
@@ -70,21 +88,17 @@ func TestUnsavedEditsAreNotReplacedAndSaveAsksFirst(t *testing.T) {
 	}
 
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if v := h.view(); !strings.Contains(v, "Overwrite") {
-		t.Fatalf("saving over an outside change must ask first:\n%s", v)
+	if v := h.view(); strings.Contains(v, "Overwrite") {
+		t.Fatalf("saving over an outside change keeps both versions, without a question:\n%s", v)
 	}
-	if got := readNote(t, store.Root(), "doc.md"); got != "theirs" {
-		t.Fatalf("nothing is written before the answer, got %q", got)
-	}
-	h.key(tea.KeyEsc) // cancel
-	if got := readNote(t, store.Root(), "doc.md"); got != "theirs" {
-		t.Fatalf("cancel must keep the outside text, got %q", got)
-	}
-
-	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
-	h.key(tea.KeyEnter) // Overwrite
 	if got := readNote(t, store.Root(), "doc.md"); got != "base mine" {
-		t.Fatalf("overwrite must write the editor text, got %q", got)
+		t.Fatalf("the note must hold the editor text, got %q", got)
+	}
+	if got := copiesOf(t, store.Root(), "doc"); len(got) != 1 || got[0] != "theirs" {
+		t.Fatalf("the outside version must be kept in one conflict copy, got %q", got)
+	}
+	if v := h.view(); !strings.Contains(v, "conflict") {
+		t.Fatalf("the user must be told where the outside version went:\n%s", v)
 	}
 }
 
@@ -147,7 +161,7 @@ func TestDeleteDialogSaysTheNoteGoesToTheTrash(t *testing.T) {
 	}
 }
 
-func TestSaveAllOnQuitAsksAboutOutsideChangesAndKeepsEdits(t *testing.T) {
+func TestSaveAllOnQuitKeepsBothVersionsOfOutsideChanges(t *testing.T) {
 	store := newTestStore(t)
 	for _, n := range []string{"alpha", "beta"} {
 		if _, err := store.SaveAs("", n, "base "+n); err != nil {
@@ -173,49 +187,40 @@ func TestSaveAllOnQuitAsksAboutOutsideChangesAndKeepsEdits(t *testing.T) {
 
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlC})
 	h.keys("s") // Save All
-	if h.quit {
-		t.Fatalf("Save All must stop at the first conflict, not quit; alpha=%q beta=%q",
-			readNote(t, store.Root(), "alpha.md"), readNote(t, store.Root(), "beta.md"))
-	}
-	if !strings.Contains(h.view(), "Overwrite") {
-		t.Fatalf("expected the conflict question:\n%s", h.view())
-	}
-	h.key(tea.KeyEnter) // Overwrite the first
-	if h.quit {
-		t.Fatal("the second note is also in conflict: it must ask again before quitting")
-	}
-	h.key(tea.KeyEnter) // Overwrite the second
 	if !h.quit {
-		t.Fatalf("after both answers Save All should quit:\n%s", h.view())
+		t.Fatalf("Save All keeps both versions and quits:\n%s", h.view())
 	}
 	for _, n := range []string{"alpha", "beta"} {
 		if got := readNote(t, store.Root(), n+".md"); got != "base "+n+" mine" {
 			t.Fatalf("%s should hold the edits, got %q", n, got)
 		}
+		if got := copiesOf(t, store.Root(), n); len(got) != 1 || got[0] != "theirs "+n {
+			t.Fatalf("%s's outside version must be kept in a conflict copy, got %q", n, got)
+		}
 	}
 }
 
-func TestCancellingTheConflictDuringSaveAllStaysOpen(t *testing.T) {
+// Saving a note with no edits of the user's that changed on disk before
+// the poll noticed shows the disk's version: there is nothing to keep two
+// of, so no copy is made and nothing is asked.
+func TestSavingAnUneditedNoteThatChangedOnDiskShowsTheDiskVersion(t *testing.T) {
 	store := newTestStore(t)
 	if _, err := store.SaveAs("", "doc", "base"); err != nil {
 		t.Fatal(err)
 	}
 	h := newHarness(t, store)
 	h.keys("1")
-	h.keys("A mine")
 	h.key(tea.KeyEsc)
 	writeOutside(t, store.Root(), "doc.md", "theirs")
-	h.send(app.CheckWorkspaceMsg{})
-	h.send(tea.KeyMsg{Type: tea.KeyCtrlC})
-	h.keys("s")
-	h.key(tea.KeyEsc) // Cancel
-	if h.quit {
-		t.Fatal("cancelling must keep Misoku open")
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+	v := h.view()
+	if strings.Contains(v, "Overwrite") || !strings.Contains(v, "theirs") {
+		t.Fatalf("the note must show the disk's version without a question:\n%s", v)
 	}
 	if got := readNote(t, store.Root(), "doc.md"); got != "theirs" {
-		t.Fatalf("cancel must not write, got %q", got)
+		t.Fatalf("the disk's version must stay, got %q", got)
 	}
-	if !strings.Contains(h.view(), "base mine") {
-		t.Fatalf("the edits must still be in the editor:\n%s", h.view())
+	if got := copiesOf(t, store.Root(), "doc"); len(got) != 0 {
+		t.Fatalf("no copy for a note without edits, got %q", got)
 	}
 }

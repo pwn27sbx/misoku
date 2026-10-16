@@ -66,7 +66,8 @@ func (m *Model) checkWorkspace() {
 // syncOpenBuffers brings open notes up to date with the disk. A note with no
 // unsaved edits is reloaded in place, keeping the cursor; one with unsaved
 // edits is left alone and the user is told, on every check while the
-// conflict lasts, and saving it asks before overwriting (see saveBuffer).
+// conflict lasts; saving it keeps the disk's version in a conflict copy
+// (see saveBuffer).
 // A note that is no longer on disk keeps its tab and text; the user is told
 // once, when it goes, and saving it asks before recreating it.
 func (m *Model) syncOpenBuffers() {
@@ -89,7 +90,7 @@ func (m *Model) syncOpenBuffers() {
 			continue
 		}
 		if m.isDirty(b) {
-			m.setError(fmt.Sprintf("%q changed on disk; saving will ask before overwriting it", b.id))
+			m.setError(fmt.Sprintf("%q changed on disk; saving keeps both versions", b.id))
 			continue
 		}
 		b.saved, b.text = p.Content, p.Content

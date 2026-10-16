@@ -388,3 +388,36 @@ func TestAddSyncVaultNeverRewritesAnUnreadableConfig(t *testing.T) {
 		}
 	}
 }
+
+// "off" turns timed sync off for a vault on purpose: no warning, and an
+// interval of zero, which the app reads as "never on a timer".
+func TestSyncParseIntervalOffTurnsTimedSyncOff(t *testing.T) {
+	good := filepath.Join(t.TempDir(), "good")
+	for _, off := range []string{"off", "OFF", " off "} {
+		vs, ws := config.Sync{Vaults: map[string]config.SyncVault{good: {Interval: off}}}.Parse()
+		if len(ws) != 0 || len(vs) != 1 || vs[0].Interval != 0 {
+			t.Errorf("interval %q must turn timed sync off without a warning: %+v %q", off, vs, ws)
+		}
+	}
+}
+
+// An interval shorter than MinSyncInterval would fetch and push all the
+// time: it warns, naming the minimum, and uses the default. The minimum
+// itself is accepted.
+func TestSyncParseTooShortIntervalWarnsAndUsesTheDefault(t *testing.T) {
+	good := filepath.Join(t.TempDir(), "good")
+	for _, short := range []string{"10s", "59s", "1ns"} {
+		vs, ws := config.Sync{Vaults: map[string]config.SyncVault{good: {Interval: short}}}.Parse()
+		if len(ws) != 1 || vs[0].Interval != config.DefaultSyncInterval {
+			t.Errorf("interval %q must warn and use the default: %+v %q", short, vs, ws)
+			continue
+		}
+		if !strings.Contains(ws[0], short) || !strings.Contains(ws[0], config.MinSyncInterval.String()) {
+			t.Errorf("the warning must name %q and the minimum: %q", short, ws[0])
+		}
+	}
+	vs, ws := config.Sync{Vaults: map[string]config.SyncVault{good: {Interval: config.MinSyncInterval.String()}}}.Parse()
+	if len(ws) != 0 || vs[0].Interval != config.MinSyncInterval {
+		t.Fatalf("the minimum itself must be accepted: %+v %q", vs, ws)
+	}
+}

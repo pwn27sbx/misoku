@@ -7,3 +7,6 @@ import "time"
 func WithClock(now func() time.Time) Option {
 	return func(m *Model) { m.now = now }
 }
+
+// SaveCommitDelay is how long after the last save the commit waits.
+const SaveCommitDelay = saveCommitDelay

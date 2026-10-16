@@ -60,11 +60,11 @@ func TestSyncKeepsAnEditTypedWhileItRuns(t *testing.T) {
 		t.Fatalf("user must be warned:\n%s", v)
 	}
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if v := h.view(); !strings.Contains(v, "Overwrite") {
-		t.Fatalf("save must ask:\n%s", v)
+	if got := readNote(t, vault, "doc.md"); got != "base typed during sync" {
+		t.Fatalf("saving writes the typed text to the note, got %q", got)
 	}
-	if got := readNote(t, vault, "doc.md"); got != "from desk" {
-		t.Fatalf("disk must hold the remote version until the answer, got %q", got)
+	if got := copiesOf(t, vault, "doc"); len(got) != 1 || got[0] != "from desk" {
+		t.Fatalf("the remote version must be kept in a conflict copy, got %q", got)
 	}
 }
 
