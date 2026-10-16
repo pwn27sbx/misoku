@@ -94,6 +94,9 @@ func TestPausedWithoutGit(t *testing.T) {
 	isolate(t)
 	dir := readyVault(t)
 	t.Setenv("PATH", t.TempDir())
+	// On Windows Misoku also looks in Program Files, where the CI runner
+	// has Git for Windows.
+	t.Setenv("ProgramFiles", t.TempDir())
 	wantPaused(t, detect(t, dir), gitsync.ReasonGitMissing, "install git")
 }
 

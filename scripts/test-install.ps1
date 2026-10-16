@@ -92,7 +92,13 @@ try {
     # Run sets the environment for one case, runs install.ps1 in a new
     # PowerShell and puts the environment back. Leaves the output in
     # $script:out and the exit code in $script:code.
-    function Run([string]$case, [hashtable]$vars, [switch]$Piped) {
+    #
+    # Windows rebuilds ProgramFiles from ProgramW6432 for every new 64-bit
+    # process, and the runner has Git in the real Program Files, so the
+    # child sets PATH, ProgramFiles and ProgramW6432 again itself, before
+    # install.ps1 runs. -Probe prints what the child then sees instead of
+    # installing.
+    function Run([string]$case, [hashtable]$vars, [switch]$Piped, [switch]$Probe) {
         $env0 = @{
             MISOKU_INSTALL_DIR = (Join-Path $work "dir-$case")
             MISOKU_BASE_URL    = (FileUrl $rel)
@@ -101,9 +107,15 @@ try {
             MISOKU_VERSION     = $null
             PATH               = $sys
             ProgramFiles       = "$fakes\pf-empty"
+            ProgramW6432       = $null
             LOG                = (Join-Path $work "log-$case.txt")
         }
         foreach ($k in $vars.Keys) { $env0[$k] = $vars[$k] }
+        $env0.ProgramW6432 = $env0.ProgramFiles
+        $pre = ''
+        foreach ($k in 'PATH', 'ProgramFiles', 'ProgramW6432') {
+            $pre += "`$env:$k = '$($env0[$k] -replace "'", "''")'; "
+        }
         $saved = @{}
         foreach ($k in $env0.Keys) {
             $saved[$k] = [Environment]::GetEnvironmentVariable($k)
@@ -112,13 +124,15 @@ try {
         $old = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            if ($Piped) {
+            if ($Probe) {
+                $cmd = $pre + '"git=" + (Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object Source); "pf=" + $env:ProgramFiles; "pfgit=" + (Test-Path (Join-Path $env:ProgramFiles ''Git\cmd\git.exe''))'
+            } elseif ($Piped) {
                 # Like `irm ... | iex`: the script arrives as one string.
-                $cmd = "Get-Content -Raw -LiteralPath '$installer' | Invoke-Expression"
-                $script:out = (& $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command $cmd 2>&1 | ForEach-Object { "$_" }) -join "`n"
+                $cmd = $pre + "Get-Content -Raw -LiteralPath '$installer' | Invoke-Expression"
             } else {
-                $script:out = (& $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installer 2>&1 | ForEach-Object { "$_" }) -join "`n"
+                $cmd = $pre + "& '$installer'"
             }
+            $script:out = (& $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command $cmd 2>&1 | ForEach-Object { "$_" }) -join "`n"
             $script:code = $LASTEXITCODE
         } finally {
             $ErrorActionPreference = $old
@@ -128,6 +142,13 @@ try {
     }
 
     Write-Host "install.ps1 under $shellExe"
+
+    # 0. The child really sees no git: none on PATH, none in Program Files.
+    $null = Run 'probe' @{} -Probe
+    Write-Host ($out -replace '(?m)^', '     probe: ')
+    Expect 'isolation: no git on the child PATH' (Says "git=`n")
+    Expect 'isolation: Program Files is the empty fake' (Says "pf=$fakes\pf-empty")
+    Expect 'isolation: no git in that Program Files' (Says 'pfgit=False')
 
     # 1. Fresh install: misoku and gh side by side, gh marked as ours, the
     # folder added to the user PATH, and git's absence said without winget.
