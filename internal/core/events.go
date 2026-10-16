@@ -95,3 +95,7 @@ type SyncMsg struct{}
 // SyncStatusMsg asks the app to show the vault's sync status (":sync
 // status").
 type SyncStatusMsg struct{}
+
+// SyncSetupMsg asks the app to run the sync setup assistant for the open
+// vault (":sync setup").
+type SyncSetupMsg struct{}

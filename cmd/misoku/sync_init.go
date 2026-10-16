@@ -24,14 +24,20 @@ const initTimeout = 10 * time.Minute
 
 const syncInitUsage = "Usage: misoku sync init <url> [--dir <folder>]"
 
-// runSync handles "misoku sync init <url>".
+// syncUsage lists the sync commands.
+const syncUsage = syncInitUsage + "\n       misoku sync setup [--dir <folder>]   (recommended: connects a private GitHub repository for you)"
+
+// runSync handles "misoku sync init <url>" and "misoku sync setup".
 func runSync(args []string) int {
 	if len(args) > 0 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help") {
-		fmt.Fprintln(os.Stdout, syncInitUsage)
+		fmt.Fprintln(os.Stdout, syncUsage)
 		return 0
 	}
+	if len(args) > 0 && args[0] == "setup" {
+		return syncSetup(context.Background(), args[1:], os.Stdin, os.Stdout, os.Stderr, config.DefaultPath())
+	}
 	if len(args) == 0 || args[0] != "init" {
-		fmt.Fprintln(os.Stderr, syncInitUsage)
+		fmt.Fprintln(os.Stderr, syncUsage)
 		return 2
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -126,45 +132,8 @@ func syncInit(ctx context.Context, args []string, stdout, stderr io.Writer, cfgP
 // report says what InitVault did, one line per step. url is already
 // without credentials.
 func report(w io.Writer, res gitsync.InitResult, url string) {
-	if res.CreatedRepo {
-		fmt.Fprintf(w, "Created a git repository (branch %s).\n", res.Branch)
-	}
-	if res.AddedOrigin {
-		fmt.Fprintf(w, "Added origin %s.\n", url)
-	}
-	if res.WroteAttributes {
-		fmt.Fprintln(w, "Wrote .gitattributes (* -text): files stay byte for byte, with no line-ending conversion.")
-	}
-	if res.KeptAttributes {
-		fmt.Fprintln(w, "Kept your .gitattributes as it is; add the line `* -text` to it so line endings never change between systems.")
-	}
-	for _, big := range res.Sync.Commit.Skipped {
-		fmt.Fprintf(w, "Left out %s (%d MB): files that big do not sync.\n", big.Path, big.Size>>20)
-	}
-	// The files that do not sync as plain files (S15), in the words
-	// `:sync status` uses.
-	for _, n := range res.Sync.Commit.Notices {
-		fmt.Fprintln(w, n.String())
-	}
-	if res.Files > 0 {
-		noun := "files"
-		if res.Files == 1 {
-			noun = "file"
-		}
-		fmt.Fprintf(w, "Committed %d %s.\n", res.Files, noun)
-	}
-	if res.Sync.Updated {
-		fmt.Fprintln(w, "Brought origin's notes.")
-	}
-	if n := len(res.Sync.Conflicts); n > 0 {
-		fmt.Fprintf(w, "Kept both versions of %d note(s) changed on both sides; the other version is in:\n", n)
-		for _, c := range res.Sync.Conflicts {
-			fmt.Fprintf(w, "  %s\n", c)
-		}
-		fmt.Fprintln(w, "Resolve each by deleting the copy (or copying what you want into the note).")
-	}
-	if res.Sync.Pushed {
-		fmt.Fprintf(w, "Pushed to origin (branch %s).\n", res.Sync.Branch)
+	for _, line := range res.Report(url) {
+		fmt.Fprintln(w, line)
 	}
 }
 
@@ -173,7 +142,8 @@ func usage(w io.Writer) {
 	fmt.Fprint(w, `Usage:
   misoku [flags]                           open the notes in a folder
   misoku export <note.md> [-o out.pdf]     export a note to PDF
-  misoku sync init <url> [--dir <folder>]  set up git sync of a folder (run once per device)
+  misoku sync setup [--dir <folder>]       sync a folder through a private GitHub repository (recommended)
+  misoku sync init <url> [--dir <folder>]  set up git sync of a folder with any git URL (SSH, other services)
 
 Flags:
 `)

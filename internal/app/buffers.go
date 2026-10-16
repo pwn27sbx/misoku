@@ -416,6 +416,9 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 
 // requestQuit exits, first offering to save any unsaved tabs.
 func (m *Model) requestQuit(force bool) tea.Cmd {
+	if m.quitHeld() {
+		return nil
+	}
 	dirty := m.dirtyBuffers()
 	if force || len(dirty) == 0 {
 		return tea.Quit

@@ -66,7 +66,8 @@ misoku --theme <name>         # pick a theme for this session
 misoku --list-themes
 misoku --themes-dir <path>    # custom themes folder or single .json file
 misoku export note.md         # write note.pdf next to the note (-o to pick the file)
-misoku sync init <url>        # sync this folder through a git repository (see Sync)
+misoku sync setup             # sync this folder through a private GitHub repository (see Sync)
+misoku sync init <url>        # sync this folder through any git repository, SSH included
 ```
 
 ## Features
@@ -91,7 +92,7 @@ misoku sync init <url>        # sync this folder through a git repository (see S
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
-- **Sync between computers** through a private git repository of your own, with no Misoku server: `misoku sync init <url>` once per computer, then `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
+- **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
 
 ## Shortcuts
 
@@ -296,13 +297,33 @@ Misoku can keep a notes folder (a *vault*) the same on all your computers throug
 - when you type `:sync` or press `space s` (`sync_now`, configurable like any [shortcut](#shortcuts));
 - when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it.
 
-**After you save**, Misoku commits your changes locally once you stop saving for a few seconds, so a burst of saves makes one commit. This commit uses no network: the next sync pushes it. Syncs and these commits run in the background one at a time, so you can keep typing; a save made while one runs goes into the next commit, and a sync you ask for while a commit runs starts right after it. Each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync init`).
+**After you save**, Misoku commits your changes locally once you stop saving for a few seconds, so a burst of saves makes one commit. This commit uses no network: the next sync pushes it. Syncs and these commits run in the background one at a time, so you can keep typing; a save made while one runs goes into the next commit, and a sync you ask for while a commit runs starts right after it. Each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync setup` and `misoku sync init`).
 
-**You need** git 2.38 or newer, a git identity (`git config --global user.name "Your Name"` and `user.email`), and an empty **private** repository, or the one your other computer already syncs with.
+**You need** git 2.38 or newer and a **private** repository: the assistant below creates one on GitHub for you. For `misoku sync init` you also need a git identity (`git config --global user.name "Your Name"` and `user.email`) and an empty private repository, or the one your other computer already syncs with.
 
-### Set up a vault
+### Set up a vault with GitHub (recommended)
 
-Run this once on each computer, in a terminal:
+With a GitHub account, the assistant sets everything up. In Misoku, open the vault and type `:sync setup`; or, in a terminal:
+
+```sh
+misoku sync setup --dir ~/notes
+```
+
+`--dir` defaults to `$MISOKU_WORKSPACE`, then to the current folder. The assistant:
+
+1. Says what will happen and waits for **Start**.
+2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed. If gh is not, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
+3. If git does not know your name and email, asks for them and saves them with `git config --global` only once you confirm.
+4. If gh is not signed in, runs `gh auth login --web`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs).
+5. Lets you **create a new private repository** (it offers the vault folder's name) or **pick one of yours** from a list. Public (and organization-internal) repositories are marked and refused: your notes are stored unencrypted. To use one, make it private on GitHub first.
+6. Runs `gh auth setup-git`, so git uses gh's access and every later sync, in the background, signs in without asking. Then it connects the vault over HTTPS exactly as `misoku sync init` does (all three cases below), and lists it in `sync.vaults`.
+7. Says what it did, that the vault now syncs every 5 minutes and when you quit, and what to do on your other computer: run `:sync setup` (or `misoku sync setup`) there and pick the same repository.
+
+**Misoku never stores or sees your GitHub access**: gh keeps it in your system's keychain, and Misoku never prints a token or passes one on a command line. To sign out, run `gh auth logout`. Cancelling (Esc, **Cancel**, or the end of the input in a terminal) changes nothing more: before you confirm your name and email, or before git gets gh's access (step 6), nothing has changed at all; after either, the message says exactly what was done (for example `Your git name and email were saved; GitHub access for git was set up with gh. Nothing else changed.`). Inside Misoku, quitting waits while a step runs, so a setup is never left half done. Running the assistant on a vault that already syncs says so and changes nothing.
+
+### Set up a vault with any git URL
+
+For SSH, GitLab, Gitea, your own server, or a repository you created by hand, run this once on each computer, in a terminal:
 
 ```sh
 misoku sync init git@github.com:you/notes.git --dir ~/notes
@@ -406,18 +427,21 @@ Everything else syncs, including the PDFs `:export` and `misoku export` write in
 | `offline, N pending` | Nothing to do: the commits are safe in the vault and the next sync, once the network is back, pushes them. |
 | `origin's SSH host key is not known yet` | Run `misoku sync init <url>` in a terminal once and accept the key. |
 | `origin refused your SSH key` | Add your key to your account on the git host (and to `ssh-agent`). |
-| `could not sign in to origin` | For GitHub over HTTPS run `gh auth setup-git`, or set up your git credentials. If it still fails, run `misoku sync init <url>` in a terminal. |
+| `could not sign in to origin` | For GitHub over HTTPS run `gh auth setup-git` (or `misoku sync setup`, which runs it), or set up your git credentials. If it still fails, run `misoku sync init <url>` in a terminal. |
 | `origin's SSH host key changed` | It can mean an attack or a reinstalled server: check the key with `ssh` in a terminal before syncing again. |
 | `another Misoku window syncs this vault` | Only one window syncs a vault; the others see its changes within seconds. When that window closes, the next sync here takes over. |
 | `… is in progress in this vault` | A merge, rebase, cherry-pick or revert you started is waiting: finish it (`git merge --continue`…) or cancel it (`git merge --abort`…). Sync waits and touches nothing. |
 | `HEAD is detached` | Check out your branch, for example `git switch main`. |
 | `a git lock file is in the way (.git/index.lock)` | A git command is running in the vault, or one stopped half-way. If no git is running, open `:sync status` and choose **Remove the lock and sync** (with the arrow keys or Tab, then Enter). If you typed before the status appeared, it leaves the choice out: open it again. Misoku removes a lock on its own only when it knows it left it itself. |
-| `this vault is inside the git repository at …` | See [a vault inside another repository](#set-up-a-vault). |
+| `this vault is inside the git repository at …` | See [a vault inside another repository](#set-up-a-vault-with-any-git-url). |
 | `… was rewritten (a force-push)` | Someone rewrote the repository's history. Sync stops so nothing is lost: compare with `git fetch origin` and `git log origin/main`, and join them by hand. |
 | `unrelated histories` | The vault and the repository share no history: join them once with `misoku sync init <url>`. |
 | `Sync stopped, it tries again next time` | Another computer pushed first, a file changed during the sync, or a file could not be replaced because another app has it open (common on Windows): close it if so, and sync again. If the same message keeps coming back, read it in `:sync status`: it names the file in the way (for example a file left out whose name the repository also uses) and how to fix it. |
 | `git … is too old` / `git did not run` | Install or update git (2.38 or newer). |
-| `git does not know who you are` | Set `user.name` and `user.email` as the message shows. |
+| `git does not know who you are` | Set `user.name` and `user.email` as the message shows, or run `:sync setup`, which asks for them. |
+| `gh, GitHub's command-line tool, is not installed` | Install gh as the message says, then run `:sync setup` (or `misoku sync setup`) again. |
+| `… is public: anyone could read your notes` | The assistant only uses private repositories. Pick a private one, create a new one, or make that one private on GitHub first. |
+| `A repository named … already exists` | Choose another name, or run setup again and pick that repository from the list. |
 
 ## Columns
 

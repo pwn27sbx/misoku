@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/graph"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
@@ -30,6 +31,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case syncStatusMsg:
 		m.showSyncStatus(msg)
 		return m, nil
+	case core.SyncSetupMsg:
+		return m, m.startSetup()
+	case setupMsg:
+		return m, m.showSetup(msg)
+	case setupSignedInMsg:
+		return m, m.setupNext(msg.s, gitsync.SetupAnswer{OK: true})
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.updateLayout()

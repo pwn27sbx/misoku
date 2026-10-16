@@ -1,6 +1,11 @@
 package app
 
-import "time"
+import (
+	"os/exec"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // WithClock makes the app read the time from now, so a test can say how
 // long ago the last sync was.
@@ -10,3 +15,9 @@ func WithClock(now func() time.Time) Option {
 
 // SaveCommitDelay is how long after the last save the commit waits.
 const SaveCommitDelay = saveCommitDelay
+
+// WithExec replaces how the app runs a program outside its screen
+// (tea.ExecProcess), so a test can run gh's sign-in without a terminal.
+func WithExec(exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd) Option {
+	return func(m *Model) { m.execProcess = exec }
+}

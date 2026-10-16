@@ -270,6 +270,17 @@ func setEnv(env *[]string, k, v string) {
 	*env = append(*env, k+"="+v)
 }
 
+// unsetEnv removes k from env.
+func unsetEnv(env *[]string, k string) {
+	kept := (*env)[:0]
+	for _, kv := range *env {
+		if !strings.HasPrefix(kv, k+"=") {
+			kept = append(kept, kv)
+		}
+	}
+	*env = kept
+}
+
 // env is the environment git runs with: the user's, with every prompt off.
 // ctx bounds reading the user's ssh setting.
 func (r *Runner) env(ctx context.Context) []string {
@@ -280,6 +291,12 @@ func (r *Runner) env(ctx context.Context) []string {
 	set("SSH_ASKPASS_REQUIRE", "never") // ssh: never pop up an askpass helper
 	set("LC_ALL", "C")                  // stable messages to parse
 	set("LANGUAGE", "C")
+	// No password helper of the user's either (an editor's GIT_ASKPASS,
+	// core.askPass, SSH_ASKPASS): it would open a window or wait for an
+	// answer. An empty GIT_ASKPASS wins over core.askPass and SSH_ASKPASS
+	// in git, and asks nothing; a credential helper (gh's) still answers.
+	set("GIT_ASKPASS", "")
+	unsetEnv(&env, "SSH_ASKPASS")
 	r.sshMu.Lock()
 	ssh, sshSet := r.ssh, r.sshSet
 	if !r.sshDone {

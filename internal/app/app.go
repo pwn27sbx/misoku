@@ -3,6 +3,7 @@ package app
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -124,6 +125,16 @@ type Model struct {
 	// user typed meanwhile.
 	keyCount   int
 	statusKeys int
+
+	// execProcess runs a program outside the screen (tea.ExecProcess);
+	// tests replace it.
+	execProcess func(*exec.Cmd, tea.ExecCallback) tea.Cmd
+
+	// setupBusy: a step of the sync setup assistant runs in the
+	// background. setupNotes are the checks it passed so far, shown above
+	// each of its questions.
+	setupBusy  bool
+	setupNotes []string
 }
 
 // Option customises the app at construction.
@@ -173,6 +184,7 @@ func New(store *core.Store, opts ...Option) Model {
 		content:     content.New(th),
 		preview:     preview.New(th),
 		graph:       graph.New(th),
+		execProcess: tea.ExecProcess,
 	}
 	m.sidebar.SetWorkspaceName(filepath.Base(store.Root()))
 	m.dashboard.SetWorkspace(tildePath(store.Root()))

@@ -132,6 +132,9 @@ func (d *confirmDialog) update(m *Model, msg tea.Msg) (tea.Cmd, bool) {
 		case "esc", "q":
 			return choose(len(d.buttons) - 1)
 		case "ctrl+c":
+			if m.quitHeld() {
+				return nil, false
+			}
 			return tea.Quit, true
 		default:
 			for i, b := range d.buttons {

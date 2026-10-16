@@ -59,6 +59,7 @@ var editorHelp = []keymapSection{
 		{":export [file]", "Export note as PDF"},
 		{":sync", "Sync the vault with git"},
 		{":sync status", "Sync state, conflict copies"},
+		{":sync setup", "Connect the vault to GitHub"},
 		{":addrow/:addcol", "Table row / column"},
 	}},
 	{"󰍽 MOUSE", [][2]string{

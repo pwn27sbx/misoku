@@ -27,6 +27,11 @@ type InitOptions struct {
 	// Now gives the local time used in conflict copy names; nil means
 	// time.Now.
 	Now func() time.Time
+	// NoPrompt keeps every git command from asking, network ones
+	// included, as in the background (New): for the setup assistant
+	// inside the app, where Misoku owns the terminal and gh already gave
+	// git the access.
+	NoPrompt bool
 }
 
 // InitResult says what InitVault did.
@@ -98,6 +103,9 @@ func initVault(ctx context.Context, dir string, opts InitOptions) (InitResult, e
 		}
 	}()
 	r := NewInteractive(dir, opts.Timeout)
+	if opts.NoPrompt {
+		r = New(dir, opts.Timeout)
+	}
 
 	version, ok, err := r.Version(ctx)
 	if err != nil {
@@ -219,10 +227,25 @@ func initVault(ctx context.Context, dir string, opts InitOptions) (InitResult, e
 
 // inspectFolder says whether the folder r runs in is a repository of its
 // own and returns its origin's URL ("" when it has none). It refuses, with
-// the reason and the fix, a folder init must not touch: one inside another
-// repository (D10), one whose origin is not url, and one holding something
-// of the user's half done (see Detect).
+// the reason and the fix, a folder init must not touch (folderState) and
+// one whose origin is not url.
 func inspectFolder(ctx context.Context, r *Runner, url string) (isRepo bool, origin string, err error) {
+	isRepo, origin, err = folderState(ctx, r)
+	if err != nil || origin == "" {
+		return isRepo, origin, err
+	}
+	if origin != url {
+		return false, "", fmt.Errorf("this repository already has origin %s, not %s; init changed nothing. To sync with %s, run `git remote set-url origin <url>` first, or choose another folder", RedactURL(origin), RedactURL(url), RedactURL(url))
+	}
+	return true, origin, nil
+}
+
+// folderState says whether the folder r runs in is a repository of its
+// own and returns its origin's URL as configured ("" when it has none),
+// changing nothing. It refuses, with the reason and the fix, a folder
+// that must not be set up: one inside another repository (D10), and one
+// holding something of the user's half done (see Detect).
+func folderState(ctx context.Context, r *Runner) (isRepo bool, origin string, err error) {
 	if _, err := r.Run(ctx, "rev-parse", "--show-toplevel"); err != nil {
 		if exitCode(err) == 128 && strings.Contains(err.Error(), "not a git repository") {
 			return false, "", nil
@@ -255,11 +278,7 @@ func inspectFolder(ctx context.Context, r *Runner, url string) (isRepo bool, ori
 	if err != nil {
 		return false, "", err
 	}
-	origin = strings.TrimSpace(string(out))
-	if origin != url {
-		return false, "", fmt.Errorf("this repository already has origin %s, not %s; init changed nothing. To sync with %s, run `git remote set-url origin <url>` first, or choose another folder", RedactURL(origin), RedactURL(url), RedactURL(url))
-	}
-	return true, origin, nil
+	return true, strings.TrimSpace(string(out)), nil
 }
 
 // makeFolder creates dir when it is missing but its parent folder exists
@@ -340,4 +359,52 @@ func writeAttributes(p, content string) (bool, error) {
 		err = cerr
 	}
 	return err == nil, err
+}
+
+// Report says what the init did, one line per step, for
+// `misoku sync init` and the setup assistant. url is origin's address
+// already without credentials (RedactURL).
+func (res InitResult) Report(url string) []string {
+	var lines []string
+	if res.CreatedRepo {
+		lines = append(lines, fmt.Sprintf("Created a git repository (branch %s).", res.Branch))
+	}
+	if res.AddedOrigin {
+		lines = append(lines, fmt.Sprintf("Added origin %s.", url))
+	}
+	if res.WroteAttributes {
+		lines = append(lines, "Wrote .gitattributes (* -text): files stay byte for byte, with no line-ending conversion.")
+	}
+	if res.KeptAttributes {
+		lines = append(lines, "Kept your .gitattributes as it is; add the line `* -text` to it so line endings never change between systems.")
+	}
+	for _, big := range res.Sync.Commit.Skipped {
+		lines = append(lines, fmt.Sprintf("Left out %s (%d MB): files that big do not sync.", big.Path, big.Size>>20))
+	}
+	// The files that do not sync as plain files (S15), in the words
+	// `:sync status` uses.
+	for _, n := range res.Sync.Commit.Notices {
+		lines = append(lines, n.String())
+	}
+	if res.Files > 0 {
+		noun := "files"
+		if res.Files == 1 {
+			noun = "file"
+		}
+		lines = append(lines, fmt.Sprintf("Committed %d %s.", res.Files, noun))
+	}
+	if res.Sync.Updated {
+		lines = append(lines, "Brought origin's notes.")
+	}
+	if n := len(res.Sync.Conflicts); n > 0 {
+		lines = append(lines, fmt.Sprintf("Kept both versions of %d note(s) changed on both sides; the other version is in:", n))
+		for _, c := range res.Sync.Conflicts {
+			lines = append(lines, "  "+c)
+		}
+		lines = append(lines, "Resolve each by deleting the copy (or copying what you want into the note).")
+	}
+	if res.Sync.Pushed {
+		lines = append(lines, fmt.Sprintf("Pushed to origin (branch %s).", res.Sync.Branch))
+	}
+	return lines
 }
