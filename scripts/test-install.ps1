@@ -301,3 +301,6 @@ try {
 
 if ($script:fails -ne 0) { throw "$($script:fails) install check(s) failed" }
 Write-Host "install.ps1 checks OK ($shellExe)"
+# The last native command was an install that was meant to fail; without
+# this its exit code would be the script's, and CI's pwsh step would fail.
+exit 0
