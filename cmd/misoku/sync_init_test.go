@@ -148,7 +148,10 @@ func seedRemote(t *testing.T, remote string, files map[string]string) {
 		writeFile(t, work, name, content)
 	}
 	git(t, work, "add", "-A")
-	git(t, work, "commit", "-q", "-m", "seed")
+	// The seed carries an identity of its own: a test may run with none
+	// (the flow under test asks for it), and git on Linux does not make
+	// one up from the host name.
+	git(t, work, "-c", "user.name=Seed", "-c", "user.email=seed@example.com", "commit", "-q", "-m", "seed")
 	git(t, work, "push", "-q", remote, "main")
 }
 
