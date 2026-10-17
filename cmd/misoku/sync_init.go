@@ -91,6 +91,10 @@ func syncInit(ctx context.Context, args []string, stdout, stderr io.Writer, cfgP
 		if vs, _ := (config.Sync{Vaults: map[string]config.SyncVault{dir: {}}}).Parse(); len(vs) == 1 {
 			vault = vs[0]
 		}
+		// Only a new vault is refused: one already listed keeps syncing.
+		if err := gitsync.RefuseSyncFolder(dir, ""); err != nil {
+			return fail("%v", err)
+		}
 	}
 
 	shown := gitsync.RedactURL(url)

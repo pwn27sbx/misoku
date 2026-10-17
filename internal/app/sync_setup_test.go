@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -239,5 +240,50 @@ func TestHomeHidesSyncBetweenComputersWhenSyncIsTurnedOff(t *testing.T) {
 	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
 	if strings.Contains(h.view(), "Sync between computers") {
 		t.Fatalf("with sync turned off, sync must not be offered:\n%s", h.view())
+	}
+}
+
+// The home folder is no place to sync (it would push ~/.ssh too): the
+// home screen does not offer "Sync between computers" there, s does
+// nothing, and :sync setup refuses, changing nothing.
+func TestTheHomeFolderIsNotOfferedSyncAndSetupRefusesIt(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
+	writeOutside(t, home, "a.md", "hello")
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	before := folderHash(t, home, cfg)
+	h := window(t, home, cfg)
+	if strings.Contains(h.view(), "Sync between computers") {
+		t.Fatalf("the home folder must not be offered sync:\n%s", h.view())
+	}
+	if cmd := h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}); cmd != nil {
+		t.Error("s must do nothing on the home screen of the home folder")
+	}
+	h.send(core.SyncSetupMsg{})
+	text := noSpace(dialogText(h.view()))
+	if !strings.Contains(text, noSpace("is your home folder, the root of a disk or a system folder: sync a folder of its own for your notes")) {
+		t.Fatalf(":sync setup must refuse the home folder:\n%s", h.view())
+	}
+	h.key(tea.KeyEnter) // Close
+	if after := folderHash(t, home, cfg); after != before {
+		t.Error("setup on the home folder changed it or the config")
+	}
+}
+
+// A home folder that v0.7.0 already listed in sync.vaults keeps syncing:
+// only setting up a new one is refused.
+func TestAListedHomeFolderKeepsSyncing(t *testing.T) {
+	remote, vault := syncedVault(t)
+	t.Setenv("HOME", vault)
+	t.Setenv("USERPROFILE", vault) // Windows
+	writeOutside(t, vault, "new.md", "written before opening")
+	h := window(t, vault, syncConfig(t, vault))
+	if !initAsksForSync(h) {
+		t.Fatal("opening a listed home folder must still start a sync")
+	}
+	h.finish(h.update(app.SyncNowMsg{}))
+	if !onRemote(t, remote, "new.md") {
+		t.Fatal("the sync on opening must still push the new note")
 	}
 }

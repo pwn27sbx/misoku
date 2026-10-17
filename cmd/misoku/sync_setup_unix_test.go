@@ -328,7 +328,7 @@ func TestSyncSetupCreatesAPrivateRepositoryAndPushesTheNotes(t *testing.T) {
 	if err != nil || !strings.Contains(string(data), "vaults") {
 		t.Errorf("the vault must be listed in the config: %v\n%s", err, data)
 	}
-	wantOutput(t, out, "every 5m", "when you quit", "misoku sync setup", "ana/notes")
+	wantOutput(t, out, "every 5m", "when you quit", "ana/notes")
 }
 
 func TestSyncSetupBringsTheNotesOfAnExistingRepository(t *testing.T) {
@@ -697,5 +697,43 @@ func TestSyncSetupLetsTheUserEditTheIdentityFromGitHub(t *testing.T) {
 	}
 	if got := git(t, dir, "config", "--global", "user.email"); got != "583231+ana@users.noreply.github.com" {
 		t.Errorf("user.email = %q, want GitHub's private address", got)
+	}
+}
+
+// Enter at every question takes the answer offered, saving the identity
+// in git's global settings included: on a computer with no git identity
+// and no GitHub sign-in, only the repository's number is typed, and
+// setup completes.
+func TestSyncSetupEnterAtEveryQuestionCompletes(t *testing.T) {
+	f := newFakeGH(t, false)
+	f.writeGlobal(t, false)
+	writeFile(t, f.dir, "login", "ok")
+	writeFile(t, f.dir, "user.json", anaUser)
+	dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
+	// Start, sign in, name, email, save them: Enter; 1) a new
+	// repository; its name as offered: Enter.
+	code, out := setup(t, dir, cfg, "\n\n\n\n\n1\n\n")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0:\n%s", code, out)
+	}
+	wantOutput(t, out, "for every repository on this computer? [Y/n]", "Done: Misoku syncs this vault")
+	if got := git(t, dir, "config", "--global", "user.name"); got != "Ana Ruiz" {
+		t.Errorf("user.name = %q, want Ana Ruiz", got)
+	}
+}
+
+// The other computer is told to bring the notes from the welcome, never
+// to run `misoku sync setup` in a new Terminal, whose folder is the home
+// folder.
+func TestSyncSetupTellsTheOtherComputerToBringTheNotes(t *testing.T) {
+	newFakeGH(t, true)
+	dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
+	code, out := setup(t, dir, cfg, "\n1\nnotes\n")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0:\n%s", code, out)
+	}
+	wantOutput(t, out, `On your other computer: install Misoku, run misoku and choose "Bring my notes from another computer", then pick ana/notes.`)
+	if strings.Contains(out, "run `misoku sync setup`") {
+		t.Errorf("the other computer must not be told to run misoku sync setup:\n%s", out)
 	}
 }

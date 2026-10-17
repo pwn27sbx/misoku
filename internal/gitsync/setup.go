@@ -288,8 +288,10 @@ func withGHHelper(env []string) []string {
 }
 
 // Begin reads the config and the folder, without changing anything. A
-// vault already set up, or a folder setup must not touch, ends here;
-// otherwise it explains what will happen (AskStart).
+// vault already set up, or a folder setup must not touch (one inside
+// another repository; or, unless listed, the home folder, the root of a
+// disk or a system folder), ends here; otherwise it explains what will
+// happen (AskStart).
 func (s *Setup) Begin(ctx context.Context) SetupStep {
 	cfg, err := config.Load(s.opts.ConfigPath)
 	if err != nil {
@@ -300,6 +302,13 @@ func (s *Setup) Begin(ctx context.Context) SetupStep {
 	if !s.listed {
 		if vs, _ := (config.Sync{Vaults: map[string]config.SyncVault{s.opts.Dir: {}}}).Parse(); len(vs) == 1 {
 			s.vault = vs[0]
+		}
+	}
+	// A vault already listed is left as it was: v0.7.0 let a home folder
+	// be set up, and its sync goes on. Only a new one is refused.
+	if !s.listed {
+		if err := RefuseSyncFolder(s.opts.Dir, ""); err != nil {
+			return failed(err.Error())
 		}
 	}
 	if done, step := s.inspect(ctx); done {
@@ -1001,7 +1010,7 @@ func (s *Setup) connect(ctx context.Context, repo Repo, created bool) SetupStep 
 	}
 	lines = append(lines,
 		fmt.Sprintf("Done: Misoku syncs this vault with %s %s, when it opens it and when you quit.", repo.Name, when),
-		fmt.Sprintf("On your other computer: run `misoku sync setup` (or `:sync setup` in Misoku) and pick %s.", repo.Name),
+		fmt.Sprintf("On your other computer: install Misoku, run misoku and choose \"Bring my notes from another computer\", then pick %s.", repo.Name),
 	)
 	return SetupStep{Outcome: SetupDone, Title: "Sync is set up", Lines: lines, Repo: repo.Name}
 }

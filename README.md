@@ -15,21 +15,87 @@ Your notes stay plain Markdown files.
 
 </div>
 
+## First run
+
+All you need is a Terminal: the window where you type commands. To open it:
+
+- **macOS:** press Cmd+Space, type `Terminal` and press Enter.
+- **Windows:** open the Start menu, type `PowerShell` and press Enter.
+- **Linux:** press Ctrl+Alt+T, or open Terminal from your apps.
+
+1. **Install.** Copy the line for your computer, paste it into the Terminal
+   and press Enter.
+
+   macOS and Linux:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.sh | sh
+   ```
+
+   Linux: If it says `curl: command not found`, run `sudo apt install curl` first.
+
+   Windows:
+
+   ```powershell
+   irm https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.ps1 | iex
+   ```
+
+   On a Mac it may ask for your Mac's password. Type it and press Enter (the
+   letters do not show while you type). On Linux it may ask
+   `Install git? (needs your password) [Y/n]`: press Enter for yes. If it
+   ends with `Close this window and open a new Terminal, then run 'misoku'.`,
+   do that.
+
+2. **Open Misoku.** Type `misoku` and press Enter.
+
+3. **Choose where your notes live.** The first time, Misoku asks you with a
+   short numbered list in the Terminal:
+
+   ```text
+   Welcome to Misoku.
+   Where do your notes live?
+     1) Start my notes
+     2) Bring my notes from another computer
+   Number (Enter cancels):
+   ```
+
+   Type a number and press Enter.
+
+   - **Start my notes:** Misoku offers the folder `~/Notes` (a folder called
+     Notes in your home folder). Press Enter to accept it, or type another.
+     Misoku creates the folder and opens it.
+   - **Bring my notes from another computer:** for notes your other
+     computer already syncs with Misoku. Misoku offers a folder for them
+     (`~/Notes`, or `~/Notes-2` when that one already has files) and
+     explains what will happen. Misoku asks a few questions; press Enter to
+     accept each answer it offers. Then you sign in to GitHub: a one-time code
+     appears and your browser opens; sign in there and enter the code. Pick
+     your notes from the list of your repositories, and they appear. No
+     notes elsewhere after all? Choose
+     **I don't have notes on another computer → Start my notes**.
+   - **Use this folder:** shown as a third choice only when the Terminal is
+     already in a folder with notes (`.md` files). Misoku keeps your notes
+     there.
+
+4. **Every time after that,** type `misoku` and press Enter. It opens your
+   notes, whatever folder the Terminal is in. Press `?` inside Misoku to see
+   every shortcut.
+
+5. **Sync between computers.** While your notes do not sync yet, the home
+   screen shows **Sync between computers**. Press `s`, sign in to GitHub the
+   same way, and confirm. If git does not know your name and email yet (they
+   go in your notes' history), Misoku takes them from your GitHub account;
+   you only confirm them. From then on your
+   notes sync on their own. On your other computer, install Misoku and
+   choose **Bring my notes from another computer**.
+
+You need a GitHub account to sync. Misoku works without one, and without
+git: both are needed only to sync.
+
 ## Installation & Update
 
-**macOS and Linux**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.sh | sh
-```
-
-**Windows** (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/pwn27sbx/misoku/main/install.ps1 | iex
-```
-
-Run the same command again to update.
+The command in [First run](#first-run) installs Misoku. Run the same command
+again to update.
 
 On every system this one command installs two programs side by side:
 **misoku**, and **gh**, GitHub's command-line tool, which Misoku signs in to
@@ -80,19 +146,23 @@ Apple Silicon), Windows 10/11 and any Linux distribution on x86-64 or arm64
 (e.g. a Raspberry Pi with a 64-bit system). On other CPUs, install with Go.
 A [Nerd Font](https://www.nerdfonts.com/) is recommended for icons.
 
-## Quick start
+## Advanced
 
-```sh
-cd ~/notes        # any folder; your .md files show up in the explorer
-misoku
-```
+Misoku opens the first of these that is set:
 
-The first time you run `misoku` outside a folder of notes, a welcome asks
-where your notes live: start new ones (in `~/Notes`), bring them from
-another computer, or use the current folder. Misoku remembers your choice
-and opens it every time after.
+1. the folder you give: `misoku ~/notes`, or `misoku --dir ~/notes`;
+2. the folder in the `MISOKU_WORKSPACE` environment variable;
+3. the folder you chose at the welcome: `notes_dir` in your
+   [config](#shortcuts), such as `"notes_dir": "~/Notes"`;
+4. the folder the Terminal is in.
 
-Press `?` inside the app to see every shortcut.
+The welcome shows only when none of the first three is set, and the
+Terminal's folder holds no notes (no `.md` file at its first level, and not
+listed in [`sync.vaults`](#configuration)) or is your home folder, the root
+of a disk or a system folder. It never shows without a terminal to answer it
+(in a script, for example). If the folder in `notes_dir` is gone (an
+unplugged disk, say), the welcome says `I can't find your notes at …` instead
+of creating it empty.
 
 ```sh
 misoku ~/notes                # open a specific folder (same as --dir ~/notes)
@@ -104,6 +174,10 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 misoku sync setup             # sync this folder through a private GitHub repository (see Sync)
 misoku sync init <url>        # sync this folder through any git repository, SSH included
 ```
+
+`misoku sync setup` and `misoku sync init` set up the folder they are
+pointed at: `--dir`, else `$MISOKU_WORKSPACE`, else the current folder. They
+never use `notes_dir`.
 
 ## Features
 
@@ -346,13 +420,13 @@ misoku sync setup --dir ~/notes
 
 `--dir` defaults to `$MISOKU_WORKSPACE`, then to the current folder. The assistant:
 
-1. Says what will happen and waits for **Start**. A vault inside another git repository is first offered a repository of its own ([a vault inside another repository](#set-up-a-vault-with-any-git-url)).
+1. Says what will happen and waits for **Start**. It refuses your home folder, the root of a disk and system folders, changing nothing (syncing your home folder would push `~/.ssh` too): sync a folder of its own, such as `~/Notes`. `misoku sync init` refuses them too. A folder already listed in `sync.vaults` keeps syncing as before. A vault inside another git repository is first offered a repository of its own ([a vault inside another repository](#set-up-a-vault-with-any-git-url)).
 2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed: on your `PATH`, or next to `misoku`, where the installer puts it. On a Mac where Apple's installer for git is still running, it asks you to press Enter once it finishes. If gh is not installed, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
 3. If gh is not signed in, runs `gh auth login --web --git-protocol https --hostname github.com`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs). gh asks nothing else: the flags answer its questions, and it does not ask about git's credentials, which step 6 sets up. On a computer with no browser to open (Linux without a desktop, or WSL without `wslview`), the dialog says so: open https://github.com/login/device on any device, sign in and enter the code gh shows.
 4. If git does not know your name and email, asks for them, already filled in from your GitHub account: your profile name (or your login, when the profile has none) and GitHub's private address, `<id>+<login>@users.noreply.github.com`, which keeps your own email out of your notes' history. Change them if you like; they are saved with `git config --global` only once you confirm. If gh cannot tell, you type them.
 5. Lets you **create a new private repository** (it offers the vault folder's name) or **pick one of yours** from a list. Public (and organization-internal) repositories are marked and refused: your notes are stored unencrypted. To use one, make it private on GitHub first.
 6. Runs `gh auth setup-git`, so git uses gh's access and every later sync, in the background, signs in without asking. Then it connects the vault over HTTPS exactly as `misoku sync init` does (all three cases below), and lists it in `sync.vaults`.
-7. Says what it did, that the vault now syncs every 5 minutes and when you quit, and what to do on your other computer: run `:sync setup` (or `misoku sync setup`) there and pick the same repository.
+7. Says what it did, that the vault now syncs every 5 minutes and when you quit, and what to do on your other computer: install Misoku, run `misoku`, choose **Bring my notes from another computer** and pick the same repository.
 
 **Misoku never stores or sees your GitHub access**: gh keeps it in your system's keychain, and Misoku never prints a token or passes one on a command line. To sign out, run `gh auth logout`. Cancelling (Esc, **Cancel**, or the end of the input in a terminal) changes nothing more: before you confirm your name and email, or before git gets gh's access (step 6), nothing has changed at all; after either, the message says exactly what was done (for example `Your git name and email were saved; GitHub access for git was set up with gh. Nothing else changed.`). Inside Misoku, quitting waits while a step runs, so a setup is never left half done. Running the assistant on a vault that already syncs says so and changes nothing.
 
@@ -524,15 +598,74 @@ Example `~/.config/misoku/themes/minimal.json`:
 
 ## Uninstall
 
-Your notes are never touched. Remove the binary the way you installed it:
+**Your notes are never deleted**: the notes folder (`~/Notes`, say) and any
+repository on GitHub stay as they are. Uninstalling removes only Misoku, the
+gh the installer put next to it, the `PATH` line the installer added, and
+Misoku's settings.
 
-```sh
-rm -f /usr/local/bin/misoku ~/.local/bin/misoku   # macOS / Linux
-```
+1. **Optional: sign gh out of GitHub** first, while gh is still there:
 
-On Windows, delete `%LOCALAPPDATA%\Programs\misoku` and remove it from your
-`PATH`. Settings are in `~/.config/misoku` (macOS: `~/Library/Application Support/misoku`,
-Windows: `%APPDATA%\misoku`).
+   ```sh
+   gh auth logout
+   ```
+
+   (if it says you are not logged in, skip this step)
+
+2. **Remove misoku, and gh only if the installer put it there** (it leaves
+   a `.misoku-gh-version` file next to the gh it installs; a gh without it
+   is yours, from Homebrew, apt or winget, and stays). If misoku was already
+   somewhere else on your `PATH` when you installed, the installer updated
+   it there (`command -v misoku` shows where): use that folder instead.
+
+   macOS (`/usr/local/bin`; it asks for your Mac's password):
+
+   ```sh
+   [ -f /usr/local/bin/.misoku-gh-version ] && sudo rm -f /usr/local/bin/gh /usr/local/bin/.misoku-gh-version
+   sudo rm -f /usr/local/bin/misoku
+   ```
+
+   Linux, or a Mac where the installer could not use your password
+   (`~/.local/bin`):
+
+   ```sh
+   [ -f ~/.local/bin/.misoku-gh-version ] && rm -f ~/.local/bin/gh ~/.local/bin/.misoku-gh-version
+   rm -f ~/.local/bin/misoku
+   ```
+
+   Windows (PowerShell), which also takes the folder off your user `PATH`:
+
+   ```powershell
+   $dir = Join-Path $env:LOCALAPPDATA 'Programs\misoku'
+   if (Test-Path "$dir\.misoku-gh-version") { Remove-Item "$dir\gh.exe", "$dir\.misoku-gh-version" -Force }
+   Remove-Item "$dir\misoku.exe" -Force
+   $p = [Environment]::GetEnvironmentVariable('Path', 'User')
+   [Environment]::SetEnvironmentVariable('Path', ((($p -split ';') | Where-Object { $_ -and $_ -ne $dir }) -join ';'), 'User')
+   ```
+
+3. **macOS and Linux: remove the `PATH` line**, if the installer added one.
+   It does so only when its folder was not on your `PATH`, and says
+   `Added … to your PATH in …` with the file. The file depends on your shell:
+   `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux), `~/.bash_profile` (bash on
+   macOS), `~/.config/fish/config.fish` (fish), or `~/.profile` (any other).
+   Delete the line that ends in `# added by the Misoku installer`:
+
+   ```sh
+   export PATH="$HOME/.local/bin:$PATH" # added by the Misoku installer
+   ```
+
+   In fish it reads `set -gx PATH "$HOME/.local/bin" $PATH # added by the Misoku installer`.
+
+4. **Remove Misoku's settings**, which include `notes_dir`, the notes folder
+   Misoku remembers, as well as `sync.vaults`, your shortcuts and your
+   themes. Delete the `misoku` settings folder:
+   - **Linux:** `~/.config/misoku`
+   - **macOS:** `~/Library/Application Support/misoku`; in the Terminal,
+     `rm -rf ~/Library/Application\ Support/misoku`
+   - **Windows:** `%APPDATA%\misoku`
+
+   To keep the other settings for a later install, delete only the
+   `"notes_dir"` entry of `config.json` in that folder (and the comma that
+   joins it to the entry before or after it).
 
 ## Contributing
 

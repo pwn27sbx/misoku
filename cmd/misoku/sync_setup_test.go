@@ -191,3 +191,39 @@ func TestSyncSetupDeclinedForAMissingFolderCreatesNothing(t *testing.T) {
 		t.Errorf("the folder was created: %v", err)
 	}
 }
+
+// unsafeText is what setup and init say about the home folder, the root
+// of a disk or a system folder.
+const unsafeText = "is your home folder, the root of a disk or a system folder: sync a folder of its own for your notes, such as ~/Notes (misoku sync setup --dir ~/Notes)."
+
+// `misoku sync setup` and `misoku sync init` refuse the home folder (it
+// would push ~/.ssh too), the root of a disk and a system folder, and
+// change nothing.
+func TestSyncSetupAndInitRefuseTheHomeFolderTheRootAndASystemFolder(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, home, ".ssh/id_x", "secret")
+	writeFile(t, home, "todo.md", "a note in the home folder\n")
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
+	system, _ := systemExample(t)
+	ctx := context.Background()
+	for _, dir := range []string{home, rootOf(home), system} {
+		cfg := filepath.Join(t.TempDir(), "config.json")
+		var out bytes.Buffer
+		if code := syncSetup(ctx, []string{"--dir", dir}, strings.NewReader(""), &out, &out, cfg); code != 1 {
+			t.Errorf("sync setup %s: exit %d, want 1", dir, code)
+		}
+		wantOutput(t, out.String(), dir+" "+unsafeText)
+		var stdout, stderr bytes.Buffer
+		if code := syncInit(ctx, []string{filepath.Join(t.TempDir(), "none.git"), "--dir", dir}, &stdout, &stderr, cfg); code != 1 {
+			t.Errorf("sync init %s: exit %d, want 1:\n%s%s", dir, code, stdout.String(), stderr.String())
+		}
+		wantOutput(t, stderr.String(), dir+" "+unsafeText)
+		if _, err := os.Stat(cfg); !os.IsNotExist(err) {
+			t.Errorf("%s: the config was written: %v", dir, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".git")); !os.IsNotExist(err) {
+		t.Errorf("the home folder became a repository: %v", err)
+	}
+}

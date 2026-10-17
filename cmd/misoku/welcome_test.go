@@ -124,54 +124,6 @@ func TestUseThisFolderOnlyForASafeFolderWithNotes(t *testing.T) {
 	}
 }
 
-// The home folder, the root of a disk and system folders are no place
-// for notes; a folder of their own is.
-func TestUnsafeFolders(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	system, _ := systemExample(t)
-	for dir, want := range map[string]bool{
-		home:                            true,
-		rootOf(home):                    true,
-		system:                          true,
-		filepath.Join(home, "Notes"):    false,
-		filepath.Join(t.TempDir(), "x"): false,
-	} {
-		if got := unsafeFolder(dir, home); got != want {
-			t.Errorf("unsafeFolder(%s) = %v, want %v", dir, got, want)
-		}
-	}
-}
-
-// What counts as a system folder, on this OS; a removable disk and the
-// folders under the home folder do not.
-func TestSystemFolders(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	var system, not []string
-	if runtime.GOOS == "windows" {
-		root, inside := systemExample(t)
-		system = []string{root, inside}
-		if pf := os.Getenv("ProgramFiles"); pf != "" {
-			system = append(system, filepath.Join(pf, "App"))
-		}
-		not = []string{filepath.Join(home, "Notes"), `D:\Notes`}
-	} else {
-		system = []string{"/etc", "/usr", "/usr/local/bin", "/var", "/tmp", "/Volumes", "/home", "/Users", "/bin", "/System/Library"}
-		not = []string{filepath.Join(home, "Notes"), "/Volumes/USB/Notes", "/run/media/ana/USB/Notes", "/mnt/disk/Notes", "/home/ana/Notes"}
-	}
-	for _, d := range system {
-		if !systemFolder(d, home) {
-			t.Errorf("%s: want a system folder", d)
-		}
-	}
-	for _, d := range not {
-		if systemFolder(d, home) {
-			t.Errorf("%s: not a system folder", d)
-		}
-	}
-}
-
 // Bring my notes proposes ~/Notes, or the next free ~/Notes-N when that
 // folder already has something in it, so two sets of notes never mix.
 func TestFreeNotesFolder(t *testing.T) {

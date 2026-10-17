@@ -143,8 +143,9 @@ func TestSyncSetupGitHubIdentityFallbacks(t *testing.T) {
 			}
 			dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
 			before := fileHash(t, f.global)
-			// Start, then Enter at the name: cancels when empty.
-			code, out := setup(t, dir, cfg, "\n\n\n\n")
+			// Start, Enter at the name and the email, then no to saving
+			// them (Enter would save them).
+			code, out := setup(t, dir, cfg, "\n\n\nn\n")
 			if code != 1 {
 				t.Errorf("exit %d, want 1:\n%s", code, out)
 			}

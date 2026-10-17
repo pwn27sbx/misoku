@@ -287,8 +287,12 @@ func (m Model) lines() []dashLine {
 	}
 
 	add("", -1)
+	noun := "notes"
+	if m.totalNotes == 1 {
+		noun = "note"
+	}
 	footer := lipgloss.NewStyle().Foreground(th.Green).Render("") +
-		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(fmt.Sprintf("  %d notes  ·  %s", m.totalNotes, ui.Truncate(m.workspace, 34)))
+		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(fmt.Sprintf("  %d %s  ·  %s", m.totalNotes, noun, ui.Truncate(m.workspace, 34)))
 	add(center(footer), -1)
 	return out
 }

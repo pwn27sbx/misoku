@@ -193,7 +193,7 @@ func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 			return cancel
 		}
 		email, ok := t.withDefault("Your email", step.Email)
-		if !ok || !t.yes(step.Confirm, false) {
+		if !ok || !t.yes(step.Confirm, true) {
 			return cancel
 		}
 		return gitsync.SetupAnswer{OK: true, Name: name, Email: email}

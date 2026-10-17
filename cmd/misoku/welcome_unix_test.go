@@ -98,3 +98,26 @@ func TestBringMyNotesThatFailsRemovesWhatItCreated(t *testing.T) {
 		t.Errorf("next proposal %q, want ~/Notes", got)
 	}
 }
+
+// Bring my notes on a computer with no git identity and no GitHub
+// sign-in: Enter at every question, the repository's number aside,
+// brings the notes.
+func TestBringMyNotesWithEnterAtEveryQuestionBringsThem(t *testing.T) {
+	f := newFakeGH(t, false)
+	f.writeGlobal(t, false)
+	writeFile(t, f.dir, "login", "ok")
+	writeFile(t, f.dir, "user.json", anaUser)
+	g := newGreeting(t)
+	seedRemote(t, f.remote(t, "notes"), map[string]string{"from-laptop.md": "written on the laptop\n"})
+	f.setRepos(t, `[{"nameWithOwner":"ana/notes","visibility":"PRIVATE","url":"https://github.com/ana/notes"}]`)
+	// 2) Bring; the folder, Start, sign in, name, email, save them:
+	// Enter; 1) ana/notes.
+	dir, code, out := g.run(t, "2\n\n\n\n\n\n\n1\n")
+	want := filepath.Join(g.home, "Notes")
+	if dir != want || code != 0 {
+		t.Fatalf("got %q exit %d, want %q:\n%s", dir, code, want, out)
+	}
+	if got := vaultFiles(t, want)["from-laptop.md"]; got != "written on the laptop\n" {
+		t.Errorf("from-laptop.md = %q, want the repository's note", got)
+	}
+}

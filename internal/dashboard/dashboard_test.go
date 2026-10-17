@@ -160,3 +160,13 @@ func TestDashboardSyncEntryKeepsTheCursorOnItsItem(t *testing.T) {
 		t.Errorf("removing the sync entry moved the cursor from the recent note to %v %q", a, id)
 	}
 }
+
+// The count under the menu says "1 note", not "1 notes".
+func TestDashboardCountsOneNoteInTheSingular(t *testing.T) {
+	db := dashboard.New(theme.DefaultTheme())
+	db.SetSize(100, 40)
+	db.SetRecentPages([]core.Page{{ID: "p1.md", Title: "Intro", UpdatedAt: time.Now()}})
+	if view := db.View(); !strings.Contains(view, "1 note  ·") || strings.Contains(view, "1 notes") {
+		t.Errorf("want \"1 note\" for one note, got %q", view)
+	}
+}
