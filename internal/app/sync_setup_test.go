@@ -389,36 +389,55 @@ func TestSyncSetupInsideTheAppEscStopsARunningStep(t *testing.T) {
 	}
 }
 
-// In insert mode Esc only leaves insert mode, even while a step runs: a
-// user typing in a note does not cancel the setup by mistake. The next
-// Esc, in normal mode, stops the step.
-func TestSyncSetupInsideTheAppEscInInsertModeKeepsTheStep(t *testing.T) {
-	hung := hangingGH(t)
-	vault := t.TempDir()
-	writeOutside(t, vault, "a.md", "hello")
-	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
-	h.keys("1") // open a.md
-	h.keys("i") // insert mode
-	h.send(core.SyncSetupMsg{})
-	if !strings.Contains(h.view(), "Sync this vault") {
-		t.Fatalf("the assistant must open with what will happen:\n%s", h.view())
+// Esc stops a running step only in normal mode with nothing open. In
+// insert, command or visual mode, over the keymap or in a rename in the
+// explorer, Esc does what it always does and the step keeps running; the
+// next Esc stops it. A command line typed (:wq) is closed, not left to run
+// on the next Enter.
+func TestSyncSetupInsideTheAppEscOutsideNormalModeKeepsTheStep(t *testing.T) {
+	for name, tc := range map[string]struct {
+		keys string
+		open string // what shows while the state is open
+	}{
+		"insert":  {"i", "INSERT"},
+		"command": {":wq", ":wq"},
+		"visual":  {"v", "VISUAL"},
+		"keymap":  {"?", "MISOKU KEYMAPS"},
+		"rename":  {"rzz", "azz"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			hung := hangingGH(t)
+			vault := t.TempDir()
+			writeOutside(t, vault, "a.md", "hello")
+			h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+			h.keys("1") // open a.md
+			h.send(core.SyncSetupMsg{})
+			if !strings.Contains(h.view(), "Sync this vault") {
+				t.Fatalf("the assistant must open with what will happen:\n%s", h.view())
+			}
+			done := startInBackground(t, h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Start: gh hangs
+			waitFor(t, hung)
+			if name == "rename" {
+				h.key(tea.KeyCtrlB) // hides the explorer
+				h.key(tea.KeyCtrlB) // shows and focuses it, on a.md
+			}
+			h.keys(tc.keys)
+			if !strings.Contains(h.view(), tc.open) {
+				t.Fatalf("%q must show %q:\n%s", tc.keys, tc.open, h.view())
+			}
+			h.key(tea.KeyEsc)
+			if v := h.view(); strings.Contains(statusBar(h), "Cancelling") || strings.Contains(v, tc.open) {
+				t.Fatalf("Esc must only close %s, not cancel the setup:\n%s", name, v)
+			}
+			select {
+			case <-done:
+				t.Fatalf("Esc in %s stopped the step", name)
+			case <-time.After(300 * time.Millisecond):
+			}
+			h.key(tea.KeyEsc)
+			wantBar(t, h, "Cancelling")
+			h.send(waitStep(t, done))
+			wantBar(t, h, "cancelled")
+		})
 	}
-	done := startInBackground(t, h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Start: gh hangs
-	waitFor(t, hung)
-	if !strings.Contains(statusBar(h), "INSERT") {
-		t.Fatalf("the editor must still be in insert mode:\n%s", statusBar(h))
-	}
-	h.key(tea.KeyEsc)
-	if bar := statusBar(h); strings.Contains(bar, "Cancelling") || strings.Contains(bar, "INSERT") {
-		t.Fatalf("Esc in insert mode must only leave insert mode:\n%s", bar)
-	}
-	select {
-	case <-done:
-		t.Fatal("Esc in insert mode stopped the step")
-	case <-time.After(300 * time.Millisecond):
-	}
-	h.key(tea.KeyEsc)
-	wantBar(t, h, "Cancelling")
-	h.send(waitStep(t, done))
-	wantBar(t, h, "cancelled")
 }

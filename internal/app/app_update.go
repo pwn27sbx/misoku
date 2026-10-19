@@ -88,11 +88,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	// Esc while a step of the sync setup runs stops it; in insert mode
-	// Esc still only leaves insert mode.
-	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyEsc && m.setupBusy && m.content.Mode() != content.ModeInsert {
-		return m, m.cancelSetupStep()
-	}
 	if m.showKeymap {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -108,6 +103,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	}
+	// Esc while a step of the sync setup runs stops it, but only in normal
+	// mode with nothing open: otherwise Esc does what it always does (leave
+	// insert, command or visual mode, a rename), and a second Esc cancels.
+	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyEsc && m.setupBusy &&
+		m.content.Mode() == content.ModeNormal && !m.sidebar.IsBusy() {
+		return m, m.cancelSetupStep()
 	}
 
 	switch msg := msg.(type) {
