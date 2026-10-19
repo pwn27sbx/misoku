@@ -15,6 +15,8 @@ Your notes stay plain Markdown files.
 
 </div>
 
+https://github.com/user-attachments/assets/e9c584a7-0d56-4a9c-b9d9-bc7cb9ebbcf8
+
 ## First run
 
 All you need is a Terminal: the window where you type commands. To open it:
