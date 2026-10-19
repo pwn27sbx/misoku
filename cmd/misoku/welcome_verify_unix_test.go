@@ -43,6 +43,7 @@ func TestBringMyNotesIntoANewFolderOfAHomeThatIsARepository(t *testing.T) {
 func TestBringMyNotesThatFailsAfterCreatingTheFolderSaysSo(t *testing.T) {
 	f := newFakeGH(t, true)
 	g := newGreeting(t)
+	cutHistory(t, f.remote(t, "gone")) // setup reads its tip; bringing it fails
 	f.setRepos(t, `[{"nameWithOwner":"ana/gone","visibility":"PRIVATE","url":"https://github.com/ana/gone"}]`)
 	dir, code, out := g.run(t, "2\n\n\n1\n")
 	if dir != "" || code != 1 {

@@ -372,7 +372,7 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 // origin cannot be asked, the commits it lacks are counted in res.Pending
 // and the error comes with the outcome to report.
 func (res *SyncResult) originBranch(ctx context.Context, r *Runner) (branch string, empty bool, o SyncOutcome, err error) {
-	branch, empty, err = defaultBranch(ctx, r)
+	branch, empty, err = defaultBranch(ctx, r, "origin")
 	if err == nil {
 		return branch, empty, Synced, nil
 	}
@@ -386,13 +386,14 @@ func (res *SyncResult) originBranch(ctx context.Context, r *Runner) (branch stri
 	return "", false, o, err
 }
 
-// defaultBranch asks origin for its default branch (S4). empty is true
-// when origin has no main and its HEAD names no commit; the branch is then
-// main. A HEAD that names a branch nobody pushed (a plain `git init --bare`
+// defaultBranch asks remote (origin, or a repository's address) for its
+// default branch (S4); gitArgs go before ls-remote (such as -c settings).
+// empty is true when it has no main and its HEAD names no commit; the
+// branch is then main. A HEAD that names a branch nobody pushed (a plain `git init --bare`
 // on master or trunk) is not trusted when origin already has main: that is
 // where Misoku pushed.
-func defaultBranch(ctx context.Context, r *Runner) (branch string, empty bool, err error) {
-	out, err := r.Run(ctx, "ls-remote", "--symref", "origin", "HEAD", "refs/heads/main")
+func defaultBranch(ctx context.Context, r *Runner, remote string, gitArgs ...string) (branch string, empty bool, err error) {
+	out, err := r.Run(ctx, append(gitArgs, "ls-remote", "--symref", remote, "HEAD", "refs/heads/main")...)
 	if err != nil {
 		return "", false, err
 	}

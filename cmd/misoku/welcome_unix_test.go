@@ -84,6 +84,7 @@ func TestBringMyNotesThatFailsSavesNothingAndExitsOne(t *testing.T) {
 func TestBringMyNotesThatFailsRemovesWhatItCreated(t *testing.T) {
 	f := newFakeGH(t, true)
 	g := newGreeting(t)
+	cutHistory(t, f.remote(t, "gone")) // setup reads its tip; bringing it fails
 	f.setRepos(t, `[{"nameWithOwner":"ana/gone","visibility":"PRIVATE","url":"https://github.com/ana/gone"}]`)
 	_, code, out := g.run(t, "2\n\n\n1\n")
 	if code != 1 {

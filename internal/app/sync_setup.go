@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -132,6 +131,13 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 		})
 	case gitsync.AskRepo:
 		m.askRepo(s, step)
+	case gitsync.AskUnrelated:
+		m.setupDialog(s, step.Title, append(lines, "", step.Confirm), []string{"Mix them", "Cancel"}, func(m *Model) tea.Cmd {
+			return m.setupNext(s, gitsync.SetupAnswer{OK: true})
+		})
+		// Cancel is the default, and no letter picks: mixing two sets of
+		// notes takes a deliberate choice.
+		m.confirm.selected, m.confirm.deliberate = 1, true
 	case gitsync.AskRepoName:
 		hint := "Misoku creates it private on GitHub"
 		if step.Problem != "" {
@@ -196,43 +202,36 @@ func (m *Model) askIdentity(s *gitsync.Setup, step gitsync.SetupStep) tea.Cmd {
 	})
 }
 
-// askRepo lists the repositories to pick from: as many as fit, then
-// "create" and, when some did not fit, a way to type one's name.
+// askRepo lists every repository to pick from, with the new private
+// repository pinned first (step.NewFirst) where a long list cannot hide
+// it. Typing filters the list ("/" first to filter by digits); in a long
+// one a number is picked with Enter. Why the last pick was not taken shows
+// above the list.
 func (m *Model) askRepo(s *gitsync.Setup, step gitsync.SetupStep) {
-	room := max(m.height-10, 3)
-	shown := step.Repos
-	if len(shown) > room {
-		shown = shown[:room]
-	}
-	var items []string
-	for _, r := range shown {
+	items := make([]string, 0, len(step.Repos)+1)
+	for _, r := range step.Repos {
 		label := r.Name + " · private"
 		if !r.Private() {
 			label = r.Name + " · " + strings.ToLower(r.Visibility) + ", not allowed"
 		}
 		items = append(items, label)
 	}
-	create := len(items)
-	items = append(items, step.NewChoice)
-	typed := -1
-	if len(shown) < len(step.Repos) {
-		typed = len(items)
-		items = append(items, fmt.Sprintf("Another one of your %d repositories (type its name)…", len(step.Repos)))
+	pinned, create := 0, len(items)
+	if step.NewFirst {
+		pinned, create = 1, 0
+		items = append([]string{step.NewChoice}, items...)
+	} else {
+		items = append(items, step.NewChoice)
 	}
-	m.menu(step.Title, items, func(m *Model, i int) tea.Cmd {
-		switch i {
-		case create:
-			return m.setupNext(s, gitsync.SetupAnswer{OK: true, Choice: len(step.Repos)})
-		case typed:
-			return m.prompt("Repository name", "", "Such as notes or you/notes", func(m *Model, name string) tea.Cmd {
-				if name == "" {
-					return m.setupCancelled(s)
-				}
-				return m.setupNext(s, gitsync.SetupAnswer{OK: true, Text: name})
-			})
+	m.searchMenu(step.Title, items, pinned, func(m *Model, i int) tea.Cmd {
+		choice := i - pinned // an index in step.Repos
+		if i == create {
+			choice = len(step.Repos)
 		}
-		return m.setupNext(s, gitsync.SetupAnswer{OK: true, Choice: i})
+		return m.setupNext(s, gitsync.SetupAnswer{OK: true, Choice: choice})
 	})
+	// Why the last pick was not taken, whole: the bar cuts it off.
+	m.menuBox.notice = step.Problem
 }
 
 // finishSetup shows how the assistant ended. A vault it set up syncs in

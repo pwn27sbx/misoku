@@ -7,13 +7,10 @@
 A block-based notebook for your terminal.
 Your notes stay plain Markdown files.
 
-<p>
-  <a href="https://github.com/pwn27sbx/misoku/actions/workflows/ci.yml"><img src="https://github.com/pwn27sbx/misoku/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/pwn27sbx/misoku/releases/latest"><img src="https://img.shields.io/github/v/release/pwn27sbx/misoku" alt="Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-</p>
 
 </div>
+
+https://github.com/user-attachments/assets/e9c584a7-0d56-4a9c-b9d9-bc7cb9ebbcf8
 
 ## First run
 
@@ -435,7 +432,7 @@ misoku sync setup --dir ~/notes
 2. Checks git (2.38 or newer) and that **gh**, GitHub's command-line tool, is installed: on your `PATH`, or next to `misoku`, where the installer puts it. On a Mac where Apple's installer for git is still running, it asks you to press Enter once it finishes. If gh is not installed, it says how to install it (`brew install gh` on macOS, `winget install --id GitHub.cli` on Windows, your package manager on Linux, see [cli.github.com](https://cli.github.com)) and stops, changing nothing.
 3. If gh is not signed in, runs `gh auth login --web --git-protocol https --hostname github.com`: gh shows a one-time code and opens your browser, where you sign in and enter it (inside Misoku, the screen steps aside while it runs). gh asks nothing else: the flags answer its questions, and it does not ask about git's credentials, which step 6 sets up. On a computer with no browser to open (Linux without a desktop, or WSL without `wslview`), the dialog says so: open https://github.com/login/device on any device, sign in and enter the code gh shows.
 4. If git does not know your name and email, asks for them, already filled in from your GitHub account: your profile name (or your login, when the profile has none) and GitHub's private address, `<id>+<login>@users.noreply.github.com`, which keeps your own email out of your notes' history. Change them if you like; they are saved with `git config --global` only once you confirm. If gh cannot tell, you type them.
-5. Lets you **create a new private repository** (it offers the vault folder's name) or **pick one of yours** from a list. Public (and organization-internal) repositories are marked and refused: your notes are stored unencrypted. To use one, make it private on GitHub first.
+5. Lets you **create a new private repository** (it offers the vault folder's name; it is always the first entry) or **pick one of yours** from a list. Inside Misoku, type to filter the list (type `/` first to filter by digits); in a list of ten or more, a number shows as `Number: 5_` and is picked with Enter, and a number the list does not have shows as `No item 56` and picks nothing. In a terminal, type part of a name to list the matches. Public (and organization-internal) repositories are marked and refused: your notes are stored unencrypted. To use one, make it private on GitHub first. Before using a repository you already have, and before step 6, setup reads its default branch: one that looks like a code project or a site is refused, changing nothing, so your notes never land in a website's or an app's repository. The signs are `package.json`, `go.mod` or `Cargo.toml` anywhere; `pyproject.toml`, `vercel.json`, `Dockerfile`, `_config.yml`, `config.toml`, `hugo.toml`/`.yaml`/`.json`, `mkdocs.yml`, `netlify.toml`, `CNAME`, `Gemfile`, `.gitmodules`, `src/`, `app/`, `.github/workflows/` at the top; `node_modules` anywhere; and `themes/`, `layouts/`, `_layouts/`, `_posts/` next to a site's config file. A repository holding notes that do not share the vault's history, or one where more than a fifth of the files are neither notes nor attachments (images, videos, audio, PDFs), is used only once you confirm, after it lists what it holds (the default answer is no). An empty repository, or the notes for a new computer's empty folder, is used as before. If setup cannot read the repository, it stops and says why, changing nothing.
 6. Runs `gh auth setup-git`, so git uses gh's access and every later sync, in the background, signs in without asking. Then it connects the vault over HTTPS exactly as `misoku sync init` does (all three cases below), and lists it in `sync.vaults`.
 7. Says what it did, that the vault now syncs every 5 minutes and when you quit, and what to do on your other computer: install Misoku, run `misoku`, choose **Bring my notes from another computer** and pick the same repository.
 
@@ -561,6 +558,7 @@ Everything else syncs, including the PDFs `:export` and `misoku export` write in
 | `git does not know who you are` | Set `user.name` and `user.email` as the message shows, or run `:sync setup`, which asks for them. |
 | `gh, GitHub's command-line tool, is not installed` | Install gh as the message says, then run `:sync setup` (or `misoku sync setup`) again. |
 | `… is public: anyone could read your notes` | The assistant only uses private repositories. Pick a private one, create a new one, or make that one private on GitHub first. |
+| `… looks like a code project (…)` | The repository holds another project, not notes: setup will not mix your notes into it. Pick another repository, or create a new private one. |
 | `A repository named … already exists` | Choose another name, or run setup again and pick that repository from the list. |
 
 ## Columns
