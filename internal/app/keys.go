@@ -27,7 +27,7 @@ var generalActions = []string{
 	keymap.Quit, keymap.Save, keymap.NewNote, keymap.FindNote,
 	keymap.ToggleExplorer, keymap.FocusExplorer,
 	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
-	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview,
+	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview, keymap.ReadingMode,
 	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.Home, keymap.SyncNow, keymap.Help,
 }
 
@@ -68,6 +68,8 @@ func (m *Model) runAction(action string) tea.Cmd {
 		return m.closeBuffer(m.active, false)
 	case keymap.TogglePreview:
 		return m.togglePreview()
+	case keymap.ReadingMode:
+		return m.toggleReading()
 	case keymap.ExportPDF:
 		return m.exportPDF("")
 	case keymap.Themes:

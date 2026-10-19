@@ -28,6 +28,7 @@ const (
 	PrevTab        = "prev_tab"
 	CloseTab       = "close_tab"
 	TogglePreview  = "toggle_preview"
+	ReadingMode    = "reading_mode"
 	ExportPDF      = "export_pdf"
 	Themes         = "themes"
 	Graph          = "graph"
@@ -81,6 +82,7 @@ var Actions = []Info{
 	{PrevTab, "general", "Previous tab", []string{"[", "space shift+tab"}},
 	{CloseTab, "general", "Close tab", []string{"space x"}},
 	{TogglePreview, "general", "Toggle preview", []string{"space p"}},
+	{ReadingMode, "general", "Reading mode: preview only", []string{"space r"}},
 	{ExportPDF, "general", "Export note as PDF", []string{"space P"}},
 	{Themes, "general", "Themes", []string{"space t"}},
 	{Graph, "general", "Graph of this note's links", []string{"space g"}},

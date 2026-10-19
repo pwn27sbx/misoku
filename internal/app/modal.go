@@ -20,7 +20,7 @@ type keymapSection struct {
 var helpGeneral = []string{
 	keymap.NewNote, keymap.Save, keymap.FindNote, keymap.ToggleExplorer,
 	keymap.FocusExplorer, keymap.NextPane, keymap.NextTab, keymap.PrevTab,
-	keymap.CloseTab, keymap.TogglePreview, keymap.ExportPDF, keymap.Themes, keymap.Graph,
+	keymap.CloseTab, keymap.TogglePreview, keymap.ReadingMode, keymap.ExportPDF, keymap.Themes, keymap.Graph,
 	keymap.Home, keymap.SyncNow, keymap.Quit,
 }
 

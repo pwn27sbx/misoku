@@ -40,13 +40,18 @@ func (m Model) View() string {
 		if l.SidebarW > 0 {
 			cols = append(cols, m.sidebar.View(), div(dividerSidebar))
 		}
-		if m.graphActive() {
-			cols = append(cols, m.graph.View())
-		} else {
-			cols = append(cols, m.content.View())
+		if l.EditorW > 0 {
+			if m.graphActive() {
+				cols = append(cols, m.graph.View())
+			} else {
+				cols = append(cols, m.content.View())
+			}
+			if l.PreviewW > 0 {
+				cols = append(cols, div(dividerPreview))
+			}
 		}
 		if l.PreviewW > 0 {
-			cols = append(cols, div(dividerPreview), m.preview.View())
+			cols = append(cols, m.preview.View())
 		}
 		tabs, _ := m.tabline()
 		screen = lipgloss.JoinVertical(lipgloss.Left,

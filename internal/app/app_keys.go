@@ -58,6 +58,13 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	}
 	m.leaderPending = false
 
+	// ":" commands are typed in the editor: reading mode makes way for it.
+	if m.reading && m.focus == focusPreview && s == ":" {
+		m.leaveReading()
+		focus := m.focusPane(focusEditor)
+		return tea.Batch(focus, m.handleKey(k))
+	}
+
 	var cmd tea.Cmd
 	switch m.focus {
 	case focusSidebar:

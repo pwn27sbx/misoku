@@ -91,6 +91,7 @@ func (m *Model) addBlockAfter(after int) tea.Cmd {
 		add = []string{""}
 	}
 	m.setDocLines(insertAt(lines, after, add...))
+	m.leaveReading()
 	cmds := []tea.Cmd{m.focusPane(focusEditor)}
 	m.content.GotoLine(after + len(add))
 	cmds = append(cmds, m.content.EnterInsert())

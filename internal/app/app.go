@@ -50,6 +50,7 @@ type Model struct {
 
 	sidebarOpen   bool
 	previewOpen   bool
+	reading       bool // reading mode: only the preview, see toggleReading
 	showKeymap    bool
 	leaderPending bool
 
@@ -211,7 +212,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m *Model) layout() Layout {
-	return CalculateLayout(m.width, m.height, m.sidebarOpen, m.previewOpen, m.split)
+	return CalculateLayout(m.width, m.height, m.sidebarOpen, m.previewOpen, m.reading, m.split)
 }
 
 // updateLayout recalculates dimensions across child panes.
@@ -249,8 +250,13 @@ func (m *Model) setStatus(s string) { m.status, m.statusErr = s, false }
 func (m *Model) setError(s string)  { m.status, m.statusErr = s, true }
 
 // focusPane moves keyboard focus, opening the target pane if it was hidden.
+// In reading mode the editor is hidden, so focusing it focuses the preview;
+// whatever really needs the editor calls leaveReading first.
 func (m *Model) focusPane(f focus) tea.Cmd {
 	m.viewMode = viewModeWorkspace
+	if f == focusEditor && m.reading {
+		f = focusPreview
+	}
 	if f == focusSidebar && !m.sidebarOpen {
 		m.sidebarOpen = true
 		m.updateLayout()
@@ -276,7 +282,9 @@ func (m *Model) panes() []focus {
 	if l.SidebarW > 0 {
 		out = append(out, focusSidebar)
 	}
-	out = append(out, focusEditor)
+	if !m.reading {
+		out = append(out, focusEditor)
+	}
 	if l.PreviewW > 0 {
 		out = append(out, focusPreview)
 	}
@@ -285,6 +293,9 @@ func (m *Model) panes() []focus {
 
 func (m *Model) movePane(delta int, wrap bool) tea.Cmd {
 	ps := m.panes()
+	if len(ps) == 0 {
+		return nil
+	}
 	i := 0
 	for j, p := range ps {
 		if p == m.focus {
@@ -317,7 +328,13 @@ func (m *Model) toggleSidebar() tea.Cmd {
 	return m.focusPane(focusSidebar)
 }
 
+// togglePreview is Space p. In reading mode it only leaves reading mode,
+// bringing back the split the user had.
 func (m *Model) togglePreview() tea.Cmd {
+	if m.reading {
+		m.leaveReading()
+		return nil
+	}
 	m.previewOpen = !m.previewOpen
 	m.updateLayout()
 	if m.previewOpen && m.layout().PreviewW == 0 {
@@ -327,6 +344,28 @@ func (m *Model) togglePreview() tea.Cmd {
 		return m.focusPane(focusEditor)
 	}
 	return nil
+}
+
+// toggleReading is Space r: show only the preview at full width, or go
+// back to the split as it was (the divider positions are never touched).
+func (m *Model) toggleReading() tea.Cmd {
+	if m.reading {
+		m.leaveReading()
+		return nil
+	}
+	m.reading = true
+	m.updateLayout()
+	return m.focusPane(focusPreview)
+}
+
+// leaveReading brings the editor back, for Space r and Space p and before
+// anything that needs the editor (the graph, the block menu, ":" commands).
+func (m *Model) leaveReading() {
+	if !m.reading {
+		return
+	}
+	m.reading = false
+	m.updateLayout()
 }
 
 func (m *Model) startFind() tea.Cmd { return m.openFinder() }
