@@ -18,8 +18,9 @@ import (
 
 // The welcome greets someone who runs misoku with no folder and no notes
 // yet: it asks where their notes are to live, remembers that folder
-// (notes_dir) and opens it. It asks in the terminal, line by line like
-// `misoku sync setup`, before the full-screen app starts.
+// (notes_dir) and opens it, before the app starts. It is a screen of its
+// own (welcome_screen.go) when the terminal can draw one, else it asks in
+// the terminal, line by line like `misoku sync setup`.
 
 // welcomeCheck is everything that decides whether misoku greets with the
 // welcome instead of opening Choice.Dir.
@@ -214,30 +215,44 @@ func (t *setupTerminal) prompt(question string) (string, bool) {
 }
 
 // askFolder asks for the notes folder, offering def, until it gets one
-// that can hold notes. written is the folder as typed ("~/Notes" stays
-// so), abs the folder itself; ok is false when the user stopped.
+// that can hold notes (checkFolder). written is the folder as typed
+// ("~/Notes" stays so), abs the folder itself; ok is false when the user
+// stopped.
 func askFolder(t *setupTerminal, home, def string) (written, abs string, ok bool) {
 	for {
 		text, answered := t.prompt("Folder for your notes [" + def + "]: ")
 		if !answered {
 			return "", "", false
 		}
-		if text == "" {
-			text = def
+		written, abs, problem := checkFolder(text, def, home)
+		if problem == "" {
+			return written, abs, true
 		}
-		full, err := config.ExpandHome(text)
-		switch {
-		case err != nil:
-			fmt.Fprintln(t.out, "! Type a full path, such as ~/Notes.")
-		case gitsync.UnsafeFolder(full, home):
-			fmt.Fprintf(t.out, "! %s is your home folder, the root of a disk or a system folder: choose a folder of its own for your notes, such as ~/Notes.\n", full)
-		default:
-			if !strings.HasPrefix(text, "~") {
-				text = full
-			}
-			return text, full, true
-		}
+		fmt.Fprintln(t.out, "! "+problem)
 	}
+}
+
+// checkFolder reads text, the folder typed for the notes (def when
+// empty), as the welcome takes it: written is the folder to remember
+// ("~/Notes" stays so, any other is made absolute and clean), abs the
+// folder itself. problem, when not "", says why it cannot hold notes: it
+// is not a full path, or it is the home folder, the root of a disk or a
+// system folder.
+func checkFolder(text, def, home string) (written, abs, problem string) {
+	if text == "" {
+		text = def
+	}
+	full, err := config.ExpandHome(text)
+	switch {
+	case err != nil:
+		return "", "", "Type a full path, such as ~/Notes."
+	case gitsync.UnsafeFolder(full, home):
+		return "", "", full + " is your home folder, the root of a disk or a system folder: choose a folder of its own for your notes, such as ~/Notes."
+	}
+	if !strings.HasPrefix(text, "~") {
+		text = full
+	}
+	return text, full, ""
 }
 
 // startNotes is "Start my notes": it asks for the folder, creates it (not

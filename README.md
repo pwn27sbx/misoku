@@ -48,24 +48,29 @@ All you need is a Terminal: the window where you type commands. To open it:
 
 2. **Open Misoku.** Type `misoku` and press Enter.
 
-3. **Choose where your notes live.** The first time, Misoku asks you with a
-   short numbered list in the Terminal:
+3. **Choose where your notes live.** The first time, Misoku greets you with
+   a welcome screen:
 
    ```text
    Welcome to Misoku.
+
    Where do your notes live?
-     1) Start my notes
-     2) Bring my notes from another computer
-   Number (Enter cancels):
+
+   › 1  Start my notes
+     2  Bring my notes from another computer
    ```
 
-   Type a number and press Enter.
+   Move with the arrow keys and press Enter, or press the number. Esc (or
+   `q`) leaves without changing anything. In a very small Terminal (under
+   60×12) the same choices come as a numbered list you answer by typing a
+   number and pressing Enter.
 
    - **Start my notes:** Misoku offers the folder `~/Notes` (a folder called
-     Notes in your home folder). Press Enter to accept it, or type another.
+     Notes in your home folder). Press Enter to accept it, or change it.
      Misoku creates the folder and opens it.
    - **Bring my notes from another computer:** for notes your other
-     computer already syncs with Misoku. Misoku offers a folder for them
+     computer already syncs with Misoku. The screen closes and Misoku goes
+     on in the Terminal: it offers a folder for them
      (`~/Notes`, or `~/Notes-2` when that one already has files) and
      explains what will happen. Misoku asks a few questions; press Enter to
      accept each answer it offers. Then you sign in to GitHub: a one-time code

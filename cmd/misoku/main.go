@@ -87,7 +87,7 @@ func main() {
 	home, _ := os.UserHomeDir() // without one, only the root and system folders are no place for notes
 	if welcomeDue(welcomeCheck{Choice: choice, ConfigPath: cfgPath, ConfigErr: cfgErr, Config: cfg, Home: home,
 		Terminal: isTerminal(os.Stdin) && isTerminal(os.Stdout)}) {
-		dir, code := greet(cfgPath, cfg, home, choice)
+		dir, code := greet(cfgPath, cfg, home, choice, welcomeTheme(themeName))
 		if dir == "" {
 			os.Exit(code)
 		}
@@ -132,16 +132,30 @@ func main() {
 	log.Println("Misoku exited cleanly.")
 }
 
-// greet shows the welcome in the terminal and returns the folder to open,
-// or "" and the exit code. Ctrl+C cancels a question that waits.
-func greet(cfgPath string, cfg config.Config, home string, choice workspaceChoice) (string, int) {
+// greet shows the welcome, drawn in th, and returns the folder to open,
+// or "" and the exit code: the welcome screen when the terminal can draw
+// it (screenFits), else the text menu, where Ctrl+C cancels a question
+// that waits.
+func greet(cfgPath string, cfg config.Config, home string, choice workspaceChoice, th theme.Theme) (string, int) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(interrupt)
 	o := welcomeFor(choice, cfg, home, os.Getwd)
 	o.Stdin, o.Out, o.Err, o.ConfigPath, o.Interrupt = os.Stdin, os.Stdout, os.Stderr, cfgPath, interrupt
 	o.ClassicKeys = classicKeysOn(runtime.GOOS, onTerminal(os.Stdin, os.Stdout))
+	if w, h, ok := terminalSize(os.Stdout); ok && screenFits(os.Getenv("TERM"), w, h) {
+		return runWelcomeScreen(context.Background(), o, th)
+	}
 	return runWelcome(context.Background(), o)
+}
+
+// welcomeTheme is the theme named name (already checked), or the
+// default one when none is named.
+func welcomeTheme(name string) theme.Theme {
+	if th, ok := theme.Get(name); ok {
+		return th
+	}
+	return theme.DefaultTheme()
 }
 
 // options are the flags of `misoku` itself.
