@@ -397,6 +397,8 @@ misoku export notes/plan.md -o plan.pdf
 
 The PDF is a printable A4 document with headings, lists, tables, syntax-highlighted code, equations and images. Boards, calendars, timelines, charts and flowcharts print in colour as they look in the preview.
 
+Table cells wrap between words, and after `-` or `/` in long codes and paths. A table too wide for the page prints in slightly smaller type; if it still does not fit, that table gets landscape pages of its own (its heading goes with it) and the rest of the document stays upright. The header row repeats on every page a table spans.
+
 ## Sync
 
 Misoku can keep a notes folder (a *vault*) the same on all your computers through a git repository you own: GitHub, GitLab, Gitea or your own server. There is no Misoku server, and your notes stay plain files with their full history in git.
