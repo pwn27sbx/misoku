@@ -548,8 +548,11 @@ func (s *Setup) noteInit(res InitResult) {
 
 // undo removes what this run created and nothing uses yet: its
 // repository while it has no commits, then its folder once that is empty
-// again. What stays is said in changed.
+// again. What stays is said in changed. It runs even when ctx was
+// cancelled (the step stopped by Ctrl+C or Esc): its git keeps only its
+// own time limit.
 func (s *Setup) undo(ctx context.Context) {
+	ctx = context.WithoutCancel(ctx)
 	s.undoRepo(ctx)
 	if !s.madeDir {
 		return

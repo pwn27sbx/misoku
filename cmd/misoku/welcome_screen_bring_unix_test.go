@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -229,4 +230,80 @@ func TestWelcomeScreenBringWithoutNotesElsewhereStartsThem(t *testing.T) {
 	if f.called(t, "repo create") || f.called(t, "auth setup-git") {
 		t.Errorf("starting new notes must not touch GitHub: %v", f.calls(t))
 	}
+}
+
+// hangFetch puts a git on PATH that runs the real one, except a fetch into
+// the folder dir: that one never answers until it is killed, as on a dead
+// network while the notes are brought. The file it returns appears once
+// that fetch hangs.
+func hangFetch(t *testing.T, dir string) string {
+	t.Helper()
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not installed")
+	}
+	bin := t.TempDir()
+	hung := filepath.Join(bin, "hung")
+	script := fmt.Sprintf(`#!/bin/sh
+case " $* " in
+*" -C %s "*" fetch "*) touch %q; exec sleep 30 ;;
+esac
+exec %q "$@"
+`, dir, hung, real)
+	writeFile(t, bin, "git", script)
+	if err := os.Chmod(filepath.Join(bin, "git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return hung
+}
+
+// Esc (or Ctrl+C) while the notes are being brought stops git at once and
+// goes back to the choices, saying the setup was cancelled: the folder the
+// run created is removed, and nothing is saved.
+func TestWelcomeScreenBringEscStopsARunningStep(t *testing.T) {
+	for _, key := range []string{"esc", "ctrl+c"} {
+		t.Run(key, func(t *testing.T) {
+			f := newFakeGH(t, true)
+			seedRemote(t, f.remote(t, "notes"), map[string]string{"from-laptop.md": "laptop\n"})
+			f.setRepos(t, `[{"nameWithOwner":"ana/notes","visibility":"PRIVATE","url":"https://github.com/ana/notes"}]`)
+			g := newGreeting(t)
+			hung := hangFetch(t, filepath.Join(g.home, "Notes"))
+			s := bringScreen(t, g)
+			s.press("enter") // Start
+			s.expect(t, "ana/notes")
+			next, cmd := s.m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+			s.m = next.(welcomeScreen)
+			done := make(chan tea.Msg, 1)
+			go func() { done <- cmd() }()
+			waitFor(t, hung)
+			s.press(key)
+			if s.quit {
+				t.Fatal("the screen closed")
+			}
+			s.expect(t, "Cancelling")
+			select {
+			case msg := <-done:
+				s.send(msg)
+			case <-time.After(10 * time.Second):
+				t.Fatal(key + " did not stop git")
+			}
+			s.expect(t, "cancelled", "Start my notes")
+			if strings.Contains(s.m.View(), "Sync setup stopped") {
+				t.Fatalf("a cancel must not show as a failure:\n%s", s.m.View())
+			}
+			g.nothingSaved(t)
+		})
+	}
+}
+
+// waitFor waits until the file path exists: the step reached its hang.
+func waitFor(t *testing.T, path string) {
+	t.Helper()
+	for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+	}
+	t.Fatal("the step never reached the hanging git")
 }

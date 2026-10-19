@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/core"
@@ -286,4 +288,137 @@ func TestAListedHomeFolderKeepsSyncing(t *testing.T) {
 	if !onRemote(t, remote, "new.md") {
 		t.Fatal("the sync on opening must still push the new note")
 	}
+}
+
+// hangingGH puts on PATH a gh that never answers until it is killed, so a
+// step of the assistant hangs as on a dead network. The file it returns
+// appears once gh hangs.
+func hangingGH(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the hanging gh is a shell script")
+	}
+	bin := t.TempDir()
+	hung := filepath.Join(bin, "hung")
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\ntouch '"+hung+"'\nexec sleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(global, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	return hung
+}
+
+// waitFor waits until the file path exists: the step reached its hang.
+func waitFor(t *testing.T, path string) {
+	t.Helper()
+	for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+	}
+	t.Fatal("the step never reached the hanging gh")
+}
+
+// startInBackground runs a step's command as the Bubble Tea runtime would,
+// away from Update; the channel brings its message.
+func startInBackground(t *testing.T, cmd tea.Cmd) <-chan tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("no step was started")
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	return done
+}
+
+// waitStep waits for a step stopped by Esc: its gh is killed at once, well
+// before the hanging gh would end on its own.
+func waitStep(t *testing.T, done <-chan tea.Msg) tea.Msg {
+	t.Helper()
+	select {
+	case msg := <-done:
+		return msg
+	case <-time.After(10 * time.Second):
+		t.Fatal("Esc did not stop the running step")
+		return nil
+	}
+}
+
+// Esc while a step hangs (gh does not answer) stops it at once: the bar
+// says the setup was cancelled, and the repository this run created is
+// removed, as with any cancel. Its result arriving again changes nothing.
+func TestSyncSetupInsideTheAppEscStopsARunningStep(t *testing.T) {
+	hung := hangingGH(t)
+	outer := t.TempDir()
+	if out, err := exec.Command("git", "-C", outer, "init", "-q").CombinedOutput(); err != nil {
+		t.Skipf("git init: %v %s", err, out)
+	}
+	vault := filepath.Join(outer, "notes")
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.send(core.SyncSetupMsg{})
+	h.finish(h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Create
+	if _, err := os.Stat(filepath.Join(vault, ".git")); err != nil {
+		t.Fatalf("Enter must create the repository: %v", err)
+	}
+	done := startInBackground(t, h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Start: gh hangs
+	wantBar(t, h, "Esc cancels")
+	waitFor(t, hung)
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "Cancelling")
+	msg := waitStep(t, done)
+	h.send(msg)
+	wantBar(t, h, "cancelled")
+	wantBar(t, h, "was removed")
+	if _, err := os.Lstat(filepath.Join(vault, ".git")); !os.IsNotExist(err) {
+		t.Errorf("cancelling must remove the repository this run created: %v", err)
+	}
+	if strings.Contains(h.view(), "Sync setup stopped") || strings.Contains(h.view(), "Sign in") {
+		t.Fatalf("a cancelled step must not show its result:\n%s", h.view())
+	}
+
+	// The stopped step's result, once more: it is stale, and nothing opens.
+	bar := statusBar(h)
+	h.send(msg)
+	if strings.Contains(h.view(), "Sign in") || strings.Contains(h.view(), "Sync setup stopped") || statusBar(h) != bar {
+		t.Fatalf("a stale step result must change nothing:\n%s", h.view())
+	}
+}
+
+// In insert mode Esc only leaves insert mode, even while a step runs: a
+// user typing in a note does not cancel the setup by mistake. The next
+// Esc, in normal mode, stops the step.
+func TestSyncSetupInsideTheAppEscInInsertModeKeepsTheStep(t *testing.T) {
+	hung := hangingGH(t)
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.keys("1") // open a.md
+	h.keys("i") // insert mode
+	h.send(core.SyncSetupMsg{})
+	if !strings.Contains(h.view(), "Sync this vault") {
+		t.Fatalf("the assistant must open with what will happen:\n%s", h.view())
+	}
+	done := startInBackground(t, h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Start: gh hangs
+	waitFor(t, hung)
+	if !strings.Contains(statusBar(h), "INSERT") {
+		t.Fatalf("the editor must still be in insert mode:\n%s", statusBar(h))
+	}
+	h.key(tea.KeyEsc)
+	if bar := statusBar(h); strings.Contains(bar, "Cancelling") || strings.Contains(bar, "INSERT") {
+		t.Fatalf("Esc in insert mode must only leave insert mode:\n%s", bar)
+	}
+	select {
+	case <-done:
+		t.Fatal("Esc in insert mode stopped the step")
+	case <-time.After(300 * time.Millisecond):
+	}
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "Cancelling")
+	h.send(waitStep(t, done))
+	wantBar(t, h, "cancelled")
 }

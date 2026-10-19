@@ -23,12 +23,16 @@ const (
 	setupGitTimeout = 5 * time.Minute
 	// setupStepLimit bounds one call of the engine.
 	setupStepLimit = 15 * time.Minute
+	// setupRunning is the bar while a step runs.
+	setupRunning = "Setting up sync… Esc cancels"
 )
 
-// setupMsg brings a step of the assistant back to Update.
+// setupMsg brings a step of the assistant back to Update; id is the
+// step's number in its Model (setupStep).
 type setupMsg struct {
 	s    *gitsync.Setup
 	step gitsync.SetupStep
+	id   int
 }
 
 // setupSignedInMsg says gh's sign-in, run outside the screen, ended.
@@ -52,15 +56,31 @@ func (m *Model) startSetup() tea.Cmd {
 	return m.setupWork(s, s.Begin)
 }
 
-// setupWork runs one call of the engine in the background.
+// setupWork runs one call of the engine in the background. Esc cancels
+// it (cancelSetupStep): its git and gh are stopped.
 func (m *Model) setupWork(s *gitsync.Setup, call func(context.Context) gitsync.SetupStep) tea.Cmd {
-	m.setupBusy = true
-	m.setStatus("Setting up sync…")
+	ctx, cancel := context.WithTimeout(context.Background(), setupStepLimit)
+	m.setupStep++
+	id := m.setupStep
+	m.setupBusy, m.setupRun, m.setupStop, m.setupStopped = true, s, cancel, false
+	m.setStatus(setupRunning)
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), setupStepLimit)
 		defer cancel()
-		return setupMsg{s: s, step: call(ctx)}
+		return setupMsg{s: s, step: call(ctx), id: id}
 	}
+}
+
+// cancelSetupStep is Esc while a step runs: it stops the step's git and
+// gh. The step then returns, and its result ends the assistant as a cancel
+// does (showSetup), removing what the run created.
+func (m *Model) cancelSetupStep() tea.Cmd {
+	if !m.setupBusy || m.setupStopped {
+		return nil
+	}
+	m.setupStopped = true
+	m.setupStop()
+	m.setStatus("Cancelling sync setup…")
+	return nil
 }
 
 // setupNext answers the current step.
@@ -105,11 +125,21 @@ func (m *Model) setupPrompt(s *gitsync.Setup, title, value, hint string, onSubmi
 
 // showSetup asks what the step needs, in a dialog.
 func (m *Model) showSetup(msg setupMsg) tea.Cmd {
-	m.setupBusy = false
-	if m.status == "Setting up sync…" {
+	if msg.s != m.setupRun || msg.id != m.setupStep || !m.setupBusy {
+		return nil // stale: not the step running
+	}
+	m.setupBusy, m.setupStop = false, nil
+	if m.status == setupRunning {
 		m.status, m.statusErr = "", false
 	}
 	s, step := msg.s, msg.step
+	if m.setupStopped && step.Outcome != gitsync.SetupDone {
+		// Esc stopped this step: whatever it returned, the run ends as
+		// cancelled. One that finished setting up is said as such.
+		m.setupStopped = false
+		return m.setupCancelled(s)
+	}
+	m.setupStopped = false
 	if step.Outcome == gitsync.SetupCancelled && len(step.Lines) > 0 {
 		m.setStatus(step.Lines[len(step.Lines)-1])
 		return m.setupEnded(step)

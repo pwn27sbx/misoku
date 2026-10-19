@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/graph"
@@ -86,6 +87,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.menuBox.update(&m, msg)
 		}
 		return m, nil
+	}
+	// Esc while a step of the sync setup runs stops it; in insert mode
+	// Esc still only leaves insert mode.
+	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyEsc && m.setupBusy && m.content.Mode() != content.ModeInsert {
+		return m, m.cancelSetupStep()
 	}
 	if m.showKeymap {
 		switch msg := msg.(type) {
