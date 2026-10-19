@@ -155,7 +155,7 @@ func TestSyncSetupInsideTheAppOffersARepositoryOfItsOwn(t *testing.T) {
 	cfg := filepath.Join(t.TempDir(), "config.json")
 	h := window(t, vault, cfg)
 	h.send(core.SyncSetupMsg{})
-	if text := noSpace(dialogText(h.view())); !strings.Contains(text, noSpace("This folder is inside another git repository. Create a separate one for your notes?")) {
+	if text := noSpace(dialogText(h.view())); !strings.Contains(text, noSpace("Create a separate repository for your notes here?")) {
 		t.Fatalf("the assistant must offer a repository of its own:\n%s", h.view())
 	}
 	if _, err := os.Lstat(filepath.Join(vault, ".git")); !os.IsNotExist(err) {

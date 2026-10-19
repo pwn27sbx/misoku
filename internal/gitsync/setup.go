@@ -408,11 +408,10 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 }
 
 // ownRepoStep offers the folder inside nested's repository a repository
-// of its own (AskOwnRepo).
+// of its own (AskOwnRepo): what is wrong, said once, then the question.
 func ownRepoStep(nested *nestedError) SetupStep {
 	return SetupStep{Ask: AskOwnRepo, Title: "A repository for your notes", Confirm: ownRepoQuestion, Lines: []string{
-		fmt.Sprintf("This folder is inside the git repository at %s, which does not track it. Syncing it as it is would commit that whole repository.", nested.top),
-		"Misoku can run `git init` here, so your notes get a repository of their own; the other repository is not changed.",
+		fmt.Sprintf("This folder is inside the git repository at %s, which does not track it: syncing it as it is would commit that whole repository. A separate repository leaves that one as it is.", nested.top),
 	}}
 }
 
@@ -448,7 +447,7 @@ func (s *Setup) inspectNew(ctx context.Context) (bool, SetupStep) {
 }
 
 // ownRepoQuestion is AskOwnRepo's question.
-const ownRepoQuestion = "This folder is inside another git repository. Create a separate one for your notes?"
+const ownRepoQuestion = "Create a separate repository for your notes here?"
 
 // refusal is folderState's refusal in setup's words.
 func refusal(err error) string {

@@ -21,6 +21,8 @@ type menuDialog struct {
 	title    string
 	items    []string
 	onChoose func(m *Model, i int) tea.Cmd
+	// onCancel, when set, runs once the list closed without a pick.
+	onCancel func(m *Model) tea.Cmd
 	// search: typing filters the items (searchMenu); the first pinned
 	// items are always listed, above the matches.
 	search bool
@@ -192,8 +194,7 @@ func (d *menuDialog) update(m *Model, msg tea.Msg) tea.Cmd {
 				d.filter()
 				return nil
 			}
-			m.menuBox = nil
-			return nil
+			return d.cancel(m)
 		case "up", "shift+tab":
 			d.move(m, -1)
 			return nil
@@ -227,13 +228,21 @@ func (d *menuDialog) update(m *Model, msg tea.Msg) tea.Cmd {
 		}
 		x, y, w, h := d.geom(m)
 		if msg.X < x || msg.X >= x+w || msg.Y < y || msg.Y >= y+h {
-			m.menuBox = nil
-			return nil
+			return d.cancel(m)
 		}
 		row := msg.Y - y - 1 - d.header(m)
 		if i := d.offset + row; msg.Button == tea.MouseButtonLeft && row >= 0 && row < d.rows(m) && i < len(d.shown) {
 			return choose(d.shown[i])
 		}
+	}
+	return nil
+}
+
+// cancel closes the list without a pick.
+func (d *menuDialog) cancel(m *Model) tea.Cmd {
+	m.menuBox = nil
+	if d.onCancel != nil {
+		return d.onCancel(m)
 	}
 	return nil
 }
@@ -289,7 +298,7 @@ func (d *menuDialog) typed(m *Model, msg tea.KeyMsg, choose func(int) tea.Cmd) t
 	}
 	switch text {
 	case "q":
-		m.menuBox = nil
+		return d.cancel(m)
 	case "k":
 		d.move(m, -1)
 	case "j":
