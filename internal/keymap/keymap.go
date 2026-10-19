@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // Actions. The explorer ones only apply while the explorer has focus.
@@ -258,8 +259,15 @@ func (m Map) Label(action string) string {
 	parts := make([]string, 0, len(m.keys[action]))
 	for _, k := range m.keys[action] {
 		var toks []string
-		for _, t := range strings.Fields(k) {
-			toks = append(toks, label(t))
+		for i, t := range strings.Fields(k) {
+			l := label(t)
+			// After SPC a lone capital is easy to misread as the lower-case
+			// key, so spell out Shift ("SPC Shift+P"). A capital on its own
+			// ("G") stays as is.
+			if i > 0 && len([]rune(t)) == 1 && unicode.IsUpper([]rune(t)[0]) {
+				l = "Shift+" + l
+			}
+			toks = append(toks, l)
 		}
 		parts = append(parts, strings.Join(toks, " "))
 	}

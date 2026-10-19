@@ -109,3 +109,19 @@ func TestSharedKeysAreReported(t *testing.T) {
 		t.Fatalf("explorer and general actions do not clash, got %v", warnings)
 	}
 }
+
+func TestShiftIsSpelledOutForCapitalsAfterTheLeader(t *testing.T) {
+	m, _ := keymap.New(nil)
+	if got := m.Label(keymap.ExportPDF); got != "SPC Shift+P" {
+		t.Errorf("Label(ExportPDF) = %q, want %q", got, "SPC Shift+P")
+	}
+	if got := m.Label(keymap.ExplorerBottom); got != "G / End" {
+		t.Errorf("a capital on its own keeps its letter: Label(ExplorerBottom) = %q", got)
+	}
+	if got := m.Label(keymap.Help); got != "? / SPC h / SPC ?" {
+		t.Errorf("only capitals get Shift+: Label(Help) = %q", got)
+	}
+	if got := m.Label(keymap.PrevTab); got != "[ / SPC S-Tab" {
+		t.Errorf("Label(PrevTab) = %q", got)
+	}
+}
