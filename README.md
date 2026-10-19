@@ -249,7 +249,7 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `prev_tab` | `[`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
 | `toggle_preview` | `space p` | Toggle preview |
-| `export_pdf` | `space P` | Export note as PDF (same as `:export`) |
+| `export_pdf` | `space P` (Space, then Shift+P) | Export note as PDF (same as `:export`) |
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |
 | `home` | `space d` | Home screen |
@@ -388,7 +388,7 @@ The preview shows `x = (−b ± √(b² − 4ac))/(2a)` and `E = mc²`. Greek le
 
 ## Export to PDF
 
-In the editor, `:export` writes the open note as a PDF next to it. `:export ~/Desktop/` or `:export report.pdf` picks another place. From the shell:
+In the editor, `:export` (or Space, then Shift+P) writes the open note as a PDF next to it. The `?` help lists every way to export at the top, under **EXPORT**. `:export ~/Desktop/` or `:export report.pdf` picks another place. From the shell:
 
 ```sh
 misoku export notes/plan.md               # notes/plan.pdf

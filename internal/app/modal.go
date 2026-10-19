@@ -20,7 +20,7 @@ type keymapSection struct {
 var helpGeneral = []string{
 	keymap.NewNote, keymap.Save, keymap.FindNote, keymap.ToggleExplorer,
 	keymap.FocusExplorer, keymap.NextPane, keymap.NextTab, keymap.PrevTab,
-	keymap.CloseTab, keymap.TogglePreview, keymap.ExportPDF, keymap.Themes, keymap.Graph,
+	keymap.CloseTab, keymap.TogglePreview, keymap.Themes, keymap.Graph,
 	keymap.Home, keymap.SyncNow, keymap.Quit,
 }
 
@@ -56,7 +56,6 @@ var editorHelp = []keymapSection{
 		{":bd", "Close tab"},
 		{":enew", "New note"},
 		{":colo name", "Switch theme"},
-		{":export [file]", "Export note as PDF"},
 		{":sync", "Sync the vault with git"},
 		{":sync status", "Sync state, conflict copies"},
 		{":sync setup", "Connect the vault to GitHub"},
@@ -81,9 +80,26 @@ func keymapSections(km keymap.Map) [][]keymapSection {
 		return s
 	}
 	return [][]keymapSection{
-		{section("󰕭 GENERAL", helpGeneral), section("󰙅 EXPLORER", helpExplorer)},
+		{exportSection(km), section("󰕭 GENERAL", helpGeneral), section("󰙅 EXPLORER", helpExplorer)},
 		editorHelp,
 	}
+}
+
+// exportSection gathers every way to export a PDF at the top of the help, so
+// it is easy to find (issue #4). The key line follows the active keymap and is
+// left out when export_pdf has no keys; the command and the CLI always show.
+// export_pdf itself stays in the "general" section of the keymap, which is
+// what detects clashing keys.
+func exportSection(km keymap.Map) keymapSection {
+	s := keymapSection{title: "󰈦 EXPORT"}
+	if label := km.Label(keymap.ExportPDF); label != "" {
+		s.keys = append(s.keys, [2]string{label, keymap.HelpText(keymap.ExportPDF)})
+	}
+	s.keys = append(s.keys,
+		[2]string{":export [file]", "Export to a file"},
+		[2]string{"misoku export", "From the shell"},
+	)
+	return s
 }
 
 // RenderKeymapModal renders the cheatsheet panel (without positioning).
