@@ -40,8 +40,10 @@ type Split struct {
 }
 
 // CalculateLayout splits the window into explorer, editor and preview. A
-// one-column divider separates neighbouring panes.
-func CalculateLayout(totalWidth, totalHeight int, sidebarOpen, previewOpen bool, split Split) Layout {
+// one-column divider separates neighbouring panes. In reading mode the editor
+// gets no columns and the preview takes the rest, whatever the width and
+// whether the preview was open.
+func CalculateLayout(totalWidth, totalHeight int, sidebarOpen, previewOpen, reading bool, split Split) Layout {
 	l := Layout{BodyY: tablineHeight, BodyH: max(totalHeight-tablineHeight-footerHeight, 1)}
 	if totalWidth < MinTermWidth || totalHeight < MinTermHeight {
 		return l
@@ -58,6 +60,10 @@ func CalculateLayout(totalWidth, totalHeight int, sidebarOpen, previewOpen bool,
 	}
 	remain := totalWidth - x
 
+	if reading {
+		l.EditorX, l.PreviewX, l.PreviewW = x, x, remain
+		return l
+	}
 	if previewOpen && totalWidth >= minPreviewTotal {
 		avail := remain - 1
 		l.EditorW = avail / 2

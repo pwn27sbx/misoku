@@ -20,6 +20,7 @@ func (m *Model) graphActive() bool { return m.active == graphID }
 func (m *Model) openGraph() tea.Cmd {
 	centre := m.currentNoteID()
 	m.leaderPending = false
+	m.leaveReading() // the graph is drawn in the editor column
 	m.graphNotes, m.graphEdges = m.store.LinkGraph()
 	m.liveGraph()
 	m.graph.SetCentre(centre)

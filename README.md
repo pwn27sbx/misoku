@@ -196,6 +196,7 @@ never use `notes_dir`.
 - **Export to PDF** with `:export`: a clean printable document, with boards, charts and flowcharts included.
 - **2, 3 and 4 column layouts** from the `/` menu.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
+- **Reading mode** (`space r`): hide the editor and read the note in the preview at full width; the statusline says READING.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
 - **Open notes stay in sync with the disk**: a note changed by another program reloads in place (the cursor stays put). If you have unsaved edits it is left alone and you are told; saving then keeps both versions: yours in the note, the one on disk in a conflict copy next to it (`note (conflict 2026-10-16 0905).md`), and the status bar says `Both kept: …` with the copy's name. Nothing is asked and nothing is lost.
@@ -249,6 +250,7 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `prev_tab` | `[`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
 | `toggle_preview` | `space p` | Toggle preview |
+| `reading_mode` | `space r` | Reading mode: only the preview, full width (`space r` or `space p` brings the split back) |
 | `export_pdf` | `space P` (Space, then Shift+P) | Export note as PDF (same as `:export`) |
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |

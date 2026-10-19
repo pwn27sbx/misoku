@@ -11,12 +11,12 @@ import (
 )
 
 func TestCalculateLayoutSplit(t *testing.T) {
-	def := app.CalculateLayout(140, 40, true, true, app.Split{})
+	def := app.CalculateLayout(140, 40, true, true, false, app.Split{})
 	if def.SidebarW != app.SidebarWidth || def.EditorW != (140-app.SidebarWidth-2)/2 {
 		t.Fatalf("default layout changed: %+v", def)
 	}
 
-	l := app.CalculateLayout(140, 40, true, true, app.Split{SidebarW: 40, EditorFrac: 0.25})
+	l := app.CalculateLayout(140, 40, true, true, false, app.Split{SidebarW: 40, EditorFrac: 0.25})
 	if l.SidebarW != 40 || l.EditorX != 41 {
 		t.Errorf("sidebar not resized: %+v", l)
 	}
@@ -25,11 +25,11 @@ func TestCalculateLayoutSplit(t *testing.T) {
 	}
 
 	// Drags past the limits are clamped.
-	l = app.CalculateLayout(140, 40, true, true, app.Split{SidebarW: 500, EditorFrac: 0.99})
+	l = app.CalculateLayout(140, 40, true, true, false, app.Split{SidebarW: 500, EditorFrac: 0.99})
 	if l.SidebarW != 60 || l.PreviewW != 20 {
 		t.Errorf("limits not applied: %+v", l)
 	}
-	l = app.CalculateLayout(140, 40, true, true, app.Split{SidebarW: 2, EditorFrac: 0.01})
+	l = app.CalculateLayout(140, 40, true, true, false, app.Split{SidebarW: 2, EditorFrac: 0.01})
 	if l.SidebarW != 16 || l.EditorW != 20 {
 		t.Errorf("limits not applied: %+v", l)
 	}
