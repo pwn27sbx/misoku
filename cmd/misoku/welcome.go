@@ -115,6 +115,9 @@ type welcomeOptions struct {
 	Cwd string
 	// Interrupt brings Ctrl+C: a question waiting is then cancelled.
 	Interrupt <-chan os.Signal
+	// ClassicKeys: switch to the classic keyboard mode while asking
+	// (classicKeysOn).
+	ClassicKeys bool
 }
 
 // welcomeFor is what the welcome says for choice: the remembered folder
@@ -152,6 +155,7 @@ const (
 // the code: 0 when the user stopped, 1 when something failed.
 func runWelcome(ctx context.Context, o welcomeOptions) (string, int) {
 	t := &setupTerminal{in: bufio.NewReader(o.Stdin), stdin: o.Stdin, out: o.Out, err: o.Err, interrupt: o.Interrupt}
+	defer classicKeyboard(o.Out, o.ClassicKeys)()
 	fmt.Fprintln(o.Out, "Welcome to Misoku.")
 	if o.Missing != "" {
 		fmt.Fprintf(o.Out, "I can't find your notes at %s.\n", o.Missing)

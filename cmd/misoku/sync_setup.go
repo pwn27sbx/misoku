@@ -10,11 +10,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 )
 
@@ -32,11 +34,12 @@ func syncSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(interrupt)
-	return runSetup(ctx, args, stdin, stdout, stderr, cfgPath, interrupt)
+	return runSetup(ctx, args, stdin, stdout, stderr, cfgPath, interrupt, classicKeysOn(runtime.GOOS, onTerminal(stdin, stdout)))
 }
 
-// runSetup is syncSetup with the channel that brings Ctrl+C.
-func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, cfgPath string, interrupt <-chan os.Signal) int {
+// runSetup is syncSetup with the channel that brings Ctrl+C; keys
+// switches to the classic keyboard mode while it asks (classicKeysOn).
+func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, cfgPath string, interrupt <-chan os.Signal, keys bool) int {
 	fs := flag.NewFlagSet("sync setup", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dirFlag := fs.String("dir", "", "vault folder (defaults to $MISOKU_WORKSPACE, then the current directory)")
@@ -64,6 +67,7 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		Interactive: true,
 	})
 	t := &setupTerminal{in: bufio.NewReader(stdin), stdin: stdin, out: stdout, err: stderr, s: s, interrupt: interrupt}
+	defer classicKeyboard(stdout, keys)()
 	fmt.Fprintf(stdout, "Setting up sync of %s with GitHub.\n", dir)
 	if step := t.run(ctx); step.Outcome == gitsync.SetupDone || step.Outcome == gitsync.SetupAlready {
 		return 0
@@ -125,15 +129,23 @@ func (t *setupTerminal) show(step gitsync.SetupStep) {
 	}
 }
 
-// line reads one answer, trimmed; ok is false at the end of the input.
+// line reads one answer, trimmed and without escape sequences (keys such
+// as Cmd+C that a terminal sends as text); ok is false at the end of the
+// input. A line of only escape sequences is no answer, not an empty one
+// (which cancels or takes the default): the question is asked again.
 func (t *setupTerminal) line(prompt string) (string, bool) {
-	fmt.Fprint(t.out, prompt)
-	text, err := t.in.ReadString('\n')
-	if err != nil && text == "" {
-		fmt.Fprintln(t.out)
-		return "", false
+	for {
+		fmt.Fprint(t.out, prompt)
+		raw, err := t.in.ReadString('\n')
+		if err != nil && raw == "" {
+			fmt.Fprintln(t.out)
+			return "", false
+		}
+		raw = strings.TrimSpace(raw)
+		if text := strings.TrimSpace(ansi.Strip(raw)); text != "" || raw == "" {
+			return text, true
+		}
 	}
-	return strings.TrimSpace(text), true
 }
 
 // yes asks a yes/no question; an empty answer is def.

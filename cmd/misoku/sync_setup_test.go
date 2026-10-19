@@ -91,7 +91,7 @@ func TestSyncSetupInterruptAtAQuestionCancels(t *testing.T) {
 	cfg := filepath.Join(t.TempDir(), "config.json")
 	done := make(chan int, 1)
 	go func() {
-		done <- runSetup(context.Background(), []string{"--dir", dir}, in, out, out, cfg, interrupt)
+		done <- runSetup(context.Background(), []string{"--dir", dir}, in, out, out, cfg, interrupt, false)
 	}()
 	if _, err := typed.Write([]byte("\n")); err != nil { // create the repository
 		t.Fatal(err)
