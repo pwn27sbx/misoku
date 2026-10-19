@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/graph"
@@ -102,6 +103,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	}
+	// Esc while a step of the sync setup runs stops it, but only in normal
+	// mode with nothing open: otherwise Esc does what it always does (leave
+	// insert, command or visual mode, a rename), and a second Esc cancels.
+	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyEsc && m.setupBusy &&
+		m.content.Mode() == content.ModeNormal && !m.sidebar.IsBusy() {
+		return m, m.cancelSetupStep()
 	}
 
 	switch msg := msg.(type) {

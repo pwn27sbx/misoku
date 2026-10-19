@@ -40,8 +40,9 @@ func NewSetupDialogs(s *gitsync.Setup, th theme.Theme, w, h int, exec SetupExec)
 }
 
 // Update takes the screen's size, the assistant's steps, and the keys and
-// clicks for its open dialog. Ctrl+C leaves a dialog as Esc does, so the
-// run removes what it created (in the app, Ctrl+C quits).
+// clicks for its open dialog. Ctrl+C leaves a dialog, or stops a running
+// step, as Esc does, so the run removes what it created (in the app,
+// Ctrl+C quits).
 func (d *SetupDialogs) Update(msg tea.Msg) tea.Cmd {
 	m := d.m
 	switch msg := msg.(type) {
@@ -80,7 +81,11 @@ func (d *SetupDialogs) dialog(msg tea.Msg) tea.Cmd {
 	case m.menuBox != nil:
 		return m.menuBox.update(m, msg)
 	}
-	return nil // a step runs: there is nothing to answer yet
+	// A step runs: there is nothing to answer yet, and Esc stops it.
+	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyEsc {
+		return m.cancelSetupStep()
+	}
+	return nil
 }
 
 // View draws the open dialog over behind, the screen as wide and tall as
