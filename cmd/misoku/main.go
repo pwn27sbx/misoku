@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -139,6 +140,7 @@ func greet(cfgPath string, cfg config.Config, home string, choice workspaceChoic
 	defer signal.Stop(interrupt)
 	o := welcomeFor(choice, cfg, home, os.Getwd)
 	o.Stdin, o.Out, o.Err, o.ConfigPath, o.Interrupt = os.Stdin, os.Stdout, os.Stderr, cfgPath, interrupt
+	o.ClassicKeys = classicKeysOn(runtime.GOOS, onTerminal(os.Stdin, os.Stdout))
 	return runWelcome(context.Background(), o)
 }
 
