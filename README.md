@@ -73,7 +73,8 @@ All you need is a Terminal: the window where you type commands. To open it:
      in to GitHub: a one-time code appears and your browser opens; sign in
      there and enter the code. Pick your notes from the list of your
      repositories, and they appear. Esc at any question goes back to the
-     choices and leaves nothing behind. No notes elsewhere after all? Choose
+     choices and undoes what setup created (a git name and email you
+     already saved stay saved). No notes elsewhere after all? Choose
      **I don't have notes on another computer → Start my notes**.
    - **Use this folder:** shown as a third choice only when the Terminal is
      already in a folder with notes (`.md` files). Misoku keeps your notes
