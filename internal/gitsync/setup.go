@@ -62,6 +62,11 @@ const (
 	// not track anything in it. Lines explain it and Confirm asks; on yes
 	// the assistant runs `git init` in the folder and goes on.
 	AskOwnRepo
+	// AskUnrelated: the picked repository (Repo) holds notes that do not
+	// share the folder's history. Lines list its top level and Confirm
+	// asks whether to mix the two; only OK uses it, so a front end's
+	// default answer is no.
+	AskUnrelated
 )
 
 // SetupOutcome is how the assistant ended.
@@ -108,10 +113,13 @@ type SetupStep struct {
 	Confirm string
 	// Repos: AskRepo's choices, private ones first.
 	Repos []Repo
-	// NewChoice: the label of AskRepo's last choice (Choice ==
+	// NewChoice: the label of AskRepo's extra choice (Choice ==
 	// len(Repos)): a new private repository, or, with SetupOptions.Bring,
 	// starting new notes.
 	NewChoice string
+	// NewFirst: list NewChoice before the repositories, where a long list
+	// cannot hide it (a new private repository); otherwise after them.
+	NewFirst bool
 	// Default: AskRepoName's suggested name.
 	Default string
 	// Repo: the repository the vault syncs with, once known.
@@ -218,6 +226,10 @@ type Setup struct {
 	// waitedGit: git did not run while Apple's installer for it did, so
 	// Begin could not look at the folder; the next git check does.
 	waitedGit bool
+	// gitReady: git uses gh's access already (setupGit ran).
+	gitReady bool
+	// pending: the repository AskUnrelated asks about.
+	pending Repo
 }
 
 // appleGitProblem is AskStart's Problem while Apple's installer for git
@@ -469,6 +481,8 @@ func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 		return s.pick(ctx, ans)
 	case AskRepoName:
 		return s.create(ctx, ans)
+	case AskUnrelated:
+		return s.use(ctx, s.pending)
 	}
 	return s.fail(ctx, "Setup has already ended; run it again.")
 }
@@ -846,7 +860,7 @@ func (s *Setup) askRepo(problem string) SetupStep {
 			"Pick the repository your other computer syncs with.",
 		}}
 	}
-	return SetupStep{Ask: AskRepo, Title: "Which repository keeps this vault?", Repos: s.repos, NewChoice: createChoice, Problem: problem, Lines: []string{
+	return SetupStep{Ask: AskRepo, Title: "Which repository keeps this vault?", Repos: s.repos, NewChoice: createChoice, NewFirst: true, Problem: problem, Lines: []string{
 		"Pick the repository your other computer already syncs with, or create a new private one.",
 	}}
 }
@@ -857,15 +871,7 @@ func (s *Setup) askRepo(problem string) SetupStep {
 func (s *Setup) pick(ctx context.Context, ans SetupAnswer) SetupStep {
 	choice := ans.Choice
 	if text := strings.TrimSpace(ans.Text); text != "" {
-		choice = -1
-		for i, r := range s.repos {
-			_, short, _ := strings.Cut(r.Name, "/")
-			if strings.EqualFold(r.Name, text) || strings.EqualFold(short, text) {
-				choice = i
-				break
-			}
-		}
-		if choice < 0 {
+		if choice = FindRepo(s.repos, text); choice < 0 {
 			return s.askRepo(text + " is not one of your repositories.")
 		}
 	}
@@ -885,7 +891,34 @@ func (s *Setup) pick(ctx context.Context, ans SetupAnswer) SetupStep {
 	if !repo.Private() {
 		return s.askRepo(fmt.Sprintf("%s is public: anyone could read your notes, which are stored unencrypted. Choose a private repository or create a new one (or make it private on GitHub first).", repo.Name))
 	}
+	// The guard first: a repository it refuses leaves everything as it
+	// was, git's access included.
+	if step, ok := s.guard(ctx, repo); !ok {
+		return step
+	}
+	return s.use(ctx, repo)
+}
+
+// use gives git gh's access and connects the vault with repo, a
+// repository the user already has.
+func (s *Setup) use(ctx context.Context, repo Repo) SetupStep {
+	if err := s.setupGit(ctx); err != nil {
+		return s.fail(ctx, err.Error()+".")
+	}
 	return s.connect(ctx, repo, false)
+}
+
+// FindRepo returns the index in repos of the repository text names, as
+// "owner/name" or "name" in any letter case, or -1 when none has it.
+func FindRepo(repos []Repo, text string) int {
+	text = strings.TrimSpace(text)
+	for i, r := range repos {
+		_, short, _ := strings.Cut(r.Name, "/")
+		if strings.EqualFold(r.Name, text) || strings.EqualFold(short, text) {
+			return i
+		}
+	}
+	return -1
 }
 
 // repoNameRe is what GitHub accepts as a repository name.
@@ -955,22 +988,23 @@ func (s *Setup) create(ctx context.Context, ans SetupAnswer) SetupStep {
 
 // setupGit makes git use gh's access for GitHub (`gh auth setup-git`), so
 // every sync, in the background and without a terminal, signs in without
-// asking. It changes only git's credential helper for github.com.
+// asking. It changes only git's credential helper for github.com, once a
+// run.
 func (s *Setup) setupGit(ctx context.Context) error {
+	if s.gitReady {
+		return nil
+	}
 	if _, err := s.gh(ctx, "auth", "setup-git", "--hostname", githubHost); err != nil {
 		return fmt.Errorf("gh could not give git the access to GitHub (%v)", err)
 	}
+	s.gitReady = true
 	s.changed = append(s.changed, "GitHub access for git was set up with gh")
 	return nil
 }
 
-// connect runs the init with repo and lists the vault (steps 6 and 7).
+// connect runs the init with repo and lists the vault (steps 6 and 7);
+// git already uses gh's access (setupGit).
 func (s *Setup) connect(ctx context.Context, repo Repo, created bool) SetupStep {
-	if !created {
-		if err := s.setupGit(ctx); err != nil {
-			return s.fail(ctx, err.Error()+".")
-		}
-	}
 	s.at = SetupFinished
 	url := repo.cloneURL()
 	shown := RedactURL(url)

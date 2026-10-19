@@ -216,20 +216,10 @@ func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 		t.signIn()
 		return gitsync.SetupAnswer{OK: true}
 	case gitsync.AskRepo:
-		for i, r := range step.Repos {
-			fmt.Fprintf(t.out, "  %d) %s  %s\n", i+1, r.Name, visibility(r))
-		}
-		fmt.Fprintf(t.out, "  %d) %s\n", len(step.Repos)+1, step.NewChoice)
-		text, ok := t.line("Number or name (Enter cancels): ")
-		if !ok || text == "" {
-			return cancel
-		}
-		// A number is a list number only when the list has it: a
-		// repository named "2024" in a shorter list is read as a name.
-		if n, err := strconv.Atoi(text); err == nil && n >= 1 && n <= len(step.Repos)+1 {
-			return gitsync.SetupAnswer{OK: true, Choice: n - 1}
-		}
-		return gitsync.SetupAnswer{OK: true, Text: text}
+		return t.pickRepo(step)
+	case gitsync.AskUnrelated:
+		// No is the default: mixing two sets of notes takes a typed yes.
+		return gitsync.SetupAnswer{OK: t.yes(step.Confirm, false)}
 	case gitsync.AskRepoName:
 		name, ok := t.withDefault("Repository name", step.Default)
 		if !ok {
@@ -238,6 +228,69 @@ func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 		return gitsync.SetupAnswer{OK: true, Text: name}
 	}
 	return cancel
+}
+
+// repoList is AskRepo's list as numbered: the new choice first when
+// step.NewFirst, where a long list cannot hide it. Each entry is an index
+// in step.Repos, len(step.Repos) for the new choice.
+func repoList(step gitsync.SetupStep) []int {
+	list := make([]int, 0, len(step.Repos)+1)
+	if step.NewFirst {
+		list = append(list, len(step.Repos))
+	}
+	for i := range step.Repos {
+		list = append(list, i)
+	}
+	if !step.NewFirst {
+		list = append(list, len(step.Repos))
+	}
+	return list
+}
+
+// pickRepo lists the repositories by number and reads a number or a name.
+// Text that is neither, but part of some names, lists those (with their
+// numbers) and asks again: a search in a long list.
+func (t *setupTerminal) pickRepo(step gitsync.SetupStep) gitsync.SetupAnswer {
+	list := repoList(step)
+	entry := func(n, choice int) {
+		if choice == len(step.Repos) {
+			fmt.Fprintf(t.out, "  %d) %s\n", n, step.NewChoice)
+			return
+		}
+		r := step.Repos[choice]
+		fmt.Fprintf(t.out, "  %d) %s  %s\n", n, r.Name, visibility(r))
+	}
+	for n, choice := range list {
+		entry(n+1, choice)
+	}
+	for {
+		text, ok := t.line("Number, name or part of one (Enter cancels): ")
+		if !ok || text == "" {
+			return gitsync.SetupAnswer{}
+		}
+		// A number is a list number only when the list has it: a
+		// repository named "2024" in a shorter list is read as a name.
+		if n, err := strconv.Atoi(text); err == nil && n >= 1 && n <= len(list) {
+			return gitsync.SetupAnswer{OK: true, Choice: list[n-1]}
+		}
+		if gitsync.FindRepo(step.Repos, text) >= 0 {
+			return gitsync.SetupAnswer{OK: true, Text: text}
+		}
+		matched := false
+		for n, choice := range list {
+			if choice < len(step.Repos) && strings.Contains(strings.ToLower(step.Repos[choice].Name), strings.ToLower(text)) {
+				if !matched {
+					fmt.Fprintf(t.out, "Repositories matching %q:\n", text)
+					matched = true
+				}
+				entry(n+1, choice)
+			}
+		}
+		if !matched {
+			// The engine says it is not one of the repositories.
+			return gitsync.SetupAnswer{OK: true, Text: text}
+		}
+	}
 }
 
 // withDefault asks for a value, offering def; ok is false at the end of

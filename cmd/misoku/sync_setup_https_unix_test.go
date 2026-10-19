@@ -240,9 +240,14 @@ func TestSyncSetupEngineInTheAppConnectsWithoutAsking(t *testing.T) {
 	if st := s.Next(ctx, gitsync.SetupAnswer{OK: true}); st.Ask != gitsync.AskRepo {
 		t.Fatalf("after start: %+v", st)
 	}
-	st := s.Next(ctx, gitsync.SetupAnswer{OK: true, Choice: 0})
-	if st.Outcome != gitsync.SetupDone {
+	// The repository's notes do not share the vault's history: the guard
+	// reads it (without asking either) and asks before mixing them.
+	if st := s.Next(ctx, gitsync.SetupAnswer{OK: true, Choice: 0}); st.Ask != gitsync.AskUnrelated {
 		t.Fatalf("pick: %+v", st)
+	}
+	st := s.Next(ctx, gitsync.SetupAnswer{OK: true})
+	if st.Outcome != gitsync.SetupDone {
+		t.Fatalf("mix: %+v", st)
 	}
 	if e.asked() {
 		t.Error("the in-app init asked for a password")
@@ -257,7 +262,7 @@ func TestSyncSetupEngineInTheAppConnectsWithoutAsking(t *testing.T) {
 // Public and organization-internal repositories are refused whether
 // picked by number or typed by name, and nothing is changed.
 func TestSyncSetupRefusesPublicAndInternalByNumberAndName(t *testing.T) {
-	for _, input := range []string{"\n1\n", "\n2\n", "\nana/pub\n", "\nint\n", "\nORG/INT\n"} {
+	for _, input := range []string{"\n2\n", "\n3\n", "\nana/pub\n", "\nint\n", "\nORG/INT\n"} { // 1) is Create
 		e := newProbeEnv(t)
 		writeFile(t, e.dir, "repos.json", `[{"nameWithOwner":"ana/pub","visibility":"PUBLIC","url":"https://github.com/ana/pub"},{"nameWithOwner":"org/int","visibility":"INTERNAL","url":"https://github.com/org/int"}]`)
 		before := treeHash(t, e.vault) + fileHash(t, e.cfg) + fileHash(t, e.global)
@@ -277,9 +282,9 @@ func TestSyncSetupGHFailuresNeverShowTheTokenOrChangeTheVault(t *testing.T) {
 	for _, tc := range []struct{ name, flag, input string }{
 		{"signed out, sign-in declined", "loggedout", "\nn\n"},
 		{"list fails", "listfail", "\n"},
-		{"setup-git fails on pick", "setupgitfail", "\n1\n"},
-		{"setup-git fails on create", "setupgitfail", "\n2\nnew\n"},
-		{"create fails", "createfail", "\n2\nnew\n"},
+		{"setup-git fails on pick", "setupgitfail", "\n2\n"},
+		{"setup-git fails on create", "setupgitfail", "\n1\nnew\n"},
+		{"create fails", "createfail", "\n1\nnew\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newProbeEnv(t)
