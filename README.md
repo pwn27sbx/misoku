@@ -170,6 +170,8 @@ misoku                        # no folder: $MISOKU_WORKSPACE, else notes_dir in 
 misoku --theme <name>         # pick a theme for this session
 misoku --list-themes
 misoku --themes-dir <path>    # custom themes folder or single .json file
+misoku --version              # print the version
+misoku --help                 # every command and flag (also -h)
 misoku export note.md         # write note.pdf next to the note (-o to pick the file)
 misoku sync setup             # sync this folder through a private GitHub repository (see Sync)
 misoku sync init <url>        # sync this folder through any git repository, SSH included
