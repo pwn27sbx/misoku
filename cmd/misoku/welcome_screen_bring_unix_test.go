@@ -251,7 +251,11 @@ func TestWelcomeScreenBringWithoutNotesElsewhereStartsThem(t *testing.T) {
 // hangFetch puts a git on PATH that runs the real one, except a fetch into
 // the folder dir: that one never answers until it is killed, as on a dead
 // network while the notes are brought. The file it returns appears once
-// that fetch hangs.
+// that fetch hangs. Like the rest of this file it is Unix only: the fake
+// gh of these tests is a shell script, and running them on Windows would
+// need a stand-in program for both gh and a git that passes every other
+// command on to the real one. internal/app runs Esc on a hanging step on
+// Windows too, with a gh that is the test binary itself.
 func hangFetch(t *testing.T, dir string) string {
 	t.Helper()
 	real, err := exec.LookPath("git")

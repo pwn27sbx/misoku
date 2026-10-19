@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -154,11 +155,45 @@ REALGIT "$@"`)
 	}
 }
 
+// ownSleep is a shell command that sleeps 60 s after adding its pid to the
+// file pids, so a test checks only the sleeps of its own fake git, never
+// another `sleep 60` running on the machine (a parallel suite, another
+// program).
+func ownSleep(pids string) string {
+	return fmt.Sprintf(`sh -c 'echo $$ >> "%s"; exec sleep 60'`, pids)
+}
+
+// survivors returns the pids listed in the file pids that still run a
+// moment later (a zombie, waiting to be reaped, does not run). A child
+// killed with its git is gone within that moment; one that survived
+// sleeps on for a minute.
+func survivors(t *testing.T, pids string) []string {
+	t.Helper()
+	b, err := os.ReadFile(pids)
+	if err != nil {
+		t.Fatalf("the hung git never slept: %v", err)
+	}
+	var alive []string
+	for end := time.Now().Add(2 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		alive = alive[:0]
+		for _, pid := range strings.Fields(string(b)) {
+			out, err := exec.Command("ps", "-o", "stat=", "-p", pid).Output()
+			if stat := strings.TrimSpace(string(out)); err == nil && stat != "" && !strings.HasPrefix(stat, "Z") {
+				alive = append(alive, pid)
+			}
+		}
+		if len(alive) == 0 || time.Now().After(end) {
+			return alive
+		}
+	}
+}
+
 // A git that hangs on every command (not only ssh) is still given up at
 // the 10 s limit used in production.
 func TestQuitHungGitRespectsTheProductionLimit(t *testing.T) {
 	h, _, vault := syncedWindow(t)
-	fakeGit(t, `sleep 60; REALGIT "$@"`)
+	pids := filepath.Join(t.TempDir(), "pids")
+	fakeGit(t, ownSleep(pids)+`; REALGIT "$@"`)
 	writeOutside(t, vault, "new.md", "fresh")
 	lines, took := quit(h, context.Background(), app.QuitSyncLimit)
 	t.Logf("took %s, lines %q", took, lines)
@@ -168,8 +203,8 @@ func TestQuitHungGitRespectsTheProductionLimit(t *testing.T) {
 	if len(lines) != 2 || !strings.HasPrefix(lines[1], "Not pushed") {
 		t.Fatalf("want a Not pushed line, got %q", lines)
 	}
-	if out, _ := exec.Command("pgrep", "-f", "sleep 60").Output(); len(out) > 0 {
-		t.Errorf("a hung git's children survived the limit: pids %s", out)
+	if alive := survivors(t, pids); len(alive) > 0 {
+		t.Errorf("a hung git's children survived the limit: pids %s", alive)
 	}
 }
 
