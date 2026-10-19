@@ -12,6 +12,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const (
@@ -663,17 +664,13 @@ func (m *Model) openSyncStatus(lines []string) {
 }
 
 // wrapLines wraps long lines (an error, a deep path) to fit a dialog: the
-// detail is the point.
+// detail is the point. Lines break between words; only a word longer than
+// a row (a deep path) is broken inside.
 func (m *Model) wrapLines(lines []string) []string {
 	room := max(m.width-12, 20)
 	var wrapped []string
 	for _, l := range lines {
-		r := []rune(l)
-		for len(r) > room {
-			wrapped = append(wrapped, string(r[:room]))
-			r = append([]rune("    "), r[room:]...)
-		}
-		wrapped = append(wrapped, string(r))
+		wrapped = append(wrapped, strings.Split(ansi.Wrap(l, room, ""), "\n")...)
 	}
 	return wrapped
 }

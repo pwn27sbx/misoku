@@ -108,8 +108,16 @@ func TestSyncAccessErrorShowsItsHint(t *testing.T) {
 }
 
 // openSyncStatus types ":sync status" in the editor, checks it asks for
-// the status, and runs that request to the end.
+// the status, runs that request to the end and returns the screen.
 func openSyncStatus(h *harness) string {
+	h.t.Helper()
+	askSyncStatus(h)
+	return h.view()
+}
+
+// askSyncStatus is openSyncStatus without reading the screen, for a test
+// whose window is not the default size h.view expects.
+func askSyncStatus(h *harness) {
 	h.t.Helper()
 	h.keys("1")
 	h.key(tea.KeyEsc)
@@ -135,7 +143,6 @@ func openSyncStatus(h *harness) string {
 	if cmd := h.update(core.SyncStatusMsg{}); cmd != nil {
 		h.finish(cmd)
 	}
-	return h.view()
 }
 
 // dialogText is the text inside the dialog boxes of view, with the border,
@@ -144,14 +151,24 @@ func openSyncStatus(h *harness) string {
 // OS) reads as one again.
 func dialogText(view string) string {
 	var b strings.Builder
+	for _, row := range dialogRows(view) {
+		b.WriteString(strings.TrimSpace(row))
+	}
+	return b.String()
+}
+
+// dialogRows is the inside of every row of the dialog boxes of view,
+// between the left and right borders, spaces kept.
+func dialogRows(view string) []string {
+	var rows []string
 	for _, line := range strings.Split(view, "\n") {
 		first, last := strings.Index(line, "│"), strings.LastIndex(line, "│")
 		if first < 0 || last <= first {
 			continue
 		}
-		b.WriteString(strings.TrimSpace(line[first+len("│") : last]))
+		rows = append(rows, line[first+len("│"):last])
 	}
-	return b.String()
+	return rows
 }
 
 // noSpace drops every space and line break from s. The dialog may wrap a
