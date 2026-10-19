@@ -81,13 +81,19 @@ func PDF(markdown string, opts Options, w io.Writer) error {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	defer lipgloss.SetColorProfile(prev)
 
-	d := newDoc(opts, th)
-	_, body := preview.SplitFrontMatter(strings.ReplaceAll(markdown, "\r\n", "\n"))
-	d.blocks(strings.Split(body, "\n"))
+	d := build(markdown, opts, th)
 	if err := d.pdf.Error(); err != nil {
 		return err
 	}
 	return d.pdf.Output(w)
+}
+
+// build lays out every page of the document without writing it out.
+func build(markdown string, opts Options, th theme.Theme) *doc {
+	d := newDoc(opts, th)
+	_, body := preview.SplitFrontMatter(strings.ReplaceAll(markdown, "\r\n", "\n"))
+	d.blocks(strings.Split(body, "\n"))
+	return d
 }
 
 // WriteFile renders Markdown as a PDF file at path.
@@ -109,10 +115,35 @@ type doc struct {
 	glyphs map[string]*sfnt.Font // family+style → font, to spot missing glyphs
 	cur    string                // family+style in use
 	images int
+	ruler  *fpdf.Fpdf // measures text off the page; see measure
+	wide   bool       // the page is sideways for a table; see upright
+}
+
+// pageSize is the paper every page is printed on.
+const pageSize = "A4"
+
+// fonts are the typefaces a document can use.
+var fonts = []struct {
+	family, style string
+	ttf           []byte
+}{
+	{"sans", "", goregular.TTF},
+	{"sans", "B", gobold.TTF},
+	{"sans", "I", goitalic.TTF},
+	{"sans", "BI", gobolditalic.TTF},
+	{"mono", "", gomono.TTF},
+	{"mono", "B", gomonobold.TTF},
+}
+
+// addFonts registers fonts with p.
+func addFonts(p *fpdf.Fpdf) {
+	for _, f := range fonts {
+		p.AddUTF8FontFromBytes(f.family, f.style, f.ttf)
+	}
 }
 
 func newDoc(opts Options, th theme.Theme) *doc {
-	p := fpdf.New("P", "mm", "A4", "")
+	p := fpdf.New("P", "mm", pageSize, "")
 	p.SetMargins(margin, margin, margin)
 	p.SetAutoPageBreak(true, margin)
 	p.SetCellMargin(0)
@@ -121,18 +152,8 @@ func newDoc(opts Options, th theme.Theme) *doc {
 		p.SetTitle(opts.Title, true)
 	}
 	d := &doc{pdf: p, opts: opts, th: th, glyphs: map[string]*sfnt.Font{}}
-	for _, f := range []struct {
-		family, style string
-		ttf           []byte
-	}{
-		{"sans", "", goregular.TTF},
-		{"sans", "B", gobold.TTF},
-		{"sans", "I", goitalic.TTF},
-		{"sans", "BI", gobolditalic.TTF},
-		{"mono", "", gomono.TTF},
-		{"mono", "B", gomonobold.TTF},
-	} {
-		p.AddUTF8FontFromBytes(f.family, f.style, f.ttf)
+	addFonts(p)
+	for _, f := range fonts {
 		if parsed, err := sfnt.Parse(f.ttf); err == nil {
 			d.glyphs[f.family+f.style] = parsed
 		}
@@ -155,14 +176,30 @@ func (d *doc) font(family, style string, size float64) {
 	d.cur = family + style
 }
 
+// measure returns the width in millimetres of s, cleaned for and set in
+// family+style at size points. It uses a separate, page-less document
+// because fpdf writes every font change to the open page, and sizing a table
+// must leave the page as it was.
+func (d *doc) measure(family, style string, size float64, s string) float64 {
+	if d.ruler == nil {
+		d.ruler = fpdf.New("P", "mm", pageSize, "")
+		addFonts(d.ruler)
+	}
+	d.ruler.SetFont(family, style, size)
+	return d.ruler.GetStringWidth(d.cleanAs(family+style, s))
+}
+
 func (d *doc) color(c rgb) { d.pdf.SetTextColor(c.r, c.g, c.b) }
 
 func (d *doc) fill(c rgb) { d.pdf.SetFillColor(c.r, c.g, c.b) }
 
 // clean swaps runes the current font cannot draw (Nerd Font icons, some
 // symbols) for a stand-in so they never print as empty boxes.
-func (d *doc) clean(s string) string {
-	f := d.glyphs[d.cur]
+func (d *doc) clean(s string) string { return d.cleanAs(d.cur, s) }
+
+// cleanAs is clean for the font family+style key.
+func (d *doc) cleanAs(key, s string) string {
+	f := d.glyphs[key]
 	if f == nil {
 		return s
 	}
@@ -195,11 +232,49 @@ var fallbackRunes = map[rune]rune{
 	'╱': '/', '╲': '\\', '◀': '◄', '▶': '►', '◆': '♦', '◇': '◊',
 }
 
-// ensure starts a new page when fewer than h millimetres are left.
+// ensure starts a new page, turned the same way as this one, when fewer
+// than h millimetres are left.
 func (d *doc) ensure(h float64) {
-	_, ph := d.pdf.GetPageSize()
+	pw, ph := d.pdf.GetPageSize()
 	if d.pdf.GetY()+h > ph-margin {
-		d.pdf.AddPage()
+		d.newPage(pw > ph)
+	}
+}
+
+// newPage starts a page, sideways when landscape. fpdf's AddPage always
+// goes back to the document's upright orientation.
+func (d *doc) newPage(landscape bool) {
+	orientation := "P"
+	if landscape {
+		orientation = "L"
+	}
+	d.pdf.AddPageFormat(orientation, d.pdf.GetPageSizeStr(pageSize))
+}
+
+// sideways starts a sideways page for a wide table, unless the page
+// already is one.
+func (d *doc) sideways() {
+	if pw, ph := d.pdf.GetPageSize(); pw < ph {
+		d.newPage(true)
+	}
+	d.wide = true
+}
+
+// orient turns the page for the block at lines[i]: sideways for a table too
+// wide to print upright, and for the heading right above one so it stays
+// with its table; upright again for anything after. Turning back happens
+// here rather than at the end of the table, so a table that ends the note
+// leaves no blank page behind.
+func (d *doc) orient(lines []string, i int) {
+	next := i + 1
+	for next < len(lines) && strings.TrimSpace(lines[next]) == "" {
+		next++
+	}
+	if d.wideTableAt(lines, i) || headingRe.MatchString(strings.TrimSpace(lines[i])) && d.wideTableAt(lines, next) {
+		d.sideways()
+	} else if d.wide {
+		d.wide = false
+		d.newPage(false)
 	}
 }
 
@@ -238,6 +313,9 @@ func (d *doc) blocks(lines []string) {
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		t := strings.TrimSpace(line)
+		if t != "" {
+			d.orient(lines, i)
+		}
 		switch {
 		case t == "":
 			flush()
@@ -280,13 +358,10 @@ func (d *doc) blocks(lines []string) {
 			flush()
 			d.rule()
 
-		case strings.Contains(t, "|") && i+1 < len(lines) && tableSep.MatchString(lines[i+1]):
+		case startsTable(lines, i):
 			flush()
-			rows := [][]string{splitRow(t)}
-			for i += 2; i < len(lines) && strings.Contains(lines[i], "|") && strings.TrimSpace(lines[i]) != ""; i++ {
-				rows = append(rows, splitRow(lines[i]))
-			}
-			i--
+			var rows [][]string
+			rows, i = tableRows(lines, i)
 			d.table(rows)
 
 		case strings.HasPrefix(t, ">"):
@@ -512,77 +587,6 @@ func (d *doc) list(items []string) {
 	}
 	d.pdf.SetX(l)
 	d.pdf.Ln(1)
-}
-
-func (d *doc) table(rows [][]string) {
-	cols := 0
-	for _, r := range rows {
-		cols = max(cols, len(r))
-	}
-	if cols == 0 {
-		return
-	}
-	d.gap(2)
-	d.font("sans", "", 9.5)
-	width := d.contentWidth()
-	// Share the width by each column's longest cell, within limits.
-	want := make([]float64, cols)
-	for _, r := range rows {
-		for c, cell := range r {
-			want[c] = max(want[c], d.pdf.GetStringWidth(d.clean(plain(cell)))+4)
-		}
-	}
-	total := 0.0
-	for c := range want {
-		want[c] = min(max(want[c], 14), width*0.6)
-		total += want[c]
-	}
-	for c := range want {
-		want[c] *= width / total
-	}
-	const lineH = 4.8
-	l, _, _, _ := d.pdf.GetMargins()
-	d.pdf.SetDrawColor(inkRule.r, inkRule.g, inkRule.b)
-	d.pdf.SetLineWidth(0.25)
-	for ri, r := range rows {
-		style := ""
-		if ri == 0 {
-			style = "B"
-		}
-		d.font("sans", style, 9.5)
-		cells := make([][]string, cols)
-		h := lineH
-		for c := 0; c < cols; c++ {
-			text := ""
-			if c < len(r) {
-				text = d.clean(plain(r[c]))
-			}
-			cells[c] = d.pdf.SplitText(text, want[c]-3)
-			if len(cells[c]) == 0 {
-				cells[c] = []string{""}
-			}
-			h = max(h, float64(len(cells[c]))*lineH)
-		}
-		h += 2
-		d.ensure(h)
-		y, x := d.pdf.GetY(), l
-		for c := 0; c < cols; c++ {
-			if ri == 0 {
-				d.fill(paperCode)
-				d.pdf.Rect(x, y, want[c], h, "FD")
-			} else {
-				d.pdf.Rect(x, y, want[c], h, "D")
-			}
-			d.color(inkText)
-			for li, line := range cells[c] {
-				d.pdf.SetXY(x+1.5, y+1+float64(li)*lineH)
-				d.pdf.CellFormat(want[c]-3, lineH, line, "", 0, "L", false, 0, "")
-			}
-			x += want[c]
-		}
-		d.pdf.SetXY(l, y+h)
-	}
-	d.pdf.Ln(3)
 }
 
 func (d *doc) image(src string) {
