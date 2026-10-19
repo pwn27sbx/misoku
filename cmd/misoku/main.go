@@ -144,7 +144,7 @@ func greet(cfgPath string, cfg config.Config, home string, choice workspaceChoic
 	o.Stdin, o.Out, o.Err, o.ConfigPath, o.Interrupt = os.Stdin, os.Stdout, os.Stderr, cfgPath, interrupt
 	o.ClassicKeys = classicKeysOn(runtime.GOOS, onTerminal(os.Stdin, os.Stdout))
 	if w, h, ok := terminalSize(os.Stdout); ok && screenFits(os.Getenv("TERM"), w, h) {
-		return runWelcomeScreen(context.Background(), o, th)
+		return runWelcomeScreen(o, th)
 	}
 	return runWelcome(context.Background(), o)
 }

@@ -76,8 +76,18 @@ func (m *Model) setupCancelled(s *gitsync.Setup) tea.Cmd {
 	if s.MadeRepo() {
 		return m.setupNext(s, gitsync.SetupAnswer{})
 	}
-	m.setStatus(s.StopText("Sync setup cancelled"))
-	return nil
+	text := s.StopText("Sync setup cancelled")
+	m.setStatus(text)
+	return m.setupEnded(gitsync.SetupStep{Outcome: gitsync.SetupCancelled, Lines: []string{text}})
+}
+
+// setupEnded tells the screen hosting the assistant that it ended with
+// step (SetupDialogs); the app itself needs no telling.
+func (m *Model) setupEnded(step gitsync.SetupStep) tea.Cmd {
+	if m.onSetupEnd == nil {
+		return nil
+	}
+	return m.onSetupEnd(step)
 }
 
 // setupCancel is the cancel of a dialog of the assistant s.
@@ -102,7 +112,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 	s, step := msg.s, msg.step
 	if step.Outcome == gitsync.SetupCancelled && len(step.Lines) > 0 {
 		m.setStatus(step.Lines[len(step.Lines)-1])
-		return nil
+		return m.setupEnded(step)
 	}
 	m.setupNotes = append(m.setupNotes, step.Notes...)
 	if m.confirm != nil || m.saveAs != nil || m.promptBox != nil || m.menuBox != nil {
@@ -110,8 +120,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 		// unsaved notes): it is left alone, and the assistant stops.
 		if step.Ask == gitsync.SetupFinished && len(step.Lines) > 0 {
 			if step.Outcome == gitsync.SetupDone {
-				m.setupSync()
-				m.checkWorkspace()
+				m.vaultSetUp()
 			}
 			m.setStatus(step.Lines[len(step.Lines)-1])
 			return nil
@@ -160,7 +169,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 			return m.setupNext(s, gitsync.SetupAnswer{OK: true, Text: name})
 		})
 	default:
-		m.finishSetup(step, lines)
+		return m.finishSetup(step, lines)
 	}
 	return nil
 }
@@ -248,18 +257,33 @@ func (m *Model) askRepo(s *gitsync.Setup, step gitsync.SetupStep) {
 	m.menuBox.onCancel = setupCancel(s)
 }
 
-// finishSetup shows how the assistant ended. A vault it set up syncs in
-// this window from now on: every interval, on :sync and on quitting.
-func (m *Model) finishSetup(step gitsync.SetupStep, lines []string) {
+// finishSetup shows how the assistant ended; closing it tells the screen
+// hosting the assistant, if any. Starting new notes instead (Bring) is
+// that screen's to show.
+func (m *Model) finishSetup(step gitsync.SetupStep, lines []string) tea.Cmd {
+	if step.Outcome == gitsync.SetupStartNotes {
+		return m.setupEnded(step)
+	}
 	if step.Outcome == gitsync.SetupDone {
-		m.setupSync()
-		m.checkWorkspace() // notes brought from the repository
+		m.vaultSetUp()
 		m.setStatus("Sync is set up")
 	}
 	m.confirm = &confirmDialog{
 		title:    step.Title,
 		message:  m.wrapLines(lines),
 		buttons:  []string{"Close"},
-		onChoose: func(*Model, int) tea.Cmd { return nil },
+		onChoose: func(m *Model, _ int) tea.Cmd { return m.setupEnded(step) },
 	}
+	return nil
+}
+
+// vaultSetUp makes the vault the assistant set up sync in this window from
+// now on: every interval, on :sync and on quitting. A screen that is not
+// the app (no vault open) has nothing to do.
+func (m *Model) vaultSetUp() {
+	if m.store == nil {
+		return
+	}
+	m.setupSync()
+	m.checkWorkspace() // notes brought from the repository
 }

@@ -66,14 +66,14 @@ All you need is a Terminal: the window where you type commands. To open it:
      Notes in your home folder). Press Enter to accept it, or change it.
      Misoku creates the folder and opens it.
    - **Bring my notes from another computer:** for notes your other
-     computer already syncs with Misoku. The screen closes and Misoku goes
-     on in the Terminal: it offers a folder for them
+     computer already syncs with Misoku. Misoku offers a folder for them
      (`~/Notes`, or `~/Notes-2` when that one already has files) and
-     explains what will happen. Misoku asks a few questions; press Enter to
-     accept each answer it offers. Then you sign in to GitHub: a one-time code
-     appears and your browser opens; sign in there and enter the code. Pick
-     your notes from the list of your repositories, and they appear. No
-     notes elsewhere after all? Choose
+     explains what will happen, in the same screen. Misoku asks a few
+     questions; press Enter to accept each answer it offers. Then you sign
+     in to GitHub: a one-time code appears and your browser opens; sign in
+     there and enter the code. Pick your notes from the list of your
+     repositories, and they appear. Esc at any question goes back to the
+     choices and leaves nothing behind. No notes elsewhere after all? Choose
      **I don't have notes on another computer → Start my notes**.
    - **Use this folder:** shown as a third choice only when the Terminal is
      already in a folder with notes (`.md` files). Misoku keeps your notes

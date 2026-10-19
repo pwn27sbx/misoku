@@ -7,10 +7,11 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -49,7 +50,7 @@ func (s *screenRun) send(msg tea.Msg) {
 }
 
 func (s *screenRun) run(cmd tea.Cmd) {
-	if cmd == nil {
+	if cmd == nil || isTimer(cmd) {
 		return
 	}
 	switch msg := cmd().(type) {
@@ -63,6 +64,14 @@ func (s *screenRun) run(cmd tea.Cmd) {
 	default:
 		s.send(msg)
 	}
+}
+
+// isTimer reports whether cmd only waits for a clock (a cursor blink in
+// the assistant's text fields): it is not run, so a test never waits.
+func isTimer(cmd tea.Cmd) bool {
+	fn := runtime.FuncForPC(reflect.ValueOf(cmd).Pointer())
+	return fn != nil && (strings.HasPrefix(fn.Name(), "github.com/charmbracelet/bubbles/cursor.(*Model).BlinkCmd.") ||
+		strings.HasPrefix(fn.Name(), "github.com/charmbracelet/bubbletea.Tick."))
 }
 
 // press sends each key: a name such as "enter", "esc", "down", "ctrl+u",
@@ -91,7 +100,7 @@ func (g *greeting) finish(t *testing.T, s *screenRun) (string, int, string) {
 	var out bytes.Buffer
 	o := g.options()
 	o.Out, o.Err = &out, &out
-	dir, code := finishWelcome(context.Background(), o, s.m.outcome)
+	dir, code := finishWelcome(o, s.m.outcome)
 	return dir, code, out.String()
 }
 
@@ -231,14 +240,14 @@ func TestWelcomeScreenNumbersChooseToo(t *testing.T) {
 	}
 	s = g.newScreen(t)
 	s.press("2")
-	if !s.quit || s.m.outcome.choice != choiceBring {
-		t.Fatalf("2: quit %v, choice %d", s.quit, s.m.outcome.choice)
+	if s.quit || !s.m.asking || s.m.askFor != choiceBring {
+		t.Fatalf("2: quit %v, asking %v for %d", s.quit, s.m.asking, s.m.askFor)
 	}
 }
 
-// Bring my notes closes the screen and goes on with the terminal
-// assistant, which first proposes a free folder.
-func TestWelcomeScreenBringHandsOffToTheAssistant(t *testing.T) {
+// Bring my notes stays in the screen and first proposes a free folder;
+// Esc there leaves without changing anything.
+func TestWelcomeScreenBringProposesAFreeFolder(t *testing.T) {
 	g := newGreeting(t)
 	writeFile(t, g.home, "Notes/mine.md", "mine\n")
 	s := g.newScreen(t)
@@ -247,10 +256,13 @@ func TestWelcomeScreenBringHandsOffToTheAssistant(t *testing.T) {
 		t.Fatalf("down then up: row %d, want the first", s.m.cursor)
 	}
 	s.press("down", "enter")
-	_, code, out := g.finish(t, s)
-	wantOutput(t, out, "Bring my notes from another computer", "Folder for your notes [~/Notes-2]", "Nothing was changed")
-	if code != 0 {
-		t.Errorf("exit %d, want 0 (stopped at the end of the input)", code)
+	if s.quit {
+		t.Fatal("Bring my notes closed the screen")
+	}
+	wantOutput(t, s.m.View(), "Folder for your notes", "~/Notes-2")
+	s.press("esc")
+	if _, code, out := g.finish(t, s); code != 0 || !strings.Contains(out, "Nothing was changed") {
+		t.Errorf("exit %d, want 0 and nothing changed:\n%s", code, out)
 	}
 }
 
