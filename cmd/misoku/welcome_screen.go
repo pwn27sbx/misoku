@@ -158,8 +158,10 @@ func (m welcomeScreen) updateChoices(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // choose takes the choice numbered n: Start my notes and Bring my notes
-// open the folder field, Use this folder closes the screen.
+// open the folder field, Use this folder closes the screen. How the last
+// Bring my notes ended is said no more: another choice was taken.
 func (m welcomeScreen) choose(n int) (tea.Model, tea.Cmd) {
+	m.notice = ""
 	switch n {
 	case choiceStart:
 		return m.askFolder(choiceStart, "~/"+defaultNotes)

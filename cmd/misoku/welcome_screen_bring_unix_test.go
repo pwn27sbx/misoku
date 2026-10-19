@@ -146,6 +146,22 @@ func TestWelcomeScreenBringCancelledAtEachStepSavesNothing(t *testing.T) {
 	}
 }
 
+// The notice of a cancelled Bring my notes goes once another choice is
+// taken: it does not stay under Start my notes' folder field.
+func TestWelcomeScreenBringNoticeGoesWithTheNextChoice(t *testing.T) {
+	f := newFakeGH(t, true)
+	f.setRepos(t, `[{"nameWithOwner":"ana/notes","visibility":"PRIVATE","url":"https://github.com/ana/notes"}]`)
+	g := newGreeting(t)
+	s := bringScreen(t, g)
+	s.press("esc") // leave the assistant at Start
+	s.expect(t, "cancelled", "Start my notes")
+	s.press("1")
+	s.expect(t, "Folder for your notes", "~/Notes")
+	if strings.Contains(s.m.View(), "cancelled") {
+		t.Fatalf("the notice must go once Start my notes opens:\n%s", s.m.View())
+	}
+}
+
 // In a home folder that is a git repository, ~/Notes gets a repository of
 // its own, asked once in one clear question; leaving the list afterwards
 // removes the folder and the repository the run created.

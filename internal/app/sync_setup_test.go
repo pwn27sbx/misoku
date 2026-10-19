@@ -130,7 +130,7 @@ func TestQuittingWaitsForARunningSyncSetupStep(t *testing.T) {
 				t.Fatalf("%#v quit while setup was running", quit)
 			}
 		}
-		wantBar(t, h, "Sync setup is running")
+		wantBar(t, h, "Sync setup is running: Esc cancels it, then quit")
 	}
 	h.finish(step)
 	h.key(tea.KeyEsc) // cancel the setup
@@ -386,6 +386,49 @@ func TestSyncSetupInsideTheAppEscStopsARunningStep(t *testing.T) {
 	h.send(msg)
 	if strings.Contains(h.view(), "Sign in") || strings.Contains(h.view(), "Sync setup stopped") || statusBar(h) != bar {
 		t.Fatalf("a stale step result must change nothing:\n%s", h.view())
+	}
+}
+
+// The bar says what the setup is doing for as long as a step runs: a key
+// pressed meanwhile (a move, a second Esc while it is cancelling) does not
+// empty it. Once the step ended, a key clears the bar as always.
+func TestSyncSetupInsideTheAppBarStaysWhileAStepRuns(t *testing.T) {
+	hung := hangingGH(t)
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello\nworld")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.keys("1") // open a.md
+	h.send(core.SyncSetupMsg{})
+	done := startInBackground(t, h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Start: gh hangs
+	waitFor(t, hung)
+	h.keys("j")
+	wantBar(t, h, "Setting up sync… Esc cancels")
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "Cancelling sync setup…")
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "Cancelling sync setup…")
+	h.keys("k")
+	wantBar(t, h, "Cancelling sync setup…")
+	h.send(waitStep(t, done))
+	wantBar(t, h, "cancelled")
+	h.keys("j")
+	if bar := statusBar(h); strings.Contains(bar, "cancelled") || strings.Contains(bar, "sync setup") || strings.Contains(bar, "Setting up sync") {
+		t.Fatalf("once the step ended, a key must clear the bar:\n%s", bar)
+	}
+}
+
+// Outside the setup a key clears the bar's message, as it always did.
+func TestAKeyClearsTheBarMessage(t *testing.T) {
+	t.Parallel()
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello\nworld")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.keys("1") // open a.md
+	h.send(core.StatusMsg{Text: "A message for the bar"})
+	wantBar(t, h, "A message for the bar")
+	h.keys("j")
+	if bar := statusBar(h); strings.Contains(bar, "A message for the bar") || strings.Contains(bar, "Setting up sync") {
+		t.Fatalf("a key must clear the bar's message:\n%s", bar)
 	}
 }
 

@@ -46,7 +46,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status, m.statusErr = msg.Text, msg.Error
 		return m, nil
 	case tea.KeyMsg:
+		// A key clears the bar's message, except while a step of the sync
+		// setup runs: the bar keeps saying so until its result arrives.
 		m.status = ""
+		if m.setupBusy {
+			m.setStatus(m.setupBar())
+		}
 		m.keyCount++
 	}
 
