@@ -13,7 +13,7 @@ import (
 
 // ownRepoQuestion is what the assistant asks for a folder inside another
 // repository.
-const ownRepoQuestion = "This folder is inside another git repository. Create a separate one for your notes?"
+const ownRepoQuestion = "Create a separate repository for your notes here?"
 
 // gitIn runs git in dir and returns its trimmed output.
 func gitIn(t *testing.T, dir string, args ...string) string {

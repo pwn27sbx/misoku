@@ -137,6 +137,9 @@ type Model struct {
 	// each of its questions.
 	setupBusy  bool
 	setupNotes []string
+	// onSetupEnd hears that the assistant ended, on a screen that is not
+	// the app (SetupDialogs); nil in the app.
+	onSetupEnd func(gitsync.SetupStep) tea.Cmd
 }
 
 // Option customises the app at construction.

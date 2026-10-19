@@ -20,6 +20,8 @@ type promptDialog struct {
 	hint     string
 	input    textinput.Model
 	onSubmit func(m *Model, value string) tea.Cmd
+	// onCancel, when set, runs once the dialog closed without an answer.
+	onCancel func(m *Model) tea.Cmd
 }
 
 func (m *Model) prompt(title, value, hint string, onSubmit func(*Model, string) tea.Cmd) tea.Cmd {
@@ -37,8 +39,7 @@ func (d *promptDialog) update(m *Model, msg tea.Msg) tea.Cmd {
 	if k, ok := msg.(tea.KeyMsg); ok {
 		switch k.String() {
 		case "esc", "ctrl+c":
-			m.promptBox = nil
-			return nil
+			return d.cancel(m)
 		case "enter":
 			m.promptBox = nil
 			return d.onSubmit(m, strings.TrimSpace(d.input.Value()))
@@ -48,7 +49,7 @@ func (d *promptDialog) update(m *Model, msg tea.Msg) tea.Cmd {
 		if mm.Action == tea.MouseActionPress && mm.Button == tea.MouseButtonLeft {
 			x, y, w, h := d.geom(m)
 			if mm.X < x || mm.X >= x+w || mm.Y < y || mm.Y >= y+h {
-				m.promptBox = nil
+				return d.cancel(m)
 			}
 		}
 		return nil
@@ -56,6 +57,15 @@ func (d *promptDialog) update(m *Model, msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	d.input, cmd = d.input.Update(msg)
 	return cmd
+}
+
+// cancel closes the dialog without an answer.
+func (d *promptDialog) cancel(m *Model) tea.Cmd {
+	m.promptBox = nil
+	if d.onCancel != nil {
+		return d.onCancel(m)
+	}
+	return nil
 }
 
 func (d *promptDialog) geom(m *Model) (x, y, w, h int) {

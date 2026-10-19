@@ -304,3 +304,32 @@ func TestRepoListAsksBeforeMixingNotesInTheApp(t *testing.T) {
 		})
 	}
 }
+
+// Leaving the list ends the assistant as its Cancel buttons do: the bar
+// says so, rather than the list just closing with the run left open.
+func TestSyncSetupListEscCancelsTheAssistant(t *testing.T) {
+	h, _, _, vault := openRepoList(t, longList(2))
+	h.key(tea.KeyEsc)
+	if view := h.view(); strings.Contains(view, listTitle) || !strings.Contains(view, "Sync setup cancelled") {
+		t.Fatalf("Esc must cancel the assistant:\n%s", view)
+	}
+	if _, err := os.Stat(filepath.Join(vault, ".git")); !os.IsNotExist(err) {
+		t.Errorf("a repository was left in the vault (%v)", err)
+	}
+}
+
+// Leaving the new repository's name field cancels the assistant too.
+func TestSyncSetupNameEscCancelsTheAssistant(t *testing.T) {
+	h, fake, _, _ := openRepoList(t, longList(2))
+	h.key(tea.KeyEnter) // the new private repository, pinned first
+	if !strings.Contains(h.view(), "Name of the new private repository") {
+		t.Fatalf("the name must be asked:\n%s", h.view())
+	}
+	h.key(tea.KeyEsc)
+	if !strings.Contains(h.view(), "Sync setup cancelled") {
+		t.Fatalf("Esc must cancel the assistant:\n%s", h.view())
+	}
+	if ghCalled(t, fake, "repo create") {
+		t.Error("a repository was created")
+	}
+}

@@ -46,7 +46,7 @@ func TestSyncSetupOffersARepositoryOfItsOwnAndRemovesItOnCancel(t *testing.T) {
 		t.Fatalf("exit %d, want 1 (cancelled):\n%s", code, out.String())
 	}
 	wantOutput(t, out.String(),
-		"This folder is inside another git repository. Create a separate one for your notes? [Y/n]",
+		"Create a separate repository for your notes here? [Y/n]",
 		"Start? [Y/n]", "was removed")
 	if _, err := os.Lstat(filepath.Join(dir, ".git")); !os.IsNotExist(err) {
 		t.Errorf("the repository the cancelled run created must go: %v", err)
@@ -136,7 +136,7 @@ func TestSyncSetupOffersARepositoryOfItsOwnForAMissingFolder(t *testing.T) {
 		t.Fatalf("exit %d, want 1 (cancelled):\n%s", code, out.String())
 	}
 	wantOutput(t, out.String(),
-		"This folder is inside another git repository. Create a separate one for your notes? [Y/n]",
+		"Create a separate repository for your notes here? [Y/n]",
 		"Start? [Y/n]", "was removed")
 	if _, err := os.Lstat(dir); !os.IsNotExist(err) {
 		t.Errorf("the folder the cancelled run created must go: %v", err)
