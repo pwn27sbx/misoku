@@ -41,6 +41,7 @@ var testHome string
 // for every test, so it is set once here with os.Setenv: t.Setenv would
 // forbid t.Parallel, and the sync tests run in parallel.
 func TestMain(m *testing.M) {
+	hangAsGH()
 	os.Exit(runIsolated(m))
 }
 

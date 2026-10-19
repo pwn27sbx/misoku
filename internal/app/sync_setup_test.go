@@ -3,6 +3,7 @@ package app_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -130,7 +131,7 @@ func TestQuittingWaitsForARunningSyncSetupStep(t *testing.T) {
 				t.Fatalf("%#v quit while setup was running", quit)
 			}
 		}
-		wantBar(t, h, "Sync setup is running")
+		wantBar(t, h, "Sync setup is running: Esc cancels it, then quit")
 	}
 	h.finish(step)
 	h.key(tea.KeyEsc) // cancel the setup
@@ -290,19 +291,44 @@ func TestAListedHomeFolderKeepsSyncing(t *testing.T) {
 	}
 }
 
+// hangGHEnv names the file a hanging gh creates once it hangs (hangingGH).
+const hangGHEnv = "MISOKU_APP_TEST_HANGING_GH"
+
+// hangAsGH, called first in TestMain, makes this test binary the hanging
+// gh of hangingGH when it runs under the name gh: it creates the file
+// hangGHEnv names and then waits until it is killed, as gh does on a dead
+// network. Under any other name it returns at once.
+func hangAsGH() {
+	marker := os.Getenv(hangGHEnv)
+	name := strings.TrimSuffix(filepath.Base(os.Args[0]), filepath.Ext(os.Args[0]))
+	if marker == "" || name != "gh" {
+		return
+	}
+	if f, err := os.Create(marker); err == nil {
+		f.Close()
+	}
+	time.Sleep(30 * time.Second)
+	os.Exit(1)
+}
+
 // hangingGH puts on PATH a gh that never answers until it is killed, so a
 // step of the assistant hangs as on a dead network. The file it returns
-// appears once gh hangs.
+// appears once gh hangs. The gh is this test binary under the name gh
+// (hangAsGH), not a shell script, so the test runs on Windows too.
 func hangingGH(t *testing.T) string {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("the hanging gh is a shell script")
+	self, err := os.Executable()
+	if err != nil {
+		t.Skipf("cannot find the test binary: %v", err)
 	}
 	bin := t.TempDir()
 	hung := filepath.Join(bin, "hung")
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\ntouch '"+hung+"'\nexec sleep 30\n"), 0o755); err != nil {
-		t.Fatal(err)
+	gh := filepath.Join(bin, "gh")
+	if runtime.GOOS == "windows" {
+		gh += ".exe"
 	}
+	copyProgram(t, self, gh)
+	t.Setenv(hangGHEnv, hung)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	global := filepath.Join(t.TempDir(), "gitconfig")
 	if err := os.WriteFile(global, nil, 0o644); err != nil {
@@ -310,6 +336,27 @@ func hangingGH(t *testing.T) string {
 	}
 	t.Setenv("GIT_CONFIG_GLOBAL", global)
 	return hung
+}
+
+// copyProgram copies the program from to the new file to, runnable.
+func copyProgram(t *testing.T, from, to string) {
+	t.Helper()
+	in, err := os.Open(from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	out, err := os.OpenFile(to, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		t.Fatal(err)
+	}
+	if err := out.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // waitFor waits until the file path exists: the step reached its hang.
@@ -386,6 +433,49 @@ func TestSyncSetupInsideTheAppEscStopsARunningStep(t *testing.T) {
 	h.send(msg)
 	if strings.Contains(h.view(), "Sign in") || strings.Contains(h.view(), "Sync setup stopped") || statusBar(h) != bar {
 		t.Fatalf("a stale step result must change nothing:\n%s", h.view())
+	}
+}
+
+// The bar says what the setup is doing for as long as a step runs: a key
+// pressed meanwhile (a move, a second Esc while it is cancelling) does not
+// empty it. Once the step ended, a key clears the bar as always.
+func TestSyncSetupInsideTheAppBarStaysWhileAStepRuns(t *testing.T) {
+	hung := hangingGH(t)
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello\nworld")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.keys("1") // open a.md
+	h.send(core.SyncSetupMsg{})
+	done := startInBackground(t, h.update(tea.KeyMsg{Type: tea.KeyEnter})) // Start: gh hangs
+	waitFor(t, hung)
+	h.keys("j")
+	wantBar(t, h, "Setting up sync… Esc cancels")
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "Cancelling sync setup…")
+	h.key(tea.KeyEsc)
+	wantBar(t, h, "Cancelling sync setup…")
+	h.keys("k")
+	wantBar(t, h, "Cancelling sync setup…")
+	h.send(waitStep(t, done))
+	wantBar(t, h, "cancelled")
+	h.keys("j")
+	if bar := statusBar(h); strings.Contains(bar, "cancelled") || strings.Contains(bar, "sync setup") || strings.Contains(bar, "Setting up sync") {
+		t.Fatalf("once the step ended, a key must clear the bar:\n%s", bar)
+	}
+}
+
+// Outside the setup a key clears the bar's message, as it always did.
+func TestAKeyClearsTheBarMessage(t *testing.T) {
+	t.Parallel()
+	vault := t.TempDir()
+	writeOutside(t, vault, "a.md", "hello\nworld")
+	h := window(t, vault, filepath.Join(t.TempDir(), "config.json"))
+	h.keys("1") // open a.md
+	h.send(core.StatusMsg{Text: "A message for the bar"})
+	wantBar(t, h, "A message for the bar")
+	h.keys("j")
+	if bar := statusBar(h); strings.Contains(bar, "A message for the bar") || strings.Contains(bar, "Setting up sync") {
+		t.Fatalf("a key must clear the bar's message:\n%s", bar)
 	}
 }
 

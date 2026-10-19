@@ -25,6 +25,8 @@ const (
 	setupStepLimit = 15 * time.Minute
 	// setupRunning is the bar while a step runs.
 	setupRunning = "Setting up sync… Esc cancels"
+	// setupCancelling is the bar once Esc stopped a step, until it returns.
+	setupCancelling = "Cancelling sync setup…"
 )
 
 // setupMsg brings a step of the assistant back to Update; id is the
@@ -79,8 +81,16 @@ func (m *Model) cancelSetupStep() tea.Cmd {
 	}
 	m.setupStopped = true
 	m.setupStop()
-	m.setStatus("Cancelling sync setup…")
+	m.setStatus(setupCancelling)
 	return nil
+}
+
+// setupBar is the bar while a step runs: it runs, or Esc is stopping it.
+func (m *Model) setupBar() string {
+	if m.setupStopped {
+		return setupCancelling
+	}
+	return setupRunning
 }
 
 // setupNext answers the current step.
@@ -206,13 +216,14 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 
 // quitHeld reports whether quitting must wait: a step of the setup
 // assistant is running (an init may be pushing the vault), and quitting
-// now would leave it half done. The bar says why; the step ends on its own
-// within its time limits, and quitting works again.
+// now would leave it half done. The bar says why and that Esc stops it;
+// the step also ends on its own within its time limits, and quitting works
+// again.
 func (m *Model) quitHeld() bool {
 	if !m.setupBusy {
 		return false
 	}
-	m.setError("Sync setup is running: quit once it finishes")
+	m.setError("Sync setup is running: Esc cancels it, then quit")
 	return true
 }
 
