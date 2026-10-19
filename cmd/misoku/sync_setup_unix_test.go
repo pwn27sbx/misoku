@@ -338,7 +338,7 @@ func TestSyncSetupBringsTheNotesOfAnExistingRepository(t *testing.T) {
 	f.setRepos(t, `[{"nameWithOwner":"ana/notes","visibility":"PRIVATE","url":"https://github.com/ana/notes"}]`)
 	dir := filepath.Join(t.TempDir(), "Notes") // a new computer: no folder yet
 	cfg := filepath.Join(t.TempDir(), "config.json")
-	code, out := setup(t, dir, cfg, "\n1\n")
+	code, out := setup(t, dir, cfg, "\n2\n") // 1) is Create
 	if code != 0 {
 		t.Fatalf("exit %d, want 0:\n%s", code, out)
 	}
@@ -357,7 +357,7 @@ func TestSyncSetupRefusesAPublicRepository(t *testing.T) {
 	dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
 	before := f.snapshot(t, dir, cfg)
 	// Pick the public one by number, then by name, then give up.
-	code, out := setup(t, dir, cfg, "\n1\nana/site\n\n")
+	code, out := setup(t, dir, cfg, "\n2\nana/site\n\n")
 	if code != 1 {
 		t.Errorf("exit %d, want 1:\n%s", code, out)
 	}
@@ -598,7 +598,7 @@ func TestSyncSetupStoresOriginWithoutCredentials(t *testing.T) {
 	f.remote(t, "notes")
 	f.setRepos(t, `[{"nameWithOwner":"ana/notes","visibility":"PRIVATE","url":"https://ana:secret@github.com/ana/notes"}]`)
 	dir, cfg := notesVault(t), filepath.Join(t.TempDir(), "config.json")
-	code, out := setup(t, dir, cfg, "\n1\n")
+	code, out := setup(t, dir, cfg, "\n2\n") // 1) is Create
 	if code != 0 {
 		t.Fatalf("exit %d, want 0:\n%s", code, out)
 	}

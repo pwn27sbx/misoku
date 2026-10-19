@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/core"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -22,9 +24,9 @@ type mediaKind struct {
 }
 
 var mediaKinds = map[string]mediaKind{
-	"image": {"image", "Choose an image", []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".heic", ".avif"}, "public.image"},
-	"video": {"video", "Choose a video", []string{".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}, "public.movie"},
-	"audio": {"audio", "Choose an audio file", []string{".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"}, "public.audio"},
+	"image": {"image", "Choose an image", core.ImageExts, "public.image"},
+	"video": {"video", "Choose a video", core.VideoExts, "public.movie"},
+	"audio": {"audio", "Choose an audio file", core.AudioExts, "public.audio"},
 	"file":  {"file", "Choose a file", nil, ""},
 	"cover": {"cover", "Choose a cover image", []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}, "public.image"},
 }

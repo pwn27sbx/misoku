@@ -100,10 +100,10 @@ func TestSyncSetupInsideTheAppSignsInOutsideTheScreenAndConnects(t *testing.T) {
 	if !strings.Contains(view, "ana/site") || !strings.Contains(view, "Create a new private repository") {
 		t.Fatalf("after signing in, the repositories must be listed:\n%s", view)
 	}
+	h.key(tea.KeyDown)
 	h.key(tea.KeyEnter) // the public one: refused
 	wantBar(t, h, "ana/site is public")
-	h.key(tea.KeyDown)
-	h.key(tea.KeyEnter) // Create a new private repository
+	h.key(tea.KeyEnter) // Create a new private repository, first again
 	if !strings.Contains(h.view(), "Name of the new private repository") {
 		t.Fatalf("creating must ask for the name:\n%s", h.view())
 	}
