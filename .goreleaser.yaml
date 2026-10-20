@@ -52,9 +52,14 @@ archives:
 checksum:
   name_template: checksums.txt
 
-# Package managers. Each one publishes only when its secret is set; without
-# it the package file is still generated in dist/ but nothing is pushed, so a
-# release works exactly as before.
+# Package managers. Each one publishes only when its secret is set (and the
+# AUR one also needs AUR_PUBLISH=true); otherwise the package file is still
+# generated in dist/ but nothing is pushed, so a release works exactly as before.
+#
+# skip_upload is resolved before the publish step reads private_key, so a
+# missing key never reaches the git client. url and private_key go through
+# the full template engine (not the {{ .Env.VAR }}-only one used for tokens),
+# which is why envOrDefault works there.
 
 # Arch Linux (and Omarchy): yay -S misoku-bin
 aurs:
@@ -70,7 +75,9 @@ aurs:
     # Key contents of an SSH key registered on the AUR account (no passphrase).
     private_key: '{{ envOrDefault "AUR_KEY" "" }}'
     git_url: ssh://aur@aur.archlinux.org/misoku-bin.git
-    skip_upload: '{{ if envOrDefault "AUR_KEY" "" }}false{{ else }}true{{ end }}'
+    # Off unless AUR_PUBLISH is "true" and AUR_KEY is set: the key alone is
+    # not enough while no AUR account accepts it.
+    skip_upload: '{{ if and (eq (envOrDefault "AUR_PUBLISH" "") "true") (isEnvSet "AUR_KEY") }}false{{ else }}true{{ end }}'
     package: |-
       install -Dm755 "./misoku" "${pkgdir}/usr/bin/misoku"
       install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/misoku-bin/LICENSE"
@@ -84,11 +91,14 @@ homebrew_casks:
     homepage: https://github.com/pwn27sbx/misoku
     description: Block-based Markdown notebook for your terminal
     license: MIT
+    # Pushed over SSH with a deploy key that has write access to the tap.
     repository:
       owner: pwn27sbx
       name: homebrew-tap
-      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
-    skip_upload: '{{ if envOrDefault "HOMEBREW_TAP_TOKEN" "" }}false{{ else }}true{{ end }}'
+      git:
+        url: git@github.com:pwn27sbx/homebrew-tap.git
+        private_key: '{{ envOrDefault "HOMEBREW_TAP_KEY" "" }}'
+    skip_upload: '{{ if isEnvSet "HOMEBREW_TAP_KEY" }}false{{ else }}true{{ end }}'
     commit_msg_template: "misoku {{ .Tag }}"
     # The binary is not notarized: without this, macOS refuses to open a
     # quarantined download. This is the hook GoReleaser documents for casks.

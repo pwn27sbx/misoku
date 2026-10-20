@@ -131,7 +131,8 @@ the install.
 - git is needed only to sync; Misoku works without it.
 
 **Arch Linux (and Omarchy):** from the AUR, `yay -S misoku-bin` (or any
-other AUR helper). Update with `yay -Syu`.
+other AUR helper). Update with `yay -Syu`. Available once the AUR package
+is published.
 
 **Homebrew (macOS):** `brew install --cask pwn27sbx/tap/misoku`. Update with
 `brew upgrade --cask misoku`. The binary is not notarized by Apple, so the
