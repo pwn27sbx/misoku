@@ -7,6 +7,7 @@
 A block-based notebook for your terminal.
 Your notes stay plain Markdown files.
 
+<img src="docs/demo.gif" alt="Misoku in a terminal: opening a note from the start screen, moving through its blocks, adding a to-do with a [[wiki link]] that the live preview renders, following the link to the other note, and switching to reading mode" width="900">
 
 </div>
 
@@ -128,6 +129,18 @@ the install.
   is left alone and used as it is.
   Running the installer again updates only the gh it installed.
 - git is needed only to sync; Misoku works without it.
+
+**Arch Linux (and Omarchy):** from the AUR, `yay -S misoku-bin` (or any
+other AUR helper). Update with `yay -Syu`. Available once the AUR package
+is published.
+
+**Homebrew (macOS):** `brew install --cask pwn27sbx/tap/misoku`. Update with
+`brew upgrade --cask misoku`. The binary is not notarized by Apple, so the
+cask removes macOS's quarantine flag from it on install; without that, macOS
+would refuse to open it.
+
+Both install only `misoku`. To sync with `:sync setup`, also install gh:
+`yay -S github-cli` or `brew install gh`.
 
 **Manual download:** grab `misoku-macos.tar.gz`, `misoku-linux.tar.gz`
 (x86-64), `misoku-linux-arm64.tar.gz` or `misoku-windows.zip` from the
