@@ -52,6 +52,53 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Package managers. Each one publishes only when its secret is set; without
+# it the package file is still generated in dist/ but nothing is pushed, so a
+# release works exactly as before.
+
+# Arch Linux (and Omarchy): yay -S misoku-bin
+aurs:
+  - name: misoku-bin
+    ids: [misoku]
+    homepage: https://github.com/pwn27sbx/misoku
+    description: Block-based Markdown notebook for your terminal
+    maintainers:
+      - pwn27sbx
+    license: MIT
+    provides: [misoku]
+    conflicts: [misoku]
+    # Key contents of an SSH key registered on the AUR account (no passphrase).
+    private_key: '{{ envOrDefault "AUR_KEY" "" }}'
+    git_url: ssh://aur@aur.archlinux.org/misoku-bin.git
+    skip_upload: '{{ if envOrDefault "AUR_KEY" "" }}false{{ else }}true{{ end }}'
+    package: |-
+      install -Dm755 "./misoku" "${pkgdir}/usr/bin/misoku"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/misoku-bin/LICENSE"
+    commit_msg_template: "Update to {{ .Tag }}"
+
+# macOS: brew install --cask pwn27sbx/tap/misoku
+homebrew_casks:
+  - name: misoku
+    ids: [misoku]
+    binaries: [misoku]
+    homepage: https://github.com/pwn27sbx/misoku
+    description: Block-based Markdown notebook for your terminal
+    license: MIT
+    repository:
+      owner: pwn27sbx
+      name: homebrew-tap
+      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+    skip_upload: '{{ if envOrDefault "HOMEBREW_TAP_TOKEN" "" }}false{{ else }}true{{ end }}'
+    commit_msg_template: "misoku {{ .Tag }}"
+    # The binary is not notarized: without this, macOS refuses to open a
+    # quarantined download. This is the hook GoReleaser documents for casks.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/misoku"]
+          end
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
