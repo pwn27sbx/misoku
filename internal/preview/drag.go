@@ -44,6 +44,9 @@ func (m Model) blockAt(row int) int {
 // Dragging reports whether a block is being dragged.
 func (m Model) Dragging() bool { return m.drag >= 0 }
 
+// Hovering reports whether a block is under the mouse, so its handles show.
+func (m Model) Hovering() bool { return m.hover >= 0 }
+
 // ClearHover hides the block handles (the mouse left the pane).
 func (m *Model) ClearHover() {
 	if m.drag < 0 {

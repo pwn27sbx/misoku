@@ -122,7 +122,11 @@ func main() {
 	// Each frame is drawn as one synchronized update, so a terminal never
 	// shows it half painted; MISOKU_NO_SYNC=1 turns that off.
 	out := syncout.ForTerminal(os.Stdout, os.Getenv)
-	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(out))
+	// Every motion report is needed for the preview's block handles, but
+	// most of it changes nothing: MouseFilter drops that before Update and
+	// View run.
+	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
+		tea.WithFilter(app.MouseFilter), tea.WithOutput(out))
 	final, err := p.Run()
 	if err != nil {
 		log.Printf("Fatal error running program: %v\n", err)

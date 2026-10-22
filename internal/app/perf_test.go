@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/testnote"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -147,8 +148,21 @@ func motion(a benchApp, x int, b *testing.B) {
 	}
 }
 
+// filteredMotion is motion as the program delivers it: app.MouseFilter
+// first, and Update + View only for what it lets through.
+func filteredMotion(a benchApp, x int, b *testing.B) {
+	i := 0
+	for b.Loop() {
+		if msg := app.MouseFilter(a.m, tea.MouseMsg{X: x + i%2, Y: bodyRow, Action: tea.MouseActionMotion}); msg != nil {
+			a.step(msg)
+		}
+		i++
+	}
+}
+
 // BenchmarkMouseMotion measures one pointer move over the editor without a
-// drag, which changes nothing on screen: Update + View.
+// drag, which changes nothing on screen: Update + View. The filtered runs go
+// through app.MouseFilter first, as the program does, which drops it.
 func BenchmarkMouseMotion(b *testing.B) {
 	for _, s := range benchSizes {
 		b.Run(s.name, func(b *testing.B) {
@@ -156,17 +170,28 @@ func BenchmarkMouseMotion(b *testing.B) {
 			b.ReportAllocs()
 			motion(a, a.editorX, b)
 		})
+		b.Run("filtered/"+s.name, func(b *testing.B) {
+			a := openBenchNote(b, s.lines)
+			b.ReportAllocs()
+			filteredMotion(a, a.editorX, b)
+		})
 	}
 }
 
 // BenchmarkPreviewMotion measures one pointer move over the preview, where
-// hovering shows the block handles: Update + View.
+// hovering shows the block handles: Update + View. The filtered runs go
+// through app.MouseFilter first, which lets it through.
 func BenchmarkPreviewMotion(b *testing.B) {
 	for _, s := range benchSizes {
 		b.Run(s.name, func(b *testing.B) {
 			a := openBenchNote(b, s.lines)
 			b.ReportAllocs()
 			motion(a, a.previewX, b)
+		})
+		b.Run("filtered/"+s.name, func(b *testing.B) {
+			a := openBenchNote(b, s.lines)
+			b.ReportAllocs()
+			filteredMotion(a, a.previewX, b)
 		})
 	}
 }
