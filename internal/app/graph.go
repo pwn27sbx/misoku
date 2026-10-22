@@ -48,7 +48,8 @@ func (m *Model) refreshGraph() {
 }
 
 // liveGraph updates the edited note's links from the editor, so links show
-// up in the graph as they are typed.
+// up in the graph as they are typed. It copies and scans the whole note:
+// keys that leave the text as it was don't call it (see editorEdited).
 func (m *Model) liveGraph() {
 	edges := m.graphEdges
 	if id := m.currentNoteID(); id != "" && m.content.HasPage() {
@@ -58,6 +59,7 @@ func (m *Model) liveGraph() {
 				edges = append(edges, e)
 			}
 		}
+		m.pv.linkScans++
 		for _, to := range core.OutLinks(m.graphNotes, core.Page{ID: id, Content: m.content.Value()}) {
 			if to != id {
 				edges = append(edges, core.Edge{From: id, To: to})

@@ -167,6 +167,10 @@ func (m Model) ModeString() string {
 // Value returns the current textarea content.
 func (m Model) Value() string { return m.textarea.Value() }
 
+// Version identifies the current text: it changes on every edit and stays
+// the same while only the cursor or the view moves (textarea.Model.Version).
+func (m Model) Version() uint64 { return m.textarea.Version() }
+
 // HasPage reports whether a document is loaded.
 func (m Model) HasPage() bool { return m.page.ID != "" }
 

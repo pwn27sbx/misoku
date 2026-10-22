@@ -20,6 +20,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case CheckWorkspaceMsg:
 		return m, tea.Batch(m.startWorkspaceScan(), m.autoSync())
+	case PreviewRefreshMsg:
+		m.refreshPreview(msg)
+		return m, nil
 	case workspaceScannedMsg:
 		m.applyWorkspaceScan(msg)
 		return m, checkWorkspaceLater()
@@ -42,6 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.setupNext(msg.s, gitsync.SetupAnswer{OK: true})
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.flushPreview()
 		m.updateLayout()
 		return m, nil
 	case core.StatusMsg:
@@ -117,6 +121,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyEsc && m.setupBusy &&
 		m.content.Mode() == content.ModeNormal && !m.sidebar.IsBusy() {
 		return m, m.cancelSetupStep()
+	}
+
+	// What reads the preview's last compile (its hits and blocks), or the
+	// note as a whole, sees the latest edit.
+	switch msg.(type) {
+	case preview.HitMsg, preview.MoveBlockMsg, preview.AddBlockMsg, core.FollowLinkMsg,
+		core.ThemeMsg, core.VimSaveMsg, core.VimQuitMsg, core.ExportMsg:
+		m.flushPreview()
 	}
 
 	switch msg := msg.(type) {

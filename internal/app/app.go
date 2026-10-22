@@ -103,6 +103,8 @@ type Model struct {
 	graphNotes []core.Page // the workspace's notes and links, from disk
 	graphEdges []core.Edge
 
+	pv previewSync // the preview's copy of the editor text, see preview_refresh.go
+
 	syncVault  *config.Vault    // this folder's sync.vaults entry; nil = sync off
 	syncUnsafe bool             // the folder is no place to set up sync (gitsync.UnsafeFolder)
 	syncOff    string           // why sync is off, shown when the user asks for one
@@ -278,6 +280,9 @@ func (m *Model) focusPane(f focus) tea.Cmd {
 	}
 	if f == focusPreview && m.layout().PreviewW == 0 {
 		f = focusEditor
+	}
+	if f == focusPreview {
+		m.flushPreview()
 	}
 	m.focus = f
 	m.sidebar.SetFocused(f == focusSidebar)

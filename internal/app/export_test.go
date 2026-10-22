@@ -37,3 +37,17 @@ func OpenInCurrentBuffer(tm tea.Model, id string) (tea.Model, tea.Cmd) {
 	cmd := m.openInCurrentBuffer(id)
 	return m, cmd
 }
+
+// PreviewCompiles counts the preview recompiles the editor's text caused.
+func PreviewCompiles(tm tea.Model) int { return tm.(Model).pv.compiles }
+
+// GraphLinkScans counts how often the live graph re-read the edited note's
+// links.
+func GraphLinkScans(tm tea.Model) int { return tm.(Model).pv.linkScans }
+
+// PreviewGen is the generation of the latest preview refresh scheduled.
+func PreviewGen(tm tea.Model) int { return tm.(Model).pv.gen }
+
+// PreviewTick is the message the preview refresh timer of generation gen
+// delivers.
+func PreviewTick(gen int) tea.Msg { return PreviewRefreshMsg{gen: gen} }

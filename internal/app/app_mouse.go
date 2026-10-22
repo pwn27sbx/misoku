@@ -17,6 +17,12 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	l := m.layout()
+	// The preview handles the event with what it compiled: hover handles,
+	// block drags and clicks on interactive views must match the text.
+	overPreview := l.PreviewW > 0 && msg.X >= l.PreviewX && msg.Y >= l.BodyY && msg.Y < l.BodyY+l.BodyH
+	if overPreview || m.preview.Dragging() {
+		m.flushPreview()
+	}
 	if m.resizing != dividerNone {
 		switch msg.Action {
 		case tea.MouseActionMotion:
@@ -31,7 +37,6 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		if !m.dragging {
 			// Hover shows the preview's block handles; a block drag keeps
 			// going wherever the mouse goes.
-			overPreview := l.PreviewW > 0 && msg.X >= l.PreviewX && msg.Y >= l.BodyY && msg.Y < l.BodyY+l.BodyH
 			if !overPreview && !m.preview.Dragging() {
 				m.preview.ClearHover()
 				return nil
