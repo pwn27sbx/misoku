@@ -245,7 +245,8 @@ func (m *Model) indent(in bool) {
 
 // hlCache memoises syntax colours for the last text version and theme
 // rendered, so a frame that only moved the cursor neither copies the note
-// nor highlights it again.
+// nor highlights it again. After an edit, the highlighter re-colours only
+// the lines the edit reached.
 type hlCache struct {
 	version uint64
 	// theme is the whole palette, not its name: a user theme can keep its
@@ -253,11 +254,12 @@ type hlCache struct {
 	theme theme.Theme
 	cols  highlight.Colors
 	valid bool
+	hl    highlight.Highlighter
 }
 
 func (c *hlCache) colors(m Model) highlight.Colors {
 	if !c.valid || c.version != m.Version() || c.theme != m.theme {
-		c.version, c.theme, c.cols, c.valid = m.Version(), m.theme, highlight.Markdown(m.Value(), m.theme), true
+		c.version, c.theme, c.cols, c.valid = m.Version(), m.theme, c.hl.Markdown(m.Value(), m.theme), true
 	}
 	return c.cols
 }

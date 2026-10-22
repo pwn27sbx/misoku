@@ -53,3 +53,25 @@ func TestHighlightFollowsAThemeThatKeepsItsName(t *testing.T) {
 		t.Fatal("colours after a theme change are the old theme's")
 	}
 }
+
+// Opening a fence by typing recolours the rest of the note as code, and
+// switching to another page with the same editor still matches a full
+// highlight (the incremental highlighter diffs against the last text).
+func TestHighlightFollowsAFenceTypedAndANewPage(t *testing.T) {
+	th := theme.DefaultTheme()
+	c := openNote(th, "# Title\n\nplain\n# After")
+	c.View()
+	c = keys(c, "jI```go")
+	if c.Value() != "# Title\n```go\nplain\n# After" {
+		t.Fatalf("typing did not open a fence: %q", c.Value())
+	}
+	c.View()
+	if got, want := c.ViewColors(), highlight.Markdown(c.Value(), th); !reflect.DeepEqual(got, want) {
+		t.Fatalf("colours after opening a fence are stale:\n got %v\nwant %v", got, want)
+	}
+	c.SetPage(core.Page{ID: "m.md", Title: "m", Content: hlNote})
+	c.View()
+	if got, want := c.ViewColors(), highlight.Markdown(hlNote, th); !reflect.DeepEqual(got, want) {
+		t.Fatalf("colours after switching page are stale:\n got %v\nwant %v", got, want)
+	}
+}
