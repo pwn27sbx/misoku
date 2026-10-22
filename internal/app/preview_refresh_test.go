@@ -257,3 +257,27 @@ func TestHeadingJumpAfterTypingUsesTheLatestText(t *testing.T) {
 		t.Fatalf("gd should show the heading typed at the end:\n%s", p)
 	}
 }
+
+func TestGraphTabClickedRightAfterTypingShowsTheLink(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "Big", longNote("big")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("", "Other", "other"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}})
+	h.keys("big")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.keys(":graph")
+	h.key(tea.KeyEnter)
+	h.clickTab("Big.md")
+	h.typeAtTop("[o](Other.md) ")
+	h.clickTab("Graph") // before the debounce fires
+	h.send(app.PreviewRefreshMsg{})
+	if ed := editorPane(h.view()); !strings.Contains(ed, "1 link") {
+		t.Fatalf("the graph should show the link typed before switching:\n%s", ed)
+	}
+}

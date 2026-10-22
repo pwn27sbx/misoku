@@ -16,7 +16,10 @@ import (
 //   - anything that reads what the preview compiled (its hits and blocks) or
 //     shows it on purpose first runs the pending refresh: a mouse event over
 //     the preview, a click action from it, focusing it, saving, quitting,
-//     exporting, following a link, a theme change and a resize.
+//     exporting, following a link, a theme change and a resize;
+//   - switching tabs (by mouse, key or command) first runs the pending
+//     refresh of the tab being left, so its preview and the live graph's
+//     links are current before the other tab shows.
 
 const (
 	previewDebounceLines = 1000
