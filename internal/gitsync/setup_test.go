@@ -145,3 +145,13 @@ func TestSetupOnAVaultThatAlreadySyncsSaysSo(t *testing.T) {
 		}
 	}
 }
+
+// gh's sign-in keeps the terminal: tea.ExecProcess would otherwise hand it
+// the program output, which is not an *os.File once frames are wrapped
+// (syncout), and os/exec would give gh a pipe instead of the TTY.
+func TestSignInCommandWritesToTheTerminal(t *testing.T) {
+	s := newSetup(t, t.TempDir(), filepath.Join(t.TempDir(), "config.toml"))
+	if got := s.SignInCommand().Stdout; got != os.Stdout {
+		t.Fatalf("SignInCommand().Stdout = %v, want os.Stdout", got)
+	}
+}
