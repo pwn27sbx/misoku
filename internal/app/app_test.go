@@ -660,6 +660,25 @@ func TestFinderSearchesTextAcrossAllFolders(t *testing.T) {
 	}
 }
 
+// A text hit whose "path:line" is wider than the results column used to push
+// the scroll offset past the end of the line and panic while rendering.
+func TestFinderTextHitWithPathWiderThanTheList(t *testing.T) {
+	store := newTestStore(t)
+	folder := "Comunicaciones - Claudes/archivo de conversaciones largas"
+	name := "handoff-2026-10-19-home-t15-fixes-con-un-nombre-muy-largo"
+	body := strings.Repeat("palabra ", 12) + "guia final\n"
+	if _, err := store.SaveAs(folder, name, body); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("f")
+	h.keys("guia")
+	v := h.view() // the harness also checks every row fits the terminal
+	if !strings.Contains(v, "Comunicaciones - Claudes/") {
+		t.Fatalf("expected the text hit to be listed:\n%s", v)
+	}
+}
+
 func TestSlashLinkToPage(t *testing.T) {
 	store := newTestStore(t)
 	if _, err := store.SaveAs("projects", "Roadmap Q4", "plan"); err != nil {

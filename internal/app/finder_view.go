@@ -183,7 +183,9 @@ func (f *finder) textRow(th theme.Theme, mt finderMatch, base, hit lipgloss.Styl
 
 	text := mt.text
 	start := 0
-	if len(mt.pos) > 0 && mt.pos[0] > room/2 {
+	// No room left after a long path: show the text from its start and let
+	// the width fit below cut the row; scrolling would overshoot the line.
+	if room > 0 && len(mt.pos) > 0 && mt.pos[0] > room/2 {
 		start = mt.pos[0] - room/3 // keep the match visible on long lines
 		for start > 0 && !utf8.RuneStart(text[start]) {
 			start--
