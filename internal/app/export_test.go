@@ -29,3 +29,11 @@ func IsWorkspaceScan(msg tea.Msg) bool {
 	_, ok := msg.(workspaceScannedMsg)
 	return ok
 }
+
+// OpenInCurrentBuffer shows id in the active tab, as picking a note in the
+// finder does, and returns the updated model and its command.
+func OpenInCurrentBuffer(tm tea.Model, id string) (tea.Model, tea.Cmd) {
+	m := tm.(Model)
+	cmd := m.openInCurrentBuffer(id)
+	return m, cmd
+}

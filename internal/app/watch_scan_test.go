@@ -241,3 +241,50 @@ func TestOldScanDoesNotDropANoteSavedWhileItRan(t *testing.T) {
 		t.Fatalf("an old scan must not drop a note saved meanwhile from the explorer:\n%s", v)
 	}
 }
+
+func TestOldScanDoesNotReloadANoteReopenedInTheSameTab(t *testing.T) {
+	store := newTestStore(t)
+	writeOutside(t, store.Root(), "x.md", "A")
+	writeOutside(t, store.Root(), "y.md", "other")
+	h := newHarness(t, store)
+	open := func(id string) {
+		t.Helper()
+		var cmd tea.Cmd
+		h.m, cmd = app.OpenInCurrentBuffer(h.m, id)
+		if cmd != nil {
+			if msg := runCmd(cmd); msg != nil {
+				h.send(msg)
+			}
+		}
+	}
+	open("x.md")
+	writeOutside(t, store.Root(), "x.md", "B")
+	result := startCheck(t, h) // reads "B" while x.md shows "A"
+
+	open("y.md")
+	writeOutside(t, store.Root(), "x.md", "C")
+	open("x.md") // the tab now shows "C", read from disk
+	if v := h.view(); !strings.Contains(v, "1 C") || strings.Contains(v, "other") {
+		t.Fatalf("setup: x.md should show C in the same tab:\n%s", v)
+	}
+	h.send(result)
+
+	v := h.view()
+	for _, bad := range []string{"reloaded", "changed on disk"} {
+		if strings.Contains(v, bad) {
+			t.Fatalf("an old scan must not report %q:\n%s", bad, v)
+		}
+	}
+	if strings.Contains(v, "●") {
+		t.Fatalf("the reopened note must not look modified:\n%s", v)
+	}
+	if got := readNote(t, store.Root(), "x.md"); got != "C" {
+		t.Fatalf("the file must keep its text, got %q", got)
+	}
+	h.keys("A!")
+	h.key(tea.KeyEsc)
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if got := readNote(t, store.Root(), "x.md"); got != "C!" {
+		t.Fatalf("the editor must hold C, not the old scan's B; saved %q", got)
+	}
+}
