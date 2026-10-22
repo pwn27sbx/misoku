@@ -18,6 +18,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/export"
 	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/syncout"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -118,7 +119,10 @@ func main() {
 
 	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI))
 
-	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
+	// Each frame is drawn as one synchronized update, so a terminal never
+	// shows it half painted; MISOKU_NO_SYNC=1 turns that off.
+	out := syncout.ForTerminal(os.Stdout, os.Getenv)
+	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(out))
 	final, err := p.Run()
 	if err != nil {
 		log.Printf("Fatal error running program: %v\n", err)
