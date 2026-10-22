@@ -1122,6 +1122,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // View renders the text area in its current state.
+//
+// misoku: it paints only the rows the viewport shows. The row index gives the
+// logical line at YOffset, so the cost no longer grows with the note. The
+// output is byte-identical to painting every row and letting the viewport
+// cut the visible ones out (refView in view_ref_test.go keeps that version).
 func (m Model) View() string {
 	empty := len(m.value) == 0 || (len(m.value) == 1 && len(m.value[0]) == 0)
 	if empty && m.row == 0 && m.col == 0 && m.Placeholder != "" {
@@ -1129,16 +1134,30 @@ func (m Model) View() string {
 	}
 	m.Cursor.TextStyle = m.style.computedCursorLine()
 
+	// The full content would be every text row, m.height end-of-buffer rows
+	// and the empty string after the final newline. Reproduce how the
+	// viewport clamps its offset and cuts its window out of that content.
+	starts := m.rows()
+	total := starts[len(starts)-1]
+	contentLines := total + m.height + 1
+	vp := m.viewport
+	if vp.YOffset > contentLines-1 {
+		// viewport.SetContent jumps to the bottom here; the change sticks
+		// because the viewport is shared by pointer.
+		vp.YOffset = max(0, contentLines-vp.Height+vp.Style.GetVerticalFrameSize())
+	}
+	top := max(0, vp.YOffset)
+	bottom := clamp(vp.YOffset+vp.Height-vp.Style.GetVerticalFrameSize(), top, contentLines)
+
 	var (
-		s                strings.Builder
-		style            lipgloss.Style
-		newLines         int
-		widestLineNumber int
-		lineInfo         = m.LineInfo()
+		s        strings.Builder
+		style    lipgloss.Style
+		lineInfo = m.LineInfo()
 	)
 
-	displayLine := 0
-	for l, line := range m.value {
+	textEnd := min(bottom, total)
+	for l := m.lineAtRow(top); l < len(m.value) && starts[l] < textEnd; l++ {
+		line := m.value[l]
 		wrappedLines := m.memoizedWrap(line, m.width)
 
 		if m.row == l {
@@ -1151,36 +1170,19 @@ func (m Model) View() string {
 		for wl, wrappedLine := range wrappedLines {
 			off := segStart
 			segStart += len(wrappedLine)
+			displayLine := starts[l] + wl
+			if displayLine < top {
+				continue
+			}
+			if displayLine >= textEnd {
+				break
+			}
 			prompt := m.getPromptString(displayLine)
 			prompt = m.style.computedPrompt().Render(prompt)
 			s.WriteString(style.Render(prompt))
-			displayLine++
 
-			var ln string
-			if m.ShowLineNumbers { //nolint:nestif
-				if wl == 0 {
-					if m.row == l {
-						ln = style.Render(m.style.computedCursorLineNumber().Render(m.formatLineNumber(l + 1)))
-						s.WriteString(ln)
-					} else {
-						ln = style.Render(m.style.computedLineNumber().Render(m.formatLineNumber(l + 1)))
-						s.WriteString(ln)
-					}
-				} else {
-					if m.row == l {
-						ln = style.Render(m.style.computedCursorLineNumber().Render(m.formatLineNumber(" ")))
-						s.WriteString(ln)
-					} else {
-						ln = style.Render(m.style.computedLineNumber().Render(m.formatLineNumber(" ")))
-						s.WriteString(ln)
-					}
-				}
-			}
-
-			// Note the widest line number for padding purposes later.
-			lnw := lipgloss.Width(ln)
-			if lnw > widestLineNumber {
-				widestLineNumber = lnw
+			if m.ShowLineNumbers {
+				s.WriteString(m.lineNumberCell(style, l, wl))
 			}
 
 			strwidth := uniseg.StringWidth(string(wrappedLine))
@@ -1214,28 +1216,73 @@ func (m Model) View() string {
 			}
 			s.WriteString(style.Render(strings.Repeat(" ", max(0, padding))))
 			s.WriteRune('\n')
-			newLines++
 		}
 	}
 
 	// Always show at least `m.Height` lines at all times.
 	// To do this we can simply pad out a few extra new lines in the view.
-	for i := 0; i < m.height; i++ {
-		prompt := m.getPromptString(displayLine)
-		prompt = m.style.computedPrompt().Render(prompt)
-		s.WriteString(prompt)
-		displayLine++
+	if eobEnd := min(bottom, total+m.height); eobEnd > max(top, total) {
+		widestLineNumber := m.widestLineNumber()
+		for displayLine := max(top, total); displayLine < eobEnd; displayLine++ {
+			prompt := m.getPromptString(displayLine)
+			prompt = m.style.computedPrompt().Render(prompt)
+			s.WriteString(prompt)
 
-		// Write end of buffer content
-		leftGutter := string(m.EndOfBufferCharacter)
-		rightGapWidth := m.Width() - lipgloss.Width(leftGutter) + widestLineNumber
-		rightGap := strings.Repeat(" ", max(0, rightGapWidth))
-		s.WriteString(m.style.computedEndOfBuffer().Render(leftGutter + rightGap))
-		s.WriteRune('\n')
+			// Write end of buffer content
+			leftGutter := string(m.EndOfBufferCharacter)
+			rightGapWidth := m.Width() - lipgloss.Width(leftGutter) + widestLineNumber
+			rightGap := strings.Repeat(" ", max(0, rightGapWidth))
+			s.WriteString(m.style.computedEndOfBuffer().Render(leftGutter + rightGap))
+			s.WriteRune('\n')
+		}
 	}
 
-	m.viewport.SetContent(s.String())
-	return m.style.Base.Render(m.viewport.View())
+	// The window ends with a newline unless it reaches the empty string that
+	// follows the last end-of-buffer row; joining it back gives exactly the
+	// lines the viewport would have shown.
+	window := s.String()
+	if bottom < contentLines {
+		window = strings.TrimSuffix(window, "\n")
+	}
+	// Render through a copy of the viewport, scrolled to the top of a
+	// content that holds only the window, so its padding, truncation and
+	// horizontal cut stay the viewport's own.
+	cut := *vp
+	cut.YOffset = 0
+	cut.SetContent(window)
+	return m.style.Base.Render(cut.View())
+}
+
+// lineNumberCell renders the line-number gutter of wrapped segment wl of
+// logical line l: the number on the first segment, blank on the rest.
+func (m Model) lineNumberCell(style lipgloss.Style, l, wl int) string {
+	var x any = " "
+	if wl == 0 {
+		x = l + 1
+	}
+	if m.row == l {
+		return style.Render(m.style.computedCursorLineNumber().Render(m.formatLineNumber(x)))
+	}
+	return style.Render(m.style.computedLineNumber().Render(m.formatLineNumber(x)))
+}
+
+// widestLineNumber returns the width of the widest line-number cell of the
+// whole note, which pads the end-of-buffer rows. Painting every row used to
+// measure it; a cell only gets wider with a longer number, so the widest is
+// the cursor line's or that of the highest-numbered other line.
+func (m Model) widestLineNumber() int {
+	if !m.ShowLineNumbers || len(m.value) == 0 {
+		return 0
+	}
+	widest := lipgloss.Width(m.lineNumberCell(m.style.computedCursorLine(), m.row, 0))
+	other := len(m.value) - 1
+	if other == m.row {
+		other--
+	}
+	if other >= 0 {
+		widest = max(widest, lipgloss.Width(m.lineNumberCell(m.style.computedText(), other, 0)))
+	}
+	return widest
 }
 
 // formatLineNumber formats the line number for display dynamically based on
