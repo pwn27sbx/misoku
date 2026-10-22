@@ -303,11 +303,9 @@ func (m Model) selectionRange() (r1, c1, r2, c2 int) {
 	return
 }
 
-func (m Model) inSelection(row, col int) bool {
-	if !m.selecting {
-		return false
-	}
-	r1, c1, r2, c2 := m.selectionRange()
+// inRange reports whether (row, col) falls inside the ordered, inclusive
+// range r1:c1..r2:c2 returned by selectionRange.
+func inRange(r1, c1, r2, c2, row, col int) bool {
 	switch {
 	case row < r1 || row > r2:
 		return false
@@ -382,7 +380,7 @@ func (m *Model) DeleteSelection() {
 
 // paint renders runes of line l starting at rune offset off, applying
 // LineColors on top of style.
-func (m Model) paint(style lipgloss.Style, l, off int, runes []rune) string {
+func (m *Model) paint(style lipgloss.Style, l, off int, runes []rune) string {
 	if !m.selecting && (l >= len(m.LineColors) || len(m.LineColors[l]) == 0) {
 		return style.Render(string(runes))
 	}
@@ -396,7 +394,12 @@ func (m Model) paint(style lipgloss.Style, l, off int, runes []rune) string {
 		}
 		return ""
 	}
-	sel := func(i int) bool { return m.inSelection(l, off+i) }
+	// The selection range is computed once per call, not once per rune.
+	var r1, c1, r2, c2 int
+	if m.selecting {
+		r1, c1, r2, c2 = m.selectionRange()
+	}
+	sel := func(i int) bool { return m.selecting && inRange(r1, c1, r2, c2, l, off+i) }
 	var b strings.Builder
 	start := 0
 	for i := 1; i <= len(runes); i++ {
