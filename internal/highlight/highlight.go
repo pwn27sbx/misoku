@@ -136,71 +136,90 @@ func headingColor(level int, th theme.Theme) lipgloss.Color {
 func Markdown(text string, th theme.Theme) Colors {
 	lines := strings.Split(text, "\n")
 	out := make(Colors, len(lines))
-	first := 0
+	for i := colorFrontMatter(lines, frontMatterEnd(lines), out, th); i < len(lines); {
+		i = segment(lines, i, out, th)
+	}
+	return out
+}
+
+// frontMatterEnd returns the line that closes the front matter opened by a
+// "---" first line, or -1 when there is none: without a closing "---" or
+// "..." the first line is an ordinary rule.
+func frontMatterEnd(lines []string) int {
 	if len(lines) > 1 && strings.TrimRight(lines[0], "\r") == "---" {
 		for end := 1; end < len(lines); end++ {
 			if t := strings.TrimRight(lines[end], "\r"); t == "---" || t == "..." {
-				for j := 0; j <= end; j++ {
-					out[j] = frontMatterColors(lines[j], j == 0 || j == end, th)
-				}
-				first = end + 1
-				break
+				return end
 			}
 		}
 	}
-	for i := first; i < len(lines); i++ {
-		line := lines[i]
-		cols := make([]lipgloss.Color, len([]rune(line)))
-		out[i] = cols
-		trimmed := strings.TrimSpace(line)
+	return -1
+}
 
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			fence := trimmed[:3]
-			lang := strings.TrimSpace(trimmed[3:])
-			fill(cols, 0, len(cols), th.GreyFg2)
-			start := i + 1
-			end := start
-			for end < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[end]), fence) {
-				end++
-			}
-			code := Code(lang, strings.Join(lines[start:end], "\n"), th)
-			for j := start; j < end; j++ {
-				out[j] = code[j-start]
-			}
-			if end < len(lines) {
-				closing := make([]lipgloss.Color, len([]rune(lines[end])))
-				fill(closing, 0, len(closing), th.GreyFg2)
-				out[end] = closing
-			}
-			i = end
-			continue
-		}
-
-		switch {
-		case headingRe.MatchString(line):
-			level := len(headingRe.FindStringSubmatch(line)[1])
-			fill(cols, 0, len(cols), headingColor(level, th))
-			continue
-		case ruleRe.MatchString(line):
-			fill(cols, 0, len(cols), th.GreyFg)
-			continue
-		case quoteRe.MatchString(line):
-			idx := len([]rune(line[:strings.Index(line, ">")]))
-			fill(cols, idx, idx+1, th.Purple)
-		}
-		if m := listRe.FindStringSubmatchIndex(line); m != nil {
-			fill(cols, runeIdx(line, m[4]), runeIdx(line, m[5]), th.Red)
-			if m[8] >= 0 {
-				box := th.GreyFg2
-				if strings.ContainsAny(line[m[8]:m[9]], "xX") {
-					box = th.Green
-				}
-				fill(cols, runeIdx(line, m[8]), runeIdx(line, m[9]), box)
-			}
-		}
-		inline(line, cols, th)
+// colorFrontMatter colours lines 0..end as front matter and returns the
+// first line after it (0 when end is -1).
+func colorFrontMatter(lines []string, end int, out Colors, th theme.Theme) int {
+	for j := 0; j <= end; j++ {
+		out[j] = frontMatterColors(lines[j], j == 0 || j == end, th)
 	}
-	return out
+	return end + 1
+}
+
+// segment colours the segment that starts on line i, outside front matter
+// and code, and returns the line after it. A segment is one Markdown line,
+// or a whole fenced block up to its closing fence (or the end of the text):
+// chroma tokenises the block as a unit, so its lines only change together.
+func segment(lines []string, i int, out Colors, th theme.Theme) int {
+	line := lines[i]
+	cols := make([]lipgloss.Color, len([]rune(line)))
+	out[i] = cols
+	trimmed := strings.TrimSpace(line)
+
+	if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+		fence := trimmed[:3]
+		lang := strings.TrimSpace(trimmed[3:])
+		fill(cols, 0, len(cols), th.GreyFg2)
+		start := i + 1
+		end := start
+		for end < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[end]), fence) {
+			end++
+		}
+		code := Code(lang, strings.Join(lines[start:end], "\n"), th)
+		for j := start; j < end; j++ {
+			out[j] = code[j-start]
+		}
+		if end < len(lines) {
+			closing := make([]lipgloss.Color, len([]rune(lines[end])))
+			fill(closing, 0, len(closing), th.GreyFg2)
+			out[end] = closing
+		}
+		return end + 1
+	}
+
+	switch {
+	case headingRe.MatchString(line):
+		level := len(headingRe.FindStringSubmatch(line)[1])
+		fill(cols, 0, len(cols), headingColor(level, th))
+		return i + 1
+	case ruleRe.MatchString(line):
+		fill(cols, 0, len(cols), th.GreyFg)
+		return i + 1
+	case quoteRe.MatchString(line):
+		idx := len([]rune(line[:strings.Index(line, ">")]))
+		fill(cols, idx, idx+1, th.Purple)
+	}
+	if m := listRe.FindStringSubmatchIndex(line); m != nil {
+		fill(cols, runeIdx(line, m[4]), runeIdx(line, m[5]), th.Red)
+		if m[8] >= 0 {
+			box := th.GreyFg2
+			if strings.ContainsAny(line[m[8]:m[9]], "xX") {
+				box = th.Green
+			}
+			fill(cols, runeIdx(line, m[8]), runeIdx(line, m[9]), box)
+		}
+	}
+	inline(line, cols, th)
+	return i + 1
 }
 
 func frontMatterColors(line string, delimiter bool, th theme.Theme) []lipgloss.Color {
