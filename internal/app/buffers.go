@@ -188,6 +188,7 @@ func (m *Model) refreshModified() {
 
 // showBuffer points every pane at b without changing focus.
 func (m *Model) showBuffer(b *buffer) {
+	m.flushPreview() // while the edited tab is still the active one
 	m.stashActive()
 	m.active = b.id
 	m.content.SetBuffer(b.page(), b.draft())
