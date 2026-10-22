@@ -30,6 +30,16 @@ type buffer struct {
 	text  string // latest text; for the active tab, the editor is the truth
 	dir   string // drafts: default folder offered by Save As
 	gone  bool   // the file vanished from disk (deleted or renamed outside), see syncOpenBuffers
+	// saves counts the changes to saved. Whatever was read from disk before
+	// it last moved is out of date: a workspace scan sent earlier is
+	// dropped (see applyScannedNote).
+	saves uint64
+}
+
+// setSaved records content as what is on disk and in the tab.
+func (b *buffer) setSaved(content string) {
+	b.saved, b.text = content, content
+	b.saves++
 }
 
 func (b *buffer) draft() bool { return isDraftID(b.id) }
@@ -336,7 +346,7 @@ func (m *Model) writeBufferNote(b *buffer, after func(*Model) tea.Cmd, note stri
 		m.quitting = false
 		return nil
 	}
-	b.saved, b.text = saved.Content, saved.Content
+	b.setSaved(saved.Content)
 	m.noteSaved()
 	m.refreshGraph()
 	if note != "" {
@@ -357,7 +367,13 @@ func (m *Model) noteGone(b *buffer) bool {
 	if b.draft() {
 		return false
 	}
-	_, err := os.Lstat(filepath.Join(m.store.Root(), filepath.FromSlash(b.id)))
+	return noteGoneAt(m.store.Root(), b.id)
+}
+
+// noteGoneAt is noteGone for the note id under root. It reads only the disk,
+// so a workspace scan can run it off the update loop.
+func noteGoneAt(root, id string) bool {
+	_, err := os.Lstat(filepath.Join(root, filepath.FromSlash(id)))
 	return errors.Is(err, fs.ErrNotExist)
 }
 
@@ -377,7 +393,8 @@ func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		m.quitting = false
 		return nil
 	}
-	b.saved, b.text, b.gone = text, text, false
+	b.setSaved(text)
+	b.gone = false
 	m.noteSaved()
 	m.reloadTree()
 	m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
@@ -397,7 +414,8 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 	}
 	m.noteSaved()
 	wasActive := b.id == m.active
-	b.id, b.title, b.saved, b.text, b.dir = p.ID, p.Title, text, text, ""
+	b.id, b.title, b.dir = p.ID, p.Title, ""
+	b.setSaved(text)
 	if wasActive {
 		m.active = b.id
 	}
