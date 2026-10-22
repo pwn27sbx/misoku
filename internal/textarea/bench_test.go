@@ -6,6 +6,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/testnote"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -55,6 +56,31 @@ func BenchmarkViewSelection(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				_ = m.View()
+			}
+		})
+	}
+}
+
+// BenchmarkUpdateMove measures one cursor movement key through Update, the
+// path every j/k/arrow press takes. The cursor bounces down and up around
+// the middle of the note so each iteration does the same work.
+func BenchmarkUpdateMove(b *testing.B) {
+	down := tea.KeyMsg{Type: tea.KeyDown}
+	up := tea.KeyMsg{Type: tea.KeyUp}
+	for _, s := range benchSizes {
+		b.Run(s.name, func(b *testing.B) {
+			m := benchEditor(s.lines)
+			m.SetRowCol(s.lines/2, 0)
+			_ = m.View()
+			b.ReportAllocs()
+			i := 0
+			for b.Loop() {
+				msg := down
+				if i%2 == 1 {
+					msg = up
+				}
+				m, _ = m.Update(msg)
+				i++
 			}
 		})
 	}

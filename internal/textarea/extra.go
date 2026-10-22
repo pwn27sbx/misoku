@@ -30,11 +30,8 @@ func (m *Model) EnsureVisible() {
 
 // visualLineCount returns the number of soft-wrapped lines in the buffer.
 func (m Model) visualLineCount() int {
-	n := 0
-	for _, l := range m.value {
-		n += len(m.memoizedWrap(l, m.width))
-	}
-	return n
+	starts := m.rows()
+	return starts[len(starts)-1]
 }
 
 // CursorPosition returns the 1-based logical line and column of the cursor.
@@ -45,35 +42,31 @@ func (m Model) CursorPosition() (line, col int) {
 // moveToVisual places the cursor on visual line v, at display column col
 // within that wrapped segment (clamped to the segment's length).
 func (m *Model) moveToVisual(v, col int) {
-	if v < 0 {
-		v = 0
+	v = max(v, 0)
+	r := m.lineAtRow(v)
+	if r >= len(m.value) {
+		// Past the end: last character of the buffer.
+		m.row = len(m.value) - 1
+		m.col = len(m.value[m.row])
+		return
 	}
-	acc := 0
-	for r, l := range m.value {
-		segs := m.memoizedWrap(l, m.width)
-		if v < acc+len(segs) {
-			start := 0
-			for i := 0; i < v-acc; i++ {
-				start += len(segs[i])
-			}
-			seg := segs[v-acc]
-			segLen := len(seg)
-			// A wrapped segment (not the last) ends where the next begins;
-			// keep the cursor on this segment rather than jumping down.
-			if v-acc < len(segs)-1 && segLen > 0 {
-				segLen--
-			}
-			m.row = r
-			// The last wrapped segment carries a padding space, so clamp
-			// to the real line length as well.
-			m.col = min(start+clamp(col, 0, segLen), len(l))
-			return
-		}
-		acc += len(segs)
+	l := m.value[r]
+	segs := m.memoizedWrap(l, m.width)
+	k := v - m.rows()[r] // wrapped segment within the line
+	start := 0
+	for i := 0; i < k; i++ {
+		start += len(segs[i])
 	}
-	// Past the end: last character of the buffer.
-	m.row = len(m.value) - 1
-	m.col = len(m.value[m.row])
+	segLen := len(segs[k])
+	// A wrapped segment (not the last) ends where the next begins;
+	// keep the cursor on this segment rather than jumping down.
+	if k < len(segs)-1 && segLen > 0 {
+		segLen--
+	}
+	m.row = r
+	// The last wrapped segment carries a padding space, so clamp
+	// to the real line length as well.
+	m.col = min(start+clamp(col, 0, segLen), len(l))
 }
 
 // ScrollBy scrolls the view by n visual lines (negative scrolls up) without
@@ -170,6 +163,7 @@ func (m *Model) DeleteCharForward() {
 	line := m.value[m.row]
 	if m.col < len(line) {
 		m.value[m.row] = append(line[:m.col:m.col], line[m.col+1:]...)
+		m.touch()
 		if m.col > 0 && m.col >= len(m.value[m.row]) {
 			m.col = len(m.value[m.row]) - 1
 		}
@@ -180,10 +174,12 @@ func (m *Model) DeleteCharForward() {
 func (m *Model) DeleteLine() {
 	if len(m.value) == 1 {
 		m.value[0] = m.value[0][:0]
+		m.touch()
 		m.col = 0
 		return
 	}
 	m.value = append(m.value[:m.row:m.row], m.value[m.row+1:]...)
+	m.touch()
 	if m.row >= len(m.value) {
 		m.row = len(m.value) - 1
 	}
@@ -242,6 +238,7 @@ func (m *Model) DeleteBefore(n int) {
 	line := m.value[m.row]
 	n = clamp(n, 0, m.col)
 	m.value[m.row] = append(line[:m.col-n:m.col-n], line[m.col:]...)
+	m.touch()
 	m.col -= n
 }
 
@@ -253,6 +250,7 @@ func (m *Model) IndentLine(n int) {
 		pad[i] = ' '
 	}
 	m.value[m.row] = append(pad, m.value[m.row]...)
+	m.touch()
 	m.col += n
 }
 
@@ -264,6 +262,7 @@ func (m *Model) OutdentLine(n int) {
 		k++
 	}
 	m.value[m.row] = append([]rune(nil), line[k:]...)
+	m.touch()
 	m.col = max(m.col-k, 0)
 }
 
@@ -361,6 +360,7 @@ func (m *Model) DeleteSelection() {
 		} else {
 			m.value = append(m.value[:r1], m.value[r2+1:]...)
 		}
+		m.touch()
 		m.row, m.col = min(r1, len(m.value)-1), 0
 		m.selecting = false
 		m.EnsureVisible()
@@ -373,6 +373,7 @@ func (m *Model) DeleteSelection() {
 	}
 	merged := append(head, tail...)
 	m.value = append(m.value[:r1], append([][]rune{merged}, m.value[r2+1:]...)...)
+	m.touch()
 	m.row, m.col = r1, min(c1, len(merged))
 	m.selecting = false
 	m.EnsureVisible()

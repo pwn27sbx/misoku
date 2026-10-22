@@ -8,7 +8,6 @@
 package textarea
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"strconv"
 	"strings"
@@ -183,12 +182,6 @@ type line struct {
 	width int
 }
 
-// Hash returns a hash of the line.
-func (w line) Hash() string {
-	v := fmt.Sprintf("%s:%d", string(w.runes), w.width)
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(v)))
-}
-
 // Model is the Bubble Tea model for this text area element.
 type Model struct {
 	Err error
@@ -271,8 +264,12 @@ type Model struct {
 	// if there are more lines than the permitted height.
 	height int
 
-	// Underlying text value.
+	// Underlying text value. Every write must be followed by touch().
 	value [][]rune
+
+	// version identifies the text (see touch); index caches its wrapped rows.
+	version uint64
+	index   *rowIndex
 
 	// focus indicates whether user input focus should be on this input
 	// component. When false, ignore keyboard input and hide the cursor.
@@ -324,7 +321,9 @@ func New() Model {
 		row:   0,
 
 		viewport: &vp,
+		index:    &rowIndex{},
 	}
+	m.touch()
 
 	m.SetHeight(defaultHeight)
 	m.SetWidth(defaultWidth)
@@ -460,6 +459,7 @@ func (m *Model) insertRunesFromUserInput(runes []rune) {
 
 	// Finally add the tail at the end of the last line inserted.
 	m.value[m.row] = append(m.value[m.row], tail...)
+	m.touch()
 
 	m.SetCursor(m.col)
 }
@@ -612,6 +612,7 @@ func (m *Model) Blur() {
 // Reset sets the input to its default state with no input.
 func (m *Model) Reset() {
 	m.value = make([][]rune, minHeight, maxLines)
+	m.touch()
 	m.col = 0
 	m.row = 0
 	m.viewport.GotoTop()
@@ -632,6 +633,7 @@ func (m *Model) san() runeutil.Sanitizer {
 // not the cursor blink should be reset.
 func (m *Model) deleteBeforeCursor() {
 	m.value[m.row] = m.value[m.row][m.col:]
+	m.touch()
 	m.SetCursor(0)
 }
 
@@ -640,6 +642,7 @@ func (m *Model) deleteBeforeCursor() {
 // the cursor so as not to reveal word breaks in the masked input.
 func (m *Model) deleteAfterCursor() {
 	m.value[m.row] = m.value[m.row][:m.col]
+	m.touch()
 	m.SetCursor(len(m.value[m.row]))
 }
 
@@ -655,6 +658,7 @@ func (m *Model) transposeLeft() {
 		m.SetCursor(m.col - 1)
 	}
 	m.value[m.row][m.col-1], m.value[m.row][m.col] = m.value[m.row][m.col], m.value[m.row][m.col-1]
+	m.touch()
 	if m.col < len(m.value[m.row]) {
 		m.SetCursor(m.col + 1)
 	}
@@ -698,6 +702,7 @@ func (m *Model) deleteWordLeft() {
 	} else {
 		m.value[m.row] = append(m.value[m.row][:m.col], m.value[m.row][oldCol:]...)
 	}
+	m.touch()
 }
 
 // deleteWordRight deletes the word right to the cursor.
@@ -726,6 +731,7 @@ func (m *Model) deleteWordRight() {
 	} else {
 		m.value[m.row] = append(m.value[m.row][:oldCol], m.value[m.row][m.col:]...)
 	}
+	m.touch()
 
 	m.SetCursor(oldCol)
 }
@@ -810,6 +816,7 @@ func (m *Model) uppercaseRight() {
 	m.doWordRight(func(_ int, i int) {
 		m.value[m.row][i] = unicode.ToUpper(m.value[m.row][i])
 	})
+	m.touch()
 }
 
 // lowercaseRight changes the word to the right to lowercase.
@@ -817,6 +824,7 @@ func (m *Model) lowercaseRight() {
 	m.doWordRight(func(_ int, i int) {
 		m.value[m.row][i] = unicode.ToLower(m.value[m.row][i])
 	})
+	m.touch()
 }
 
 // capitalizeRight changes the word to the right to title case.
@@ -826,6 +834,7 @@ func (m *Model) capitalizeRight() {
 			m.value[m.row][i] = unicode.ToTitle(m.value[m.row][i])
 		}
 	})
+	m.touch()
 }
 
 // LineInfo returns the number of characters from the start of the
@@ -871,14 +880,17 @@ func (m Model) LineInfo() LineInfo {
 
 // repositionView repositions the view of the viewport based on the defined
 // scrolling behavior.
+//
+// misoku: it scrolls by the row index instead of the viewport, whose content
+// is only as long as the last View; the offset stays within the rows.
 func (m *Model) repositionView() {
 	minimum := m.viewport.YOffset
 	maximum := minimum + m.viewport.Height - 1
 
 	if row := m.cursorLineNumber(); row < minimum {
-		m.viewport.ScrollUp(minimum - row)
+		m.viewport.YOffset = max(row, 0)
 	} else if row > maximum {
-		m.viewport.ScrollDown(row - maximum)
+		m.viewport.YOffset = min(row-m.viewport.Height+1, max(m.visualLineCount()-1, 0))
 	}
 }
 
@@ -984,6 +996,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	if m.value[m.row] == nil {
+		// nil and empty are the same text, so this needs no touch().
 		m.value[m.row] = make([]rune, 0)
 	}
 
@@ -1016,6 +1029,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			if len(m.value[m.row]) > 0 {
 				m.value[m.row] = append(m.value[m.row][:max(0, m.col-1)], m.value[m.row][m.col:]...)
+				m.touch()
 				if m.col > 0 {
 					m.SetCursor(m.col - 1)
 				}
@@ -1023,6 +1037,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.DeleteCharacterForward):
 			if len(m.value[m.row]) > 0 && m.col < len(m.value[m.row]) {
 				m.value[m.row] = append(m.value[m.row][:m.col], m.value[m.row][m.col+1:]...)
+				m.touch()
 			}
 			if m.col >= len(m.value[m.row]) {
 				m.mergeLineBelow(m.row)
@@ -1108,7 +1123,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 // View renders the text area in its current state.
 func (m Model) View() string {
-	if m.Value() == "" && m.row == 0 && m.col == 0 && m.Placeholder != "" {
+	empty := len(m.value) == 0 || (len(m.value) == 1 && len(m.value[0]) == 0)
+	if empty && m.row == 0 && m.col == 0 && m.Placeholder != "" {
 		return m.placeholderView()
 	}
 	m.Cursor.TextStyle = m.style.computedCursorLine()
@@ -1339,14 +1355,7 @@ func (m Model) memoizedWrap(runes []rune, width int) [][]rune {
 // cursorLineNumber returns the line number that the cursor is on.
 // This accounts for soft wrapped lines.
 func (m Model) cursorLineNumber() int {
-	line := 0
-	for i := 0; i < m.row; i++ {
-		// Calculate the number of lines that the current line will be split
-		// into.
-		line += len(m.memoizedWrap(m.value[i], m.width))
-	}
-	line += m.LineInfo().RowOffset
-	return line
+	return m.rows()[m.row] + m.LineInfo().RowOffset
 }
 
 // mergeLineBelow merges the current line the cursor is on with the line below.
@@ -1367,6 +1376,7 @@ func (m *Model) mergeLineBelow(row int) {
 	if len(m.value) > 0 {
 		m.value = m.value[:len(m.value)-1]
 	}
+	m.touch()
 }
 
 // mergeLineAbove merges the current line the cursor is on with the line above.
@@ -1390,6 +1400,7 @@ func (m *Model) mergeLineAbove(row int) {
 	if len(m.value) > 0 {
 		m.value = m.value[:len(m.value)-1]
 	}
+	m.touch()
 }
 
 func (m *Model) splitLine(row, col int) {
@@ -1404,6 +1415,7 @@ func (m *Model) splitLine(row, col int) {
 
 	m.value[row] = head
 	m.value[row+1] = tail
+	m.touch()
 
 	m.col = 0
 	m.row++
