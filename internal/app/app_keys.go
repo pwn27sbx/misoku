@@ -20,6 +20,12 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		return m.handleDashboardKey(k)
 	}
 
+	// Only typing in the editor leaves an edit for the preview to catch up
+	// on; everything else first brings the preview up to date.
+	if m.focus != focusEditor || m.graphActive() {
+		m.flushPreview()
+	}
+
 	sidebarBusy := m.focus == focusSidebar && m.sidebar.IsBusy()
 	editorBusy := m.focus == focusEditor && m.content.Mode() != content.ModeNormal && !m.graphActive()
 
@@ -29,6 +35,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 			if a == keymap.NewNote && sidebarBusy {
 				break
 			}
+			m.flushPreview()
 			return m.runAction(a)
 		}
 	}
@@ -38,6 +45,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 			m.leaderPending = false
 			for _, a := range generalActions {
 				if m.keys.Leader(a, s) {
+					m.flushPreview()
 					return m.runAction(a)
 				}
 			}
@@ -49,6 +57,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		}
 		for _, a := range generalActions {
 			if m.keys.Direct(a, s) {
+				m.flushPreview()
 				return m.runAction(a)
 			}
 		}
@@ -79,12 +88,14 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		if m.activeBuffer() == nil && s == "i" {
 			return m.newDraft(m.sidebar.ContextParentID())
 		}
+		ver := m.content.Version()
 		m.content, cmd = m.content.Update(k)
 		if b := m.activeBuffer(); b != nil {
-			m.preview.SetContent(m.content.Value())
 			m.refreshModified()
-			if m.bufferIndex(graphID) >= 0 {
-				m.liveGraph()
+			// A key that only moved the cursor or the view leaves the
+			// preview and the graph as they are.
+			if m.content.Version() != ver {
+				cmd = tea.Batch(cmd, m.editorEdited())
 			}
 		}
 	}
