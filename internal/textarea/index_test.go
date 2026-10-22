@@ -125,64 +125,8 @@ func FuzzWrapIndex(f *testing.F) {
 		m.Focus()
 		checkIndex(t, m, "SetValue")
 		for i, b := range ops {
-			arg := int(b) / 14
 			prevValue, prevVersion := m.Value(), m.Version()
-			var op string
-			switch b % 14 {
-			case 0:
-				op = "InsertString"
-				m.InsertString(fuzzTexts[arg%len(fuzzTexts)])
-			case 1:
-				op = "Update key"
-				m, _ = m.Update(fuzzKeys[arg%len(fuzzKeys)])
-			case 2:
-				op = "paste"
-				m, _ = m.Update(pasteMsg(fuzzTexts[arg%len(fuzzTexts)]))
-			case 3:
-				op = "DeleteLine"
-				m.DeleteLine()
-			case 4:
-				op = "IndentLine/OutdentLine"
-				if arg%2 == 0 {
-					m.IndentLine(arg%5 + 1)
-				} else {
-					m.OutdentLine(arg%5 + 1)
-				}
-			case 5:
-				op = "DeleteSelection"
-				m.SelectLinewise = arg%2 == 1
-				m.SetAnchor(arg%len(m.value), arg%7)
-				m.SetRowCol(len(m.value)-1-arg%len(m.value), arg%5)
-				m.DeleteSelection()
-			case 6:
-				op = "SetValue"
-				m.SetValue(fuzzTexts[arg%len(fuzzTexts)] + seed)
-			case 7:
-				op = "SetWidth"
-				m.SetWidth(10 + arg*3)
-			case 8:
-				op = "DeleteBefore"
-				m.DeleteBefore(arg % 4)
-			case 9:
-				op = "DeleteCharForward"
-				m.DeleteCharForward()
-			case 10:
-				op = "OpenLineBelow/Above"
-				if arg%2 == 0 {
-					m.OpenLineBelow()
-				} else {
-					m.OpenLineAbove()
-				}
-			case 11:
-				op = "SetRowCol"
-				m.SetRowCol(arg%len(m.value), arg*3)
-			case 12:
-				op = "InsertRune"
-				m.InsertRune([]rune("q漢 😀")[arg%4])
-			case 13:
-				op = "Reset"
-				m.Reset()
-			}
+			op := applyFuzzOp(&m, b, seed)
 			if m.Value() != prevValue && m.Version() == prevVersion {
 				t.Fatalf("op %d (%s) changed the text without moving Version", i, op)
 			}
@@ -248,4 +192,67 @@ func TestPlaceholderOnlyForEmptyText(t *testing.T) {
 			t.Errorf("text %q: placeholder shown = %v, want %v", tc.text, got, tc.want)
 		}
 	}
+}
+
+// applyFuzzOp applies the edit encoded by b to m and returns its name. The
+// low bits pick the operation and the rest is its argument.
+func applyFuzzOp(m *Model, b byte, seed string) string {
+	arg := int(b) / 14
+	var op string
+	switch b % 14 {
+	case 0:
+		op = "InsertString"
+		m.InsertString(fuzzTexts[arg%len(fuzzTexts)])
+	case 1:
+		op = "Update key"
+		*m, _ = m.Update(fuzzKeys[arg%len(fuzzKeys)])
+	case 2:
+		op = "paste"
+		*m, _ = m.Update(pasteMsg(fuzzTexts[arg%len(fuzzTexts)]))
+	case 3:
+		op = "DeleteLine"
+		m.DeleteLine()
+	case 4:
+		op = "IndentLine/OutdentLine"
+		if arg%2 == 0 {
+			m.IndentLine(arg%5 + 1)
+		} else {
+			m.OutdentLine(arg%5 + 1)
+		}
+	case 5:
+		op = "DeleteSelection"
+		m.SelectLinewise = arg%2 == 1
+		m.SetAnchor(arg%len(m.value), arg%7)
+		m.SetRowCol(len(m.value)-1-arg%len(m.value), arg%5)
+		m.DeleteSelection()
+	case 6:
+		op = "SetValue"
+		m.SetValue(fuzzTexts[arg%len(fuzzTexts)] + seed)
+	case 7:
+		op = "SetWidth"
+		m.SetWidth(10 + arg*3)
+	case 8:
+		op = "DeleteBefore"
+		m.DeleteBefore(arg % 4)
+	case 9:
+		op = "DeleteCharForward"
+		m.DeleteCharForward()
+	case 10:
+		op = "OpenLineBelow/Above"
+		if arg%2 == 0 {
+			m.OpenLineBelow()
+		} else {
+			m.OpenLineAbove()
+		}
+	case 11:
+		op = "SetRowCol"
+		m.SetRowCol(arg%len(m.value), arg*3)
+	case 12:
+		op = "InsertRune"
+		m.InsertRune([]rune("q漢 😀")[arg%4])
+	case 13:
+		op = "Reset"
+		m.Reset()
+	}
+	return op
 }
