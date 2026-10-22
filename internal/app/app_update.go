@@ -19,8 +19,10 @@ import (
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case CheckWorkspaceMsg:
-		m.checkWorkspace()
-		return m, tea.Batch(checkWorkspaceLater(), m.autoSync())
+		return m, tea.Batch(m.startWorkspaceScan(), m.autoSync())
+	case workspaceScannedMsg:
+		m.applyWorkspaceScan(msg)
+		return m, checkWorkspaceLater()
 	case SyncNowMsg, core.SyncMsg:
 		return m, m.requestSync()
 	case syncDoneMsg:

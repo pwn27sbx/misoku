@@ -21,3 +21,11 @@ const SaveCommitDelay = saveCommitDelay
 func WithExec(exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd) Option {
 	return func(m *Model) { m.execProcess = exec }
 }
+
+// IsWorkspaceScan reports whether msg is the result of the workspace scan a
+// CheckWorkspaceMsg starts, so a test counting the git work a tick starts
+// can tell it apart.
+func IsWorkspaceScan(msg tea.Msg) bool {
+	_, ok := msg.(workspaceScannedMsg)
+	return ok
+}

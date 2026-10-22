@@ -84,6 +84,8 @@ type Model struct {
 	modeIcon       string             // config ui.mode_icon: one icon for every mode
 	modifiedMark   string             // config ui.modified_mark: before a dirty tab name
 	themeStamp     string             // user theme files as last seen, see syncUserTheme
+	treeGen        uint64             // bumps on every applyTree, see workspaceScannedMsg
+	scanning       bool               // a workspace scan is in flight, see CheckWorkspaceMsg
 
 	toast    string
 	toastSeq int
@@ -246,6 +248,7 @@ func (m *Model) reloadTree() {
 
 func (m *Model) applyTree(pages []core.Page) {
 	m.treeSig = treeSignature(pages)
+	m.treeGen++
 	m.sidebar.SetPages(pages)
 	m.dashboard.SetRecentPages(pages)
 	m.notes = nil
