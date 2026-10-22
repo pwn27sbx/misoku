@@ -53,7 +53,8 @@ func intervalConfig(t *testing.T, vault, interval string) string {
 }
 
 // runAll runs cmd and every command it batches, except timers, to the end
-// (git may be slow on a loaded runner), and returns their messages.
+// (git may be slow on a loaded runner), and returns their messages. The
+// workspace scan a tick starts is not git work and is left out.
 func runAll(t testing.TB, cmd tea.Cmd) []tea.Msg {
 	t.Helper()
 	var msgs []tea.Msg
@@ -76,7 +77,7 @@ func runAll(t testing.TB, cmd tea.Cmd) []tea.Msg {
 			queue = append(queue, batch...)
 			continue
 		}
-		if msg != nil {
+		if msg != nil && !app.IsWorkspaceScan(msg) {
 			msgs = append(msgs, msg)
 		}
 	}

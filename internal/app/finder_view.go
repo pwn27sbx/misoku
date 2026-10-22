@@ -167,7 +167,8 @@ func (m *Model) openInCurrentBuffer(id string) tea.Cmd {
 		m.setError("Cannot open " + id)
 		return nil
 	}
-	cur.id, cur.title, cur.saved, cur.text, cur.dir = p.ID, p.Title, p.Content, p.Content, ""
+	cur.id, cur.title, cur.dir = p.ID, p.Title, ""
+	cur.setSaved(p.Content)
 	m.active = ""
 	m.showBuffer(cur)
 	m.refreshModified()
