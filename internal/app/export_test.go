@@ -51,3 +51,9 @@ func PreviewGen(tm tea.Model) int { return tm.(Model).pv.gen }
 // PreviewTick is the message the preview refresh timer of generation gen
 // delivers.
 func PreviewTick(gen int) tea.Msg { return PreviewRefreshMsg{gen: gen} }
+
+// TextCopies counts the copies of the editor's whole text made so far.
+func TextCopies(tm tea.Model) int64 { return tm.(Model).content.TextCopies() }
+
+// CountWords is the status line's word count of s.
+var CountWords = countWords

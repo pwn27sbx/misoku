@@ -4,6 +4,7 @@ package content
 
 import (
 	"regexp"
+	"sync/atomic"
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/highlight"
@@ -27,6 +28,7 @@ type Model struct {
 	pending  string // first key of a two-key Vim command ("g", "d")
 	slash    *slashMenu
 	hl       *hlCache // shared across copies so View can memoise
+	copies   *atomic.Int64
 	dragging bool
 	dragRow  int
 	dragCol  int
@@ -53,15 +55,13 @@ func New(th theme.Theme) Model {
 		cmdInput: createCommandInput(th),
 		mode:     ModeNormal,
 		hl:       &hlCache{},
+		copies:   &atomic.Int64{},
 	}
 }
 
 // SetTheme switches colours.
 func (m *Model) SetTheme(th theme.Theme) {
 	m.theme = th
-	// The cache is keyed by theme name, and a user theme can keep its name
-	// while its palette changes on disk: drop it on every theme change.
-	m.hl.valid = false
 	m.textarea.Cursor.Style = lipgloss.NewStyle().Foreground(th.Fg)
 	configureTextareaStyles(&m.textarea, th)
 	// The textarea draws through a pointer to its focused or blurred style,
@@ -164,8 +164,23 @@ func (m Model) ModeString() string {
 	}
 }
 
-// Value returns the current textarea content.
-func (m Model) Value() string { return m.textarea.Value() }
+// Value returns the current textarea content. It copies the whole note,
+// so a caller that runs on every frame or key should check Version first.
+func (m Model) Value() string {
+	if m.copies != nil {
+		m.copies.Add(1)
+	}
+	return m.textarea.Value()
+}
+
+// TextCopies counts the copies of the note Value has made, so a test can
+// check that moving the cursor or redrawing copies nothing.
+func (m Model) TextCopies() int64 {
+	if m.copies == nil {
+		return 0
+	}
+	return m.copies.Load()
+}
 
 // Version identifies the current text: it changes on every edit and stays
 // the same while only the cursor or the view moves (textarea.Model.Version).
@@ -228,17 +243,21 @@ func (m *Model) indent(in bool) {
 	m.textarea.EnsureVisible()
 }
 
-// hlCache memoises syntax colours for the last text/theme rendered.
+// hlCache memoises syntax colours for the last text version and theme
+// rendered, so a frame that only moved the cursor neither copies the note
+// nor highlights it again.
 type hlCache struct {
-	text  string
-	theme string
+	version uint64
+	// theme is the whole palette, not its name: a user theme can keep its
+	// name while its colours change on disk.
+	theme theme.Theme
 	cols  highlight.Colors
 	valid bool
 }
 
-func (c *hlCache) colors(text string, th theme.Theme) highlight.Colors {
-	if !c.valid || c.text != text || c.theme != th.Name {
-		c.text, c.theme, c.cols, c.valid = text, th.Name, highlight.Markdown(text, th), true
+func (c *hlCache) colors(m Model) highlight.Colors {
+	if !c.valid || c.version != m.Version() || c.theme != m.theme {
+		c.version, c.theme, c.cols, c.valid = m.Version(), m.theme, highlight.Markdown(m.Value(), m.theme), true
 	}
 	return c.cols
 }
