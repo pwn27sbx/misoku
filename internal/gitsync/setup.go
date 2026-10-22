@@ -269,9 +269,16 @@ const githubHost = "github.com"
 // gh asks nothing of its own: the flags answer its questions about the
 // host and the protocol, and the environment answers "Authenticate Git
 // with your GitHub credentials?" (see withGHHelper).
+//
+// Its stdout is the terminal (os.Stdout); a caller that captures the
+// output sets its own.
 func (s *Setup) SignInCommand() *exec.Cmd {
 	cmd := exec.Command(s.opts.GH, "auth", "login", "--web", "--git-protocol", "https", "--hostname", githubHost)
 	cmd.Env = withGHHelper(os.Environ())
+	// gh writes to the terminal itself. Left unset, tea.ExecProcess would
+	// give it the program output, which is not an *os.File when frames are
+	// wrapped for synchronized output, and gh would get a pipe, not a TTY.
+	cmd.Stdout = os.Stdout
 	return cmd
 }
 

@@ -127,7 +127,9 @@ func signIn(t *testing.T, s *gitsync.Setup, step gitsync.SetupStep) gitsync.Setu
 	if step.Ask != gitsync.AskSignIn {
 		t.Fatalf("want the sign-in, got %+v", step)
 	}
-	if out, err := s.SignInCommand().CombinedOutput(); err != nil {
+	cmd := s.SignInCommand()
+	cmd.Stdout = nil // CombinedOutput captures it itself
+	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("sign-in: %v %s", err, out)
 	}
 	return s.Next(context.Background(), gitsync.SetupAnswer{OK: true})
