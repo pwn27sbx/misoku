@@ -25,6 +25,6 @@ func (m Model) View() string {
 		return ui.Fit(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block), m.width, m.height, plain)
 	}
 
-	m.textarea.LineColors = m.hl.colors(m.textarea.Value(), m.theme)
+	m.textarea.LineColors = m.hl.colors(m)
 	return ui.Fit(m.textarea.View(), m.width, m.height, plain)
 }

@@ -237,7 +237,7 @@ func (m *Model) statusline() string {
 		b = nil // no text: no word count or file type
 	}
 	if b != nil {
-		words := len(strings.Fields(m.liveText(b)))
+		words := m.wordCount(b)
 		unit := "words"
 		if words == 1 {
 			unit = "word"

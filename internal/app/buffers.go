@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
@@ -34,6 +35,31 @@ type buffer struct {
 	// it last moved is out of date: a workspace scan sent earlier is
 	// dropped (see applyScannedNote).
 	saves uint64
+	// textVer is the editor's text version b.text was copied at, 0 when
+	// b.text did not come from the editor.
+	textVer uint64
+	stats   textStats
+}
+
+// textStats is what the bars show about a tab's text, kept until the text,
+// the tab or what is saved changes, so a frame or a key that only moves the
+// cursor neither copies nor scans the note.
+type textStats struct {
+	key   statsKey
+	valid bool
+	dirty bool
+	words int
+}
+
+// statsKey identifies the text textStats were worked out for. version is
+// the editor's text version when the text is the editor's (editor true), or
+// buffer.textVer otherwise. Saving changes saves but not the text version,
+// and without saves the unsaved mark would stay after a save.
+type statsKey struct {
+	version uint64
+	editor  bool
+	id      string
+	saves   uint64
 }
 
 // setSaved records content as what is on disk and in the tab.
@@ -94,12 +120,41 @@ func (m *Model) liveText(b *buffer) string {
 	return b.text
 }
 
-func (m *Model) isDirty(b *buffer) bool {
-	text := m.liveText(b)
-	if b.draft() {
-		return text != ""
+func (m *Model) isDirty(b *buffer) bool { return m.textStats(b).dirty }
+
+// wordCount is the number of words in b's current text.
+func (m *Model) wordCount(b *buffer) int { return m.textStats(b).words }
+
+// textStats returns b's unsaved state and word count, reading the text only
+// when it changed since they were last worked out.
+func (m *Model) textStats(b *buffer) textStats {
+	key := statsKey{version: b.textVer, id: b.id, saves: b.saves}
+	if b.id == m.active && m.content.HasPage() {
+		key.version, key.editor = m.content.Version(), true
 	}
-	return text != b.saved
+	if b.stats.valid && b.stats.key == key {
+		return b.stats
+	}
+	text := m.liveText(b)
+	dirty := text != b.saved
+	if b.draft() {
+		dirty = text != ""
+	}
+	b.stats = textStats{key: key, valid: true, dirty: dirty, words: countWords(text)}
+	return b.stats
+}
+
+// countWords is len(strings.Fields(s)) without building the slice.
+func countWords(s string) int {
+	n, in := 0, false
+	for _, r := range s {
+		space := unicode.IsSpace(r)
+		if !space && !in {
+			n++
+		}
+		in = !space
+	}
+	return n
 }
 
 func (m *Model) dirtyBuffers() []*buffer {
@@ -116,7 +171,7 @@ func (m *Model) dirtyBuffers() []*buffer {
 // editor is pointed at another one.
 func (m *Model) stashActive() {
 	if b := m.activeBuffer(); b != nil && m.content.HasPage() {
-		b.text = m.content.Value()
+		b.text, b.textVer = m.content.Value(), m.content.Version()
 	}
 }
 
