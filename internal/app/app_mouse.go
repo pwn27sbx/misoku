@@ -19,7 +19,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	l := m.layout()
 	// The preview handles the event with what it compiled: hover handles,
 	// block drags and clicks on interactive views must match the text.
-	overPreview := l.PreviewW > 0 && msg.X >= l.PreviewX && msg.Y >= l.BodyY && msg.Y < l.BodyY+l.BodyH
+	overPreview := l.overPreview(msg.X, msg.Y)
 	if overPreview || m.preview.Dragging() {
 		m.flushPreview()
 	}
@@ -104,6 +104,11 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		m.preview, cmd = m.preview.Update(local)
 	}
 	return tea.Batch(append(cmds, cmd)...)
+}
+
+// overPreview reports whether screen cell (x, y) is inside the preview pane.
+func (l Layout) overPreview(x, y int) bool {
+	return l.PreviewW > 0 && x >= l.PreviewX && y >= l.BodyY && y < l.BodyY+l.BodyH
 }
 
 // divider names a draggable pane divider.
