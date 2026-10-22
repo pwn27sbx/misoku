@@ -54,7 +54,7 @@ func intervalConfig(t *testing.T, vault, interval string) string {
 
 // runAll runs cmd and every command it batches, except timers, to the end
 // (git may be slow on a loaded runner), and returns their messages.
-func runAll(t *testing.T, cmd tea.Cmd) []tea.Msg {
+func runAll(t testing.TB, cmd tea.Cmd) []tea.Msg {
 	t.Helper()
 	var msgs []tea.Msg
 	queue := []tea.Cmd{cmd}
