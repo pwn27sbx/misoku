@@ -357,3 +357,29 @@ func TestCountWordsMatchesFields(t *testing.T) {
 		}
 	}
 }
+
+// A draft edited and left with no frame drawn in between is marked once it
+// is hidden, and the quit prompt counts it: the text version must be stashed
+// with the text, or the draft's cached state from before the edit is reused.
+func TestHiddenDraftEditedOffFrameIsMarked(t *testing.T) {
+	h := openTwo(t, "alpha body", "beta body")
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlN})
+	h.key(tea.KeyEsc)
+	h.keys("[")
+	if strings.Contains(h.tabline(), "●") {
+		t.Fatalf("nothing edited: %q", h.tabline())
+	}
+	h.keys("]ihi") // no frame between here and the next view
+	h.key(tea.KeyEsc)
+	h.keys("[")
+	if !strings.Contains(h.tabline(), "●") {
+		t.Fatalf("the hidden draft has text: %q", h.tabline())
+	}
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if h.quit {
+		t.Fatal("quit with an unsaved draft must ask first")
+	}
+	if v := h.view(); !strings.Contains(v, "1 unsaved: Untitled-1") {
+		t.Fatalf("the quit prompt should list the draft:\n%s", v)
+	}
+}
