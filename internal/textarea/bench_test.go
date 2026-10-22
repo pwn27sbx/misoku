@@ -5,6 +5,8 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/testnote"
 	"github.com/pwn27sbx/misoku/internal/textarea"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // benchSizes are the note lengths every benchmark runs on.
@@ -33,6 +35,23 @@ func BenchmarkView(b *testing.B) {
 	for _, s := range benchSizes {
 		b.Run(s.name, func(b *testing.B) {
 			m := benchEditor(s.lines)
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = m.View()
+			}
+		})
+	}
+}
+
+// BenchmarkViewSelection measures one View of the editor while a selection
+// is active, which sends every line through the per-rune selection painter.
+func BenchmarkViewSelection(b *testing.B) {
+	for _, s := range benchSizes {
+		b.Run(s.name, func(b *testing.B) {
+			m := benchEditor(s.lines)
+			m.SelectionStyle = lipgloss.NewStyle().Background(lipgloss.Color("4"))
+			m.SetAnchor(0, 0)
+			m.SetRowCol(20, 5)
 			b.ReportAllocs()
 			for b.Loop() {
 				_ = m.View()
