@@ -26,7 +26,7 @@ const (
 // realHome is the HOME the tests started with, before any t.Setenv.
 var realHome, _ = os.UserHomeDir()
 
-func newTestStore(t *testing.T) *core.Store {
+func newTestStore(t testing.TB) *core.Store {
 	t.Helper()
 	// Deleting moves notes to the Trash: keep the tests away from the real
 	// one, and from the one TestMain shares. A test that already set its own
@@ -47,15 +47,21 @@ func newTestStore(t *testing.T) *core.Store {
 // command is executed and its message fed back in. Timer-based commands
 // (cursor blinks, toasts, the workspace poll) are dropped; see runCmd.
 type harness struct {
-	t     *testing.T
+	t     testing.TB
 	m     tea.Model
 	quit  bool
 	store *core.Store
 }
 
-func newHarness(t *testing.T, store *core.Store, opts ...app.Option) *harness {
+func newHarness(t testing.TB, store *core.Store, opts ...app.Option) *harness {
+	return newHarnessSize(t, termW, termH, store, opts...)
+}
+
+// newHarnessSize is newHarness with another terminal size. h.view checks the
+// frame against termW x termH, so a harness of another size reads m.View().
+func newHarnessSize(t testing.TB, w, ht int, store *core.Store, opts ...app.Option) *harness {
 	h := &harness{t: t, m: app.New(store, opts...), store: store}
-	h.send(tea.WindowSizeMsg{Width: termW, Height: termH})
+	h.send(tea.WindowSizeMsg{Width: w, Height: ht})
 	return h
 }
 
@@ -156,7 +162,7 @@ func (h *harness) view() string {
 
 // assertFrame checks the frame is exactly termW × termH cells, which is what
 // keeps pane dividers straight.
-func assertFrame(t *testing.T, v string) {
+func assertFrame(t testing.TB, v string) {
 	t.Helper()
 	lines := strings.Split(v, "\n")
 	if len(lines) != termH {
