@@ -286,8 +286,10 @@ search, `?`, `q` and Space included; only `Esc` closes the palette. `↑`/`↓`
 move, and the bottom explains the selected entry. `Enter` runs it when it is
 an action or a command that needs nothing more (`:settings`, `:messages`,
 `:sync`, `Toggle preview`…); a key that only works in its own place (the
-explorer, the editor, the graph) is just explained. The list scrolls when it
-does not fit, so no row is cut.
+explorer, the editor, the graph) is just explained. Opened from the home
+screen, `Enter` runs only what the home screen runs; what acts on a note
+(`Toggle preview`, `Close tab`, `:w`, `:export`…) says "Needs an open note".
+The list scrolls when it does not fit, so no row is cut.
 
 **General**
 
