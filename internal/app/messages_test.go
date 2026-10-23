@@ -173,3 +173,42 @@ func TestSetupBarStillReturnsOverAnErrorWhileAStepRuns(t *testing.T) {
 	h.key(tea.KeyEsc)
 	h.send(waitStep(t, done))
 }
+
+// :messages lists one sync result once: a note the sync reloaded shows in
+// the sync's own line, not a second time on its own.
+func TestMessagesListsASyncReloadOnce(t *testing.T) {
+	remote, vault := syncedVault(t)
+	h := window(t, vault, syncConfig(t, vault), app.WithClock(at1405))
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	h.finish(h.update(app.SyncNowMsg{}))
+	pushFromDesk(t, remote, "doc.md", "desk edit")
+	h.finish(h.update(app.SyncNowMsg{}))
+	h.key(tea.KeyEsc)
+	h.ex("messages")
+	v := h.view()
+	if n := strings.Count(v, `"doc.md" reloaded`); n != 1 {
+		t.Fatalf(":messages lists the reload %d times, want once:\n%s", n, v)
+	}
+	if !strings.Contains(v, `Synced · "doc.md" reloaded`) {
+		t.Fatalf("the reload belongs to the sync's line:\n%s", v)
+	}
+}
+
+// Progress such as "Syncing…" only shows in the bar: :messages keeps
+// results.
+func TestMessagesSkipsSyncProgress(t *testing.T) {
+	_, vault := syncedVault(t)
+	h := window(t, vault, syncConfig(t, vault), app.WithClock(at1405))
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	h.finish(h.update(app.SyncNowMsg{}))
+	h.ex("messages")
+	v := h.view()
+	if strings.Contains(v, "Syncing…") {
+		t.Fatalf(":messages must not keep the sync's progress:\n%s", v)
+	}
+	if !strings.Contains(v, "Synced") {
+		t.Fatalf("setup: the sync's result should be listed:\n%s", v)
+	}
+}

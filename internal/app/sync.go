@@ -149,13 +149,13 @@ func (m *Model) requestSync() tea.Cmd {
 		return nil
 	case m.syncing && m.syncRun != nil && m.syncRun.local:
 		m.syncQueued = true
-		m.setStatus("Syncing…")
+		m.showProgress("Syncing…")
 		return nil
 	case m.syncing:
 		m.setStatus("Already syncing…")
 		return nil
 	}
-	m.setStatus("Syncing…")
+	m.showProgress("Syncing…")
 	return m.startSync(false, false)
 }
 
@@ -292,6 +292,8 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 			// Put back what was showing: it is already in :messages.
 			m.status, m.statusErr = status, statusErr
 		case m.status != "":
+			// The sync's line says it: :messages lists it once, there.
+			m.unsayLast()
 			text += " · " + m.status
 			isErr = isErr || m.statusErr
 			speak = true
@@ -543,7 +545,7 @@ func (m *Model) lockRemoved(msg lockRemovedMsg) tea.Cmd {
 	if m.syncing {
 		// A sync started on its own meanwhile: this one follows it.
 		m.syncQueued = true
-		m.setStatus("Syncing…")
+		m.showProgress("Syncing…")
 		return nil
 	}
 	return m.requestSync()
