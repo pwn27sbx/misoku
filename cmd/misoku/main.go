@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/config"
@@ -127,14 +129,10 @@ func main() {
 	// View run.
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
 		tea.WithFilter(app.MouseFilter), tea.WithOutput(out))
+	hup := quitOnHangup(p)
 	final, err := p.Run()
-	if err != nil {
-		log.Printf("Fatal error running program: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Error running Misoku application: %v\n", err)
-		os.Exit(1)
-	}
-	if m, ok := final.(app.Model); ok {
-		pushOnQuit(m)
+	if code := leave(final, err, hup, os.Stderr, pushOnQuit); code != 0 {
+		os.Exit(code)
 	}
 
 	log.Println("Misoku exited cleanly.")
@@ -183,13 +181,83 @@ func defineFlags(fs *flag.FlagSet) *options {
 	return o
 }
 
+// leave ends Misoku once p.Run has returned final and err, and returns
+// the exit code: the quit sync runs through push, saying how it went on
+// stderr. When the terminal has closed (hup), nobody can read it: push
+// writes to the log instead, and an err from reading or restoring the
+// closed terminal, which can come just before its SIGHUP, skips nothing.
+func leave(final tea.Model, err error, hup hangup, stderr io.Writer, push func(app.Model, io.Writer)) int {
+	grace := time.Duration(0)
+	if err != nil {
+		grace = hangupGrace
+	}
+	hungUp := hup.seen(grace)
+	if err != nil && !hungUp {
+		log.Printf("Fatal error running program: %v\n", err)
+		fmt.Fprintf(stderr, "Error running Misoku application: %v\n", err)
+		return 1
+	}
+	if m, ok := final.(app.Model); ok {
+		w := stderr
+		if hungUp {
+			w = log.Writer()
+		}
+		push(m, w)
+	}
+	if err != nil {
+		log.Printf("Error after the terminal closed: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 // pushOnQuit pushes what was saved in a synced vault once the screen has
-// closed (S14), for at most app.QuitSyncLimit. Ctrl+C stops it at once:
-// git is killed and the commits wait for the next sync.
-func pushOnQuit(m app.Model) {
+// closed (S14), for at most app.QuitSyncLimit, saying how it went on w.
+// Ctrl+C stops it at once: git is killed and the commits wait for the
+// next sync. A hang-up does not: quitOnHangup keeps SIGHUP caught.
+func pushOnQuit(m app.Model, w io.Writer) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	m.SyncOnQuit(ctx, os.Stderr, app.QuitSyncLimit)
+	m.SyncOnQuit(ctx, w, app.QuitSyncLimit)
+}
+
+// hangupGrace is how long a p.Run that failed waits for a SIGHUP on its
+// way: the terminal's input and its hang-up end at the same moment.
+const hangupGrace = 500 * time.Millisecond
+
+// hangup is closed once the terminal Misoku runs in has closed.
+type hangup chan struct{}
+
+// quitOnHangup makes closing the terminal (its pane or window, which
+// sends SIGHUP) leave p as SIGTERM does, through the normal quit path,
+// so the quit sync still runs (issue #22). SIGHUP stays caught until
+// Misoku exits: a later one, during the quit sync, is ignored rather
+// than killing it.
+func quitOnHangup(p *tea.Program) hangup {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGHUP)
+	h := make(hangup)
+	go func() {
+		<-sig
+		close(h)
+		p.Send(tea.Quit())
+	}()
+	return h
+}
+
+// seen reports whether the terminal has closed, waiting at most wait for it.
+func (h hangup) seen(wait time.Duration) bool {
+	select {
+	case <-h:
+		return true
+	default:
+	}
+	select {
+	case <-h:
+		return true
+	case <-time.After(wait):
+		return false
+	}
 }
 
 // resolveWorkspace picks the vault folder of `misoku sync init` and

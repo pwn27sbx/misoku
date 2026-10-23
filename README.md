@@ -426,7 +426,7 @@ Misoku can keep a notes folder (a *vault*) the same on all your computers throug
 - when Misoku opens the vault;
 - every 5 minutes while Misoku is open (the vault's [`interval`](#configuration)), counted from the last sync;
 - when you type `:sync` or press `space s` (`sync_now`, configurable like any [shortcut](#shortcuts));
-- when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it.
+- when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it. Closing the terminal pane or window Misoku runs in also pushes, writing the result to Misoku's log.
 
 **After you save**, Misoku commits your changes locally once you stop saving for a few seconds, so a burst of saves makes one commit. This commit uses no network: the next sync pushes it. Syncs and these commits run in the background one at a time, so you can keep typing; a save made while one runs goes into the next commit, and a sync you ask for while a commit runs starts right after it. Each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync setup` and `misoku sync init`).
 
