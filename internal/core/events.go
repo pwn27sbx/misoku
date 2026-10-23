@@ -96,6 +96,10 @@ type SyncMsg struct{}
 // status").
 type SyncStatusMsg struct{}
 
+// MessagesMsg asks the app to list the messages its bar showed, with the
+// time of each (":messages").
+type MessagesMsg struct{}
+
 // SyncSetupMsg asks the app to run the sync setup assistant for the open
 // vault (":sync setup").
 type SyncSetupMsg struct{}

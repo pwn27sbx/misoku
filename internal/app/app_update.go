@@ -49,14 +49,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayout()
 		return m, nil
 	case core.StatusMsg:
-		m.status, m.statusErr = msg.Text, msg.Error
+		m.say(msg.Text, msg.Error)
+		return m, nil
+	case core.MessagesMsg:
+		m.openMessages()
 		return m, nil
 	case tea.KeyMsg:
 		// A key clears the bar's message, except while a step of the sync
 		// setup runs: the bar keeps saying so until its result arrives.
-		m.status = ""
-		if m.setupBusy {
-			m.setStatus(m.setupBar())
+		// An error stays until Esc, which then still does what it always
+		// does (leave insert mode, close a dialog).
+		switch {
+		case m.setupBusy:
+			if bar := m.setupBar(); m.status != bar || m.statusErr {
+				m.setStatus(bar)
+			}
+		case !m.statusErr || msg.Type == tea.KeyEsc:
+			m.clearStatus()
 		}
 		m.keyCount++
 	}

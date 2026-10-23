@@ -301,7 +301,8 @@ func (m *Model) message() string {
 	fill := lipgloss.NewStyle().Background(th.StatusBg)
 	switch {
 	case m.status != "" && m.statusErr:
-		return fill.Foreground(th.Red).Render("  " + m.status)
+		return fill.Foreground(th.Red).Render("  "+m.status) +
+			fill.Foreground(th.GreyFg).Render("  Esc dismiss · :messages")
 	case m.status != "":
 		return fill.Foreground(th.Fg).Render("  " + m.status)
 	case m.leaderPending:
