@@ -52,7 +52,7 @@ type Model struct {
 	sidebarOpen   bool
 	previewOpen   bool
 	reading       bool // reading mode: only the preview, see toggleReading
-	showKeymap    bool
+	palette       *palette
 	leaderPending bool
 	leaderSeq     int  // bumps on every Space press, see leaderGuideMsg
 	leaderGuide   bool // the leader guide shows while leaderPending

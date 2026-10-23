@@ -41,12 +41,18 @@ func configureTextareaStyles(ta *textarea.Model, th theme.Theme) {
 }
 
 // parseVimCommand turns an ex command line into a domain message. It returns
-// nil for an empty line and a StatusMsg for unknown commands.
+// nil for an empty line and a StatusMsg for unknown commands. Every name it
+// accepts is in Commands.
 func parseVimCommand(cmdStr, content string) any {
 	cmdStr = strings.TrimSpace(cmdStr)
 	name, arg, _ := strings.Cut(cmdStr, " ")
 	arg = strings.TrimSpace(arg)
 
+	// The catalog (Commands) lists every command, so the palette shows
+	// them all: a name it lacks is not a command.
+	if name != "" && !isCommand(name) {
+		return core.StatusMsg{Text: "E492: Not an editor command: " + cmdStr, Error: true}
+	}
 	switch name {
 	case "":
 		return nil

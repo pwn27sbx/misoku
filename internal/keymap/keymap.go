@@ -70,57 +70,98 @@ const (
 // Groups lists the leader guide groups in display order.
 var Groups = []string{GroupNote, GroupView, GroupGo}
 
-// Info describes one action for the help screen.
+// Info describes one action for the help screen and the command palette.
 type Info struct {
-	Action   string
-	Section  string // "general" or "explorer"
-	Group    string // leader guide group of a general action; "" for the explorer
-	Help     string
+	Action  string
+	Section string // "general" or "explorer"
+	Group   string // leader guide group of a general action; "" for the explorer
+	Help    string // one line, next to the keys
+	// Long explains the action in a sentence or two, at the bottom of the
+	// command palette when the action is selected.
+	Long     string
 	defaults []string
 }
 
 // Actions lists every action in help-screen order, with today's shortcuts as
 // defaults.
 var Actions = []Info{
-	{NewNote, "general", GroupNote, "New note (unsaved tab)", []string{"ctrl+n", "space n"}},
-	{Save, "general", GroupNote, "Save (new notes: pick folder)", []string{"ctrl+s", "space w"}},
-	{FindNote, "general", GroupGo, "Find note (opens in this tab)", []string{"ctrl+p", "\\", "space f"}},
-	{ToggleExplorer, "general", GroupView, "Toggle explorer", []string{"ctrl+b"}},
-	{FocusExplorer, "general", GroupGo, "Focus explorer", []string{"space e"}},
-	{NextPane, "general", GroupGo, "Next pane", []string{"tab"}},
-	{PrevPane, "general", GroupGo, "Previous pane", []string{"shift+tab"}},
-	{PaneLeft, "general", GroupGo, "Pane to the left", []string{"ctrl+h"}},
-	{PaneRight, "general", GroupGo, "Pane to the right", []string{"ctrl+l"}},
-	{NextTab, "general", GroupGo, "Next tab", []string{"]", "space tab"}},
-	{PrevTab, "general", GroupGo, "Previous tab", []string{"[", "space shift+tab"}},
-	{CloseTab, "general", GroupNote, "Close tab", []string{"space x"}},
-	{TogglePreview, "general", GroupView, "Toggle preview", []string{"space p"}},
-	{ReadingMode, "general", GroupView, "Reading mode: preview only", []string{"space r"}},
-	{ExportPDF, "general", GroupNote, "Export note as PDF", []string{"space P"}},
-	{Themes, "general", GroupView, "Themes", []string{"space t"}},
-	{Graph, "general", GroupView, "Graph of this note's links", []string{"space g"}},
-	{Home, "general", GroupGo, "Home screen", []string{"space d"}},
-	{SyncNow, "general", GroupNote, "Sync the vault with git now", []string{"space s"}},
-	{Help, "general", GroupView, "This help", []string{"?", "space h", "space ?"}},
-	{Quit, "general", GroupNote, "Quit (asks to save)", []string{"ctrl+c"}},
+	{Action: NewNote, Section: "general", Group: GroupNote, Help: "New note (unsaved tab)",
+		Long: "Opens an empty tab for a new note. It is written to disk on the first save, which asks for its folder.", defaults: []string{"ctrl+n", "space n"}},
+	{Action: Save, Section: "general", Group: GroupNote, Help: "Save (new notes: pick folder)",
+		Long: "Writes the note in this tab to disk. A note that was never saved asks which folder it goes in.", defaults: []string{"ctrl+s", "space w"}},
+	{Action: FindNote, Section: "general", Group: GroupGo, Help: "Find note (opens in this tab)",
+		Long: "Searches the names and the text of every note in the vault; the note you pick opens in this tab.", defaults: []string{"ctrl+p", "\\", "space f"}},
+	{Action: ToggleExplorer, Section: "general", Group: GroupView, Help: "Toggle explorer",
+		Long: "Shows or hides the explorer, the tree of folders and notes on the left. On a narrow window it opens over the editor.", defaults: []string{"ctrl+b"}},
+	{Action: FocusExplorer, Section: "general", Group: GroupGo, Help: "Focus explorer",
+		Long: "Moves the focus to the explorer, showing it if it was hidden, so its own keys work.", defaults: []string{"space e"}},
+	{Action: NextPane, Section: "general", Group: GroupGo, Help: "Next pane",
+		Long: "Moves the focus to the next pane: explorer, editor, preview.", defaults: []string{"tab"}},
+	{Action: PrevPane, Section: "general", Group: GroupGo, Help: "Previous pane",
+		Long: "Moves the focus to the previous pane: preview, editor, explorer.", defaults: []string{"shift+tab"}},
+	{Action: PaneLeft, Section: "general", Group: GroupGo, Help: "Pane to the left",
+		Long: "Moves the focus to the pane on the left of this one, and stops at the first.", defaults: []string{"ctrl+h"}},
+	{Action: PaneRight, Section: "general", Group: GroupGo, Help: "Pane to the right",
+		Long: "Moves the focus to the pane on the right of this one, and stops at the last.", defaults: []string{"ctrl+l"}},
+	{Action: NextTab, Section: "general", Group: GroupGo, Help: "Next tab",
+		Long: "Shows the next open note in the tab bar, wrapping around after the last.", defaults: []string{"]", "space tab"}},
+	{Action: PrevTab, Section: "general", Group: GroupGo, Help: "Previous tab",
+		Long: "Shows the previous open note in the tab bar, wrapping around before the first.", defaults: []string{"[", "space shift+tab"}},
+	{Action: CloseTab, Section: "general", Group: GroupNote, Help: "Close tab",
+		Long: "Closes the tab of this note. With unsaved changes it asks whether to save them first.", defaults: []string{"space x"}},
+	{Action: TogglePreview, Section: "general", Group: GroupView, Help: "Toggle preview",
+		Long: "Shows or hides the rendered preview of the note next to the editor.", defaults: []string{"space p"}},
+	{Action: ReadingMode, Section: "general", Group: GroupView, Help: "Reading mode: preview only",
+		Long: "Hides the editor and shows only the rendered note, to read it. The same key goes back to editing.", defaults: []string{"space r"}},
+	{Action: ExportPDF, Section: "general", Group: GroupNote, Help: "Export note as PDF",
+		Long: "Writes this note as a PDF file in the note's folder, with its blocks rendered.", defaults: []string{"space P"}},
+	{Action: Themes, Section: "general", Group: GroupView, Help: "Themes",
+		Long: "Opens the theme picker: the highlighted theme applies at once, Enter keeps it and Esc goes back.", defaults: []string{"space t"}},
+	{Action: Graph, Section: "general", Group: GroupView, Help: "Graph of this note's links",
+		Long: "Shows a map of the notes this note links to and the ones linking to it; move with h j k l and open one with Enter.", defaults: []string{"space g"}},
+	{Action: Home, Section: "general", Group: GroupGo, Help: "Home screen",
+		Long: "Goes back to the home screen, with recent notes and folders. Open tabs stay open.", defaults: []string{"space d"}},
+	{Action: SyncNow, Section: "general", Group: GroupNote, Help: "Sync the vault with git now",
+		Long: "Syncs the vault with its git remote right away, instead of waiting for the next automatic sync.", defaults: []string{"space s"}},
+	{Action: Help, Section: "general", Group: GroupView, Help: "This help",
+		Long: "Opens this list of every key and command. Type to filter it; Enter runs a command, Esc closes.", defaults: []string{"?", "space h", "space ?"}},
+	{Action: Quit, Section: "general", Group: GroupNote, Help: "Quit (asks to save)",
+		Long: "Closes Misoku. If a note has unsaved changes, it asks whether to save them first.", defaults: []string{"ctrl+c"}},
 
-	{ExplorerUp, "explorer", "", "Move up", []string{"up", "k"}},
-	{ExplorerDown, "explorer", "", "Move down", []string{"down", "j"}},
-	{ExplorerTop, "explorer", "", "First item", []string{"g", "home"}},
-	{ExplorerBottom, "explorer", "", "Last item", []string{"G", "end"}},
-	{ExplorerPageDown, "explorer", "", "Half page down", []string{"ctrl+d", "pgdown"}},
-	{ExplorerPageUp, "explorer", "", "Half page up", []string{"ctrl+u", "pgup"}},
-	{ExplorerOpen, "explorer", "", "Open note / expand", []string{"enter"}},
-	{ExplorerPreview, "explorer", "", "Preview note (folder: open)", []string{"o"}},
-	{ExplorerExpand, "explorer", "", "Expand / open", []string{"l", "right"}},
-	{ExplorerCollapse, "explorer", "", "Collapse / go to parent", []string{"h", "left"}},
-	{ExplorerToggleFold, "explorer", "", "Fold / unfold", []string{"z"}},
-	{ExplorerCollapseAll, "explorer", "", "Collapse all", []string{"W"}},
-	{ExplorerNewNote, "explorer", "", "New note in this folder", []string{"n", "%"}},
-	{ExplorerNewSubNote, "explorer", "", "New sub-note", []string{"a"}},
-	{ExplorerRename, "explorer", "", "Rename", []string{"r", "e"}},
-	{ExplorerDelete, "explorer", "", "Delete (asks first)", []string{"d", "x", "delete"}},
-	{ExplorerFind, "explorer", "", "Find note", []string{"\\", "f"}},
+	{Action: ExplorerUp, Section: "explorer", Help: "Move up",
+		Long: "In the explorer, moves the selection one row up.", defaults: []string{"up", "k"}},
+	{Action: ExplorerDown, Section: "explorer", Help: "Move down",
+		Long: "In the explorer, moves the selection one row down.", defaults: []string{"down", "j"}},
+	{Action: ExplorerTop, Section: "explorer", Help: "First item",
+		Long: "In the explorer, jumps to the first row of the tree.", defaults: []string{"g", "home"}},
+	{Action: ExplorerBottom, Section: "explorer", Help: "Last item",
+		Long: "In the explorer, jumps to the last row of the tree.", defaults: []string{"G", "end"}},
+	{Action: ExplorerPageDown, Section: "explorer", Help: "Half page down",
+		Long: "In the explorer, moves the selection half a screen down.", defaults: []string{"ctrl+d", "pgdown"}},
+	{Action: ExplorerPageUp, Section: "explorer", Help: "Half page up",
+		Long: "In the explorer, moves the selection half a screen up.", defaults: []string{"ctrl+u", "pgup"}},
+	{Action: ExplorerOpen, Section: "explorer", Help: "Open note / expand",
+		Long: "In the explorer, opens the selected note in the editor, or opens and closes the selected folder.", defaults: []string{"enter"}},
+	{Action: ExplorerPreview, Section: "explorer", Help: "Preview note (folder: open)",
+		Long: "In the explorer, shows the selected note without leaving the explorer; on a folder, opens it.", defaults: []string{"o"}},
+	{Action: ExplorerExpand, Section: "explorer", Help: "Expand / open",
+		Long: "In the explorer, opens the selected folder, or the selected note.", defaults: []string{"l", "right"}},
+	{Action: ExplorerCollapse, Section: "explorer", Help: "Collapse / go to parent",
+		Long: "In the explorer, closes the selected folder, or moves to the folder that holds the selection.", defaults: []string{"h", "left"}},
+	{Action: ExplorerToggleFold, Section: "explorer", Help: "Fold / unfold",
+		Long: "In the explorer, opens the selected folder if it is closed and closes it if it is open.", defaults: []string{"z"}},
+	{Action: ExplorerCollapseAll, Section: "explorer", Help: "Collapse all",
+		Long: "In the explorer, closes every folder of the tree.", defaults: []string{"W"}},
+	{Action: ExplorerNewNote, Section: "explorer", Help: "New note in this folder",
+		Long: "In the explorer, starts a new note in the folder of the selection; type its name and press Enter.", defaults: []string{"n", "%"}},
+	{Action: ExplorerNewSubNote, Section: "explorer", Help: "New sub-note",
+		Long: "In the explorer, starts a new note nested under the selected one.", defaults: []string{"a"}},
+	{Action: ExplorerRename, Section: "explorer", Help: "Rename",
+		Long: "In the explorer, renames the selected note or folder; type the new name and press Enter.", defaults: []string{"r", "e"}},
+	{Action: ExplorerDelete, Section: "explorer", Help: "Delete (asks first)",
+		Long: "In the explorer, deletes the selected note or folder after asking to confirm.", defaults: []string{"d", "x", "delete"}},
+	{Action: ExplorerFind, Section: "explorer", Help: "Find note",
+		Long: "In the explorer, opens the note finder, the same one as Find note.", defaults: []string{"\\", "f"}},
 }
 
 // HelpText returns the help-screen description of action.
@@ -131,6 +172,17 @@ func HelpText(action string) string {
 		}
 	}
 	return action
+}
+
+// LongText returns the longer explanation of action the command palette
+// shows; "" for an unknown action.
+func LongText(action string) string {
+	for _, a := range Actions {
+		if a.Action == action {
+			return a.Long
+		}
+	}
+	return ""
 }
 
 // Map is the resolved shortcut table.

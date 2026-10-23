@@ -4,21 +4,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/x/ansi"
-
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/keymap"
-	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
-// helpText renders the keymap help on a large terminal, without colours.
+// helpText opens the palette with an empty search on a terminal tall
+// enough to list every entry, and returns its text without colours.
 func helpText(t *testing.T, user map[string][]string) string {
 	t.Helper()
-	km, warnings := keymap.New(user)
-	if len(warnings) > 0 {
+	if _, warnings := keymap.New(user); len(warnings) > 0 {
 		t.Fatalf("keymap warnings: %v", warnings)
 	}
-	return ansi.Strip(app.RenderKeymapModal(theme.DefaultTheme(), km, 200, 100))
+	return tallPalette(t, app.WithKeys(user))
 }
 
 // helpLine returns the help line that contains want, or "".
