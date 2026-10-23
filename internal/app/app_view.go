@@ -92,9 +92,8 @@ func (m Model) View() string {
 			l := m.layout()
 			screen = ui.Overlay(screen, box, l.EditorX+x, l.BodyY+y)
 		}
-	case m.showKeymap:
-		box := RenderKeymapModal(m.theme, m.keys, m.width, m.height)
-		x, y := ui.Center(m.width, m.height, lipgloss.Width(box), lipgloss.Height(box))
+	case m.palette != nil:
+		box, x, y := m.palette.view(&m)
 		screen = ui.Overlay(screen, box, x, y)
 	case m.leaderGuideOpen():
 		screen = m.overlayLeaderGuide(screen)

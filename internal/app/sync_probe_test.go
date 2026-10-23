@@ -405,7 +405,7 @@ func TestSyncHelpListsTheKeyAndCommand(t *testing.T) {
 	t.Parallel()
 	_, vault := syncedVault(t)
 	h := window(t, vault, syncConfig(t, vault))
-	h.keys("?")
+	h.keys("?sync") // the palette's search narrows the list to fit
 	v := h.view()
 	if !strings.Contains(v, "SPC s") || !strings.Contains(v, ":sync") {
 		t.Fatalf("help must list sync_now:\n%s", v)

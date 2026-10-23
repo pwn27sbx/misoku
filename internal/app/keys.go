@@ -82,7 +82,7 @@ func (m *Model) runAction(action string) tea.Cmd {
 	case keymap.SyncNow:
 		return m.requestSync()
 	case keymap.Help:
-		m.showKeymap = true
+		return m.openPalette()
 	}
 	return nil
 }

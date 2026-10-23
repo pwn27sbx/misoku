@@ -233,3 +233,19 @@ func TestLeaderLabelListsOnlyTheKeysAfterSpace(t *testing.T) {
 		t.Errorf("unbound focus_explorer: got %q, want empty", got)
 	}
 }
+
+// The command palette explains the selected action at its bottom with Long:
+// every action has one, and it says more than the one-line Help.
+func TestEveryActionHasALongExplanation(t *testing.T) {
+	for _, a := range keymap.Actions {
+		if a.Long == "" || a.Long == a.Help {
+			t.Errorf("%s: Long %q must explain more than Help %q", a.Action, a.Long, a.Help)
+		}
+		if got := keymap.LongText(a.Action); got != a.Long {
+			t.Errorf("LongText(%s) = %q, want %q", a.Action, got, a.Long)
+		}
+	}
+	if got := keymap.LongText("nope"); got != "" {
+		t.Errorf("an unknown action has no explanation, got %q", got)
+	}
+}

@@ -247,7 +247,7 @@ Write keys the way the terminal names them (`ctrl+b`, `tab`, `shift+tab`,
 Alt shortcuts of `quit`, `save`, `new_note`, `find_note` and
 `toggle_explorer` also work while typing; every other shortcut only works
 outside INSERT mode, so it never gets in the way of your text. The `?` help
-lists the keys you configured. Press Space and pause: after 400 ms a guide
+lists the keys you configured (see [Command palette](#command-palette)). Press Space and pause: after 400 ms a guide
 lists the keys that can follow, in three groups (NOTE, VIEW, GO), with the
 keys you configured. `Esc` closes it; type the next key sooner and it never
 shows. On the home screen, a key that needs an open note (such as `space p`)
@@ -270,6 +270,24 @@ keeps its own history, in memory only: up to 200 changes or 8 MB, the oldest
 dropped first; a note over about 4 MB keeps no undo history, and `u` says so.
 Undoing never writes to disk, and a note reloaded because it
 changed on disk starts a new history.
+
+### Command palette
+
+`?` (or `space h`, `space ?`) opens the command palette, which is also the
+help. It lists every key and command, built from the shortcuts in use: each
+action with its full keys from your `keys` config, every `:` command of the
+editor, and the fixed keys of the editor (including `u` undo and `Ctrl+R`
+redo), the preview, the graph and the mouse. With an empty search the ways to
+export come first, under **EXPORT**.
+
+Type to search: the filter is fuzzy, like the note finder, so `exp` finds
+exporting, the explorer and `:export`. Everything you type goes to the
+search, `?`, `q` and Space included; only `Esc` closes the palette. `↑`/`↓`
+move, and the bottom explains the selected entry. `Enter` runs it when it is
+an action or a command that needs nothing more (`:settings`, `:messages`,
+`:sync`, `Toggle preview`…); a key that only works in its own place (the
+explorer, the editor, the graph) is just explained. The list scrolls when it
+does not fit, so no row is cut.
 
 **General**
 
@@ -294,7 +312,7 @@ changed on disk starts a new history.
 | `graph` | `space g` | Graph of this note's links |
 | `home` | `space d` | Home screen |
 | `sync_now` | `space s` | Sync the vault with git now (same as `:sync`, see [Sync](#sync)) |
-| `help` | `?`, `space h`, `space ?` | This help |
+| `help` | `?`, `space h`, `space ?` | This help: the [command palette](#command-palette) |
 | `quit` | `ctrl+c` | Quit (asks to save) |
 
 **Explorer** (only while the explorer has focus)

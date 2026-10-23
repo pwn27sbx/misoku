@@ -112,21 +112,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if m.showKeymap {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc", "q", "?", "enter", " ", "space":
-				m.showKeymap = false
-			case "ctrl+c":
-				return m, m.requestQuit(false)
-			}
-		case tea.MouseMsg:
-			if msg.Action == tea.MouseActionPress {
-				m.showKeymap = false
-			}
-		}
-		return m, nil
+	if m.palette != nil {
+		return m, m.palette.update(&m, msg)
 	}
 	// Esc while a step of the sync setup runs stops it, but only in normal
 	// mode with nothing open: otherwise Esc does what it always does (leave

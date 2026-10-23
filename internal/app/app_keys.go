@@ -159,8 +159,7 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	case "e":
 		return m.focusPane(focusSidebar)
 	case "?":
-		m.showKeymap = true
-		return nil
+		return m.openPalette()
 	case "t":
 		return m.openThemePicker()
 	case "g":
@@ -211,7 +210,7 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 	case dashboard.ActionBrowse:
 		return m.focusPane(focusSidebar)
 	case dashboard.ActionKeymap:
-		m.showKeymap = true
+		return m.openPalette()
 	case dashboard.ActionQuit:
 		return m.requestQuit(false)
 	case dashboard.ActionOpenRecent:
