@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/keymap"
+	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -12,6 +13,12 @@ import (
 func (m Model) View() string {
 	if m.width <= 0 || m.height <= 0 {
 		return ""
+	}
+	if m.dimmed {
+		// A copy: the grey styles and the blur last for this frame only.
+		m.theme = greyText(m.theme)
+		configureTextareaStyles(&m.textarea, m.theme)
+		m.textarea.Blur()
 	}
 	plain := lipgloss.NewStyle()
 
@@ -28,7 +35,10 @@ func (m Model) View() string {
 		return ui.Fit(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block), m.width, m.height, plain)
 	}
 
-	m.textarea.LineColors = m.hl.colors(m)
+	m.textarea.LineColors = nil
+	if !m.dimmed {
+		m.textarea.LineColors = m.hl.colors(m)
+	}
 	return ui.Fit(m.textarea.View(), m.width, m.height, plain)
 }
 
@@ -47,4 +57,17 @@ func (m Model) emptyHint() string {
 		}
 	}
 	return strings.Join(parts, "    ")
+}
+
+// greyText is th with every text colour set to Grey and the backgrounds
+// kept: how a pane without the focus is drawn.
+func greyText(th theme.Theme) theme.Theme {
+	for _, c := range []*lipgloss.Color{
+		&th.Fg, &th.GreyFg, &th.GreyFg2, &th.LightGrey, &th.Red, &th.Pink,
+		&th.Green, &th.Blue, &th.NordBlue, &th.Yellow, &th.Purple, &th.DarkPurple,
+		&th.Teal, &th.Orange, &th.Cyan, &th.Folder, &th.TitleFg, &th.MutedFg, &th.SelectedFg,
+	} {
+		*c = th.Grey
+	}
+	return th
 }

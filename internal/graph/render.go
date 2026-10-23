@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -293,6 +294,9 @@ func (m Model) View() string {
 	if m.width <= 0 || m.height <= 0 {
 		return ""
 	}
+	if m.dimmed {
+		m.th = greyText(m.th)
+	}
 	th := m.th
 	plain := lipgloss.NewStyle()
 	if m.centre == "" {
@@ -457,4 +461,17 @@ func renderRow(row []cell) string {
 	}
 	flush()
 	return b.String()
+}
+
+// greyText is th with every text colour set to Grey and the backgrounds
+// kept: how a pane without the focus is drawn.
+func greyText(th theme.Theme) theme.Theme {
+	for _, c := range []*lipgloss.Color{
+		&th.Fg, &th.GreyFg, &th.GreyFg2, &th.LightGrey, &th.Red, &th.Pink,
+		&th.Green, &th.Blue, &th.NordBlue, &th.Yellow, &th.Purple, &th.DarkPurple,
+		&th.Teal, &th.Orange, &th.Cyan, &th.Folder, &th.TitleFg, &th.MutedFg, &th.SelectedFg,
+	} {
+		*c = th.Grey
+	}
+	return th
 }

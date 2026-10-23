@@ -36,6 +36,7 @@ type Model struct {
 
 	width, height int
 	focused       bool
+	dimmed        bool   // greyed out while another pane has the focus
 	view          [2]int // map cell at the top-left of the pane
 	placed        bool   // view has been set for this centre and size
 
@@ -48,6 +49,9 @@ func New(th theme.Theme) Model { return Model{th: th, depth: 1} }
 
 // SetTheme switches colours.
 func (m *Model) SetTheme(th theme.Theme) { m.th = th }
+
+// SetDimmed greys the graph out while another pane has the focus.
+func (m *Model) SetDimmed(d bool) { m.dimmed = d }
 
 // SetFocused shows whether keys go to the graph.
 func (m *Model) SetFocused(f bool) { m.focused = f }

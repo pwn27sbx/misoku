@@ -29,12 +29,9 @@ func (m Model) View() string {
 		screen = lipgloss.JoinVertical(lipgloss.Left, m.dashboard.View(), m.bottomBar())
 	} else {
 		l := m.layout()
+		m.dimPanes()
 		div := func(d divider) string {
-			c := m.theme.Line
-			if m.resizing == d {
-				c = m.theme.Blue
-			}
-			return ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(c))
+			return ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(m.dividerColour(d, l)))
 		}
 		var cols []string
 		if l.SidebarW > 0 {
