@@ -60,6 +60,30 @@ func (m *Model) settle() {
 	}
 }
 
+// reveal scrolls the view as little as it takes to show the selected
+// note's dot and name.
+func (m *Model) reveal() {
+	t := m.tree()
+	i, ok := t.index[m.sel]
+	if !ok {
+		return
+	}
+	m.settle()
+	g := m.geometry(t)
+	n := t.nodes[i]
+	x0 := g.x(n.col())
+	if m.view[0] > x0-1 {
+		m.view[0] = x0 - 1
+	} else if right := x0 + g.labelW + 1 - m.width; m.view[0] < right {
+		m.view[0] = right
+	}
+	if rows := m.mapRows(); m.view[1] > n.row {
+		m.view[1] = n.row
+	} else if m.view[1] < n.row-rows+1 {
+		m.view[1] = n.row - rows + 1
+	}
+}
+
 // cell is one character of the map.
 type cell struct {
 	r      rune
@@ -307,14 +331,44 @@ type button struct {
 	enabled       bool
 }
 
+// hints are the bottom row's layouts, widest first: each button's label
+// (in buttons() order) names its key, then the rest of the keys and what
+// the mouse does. The first that fits the pane is used.
+var hints = []struct {
+	labels [5]string
+	tail   string
+}{
+	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl move · enter open · click: preview, again: open · scroll: zoom · drag: move"},
+	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl move · enter open · drag: move"},
+	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl move · enter open"},
+	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl · enter"},
+	{[5]string{" − ", " + ", " 0 ", " esc ", " reset "}, "  hjkl · enter"},
+}
+
+// hint picks the widest bottom-row layout that fits the pane.
+func (m Model) hint() (labels [5]string, tail string) {
+	for _, h := range hints {
+		w := 1 + len(h.labels) - 1 + ansi.StringWidth(h.tail)
+		for _, l := range h.labels {
+			w += ansi.StringWidth(l)
+		}
+		if w <= m.width {
+			return h.labels, h.tail
+		}
+	}
+	last := hints[len(hints)-1]
+	return last.labels, last.tail
+}
+
 // buttons sit at the start of the bottom row.
 func (m Model) buttons() []button {
+	labels, _ := m.hint()
 	bs := []button{
-		{label: " − ", action: "zoom-out", enabled: m.depth < maxDepth},
-		{label: " + ", action: "zoom-in", enabled: m.depth > 1},
-		{label: " centre ", action: "centre", enabled: m.sel != m.centre},
-		{label: " back ", action: "back", enabled: len(m.history) > 0},
-		{label: " reset ", action: "reset", enabled: true},
+		{label: labels[0], action: "zoom-out", enabled: m.depth < maxDepth},
+		{label: labels[1], action: "zoom-in", enabled: m.depth > 1},
+		{label: labels[2], action: "centre", enabled: m.sel != m.centre},
+		{label: labels[3], action: "back", enabled: len(m.history) > 0},
+		{label: labels[4], action: "reset", enabled: true},
 	}
 	x := 1
 	for i := range bs {
@@ -349,7 +403,8 @@ func plural(n int, word string) string {
 	return fmt.Sprintf("%d %ss", n, word)
 }
 
-// helpLine is the bottom row: the buttons, then what the mouse does.
+// helpLine is the bottom row: the buttons, then the other keys and what
+// the mouse does, shortened to fit the pane.
 func (m Model) helpLine() string {
 	th := m.th
 	var b strings.Builder
@@ -364,7 +419,8 @@ func (m Model) helpLine() string {
 		}
 		b.WriteString(st.Render(bt.label))
 	}
-	b.WriteString(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("  click: preview, again: open · scroll: zoom · drag: move"))
+	_, tail := m.hint()
+	b.WriteString(lipgloss.NewStyle().Foreground(th.GreyFg2).Render(tail))
 	return ui.FitLine(b.String(), m.width, lipgloss.NewStyle())
 }
 

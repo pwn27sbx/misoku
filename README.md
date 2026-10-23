@@ -362,14 +362,27 @@ right. The preview on the right shows whichever note is selected.
                               ╰─● Docker
 ```
 
-The graph is used with the mouse:
+With the keys:
+
+| Key | What it does |
+| --- | --- |
+| `h` / `l` | Move left / right: to the note's parent or its first child, as drawn |
+| `j` / `k` | Next / previous sibling (notes hanging from the same note) |
+| `enter` | Open the selected note |
+| `-` / `+` | Zoom out / in |
+| `0` | Re-centre the map on the selected note |
+| `esc` | Back to the previous centre |
+
+With the mouse:
 
 - Click a note to preview it; click it again to open it.
 - Scroll to zoom out and in: zoomed out, the map also shows the links of
   those notes, up to four steps away. The `−` and `+` buttons do the same.
 - Drag to move around the map; `reset` puts it back.
-- `centre` re-centres the map on the selected note; `back` returns to the
-  previous one.
+- `0 centre` re-centres the map on the selected note; `esc back` returns to
+  the previous one.
+
+The bottom row lists these keys, shortened to fit narrow panes.
 
 Close the graph like any tab.
 It picks up links as you type them in other tabs.
