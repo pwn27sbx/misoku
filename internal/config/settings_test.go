@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +68,8 @@ func TestSetUIChangesOnlyTheGivenKey(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("file after SetUI:\n got %v\nwant %v", got, want)
 	}
-	if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {
+	// Windows has no Unix permission bits to keep.
+	if info, _ := os.Stat(path); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Errorf("mode = %v, want 0600", info.Mode().Perm())
 	}
 }
