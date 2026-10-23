@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 
@@ -39,6 +40,18 @@ type buffer struct {
 	// b.text did not come from the editor.
 	textVer uint64
 	stats   textStats
+	// hist is the tab's undo history (S7). The one editor serves every tab,
+	// so each tab keeps its own and showBuffer hands it to the editor. nil
+	// until the tab is first shown, or after a reload from disk (D7).
+	hist *content.History
+}
+
+// history returns b's undo history, starting an empty one if it has none.
+func (b *buffer) history() *content.History {
+	if b.hist == nil {
+		b.hist = content.NewHistory()
+	}
+	return b.hist
 }
 
 // textStats is what the bars show about a tab's text, kept until the text,
@@ -168,9 +181,11 @@ func (m *Model) dirtyBuffers() []*buffer {
 }
 
 // stashActive copies the editor's text into the active buffer before the
-// editor is pointed at another one.
+// editor is pointed at another one. An edit in progress (an INSERT session
+// left by clicking another tab) is closed as one change of this tab first.
 func (m *Model) stashActive() {
 	if b := m.activeBuffer(); b != nil && m.content.HasPage() {
+		m.content.CommitChange()
 		b.text, b.textVer = m.content.Value(), m.content.Version()
 	}
 }
@@ -191,6 +206,7 @@ func (m *Model) showBuffer(b *buffer) {
 	m.flushPreview() // while the edited tab is still the active one
 	m.stashActive()
 	m.active = b.id
+	m.content.SetHistory(b.history()) // before SetBuffer, which checks it
 	m.content.SetBuffer(b.page(), b.draft())
 	m.preview.SetBaseDir(m.noteDir(b))
 	m.preview.SetPage(b.page())
@@ -471,6 +487,7 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 	m.noteSaved()
 	wasActive := b.id == m.active
 	b.id, b.title, b.dir = p.ID, p.Title, ""
+	b.history().Rename(b.id)
 	b.setSaved(text)
 	if wasActive {
 		m.active = b.id
@@ -560,6 +577,7 @@ func (m *Model) remapBuffers(oldID, newID string) {
 	for _, b := range m.buffers {
 		if nid := remap(b.id); nid != b.id {
 			b.id = nid
+			b.history().Rename(nid)
 			b.title = strings.TrimSuffix(path.Base(nid), ".md")
 		}
 	}
