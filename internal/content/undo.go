@@ -33,6 +33,9 @@ type History struct {
 	// ver is the editor text version last compared with states[pos]: while
 	// the text keeps it, nothing changed and nothing needs copying.
 	ver uint64
+	// tooBig is set when the last change pushed out every older one: the
+	// note is too large for even one undo step within undoMaxBytes.
+	tooBig bool
 }
 
 // NewHistory returns an empty history; the first text it is attached to
@@ -46,6 +49,7 @@ func (h *History) Rename(id string) { h.id = id }
 // reset drops every change and starts over from text.
 func (h *History) reset(id, text string) {
 	h.id, h.states, h.pos, h.bytes, h.dropped = id, []string{text}, 0, len(text), 0
+	h.tooBig = false
 }
 
 // push records text as a new change, dropping the changes that were undone
@@ -65,6 +69,7 @@ func (h *History) push(text string) {
 		h.pos--
 		h.dropped++
 	}
+	h.tooBig = len(h.states) == 1
 }
 
 // SetHistory attaches the undo history of the tab about to be shown. Call
@@ -140,6 +145,9 @@ func (m *Model) edit(f func()) {
 func (m *Model) undo() tea.Cmd {
 	m.record() // an edit not recorded yet becomes a change, never lost
 	h := m.hist
+	if h != nil && h.pos == 0 && h.tooBig {
+		return statusCmd(fmt.Sprintf("Note too large to keep undo history (limit %d MB)", undoMaxBytes>>20))
+	}
 	if h == nil || h.pos == 0 {
 		return statusCmd("Already at oldest change")
 	}

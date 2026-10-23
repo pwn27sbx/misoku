@@ -266,6 +266,25 @@ func TestSaveAsKeepsUndo(t *testing.T) {
 	}
 }
 
+// S7: the usual flow for a new note, Ctrl+N then Ctrl+S without leaving
+// INSERT, keeps what was typed undoable.
+func TestSaveAsFromInsertKeepsUndo(t *testing.T) {
+	store := newTestStore(t)
+	h := newHarness(t, store)
+	h.keys("n")
+	h.keys("hello")
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+	h.key(tea.KeyEnter) // save as Untitled-1 at the root
+	if _, err := store.Get("Untitled-1.md"); err != nil {
+		t.Fatalf("setup: not saved: %v\n%s", err, h.view())
+	}
+	h.key(tea.KeyEsc)
+	h.keys("u")
+	if got := h.editor(); got != "" {
+		t.Fatalf("u after Save As from INSERT: editor holds %q", got)
+	}
+}
+
 // S7: a tab the finder reuses for another note starts a new history: the
 // first note's text never comes back in the second.
 func TestReusedTabStartsANewHistory(t *testing.T) {

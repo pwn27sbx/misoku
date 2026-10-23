@@ -412,6 +412,19 @@ func TestHistoryKeepsAtMostEightMegabytes(t *testing.T) {
 	}
 }
 
+// S7 (D5): a note so large that no change fits in 8 MB says why u has
+// nothing to undo.
+func TestUndoExplainsANoteTooLargeForHistory(t *testing.T) {
+	const mb = 1 << 20
+	// 5 MB in 500-byte lines: two copies exceed 8 MB.
+	c := newNote(strings.Repeat(strings.Repeat("a", 499)+"\n", 5*mb/500))
+	c = keys(c, "x")
+	c, msg := undo(c)
+	if msg != "Note too large to keep undo history (limit 8 MB)" {
+		t.Fatalf("u on a note too large for history said %q", msg)
+	}
+}
+
 // Prior behaviour: moving the cursor or opening INSERT and leaving it
 // without typing records nothing.
 func TestMovesAndEmptyInsertAreNotChanges(t *testing.T) {
