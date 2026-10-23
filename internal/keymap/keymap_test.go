@@ -146,6 +146,41 @@ func TestExplorerKeyShadowedByTheLeaderIsReported(t *testing.T) {
 	}
 }
 
+// Every general action sits in one of the leader guide's groups, so a
+// leader key the user gives it always shows up in the guide; explorer
+// actions are not leader actions and have no group.
+func TestEveryGeneralActionHasALeaderGuideGroup(t *testing.T) {
+	groups := map[string]bool{}
+	for _, g := range keymap.Groups {
+		groups[g] = true
+	}
+	if !reflect.DeepEqual(keymap.Groups, []string{keymap.GroupNote, keymap.GroupView, keymap.GroupGo}) {
+		t.Fatalf("groups: got %v, want note, view, go", keymap.Groups)
+	}
+	for _, a := range keymap.Actions {
+		switch a.Section {
+		case "general":
+			if !groups[a.Group] {
+				t.Errorf("%s: group %q is not a leader guide group", a.Action, a.Group)
+			}
+		default:
+			if a.Group != "" {
+				t.Errorf("%s: explorer action has group %q", a.Action, a.Group)
+			}
+		}
+	}
+	want := map[string]string{
+		keymap.NewNote:       keymap.GroupNote,
+		keymap.TogglePreview: keymap.GroupView,
+		keymap.FocusExplorer: keymap.GroupGo,
+	}
+	for _, a := range keymap.Actions {
+		if g, ok := want[a.Action]; ok && a.Group != g {
+			t.Errorf("%s: group %q, want %q", a.Action, a.Group, g)
+		}
+	}
+}
+
 func TestAKeySharedByTheSameActionIsNotReported(t *testing.T) {
 	// find_note and explorer.find open the same finder: the general key
 	// running first does exactly what the explorer key would.
@@ -172,5 +207,29 @@ func TestHintRendersTheFirstKey(t *testing.T) {
 	}
 	if got := m.Hint(keymap.CloseTab); got != "" {
 		t.Errorf("an unbound action has no hint, got %q", got)
+	}
+}
+
+// LeaderLabel shows only what follows Space, from the effective keymap.
+func TestLeaderLabelListsOnlyTheKeysAfterSpace(t *testing.T) {
+	m, _ := keymap.New(nil)
+	cases := map[string]string{
+		keymap.Help:           "h / ?",
+		keymap.ExportPDF:      "Shift+P",
+		keymap.PrevTab:        "S-Tab",
+		keymap.NextTab:        "Tab",
+		keymap.ToggleExplorer: "",
+	}
+	for action, want := range cases {
+		if got := m.LeaderLabel(action); got != want {
+			t.Errorf("%s: got %q, want %q", action, got, want)
+		}
+	}
+	m, _ = keymap.New(map[string][]string{"toggle_explorer": {"Space e", "ctrl+e"}, "focus_explorer": {}})
+	if got := m.LeaderLabel(keymap.ToggleExplorer); got != "e" {
+		t.Errorf("configured toggle_explorer: got %q, want %q", got, "e")
+	}
+	if got := m.LeaderLabel(keymap.FocusExplorer); got != "" {
+		t.Errorf("unbound focus_explorer: got %q, want empty", got)
 	}
 }

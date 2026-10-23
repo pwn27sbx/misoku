@@ -59,10 +59,22 @@ const (
 // leader starts a two-key sequence ("space e").
 const leader = "space"
 
+// Leader guide groups: the columns of the panel that lists the keys
+// following Space.
+const (
+	GroupNote = "note"
+	GroupView = "view"
+	GroupGo   = "go"
+)
+
+// Groups lists the leader guide groups in display order.
+var Groups = []string{GroupNote, GroupView, GroupGo}
+
 // Info describes one action for the help screen.
 type Info struct {
 	Action   string
 	Section  string // "general" or "explorer"
+	Group    string // leader guide group of a general action; "" for the explorer
 	Help     string
 	defaults []string
 }
@@ -70,45 +82,45 @@ type Info struct {
 // Actions lists every action in help-screen order, with today's shortcuts as
 // defaults.
 var Actions = []Info{
-	{NewNote, "general", "New note (unsaved tab)", []string{"ctrl+n", "space n"}},
-	{Save, "general", "Save (new notes: pick folder)", []string{"ctrl+s", "space w"}},
-	{FindNote, "general", "Find note (opens in this tab)", []string{"ctrl+p", "\\", "space f"}},
-	{ToggleExplorer, "general", "Toggle explorer", []string{"ctrl+b"}},
-	{FocusExplorer, "general", "Focus explorer", []string{"space e"}},
-	{NextPane, "general", "Next pane", []string{"tab"}},
-	{PrevPane, "general", "Previous pane", []string{"shift+tab"}},
-	{PaneLeft, "general", "Pane to the left", []string{"ctrl+h"}},
-	{PaneRight, "general", "Pane to the right", []string{"ctrl+l"}},
-	{NextTab, "general", "Next tab", []string{"]", "space tab"}},
-	{PrevTab, "general", "Previous tab", []string{"[", "space shift+tab"}},
-	{CloseTab, "general", "Close tab", []string{"space x"}},
-	{TogglePreview, "general", "Toggle preview", []string{"space p"}},
-	{ReadingMode, "general", "Reading mode: preview only", []string{"space r"}},
-	{ExportPDF, "general", "Export note as PDF", []string{"space P"}},
-	{Themes, "general", "Themes", []string{"space t"}},
-	{Graph, "general", "Graph of this note's links", []string{"space g"}},
-	{Home, "general", "Home screen", []string{"space d"}},
-	{SyncNow, "general", "Sync the vault with git now", []string{"space s"}},
-	{Help, "general", "This help", []string{"?", "space h", "space ?"}},
-	{Quit, "general", "Quit (asks to save)", []string{"ctrl+c"}},
+	{NewNote, "general", GroupNote, "New note (unsaved tab)", []string{"ctrl+n", "space n"}},
+	{Save, "general", GroupNote, "Save (new notes: pick folder)", []string{"ctrl+s", "space w"}},
+	{FindNote, "general", GroupGo, "Find note (opens in this tab)", []string{"ctrl+p", "\\", "space f"}},
+	{ToggleExplorer, "general", GroupView, "Toggle explorer", []string{"ctrl+b"}},
+	{FocusExplorer, "general", GroupGo, "Focus explorer", []string{"space e"}},
+	{NextPane, "general", GroupGo, "Next pane", []string{"tab"}},
+	{PrevPane, "general", GroupGo, "Previous pane", []string{"shift+tab"}},
+	{PaneLeft, "general", GroupGo, "Pane to the left", []string{"ctrl+h"}},
+	{PaneRight, "general", GroupGo, "Pane to the right", []string{"ctrl+l"}},
+	{NextTab, "general", GroupGo, "Next tab", []string{"]", "space tab"}},
+	{PrevTab, "general", GroupGo, "Previous tab", []string{"[", "space shift+tab"}},
+	{CloseTab, "general", GroupNote, "Close tab", []string{"space x"}},
+	{TogglePreview, "general", GroupView, "Toggle preview", []string{"space p"}},
+	{ReadingMode, "general", GroupView, "Reading mode: preview only", []string{"space r"}},
+	{ExportPDF, "general", GroupNote, "Export note as PDF", []string{"space P"}},
+	{Themes, "general", GroupView, "Themes", []string{"space t"}},
+	{Graph, "general", GroupView, "Graph of this note's links", []string{"space g"}},
+	{Home, "general", GroupGo, "Home screen", []string{"space d"}},
+	{SyncNow, "general", GroupNote, "Sync the vault with git now", []string{"space s"}},
+	{Help, "general", GroupView, "This help", []string{"?", "space h", "space ?"}},
+	{Quit, "general", GroupNote, "Quit (asks to save)", []string{"ctrl+c"}},
 
-	{ExplorerUp, "explorer", "Move up", []string{"up", "k"}},
-	{ExplorerDown, "explorer", "Move down", []string{"down", "j"}},
-	{ExplorerTop, "explorer", "First item", []string{"g", "home"}},
-	{ExplorerBottom, "explorer", "Last item", []string{"G", "end"}},
-	{ExplorerPageDown, "explorer", "Half page down", []string{"ctrl+d", "pgdown"}},
-	{ExplorerPageUp, "explorer", "Half page up", []string{"ctrl+u", "pgup"}},
-	{ExplorerOpen, "explorer", "Open note / expand", []string{"enter"}},
-	{ExplorerPreview, "explorer", "Preview note (folder: open)", []string{"o"}},
-	{ExplorerExpand, "explorer", "Expand / open", []string{"l", "right"}},
-	{ExplorerCollapse, "explorer", "Collapse / go to parent", []string{"h", "left"}},
-	{ExplorerToggleFold, "explorer", "Fold / unfold", []string{"z"}},
-	{ExplorerCollapseAll, "explorer", "Collapse all", []string{"W"}},
-	{ExplorerNewNote, "explorer", "New note in this folder", []string{"n", "%"}},
-	{ExplorerNewSubNote, "explorer", "New sub-note", []string{"a"}},
-	{ExplorerRename, "explorer", "Rename", []string{"r", "e"}},
-	{ExplorerDelete, "explorer", "Delete (asks first)", []string{"d", "x", "delete"}},
-	{ExplorerFind, "explorer", "Find note", []string{"\\", "f"}},
+	{ExplorerUp, "explorer", "", "Move up", []string{"up", "k"}},
+	{ExplorerDown, "explorer", "", "Move down", []string{"down", "j"}},
+	{ExplorerTop, "explorer", "", "First item", []string{"g", "home"}},
+	{ExplorerBottom, "explorer", "", "Last item", []string{"G", "end"}},
+	{ExplorerPageDown, "explorer", "", "Half page down", []string{"ctrl+d", "pgdown"}},
+	{ExplorerPageUp, "explorer", "", "Half page up", []string{"ctrl+u", "pgup"}},
+	{ExplorerOpen, "explorer", "", "Open note / expand", []string{"enter"}},
+	{ExplorerPreview, "explorer", "", "Preview note (folder: open)", []string{"o"}},
+	{ExplorerExpand, "explorer", "", "Expand / open", []string{"l", "right"}},
+	{ExplorerCollapse, "explorer", "", "Collapse / go to parent", []string{"h", "left"}},
+	{ExplorerToggleFold, "explorer", "", "Fold / unfold", []string{"z"}},
+	{ExplorerCollapseAll, "explorer", "", "Collapse all", []string{"W"}},
+	{ExplorerNewNote, "explorer", "", "New note in this folder", []string{"n", "%"}},
+	{ExplorerNewSubNote, "explorer", "", "New sub-note", []string{"a"}},
+	{ExplorerRename, "explorer", "", "Rename", []string{"r", "e"}},
+	{ExplorerDelete, "explorer", "", "Delete (asks first)", []string{"d", "x", "delete"}},
+	{ExplorerFind, "explorer", "", "Find note", []string{"\\", "f"}},
 }
 
 // HelpText returns the help-screen description of action.
@@ -314,20 +326,37 @@ func (m Map) Hint(action string) string {
 	return ""
 }
 
+// LeaderLabel renders only the keys that follow the leader for action, for
+// the leader guide: "h / ?" for "space h" and "space ?". It is "" when
+// action has no leader key.
+func (m Map) LeaderLabel(action string) string {
+	var parts []string
+	for _, k := range m.keys[action] {
+		if next, ok := strings.CutPrefix(k, leader+" "); ok {
+			parts = append(parts, tokenLabel(next, true))
+		}
+	}
+	return strings.Join(parts, " / ")
+}
+
 // keyLabel renders one key or leader sequence: "SPC Shift+P", "Ctrl+E".
 func keyLabel(k string) string {
 	var toks []string
 	for i, t := range strings.Fields(k) {
-		l := label(t)
-		// After SPC a lone capital is easy to misread as the lower-case
-		// key, so spell out Shift ("SPC Shift+P"). A capital on its own
-		// ("G") stays as is.
-		if i > 0 && len([]rune(t)) == 1 && unicode.IsUpper([]rune(t)[0]) {
-			l = "Shift+" + l
-		}
-		toks = append(toks, l)
+		toks = append(toks, tokenLabel(t, i > 0))
 	}
 	return strings.Join(toks, " ")
+}
+
+// tokenLabel renders one key. After SPC a lone capital is easy to misread as
+// the lower-case key, so spell out Shift ("SPC Shift+P"). A capital on its
+// own ("G") stays as is.
+func tokenLabel(t string, afterLeader bool) string {
+	l := label(t)
+	if afterLeader && len([]rune(t)) == 1 && unicode.IsUpper([]rune(t)[0]) {
+		l = "Shift+" + l
+	}
+	return l
 }
 
 func label(t string) string {

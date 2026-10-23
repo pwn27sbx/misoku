@@ -23,6 +23,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PreviewRefreshMsg:
 		m.refreshPreview(msg)
 		return m, nil
+	case leaderGuideMsg:
+		m.openLeaderGuide(msg)
+		return m, nil
 	case workspaceScannedMsg:
 		m.applyWorkspaceScan(msg)
 		return m, checkWorkspaceLater()

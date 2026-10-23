@@ -95,6 +95,8 @@ func (m Model) View() string {
 		box := RenderKeymapModal(m.theme, m.keys, m.width, m.height)
 		x, y := ui.Center(m.width, m.height, lipgloss.Width(box), lipgloss.Height(box))
 		screen = ui.Overlay(screen, box, x, y)
+	case m.leaderGuideOpen():
+		screen = m.overlayLeaderGuide(screen)
 	}
 	screen = m.renderToast(screen)
 	return ui.Paint(screen, lipgloss.NewStyle().Foreground(m.theme.Fg).Background(m.theme.Bg))

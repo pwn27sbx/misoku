@@ -246,9 +246,12 @@ Write keys the way the terminal names them (`ctrl+b`, `tab`, `shift+tab`,
 Alt shortcuts of `quit`, `save`, `new_note`, `find_note` and
 `toggle_explorer` also work while typing; every other shortcut only works
 outside INSERT mode, so it never gets in the way of your text. The `?` help
-lists the keys you configured. A misspelled action, a malformed key, or a key
-given to two actions is reported in the status bar when Misoku starts (it
-stays until `Esc`, and `:messages` shows it again).
+lists the keys you configured. Press Space and pause: after 400 ms a guide
+lists the keys that can follow, in three groups (NOTE, VIEW, GO), with the
+keys you configured. `Esc` closes it; type the next key sooner and it never
+shows. A misspelled action, a malformed key, or a key given to two actions is
+reported in the status bar when Misoku starts (it stays until `Esc`, and
+`:messages` shows it again).
 
 Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 
