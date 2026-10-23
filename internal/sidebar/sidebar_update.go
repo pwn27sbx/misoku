@@ -86,7 +86,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case is(keymap.ExplorerExpand):
 		if hasCurr {
 			if curr.HasChildren && !curr.Expanded {
-				m.expanded[curr.Page.ID] = true
+				m.expand(curr.Page.ID)
 			} else if !curr.HasChildren && !curr.Page.IsFolder {
 				return m, selectCmd(curr.Page.ID)
 			}
@@ -107,7 +107,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	case is(keymap.ExplorerToggleFold):
 		if hasCurr && curr.HasChildren {
-			m.expanded[curr.Page.ID] = !curr.Expanded
+			m.toggle(curr.Page.ID)
 		}
 	case is(keymap.ExplorerCollapseAll):
 		m.expanded = map[string]bool{}
@@ -120,7 +120,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case is(keymap.ExplorerNewSubNote):
 		if hasCurr {
 			parentID := curr.Page.ID
-			m.expanded[parentID] = true
+			m.expand(parentID)
 			return m, func() tea.Msg { return core.PageCreatedMsg{Page: core.Page{ParentID: parentID}} }
 		}
 		return m, func() tea.Msg { return core.PageCreatedMsg{} }
@@ -166,7 +166,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	// Clicking the chevron (or a folder anywhere) toggles; clicking a note opens it.
 	arrowX := 1 + item.Level*2
 	if item.HasChildren && (item.Page.IsFolder || msg.X <= arrowX+1) {
-		m.expanded[item.Page.ID] = !item.Expanded
+		m.toggle(item.Page.ID)
 		m.ensureVisible()
 		return m, nil
 	}

@@ -44,6 +44,7 @@ type Model struct {
 	activeID    string
 	modified    map[string]bool
 	keys        keymap.Map
+	accordion   bool
 	width       int
 	height      int
 }
@@ -63,6 +64,7 @@ func New(th theme.Theme) Model {
 		renameInput: ti,
 		keys:        defaultKeys(),
 		workspace:   "workspace",
+		accordion:   true,
 	}
 }
 
@@ -178,21 +180,64 @@ func (m *Model) SetPages(pages []core.Page) {
 	m.ensureVisible()
 }
 
+// SetAccordion turns accordion folders on or off. When on (the default),
+// opening a folder closes its sibling folders so only one per level stays
+// open; when off, any number of folders can be open at once.
+func (m *Model) SetAccordion(on bool) { m.accordion = on }
+
 // Expand opens the folder or note id in the tree.
-func (m *Model) Expand(id string) { m.expanded[id] = true }
+func (m *Model) Expand(id string) { m.expand(id) }
+
+// expand is the single place a row gets opened, so every path (keys, click,
+// Expand, SetSelectedID) follows the accordion rule: with it on, the rows
+// sharing id's parent are closed first. Ancestors are never siblings, so
+// opening a subfolder leaves the folder holding it open. Closing a sibling
+// above the cursor removes rows above it, so the cursor follows the selected
+// page back to its new row.
+func (m *Model) expand(id string) {
+	selected, hasSel := m.SelectedPage()
+	if p, ok := m.byID[id]; ok && m.accordion {
+		for _, sib := range m.pages {
+			if sib.ID != id && sib.ParentID == p.ParentID {
+				delete(m.expanded, sib.ID)
+			}
+		}
+	}
+	m.expanded[id] = true
+	if !hasSel || !m.moveCursorTo(selected.ID) {
+		m.moveCursorTo(id)
+	}
+	m.clampCursor()
+}
+
+// moveCursorTo puts the cursor on id's visible row and reports whether it
+// found one.
+func (m *Model) moveCursorTo(id string) bool {
+	for i, item := range m.VisibleItems() {
+		if item.Page.ID == id {
+			m.cursor = i
+			return true
+		}
+	}
+	return false
+}
+
+// toggle closes an open row or opens a closed one through expand.
+func (m *Model) toggle(id string) {
+	if m.isExpanded(id) {
+		m.expanded[id] = false
+		return
+	}
+	m.expand(id)
+}
 
 // SetSelectedID moves the cursor to id, expanding its ancestors (like
 // nvim-tree's "find file") so the row is visible.
 func (m *Model) SetSelectedID(id string) {
 	for p, ok := m.byID[id]; ok && p.ParentID != ""; p, ok = m.byID[p.ParentID] {
-		m.expanded[p.ParentID] = true
+		m.expand(p.ParentID)
 	}
-	for i, item := range m.VisibleItems() {
-		if item.Page.ID == id {
-			m.cursor = i
-			break
-		}
-	}
+	m.moveCursorTo(id)
 	m.ensureVisible()
 }
 
@@ -261,7 +306,7 @@ func findCmd() tea.Msg { return core.FindRequestMsg{} }
 func (m *Model) activate(item TreeItem) tea.Cmd {
 	if item.HasChildren || item.Page.IsFolder {
 		if item.HasChildren {
-			m.expanded[item.Page.ID] = !m.isExpanded(item.Page.ID)
+			m.toggle(item.Page.ID)
 			m.ensureVisible()
 		}
 		return nil
