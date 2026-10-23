@@ -29,8 +29,8 @@ func TestProjectsListTheTopLevelFolders(t *testing.T) {
 	db.SetRecentPages(workspacePages())
 	v := ansi.Strip(db.View())
 
-	if !strings.Contains(v, "Projects") {
-		t.Fatalf("the home screen should have a Projects section:\n%s", v)
+	if !strings.Contains(v, "FOLDERS") {
+		t.Fatalf("the home screen should have a FOLDERS section:\n%s", v)
 	}
 	got := db.Projects()
 	if len(got) != 2 || got[0].ID != "Misoku" || got[1].ID != "Trabajo" {
@@ -54,8 +54,8 @@ func TestNoProjectsSectionWithoutFolders(t *testing.T) {
 	db := dashboard.New(theme.DefaultTheme())
 	db.SetSize(100, 50)
 	db.SetRecentPages([]core.Page{{ID: "a.md", Title: "a", UpdatedAt: time.Now()}})
-	if v := ansi.Strip(db.View()); strings.Contains(v, "Projects") {
-		t.Fatalf("no folders, no Projects section:\n%s", v)
+	if v := ansi.Strip(db.View()); strings.Contains(v, "FOLDERS") {
+		t.Fatalf("no folders, no FOLDERS section:\n%s", v)
 	}
 }
 

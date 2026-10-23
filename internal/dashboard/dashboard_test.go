@@ -152,7 +152,7 @@ func TestDashboardSyncEntryKeepsTheCursorOnItsItem(t *testing.T) {
 	if a, _ := db.SelectedAction(); a != dashboard.ActionKeymap {
 		t.Errorf("adding the sync entry moved the cursor from Keymaps to %v", a)
 	}
-	for i := 0; i < 2; i++ { // Quit → the recent note
+	for i := 0; i < 3; i++ { // Graph, Quit → the recent note
 		db, _ = db.Update(tea.KeyMsg{Type: tea.KeyDown})
 	}
 	db.SetSyncSetup(false)

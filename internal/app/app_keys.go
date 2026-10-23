@@ -102,16 +102,37 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
+// homeActions are the general actions the home screen runs from the keymap
+// (leader sequences and Ctrl/Alt shortcuts). The pane, tab, preview, save
+// and export actions need an open note, so they wait for one.
+var homeActions = []string{
+	keymap.NewNote, keymap.FindNote, keymap.ToggleExplorer, keymap.FocusExplorer,
+	keymap.Themes, keymap.Graph, keymap.SyncNow, keymap.Help, keymap.Quit,
+}
+
 func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	s := k.String()
-	switch {
-	case m.keys.DirectModified(keymap.NewNote, s):
-		return m.newDraft("")
-	case m.keys.DirectModified(keymap.FindNote, s):
-		return m.startFind()
-	case m.keys.DirectModified(keymap.ToggleExplorer, s):
-		return m.focusPane(focusSidebar)
+	// The leader comes first: tab, for one, moves the home selection but
+	// is also the second key of "space tab".
+	if m.leaderPending {
+		m.leaderPending = false
+		for _, a := range homeActions {
+			if m.keys.Leader(a, s) {
+				return m.runHomeAction(a)
+			}
+		}
+		return nil
 	}
+	if m.keys.IsLeader(s) {
+		m.leaderPending = true
+		return nil
+	}
+	for _, a := range homeActions {
+		if m.keys.DirectModified(a, s) {
+			return m.runHomeAction(a)
+		}
+	}
+	// The letter keys are fixed: they are the ones the home screen shows.
 	switch s {
 	case "n":
 		return m.newDraft("")
@@ -179,8 +200,19 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 		return m.openThemePicker()
 	case dashboard.ActionSyncSetup:
 		return m.startSetup()
+	case dashboard.ActionGraph:
+		return m.openGraph()
 	}
 	return nil
+}
+
+// runHomeAction runs a keymap action from the home screen. A new note made
+// here goes to the top of the workspace, as with n.
+func (m *Model) runHomeAction(a string) tea.Cmd {
+	if a == keymap.NewNote {
+		return m.newDraft("")
+	}
+	return m.runAction(a)
 }
 
 // openProject shows a top-level folder from the home screen: the explorer
