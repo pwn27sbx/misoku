@@ -138,19 +138,153 @@ func TestZoomOutReachesFurther(t *testing.T) {
 	}
 }
 
-func TestKeysDoNothing(t *testing.T) {
+func key(m Model, k string) (Model, tea.Msg) {
+	switch k {
+	case "enter":
+		return update(m, tea.KeyMsg{Type: tea.KeyEnter})
+	case "esc":
+		return update(m, tea.KeyMsg{Type: tea.KeyEsc})
+	}
+	return update(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)})
+}
+
+// keys presses each key in turn and returns the last message sent.
+func keys(m Model, ks ...string) (Model, tea.Msg) {
+	var msg tea.Msg
+	for _, k := range ks {
+		m, msg = key(m, k)
+	}
+	return m, msg
+}
+
+func TestOtherKeysDoNothing(t *testing.T) {
 	m := newSample(t, 90, 20)
 	before := drawn(m)
-	for _, k := range []string{"l", "j", "+", "-", "q", "c", "0"} {
+	for _, k := range []string{"q", "c", "x", "g"} {
 		var msg tea.Msg
-		m, msg = update(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)})
+		m, msg = key(m, k)
 		if msg != nil {
 			t.Fatalf("key %q sent %#v", k, msg)
 		}
 	}
-	m, _ = update(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if drawn(m) != before {
-		t.Fatal("keys should not change the graph")
+		t.Fatal("unbound keys should not change the graph")
+	}
+}
+
+func TestKeysHLMoveBetweenParentAndChildren(t *testing.T) {
+	m := newSample(t, 120, 24)
+	m, msg := key(m, "l")
+	if m.Selected() != "Docker.md" || msg != (SelectMsg{ID: "Docker.md"}) {
+		t.Fatalf("l from the centre should select its first link, got %q %#v", m.Selected(), msg)
+	}
+	if m, _ = key(m, "h"); m.Selected() != "Hub.md" {
+		t.Fatalf("h from a link should go back to its parent, got %q", m.Selected())
+	}
+	if m, _ = key(m, "h"); m.Selected() != "Study.md" {
+		t.Fatalf("h from the centre should select its first backlink, got %q", m.Selected())
+	}
+	if m, _ = key(m, "l"); m.Selected() != "Hub.md" {
+		t.Fatalf("l from a backlink should go back to its parent, got %q", m.Selected())
+	}
+
+	m, _ = keys(m, "-", "h", "h") // two steps: Study's backlink is Index
+	if m.Selected() != "Index.md" {
+		t.Fatalf("h from a backlink should go to its own backlink, got %q", m.Selected())
+	}
+	m, msg = key(m, "h") // a leaf: nowhere further
+	if m.Selected() != "Index.md" || msg != nil {
+		t.Fatalf("h from a leaf should stay, got %q %#v", m.Selected(), msg)
+	}
+	m, _ = keys(m, "l", "l", "l", "j", "l")
+	if m.Selected() != "EC2.md" {
+		t.Fatalf("l from AWS should reach EC2, got %q", m.Selected())
+	}
+}
+
+func TestKeysJKMoveBetweenSiblings(t *testing.T) {
+	m := newSample(t, 120, 24)
+	m, msg := key(m, "j")
+	if m.Selected() != "Hub.md" || msg != nil {
+		t.Fatalf("the centre has no siblings, got %q %#v", m.Selected(), msg)
+	}
+	m, _ = keys(m, "l", "j")
+	if m.Selected() != "AWS.md" {
+		t.Fatalf("j should move to the next sibling, got %q", m.Selected())
+	}
+	if m, msg = key(m, "j"); m.Selected() != "AWS.md" || msg != nil {
+		t.Fatalf("j on the last sibling should stay, got %q %#v", m.Selected(), msg)
+	}
+	if m, msg = key(m, "k"); m.Selected() != "Docker.md" || msg != (SelectMsg{ID: "Docker.md"}) {
+		t.Fatalf("k should move to the previous sibling, got %q %#v", m.Selected(), msg)
+	}
+	if m, _ = key(m, "k"); m.Selected() != "Docker.md" {
+		t.Fatalf("k on the first sibling should stay, got %q", m.Selected())
+	}
+}
+
+func TestKeyEnterOpensSelected(t *testing.T) {
+	m := newSample(t, 90, 20)
+	if _, msg := key(m, "enter"); msg != (OpenMsg{ID: "Hub.md"}) {
+		t.Fatalf("enter on the centre = %#v", msg)
+	}
+	if _, msg := keys(m, "l", "j", "enter"); msg != (OpenMsg{ID: "AWS.md"}) {
+		t.Fatalf("enter should open the selected note, got %#v", msg)
+	}
+}
+
+func TestKeysPlusMinusZoom(t *testing.T) {
+	m := newSample(t, 120, 24)
+	m, _ = key(m, "-")
+	if !strings.Contains(drawn(m), "2 steps") || !strings.Contains(drawn(m), "EC2") {
+		t.Fatalf("- should zoom out:\n%s", drawn(m))
+	}
+	m, _ = key(m, "+")
+	if !strings.Contains(drawn(m), "1 step") || strings.Contains(drawn(m), "EC2") {
+		t.Fatalf("+ should zoom in:\n%s", drawn(m))
+	}
+}
+
+func TestKeyZeroCentresAndEscGoesBack(t *testing.T) {
+	m := newSample(t, 90, 20)
+	m, _ = keys(m, "l", "j", "0")
+	if m.Centre() != "AWS.md" || !strings.Contains(drawn(m), "AWS · 2 links · 1 backlink") {
+		t.Fatalf("0 should re-centre on the selected note:\n%s", drawn(m))
+	}
+	m, _ = key(m, "esc")
+	if m.Centre() != "Hub.md" {
+		t.Fatalf("esc should go back to Hub, got %q", m.Centre())
+	}
+	m, _ = key(m, "esc") // nothing left to go back to
+	if m.Centre() != "Hub.md" {
+		t.Fatalf("esc with no history moved to %q", m.Centre())
+	}
+}
+
+// The bottom row names the keys and still fits a 40-column pane.
+func TestKeyHintFitsThePane(t *testing.T) {
+	for _, w := range []int{40, 50, 52, 60, 90, 140} {
+		m := newSample(t, w, 20)
+		assertSize(t, m, w, 20)
+		lines := strings.Split(drawn(m), "\n")
+		hint := lines[len(lines)-1]
+		if strings.Contains(hint, "…") {
+			t.Errorf("width %d: hint cut short: %q", w, hint)
+		}
+		for _, s := range []string{"hjkl", "enter", "−", "+", "0", "esc"} {
+			if !strings.Contains(hint, s) {
+				t.Errorf("width %d: hint lacks %q: %q", w, s, hint)
+			}
+		}
+		if w >= 52 && (!strings.Contains(hint, " 0 centre ") || !strings.Contains(hint, " esc back ")) {
+			t.Errorf("width %d: buttons should keep their names: %q", w, hint)
+		}
+		// The buttons still work from the hint row.
+		m, _ = keys(m, "l", "j")
+		m, _ = clickText(t, m, "0")
+		if m.Centre() != "AWS.md" {
+			t.Errorf("width %d: the centre button no longer works", w)
+		}
 	}
 }
 
@@ -265,5 +399,35 @@ func TestBackOnlyRetracesMovesInTheGraph(t *testing.T) {
 	m, _ = clickText(t, m, " back ")
 	if m.Centre() != "Docker.md" {
 		t.Fatalf("reopening should clear the history; back went to %q", m.Centre())
+	}
+}
+
+// Moving with the keys scrolls the map to keep the selected note on screen.
+func TestKeysKeepTheSelectionInView(t *testing.T) {
+	notes := []core.Page{{ID: "c.md", Title: "Centre"}}
+	var edges []core.Edge
+	for i := 0; i < 30; i++ {
+		id := string(rune('a'+i%26)) + strings.Repeat("z", i/26) + ".md"
+		notes = append(notes, core.Page{ID: id, Title: "Note " + id})
+		edges = append(edges, core.Edge{From: "c.md", To: id})
+	}
+	m := New(theme.DefaultTheme())
+	m.SetSize(50, 12)
+	m.SetFocused(true)
+	m.SetLinks(notes, edges)
+	m.SetCentre("c.md")
+	m, _ = key(m, "l")
+	for i := 0; i < 29; i++ {
+		m, _ = key(m, "j")
+		if title := "Note " + m.Selected(); !strings.Contains(drawn(m), title) {
+			t.Fatalf("after %d× j, %q is off screen:\n%s", i+1, title, drawn(m))
+		}
+	}
+	assertSize(t, m, 50, 12)
+	for i := 0; i < 29; i++ {
+		m, _ = key(m, "k")
+	}
+	if !strings.Contains(drawn(m), "Note a.md") {
+		t.Fatalf("k should scroll back up:\n%s", drawn(m))
 	}
 }

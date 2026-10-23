@@ -85,10 +85,15 @@ func TestGraphTabWithPreviewOfSelection(t *testing.T) {
 		t.Fatalf("the preview should show Untitled-2:\n%s", v)
 	}
 
-	h.keys("lj+-cq") // keys do nothing in the graph
+	h.keys("cq") // keys the graph doesn't use do nothing
 	if editorPane(h.view()) != ed {
-		t.Fatalf("keys should not change the graph:\n%s", h.view())
+		t.Fatalf("unbound keys should not change the graph:\n%s", h.view())
 	}
+	h.keys("l") // the graph's own keys reach it: select, and the preview follows
+	if !strings.Contains(previewPane(h.view()), "first Untitled-3") {
+		t.Fatalf("l should select Untitled-1 and preview it:\n%s", h.view())
+	}
+	h.keys("h")
 
 	h.clickGraph("Untitled-1") // select: the preview follows
 	if !strings.Contains(previewPane(h.view()), "first Untitled-3") {

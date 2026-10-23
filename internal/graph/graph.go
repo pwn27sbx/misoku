@@ -139,21 +139,103 @@ func (m Model) tree() tree {
 	return t
 }
 
-// Update handles mouse events (coordinates relative to the pane). The
-// graph is driven by the mouse alone; keys are ignored.
+// Update handles keys and mouse events (coordinates relative to the pane).
+// h and l step between a note and its parent or children, as drawn; j and
+// k between siblings; Enter opens the selected note; + and - zoom; 0
+// re-centres on the selection; Esc goes back.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	mouse, ok := msg.(tea.MouseMsg)
-	if !ok || m.centre == "" {
+	if m.centre == "" {
 		return m, nil
 	}
-	m.settle()
+	var cmd tea.Cmd
 	before := m.sel
-	cmd := m.mouse(mouse)
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		cmd = m.key(msg.String())
+	case tea.MouseMsg:
+		m.settle()
+		cmd = m.mouse(msg)
+	default:
+		return m, nil
+	}
 	if cmd == nil && m.sel != before {
 		id := m.sel
 		cmd = func() tea.Msg { return SelectMsg{ID: id} }
 	}
 	return m, cmd
+}
+
+// key runs one key press.
+func (m *Model) key(k string) tea.Cmd {
+	switch k {
+	case "h":
+		m.step(-1)
+		m.reveal()
+	case "l":
+		m.step(1)
+		m.reveal()
+	case "j":
+		m.sibling(1)
+		m.reveal()
+	case "k":
+		m.sibling(-1)
+		m.reveal()
+	case "enter":
+		id := m.sel
+		return func() tea.Msg { return OpenMsg{ID: id} }
+	case "+":
+		m.act("zoom-in")
+	case "-":
+		m.act("zoom-out")
+	case "0":
+		m.act("centre")
+	case "esc":
+		m.act("back")
+	}
+	return nil
+}
+
+// step moves the selection one column left (dir -1) or right (+1): to the
+// parent when it is drawn on that side, otherwise to the first child.
+func (m *Model) step(dir int) {
+	t := m.tree()
+	i, ok := t.index[m.sel]
+	if !ok {
+		return
+	}
+	n := t.nodes[i]
+	if n.parent >= 0 && n.side == -dir {
+		m.sel = t.nodes[n.parent].id
+		return
+	}
+	for _, k := range n.kids {
+		if t.nodes[k].side == dir {
+			m.sel = t.nodes[k].id
+			return
+		}
+	}
+}
+
+// sibling moves the selection to the next (d +1) or previous (-1) note
+// hanging from the same parent on the same side.
+func (m *Model) sibling(d int) {
+	t := m.tree()
+	i, ok := t.index[m.sel]
+	if !ok || t.nodes[i].parent < 0 {
+		return
+	}
+	var sibs []int
+	for _, k := range t.nodes[t.nodes[i].parent].kids {
+		if t.nodes[k].side == t.nodes[i].side {
+			sibs = append(sibs, k)
+		}
+	}
+	for j, k := range sibs {
+		if k == i && j+d >= 0 && j+d < len(sibs) {
+			m.sel = t.nodes[sibs[j+d]].id
+			return
+		}
+	}
 }
 
 // act runs a header button.
