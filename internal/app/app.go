@@ -75,6 +75,8 @@ type Model struct {
 
 	status    string
 	statusErr bool
+	// messages are the bar's last messages, oldest first (`:messages`).
+	messages []sentMessage
 
 	writeClipboard func(string) error
 	openURL        func(string) error // opens links outside Misoku; nil = system opener
@@ -203,6 +205,9 @@ func New(store *core.Store, opts ...Option) Model {
 		preview:     preview.New(th),
 		graph:       graph.New(th),
 		execProcess: tea.ExecProcess,
+		// Before the options: what they say (a broken shortcut in the
+		// config) is kept for `:messages` too.
+		messages: make([]sentMessage, 0, maxMessages),
 	}
 	m.sidebar.SetWorkspaceName(filepath.Base(store.Root()))
 	m.dashboard.SetWorkspace(tildePath(store.Root()))
@@ -263,8 +268,13 @@ func (m *Model) applyTree(pages []core.Page) {
 	m.refreshGraph()
 }
 
-func (m *Model) setStatus(s string) { m.status, m.statusErr = s, false }
-func (m *Model) setError(s string)  { m.status, m.statusErr = s, true }
+// setStatus shows s in the bar until the next key, and keeps it for
+// `:messages`.
+func (m *Model) setStatus(s string) { m.say(s, false) }
+
+// setError shows s in red until Esc or the next message, and keeps it for
+// `:messages`.
+func (m *Model) setError(s string) { m.say(s, true) }
 
 // focusPane moves keyboard focus, opening the target pane if it was hidden.
 // In reading mode the editor is hidden, so focusing it focuses the preview;

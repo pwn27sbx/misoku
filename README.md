@@ -220,6 +220,7 @@ never use `notes_dir`.
 - **Open notes deleted or renamed elsewhere are kept**: the tab stays open with its text and you are warned once; saving asks before recreating the note at its old path, so a rename is never silently duplicated.
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
+- **Messages you can read again**: errors stay in red in the status bar until you press `Esc` (which still does what it always does); other messages clear on the next key. `:messages` lists the last 100, with the time of each.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
 - **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `s` on the start screen, or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
 
@@ -246,7 +247,8 @@ Alt shortcuts of `quit`, `save`, `new_note`, `find_note` and
 `toggle_explorer` also work while typing; every other shortcut only works
 outside INSERT mode, so it never gets in the way of your text. The `?` help
 lists the keys you configured. A misspelled action, a malformed key, or a key
-given to two actions is reported in the status bar when Misoku starts.
+given to two actions is reported in the status bar when Misoku starts (it
+stays until `Esc`, and `:messages` shows it again).
 
 Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 
