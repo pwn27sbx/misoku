@@ -57,3 +57,13 @@ func TextCopies(tm tea.Model) int64 { return tm.(Model).content.TextCopies() }
 
 // CountWords is the status line's word count of s.
 var CountWords = countWords
+
+// LeaderGuideDelay is how long after Space the leader guide waits to show.
+const LeaderGuideDelay = leaderGuideDelay
+
+// LeaderSeq is the sequence number of the latest Space press.
+func LeaderSeq(tm tea.Model) int { return tm.(Model).leaderSeq }
+
+// LeaderGuideTick is the message the leader guide timer of the Space press
+// numbered seq delivers.
+func LeaderGuideTick(seq int) tea.Msg { return leaderGuideMsg{seq: seq} }

@@ -54,6 +54,8 @@ type Model struct {
 	reading       bool // reading mode: only the preview, see toggleReading
 	showKeymap    bool
 	leaderPending bool
+	leaderSeq     int  // bumps on every Space press, see leaderGuideMsg
+	leaderGuide   bool // the leader guide shows while leaderPending
 
 	// Open tabs, in order. Unsaved text lives in the buffers, never on disk.
 	buffers  []*buffer

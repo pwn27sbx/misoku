@@ -42,6 +42,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 
 	if !sidebarBusy && !editorBusy {
 		if m.leaderPending {
+			guide := m.leaderGuideOpen()
 			m.leaderPending = false
 			for _, a := range generalActions {
 				if m.keys.Leader(a, s) {
@@ -49,11 +50,13 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 					return m.runAction(a)
 				}
 			}
+			if guide && s != "esc" {
+				m.setStatus(s + ": not a leader key")
+			}
 			return nil
 		}
 		if m.keys.IsLeader(s) {
-			m.leaderPending = true
-			return nil
+			return m.startLeader()
 		}
 		for _, a := range generalActions {
 			if m.keys.Direct(a, s) {
