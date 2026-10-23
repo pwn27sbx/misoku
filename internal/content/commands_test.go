@@ -88,3 +88,25 @@ func TestCommandCatalogRunLinesGiveTheirMessage(t *testing.T) {
 		}
 	}
 }
+
+// NoNote marks what the palette runs from the home screen: only commands it
+// can run at all, and never one that acts on the open note.
+func TestCommandCatalogNoNoteCommandsRunAndLeaveTheNoteAlone(t *testing.T) {
+	no := map[string]bool{}
+	for _, c := range content.Commands {
+		if c.NoNote && c.Run == "" {
+			t.Errorf("%q works without a note but has no Run line", c.Usage)
+		}
+		no[c.Usage] = c.NoNote
+	}
+	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":enew", ":sync", ":sync status", ":sync setup"} {
+		if !no[u] {
+			t.Errorf("%s needs no note", u)
+		}
+	}
+	for _, u := range []string{":w", ":w name", ":wq / :x", ":bd", ":export [file]"} {
+		if no[u] {
+			t.Errorf("%s acts on the open note", u)
+		}
+	}
+}

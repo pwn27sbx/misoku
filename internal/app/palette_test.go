@@ -308,3 +308,84 @@ func TestQuestionMarkOpensThePaletteEverywhere(t *testing.T) {
 		t.Fatalf("? from home:\n%s", h.view())
 	}
 }
+
+// homePalette opens the palette from the home screen, with doc.md open in a
+// tab the home screen hides when hidden is set.
+func homePalette(t *testing.T, hidden bool) *harness {
+	t.Helper()
+	var h *harness
+	if hidden {
+		h = openNote(t)
+		h.keys(" d")
+	} else {
+		h = newHarness(t, newTestStore(t))
+	}
+	h.keys("?")
+	if v := h.view(); !strings.Contains(v, paletteTitle) || !strings.Contains(v, "HOME") {
+		t.Fatalf("? should open the palette over home:\n%s", v)
+	}
+	return h
+}
+
+// From home, Enter does what the key would do there: the actions home
+// withholds (they need an open note) are only explained.
+func TestPaletteFromHomeOnlyRunsWhatTheHomeKeysRun(t *testing.T) {
+	for _, q := range []string{"reading mode", "next pane", "toggle preview", "close tab", "save (new"} {
+		h := homePalette(t, true)
+		typeQuery(h, q)
+		if v := h.view(); !strings.Contains(v, "Needs an open note") || strings.Contains(v, "Enter run") {
+			t.Errorf("%q from home: the footer should say it needs an open note:\n%s", q, v)
+		}
+		h.key(tea.KeyEnter)
+		v := h.view()
+		if !strings.Contains(v, paletteTitle) || strings.Contains(v, "No file") {
+			t.Errorf("%q from home must not run:\n%s", q, v)
+		}
+		h.key(tea.KeyEsc)
+		if v := h.view(); !strings.Contains(v, "HOME") {
+			t.Errorf("%q from home left the home screen:\n%s", q, v)
+		}
+		h.key(tea.KeyEsc) // home's Esc goes back to the open note
+		if v := h.view(); !strings.Contains(strings.Split(v, "\n")[0], "doc.md") {
+			t.Errorf("%q from home closed the hidden tab:\n%s", q, v)
+		}
+	}
+	// What home runs, the palette runs from home too.
+	h := homePalette(t, false)
+	typeQuery(h, "themes")
+	if v := h.view(); !strings.Contains(v, "Enter run") {
+		t.Fatalf("Themes runs from home:\n%s", v)
+	}
+	h.key(tea.KeyEnter)
+	if v := h.view(); strings.Contains(v, paletteTitle) || !strings.Contains(v, "THEMES") && !strings.Contains(v, "Themes") {
+		t.Fatalf("Enter on Themes from home should open the theme picker:\n%s", v)
+	}
+}
+
+// From home, only the commands that need no note run; the rest are
+// explained with the same footer.
+func TestPaletteFromHomeOnlyRunsCommandsThatNeedNoNote(t *testing.T) {
+	for _, q := range []string{":wq", ":w", ":bd", ":export"} {
+		h := homePalette(t, true)
+		typeQuery(h, q)
+		if v := h.view(); !strings.Contains(v, "Needs an open note") {
+			t.Errorf("%s from home: the footer should say it needs an open note:\n%s", q, v)
+		}
+		h.key(tea.KeyEnter)
+		if v := h.view(); h.quit || !strings.Contains(v, paletteTitle) || strings.Contains(v, "E32") {
+			t.Errorf("%s from home must not run:\n%s", q, v)
+		}
+	}
+	h := homePalette(t, false)
+	typeQuery(h, ":settings")
+	h.key(tea.KeyEnter)
+	if v := h.view(); strings.Contains(v, paletteTitle) || !strings.Contains(v, "Accordion folders") {
+		t.Fatalf(":settings runs from home:\n%s", v)
+	}
+	h = homePalette(t, false)
+	typeQuery(h, ":q / :q!")
+	h.key(tea.KeyEnter)
+	if !h.quit {
+		t.Fatalf(":q runs from home, as q does:\n%s", h.view())
+	}
+}

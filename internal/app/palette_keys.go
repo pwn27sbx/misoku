@@ -19,6 +19,9 @@ type paletteEntry struct {
 	// its own place (the editor, the explorer, the graph), which the
 	// palette just explains.
 	run func(m *Model) tea.Cmd
+	// needsNote: opened from the home screen, the entry would act on a
+	// note, so it is only explained, as its key does nothing there.
+	needsNote bool
 }
 
 // fixedKey is a key that is not configurable: Vim editing, the preview,
@@ -88,14 +91,15 @@ var mouseKeys = []fixedKey{
 func (m *Model) paletteEntries() []paletteEntry {
 	var out []paletteEntry
 	commands := slices.Clone(content.Commands)
+	home := m.viewMode == viewModeDashboard
 
 	// Export: the key (when bound), the command and the CLI.
 	if label := m.keys.Label(keymap.ExportPDF); label != "" {
-		out = append(out, actionEntry(groupExport, label, keymap.ExportPDF))
+		out = append(out, actionEntry(groupExport, label, keymap.ExportPDF, home))
 	}
 	for i, c := range commands {
 		if slices.Contains(c.Names, "export") {
-			out = append(out, commandEntry(groupExport, c))
+			out = append(out, commandEntry(groupExport, c, home))
 			commands = slices.Delete(commands, i, i+1)
 			break
 		}
@@ -112,11 +116,11 @@ func (m *Model) paletteEntries() []paletteEntry {
 		if a.Section == "explorer" {
 			group = groupExplorer
 		}
-		out = append(out, actionEntry(group, label, a.Action))
+		out = append(out, actionEntry(group, label, a.Action, home))
 	}
 	out = append(out, fixedEntries(groupEditor, editorKeys)...)
 	for _, c := range commands {
-		out = append(out, commandEntry(groupCommands, c))
+		out = append(out, commandEntry(groupCommands, c, home))
 	}
 	out = append(out, fixedEntries(groupPreview, previewKeys)...)
 	out = append(out, fixedEntries(groupGraph, graphKeys)...)
@@ -124,26 +128,33 @@ func (m *Model) paletteEntries() []paletteEntry {
 }
 
 // actionEntry lists a keymap action. General actions run on Enter, as
-// their key would from where the palette was opened; the explorer's act on
-// its selection, so they are only explained, and so is the help itself.
-func actionEntry(group, label, action string) paletteEntry {
+// their key would from where the palette was opened: from home, only the
+// homeActions, the others need an open note. The explorer's act on its
+// selection, so they are only explained, and so is the help itself.
+func actionEntry(group, label, action string, home bool) paletteEntry {
 	info := keymap.Actions[slices.IndexFunc(keymap.Actions, func(i keymap.Info) bool { return i.Action == action })]
 	e := paletteEntry{group: group, key: label, title: info.Help, long: info.Long}
-	if info.Section == "general" && action != keymap.Help {
-		e.run = func(m *Model) tea.Cmd {
-			if m.viewMode == viewModeDashboard {
-				return m.runHomeAction(action)
-			}
-			return m.runAction(action)
-		}
+	switch {
+	case info.Section != "general" || action == keymap.Help:
+	case !home:
+		e.run = func(m *Model) tea.Cmd { return m.runAction(action) }
+	case slices.Contains(homeActions, action):
+		e.run = func(m *Model) tea.Cmd { return m.runHomeAction(action) }
+	default:
+		e.needsNote = true
 	}
 	return e
 }
 
 // commandEntry lists an ex command. One that needs no argument and no
-// table runs on Enter, exactly as if it was typed on the command line.
-func commandEntry(group string, c content.Command) paletteEntry {
+// table runs on Enter, exactly as if it was typed on the command line;
+// from home, only one that needs no note (Command.NoNote).
+func commandEntry(group string, c content.Command, home bool) paletteEntry {
 	e := paletteEntry{group: group, key: c.Usage, title: c.Help, long: c.Long}
+	if home && c.Run != "" && !c.NoNote {
+		e.needsNote = true
+		return e
+	}
 	if c.Run != "" {
 		line := c.Run
 		e.run = func(m *Model) tea.Cmd {

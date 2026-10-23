@@ -315,7 +315,10 @@ func (p *palette) view(m *Model) (string, int, int) {
 		rows = append(rows, bg.Foreground(th.GreyFg2).Render(" "+ln))
 	}
 	hint := " Enter run · ↑↓ move · Esc close"
-	if e := p.selected(); e == nil || e.run == nil {
+	switch e := p.selected(); {
+	case e != nil && e.needsNote:
+		hint = " Needs an open note · Esc close"
+	case e == nil || e.run == nil:
 		hint = " Not a command: use the key · Esc close"
 	}
 	if n := len(p.shown); n > 0 {
