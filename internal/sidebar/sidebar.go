@@ -38,6 +38,7 @@ type Model struct {
 	cursor      int
 	offset      int
 	focused     bool
+	dimmed      bool // greyed out while another pane has the focus
 	renaming    bool
 	renameInput textinput.Model
 	workspace   string
@@ -240,6 +241,9 @@ func (m *Model) SetSelectedID(id string) {
 	m.moveCursorTo(id)
 	m.ensureVisible()
 }
+
+// SetDimmed greys the explorer's text out while another pane has the focus.
+func (m *Model) SetDimmed(d bool) { m.dimmed = d }
 
 // SetFocused sets focus styling state.
 func (m *Model) SetFocused(focused bool) {

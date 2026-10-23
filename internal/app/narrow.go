@@ -92,11 +92,7 @@ func (m *Model) drawExplorerOverlay(screen string) string {
 		return screen
 	}
 	l := m.layout()
-	c := m.theme.Line
-	if m.resizing == dividerSidebar {
-		c = m.theme.Blue
-	}
-	edge := ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(c))
+	edge := ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(m.dividerColour(dividerSidebar, l)))
 	box := lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), edge)
 	return ui.Overlay(screen, box, 0, l.BodyY)
 }

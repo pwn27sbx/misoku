@@ -38,6 +38,7 @@ type Model struct {
 	width    int
 	height   int
 	focused  bool
+	dimmed   bool // greyed out while another pane has the focus
 }
 
 // New constructs a Content Model.
@@ -120,6 +121,9 @@ func (m *Model) SetBuffer(p core.Page, draft bool) {
 	m.textarea.GotoTop()
 	m.syncHistory()
 }
+
+// SetDimmed greys the editor's text out while another pane has the focus.
+func (m *Model) SetDimmed(d bool) { m.dimmed = d }
 
 // SetFocused sets focus state.
 func (m *Model) SetFocused(focused bool) {

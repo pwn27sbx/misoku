@@ -30,6 +30,7 @@ type Model struct {
 	hits       []Hit
 	pendingZ   bool
 	focused    bool
+	dimmed     bool // text greyed out while another pane has the focus
 	ready      bool
 	margin     int // blank columns left of the page
 
@@ -136,6 +137,10 @@ func (m *Model) SetTitle(title string) {
 	}
 	m.title = title
 }
+
+// SetDimmed greys the preview's text out while another pane has the focus.
+// Pictures, chart bars, callout bars and backgrounds keep their colours.
+func (m *Model) SetDimmed(d bool) { m.dimmed = d }
 
 // SetFocused updates whether the preview pane has keyboard focus.
 func (m *Model) SetFocused(focused bool) {
@@ -325,6 +330,9 @@ func (m Model) View() string {
 		}
 		m.decorate(lines)
 		body = strings.Join(lines, "\n")
+	}
+	if m.dimmed {
+		body = dim(body, th.Grey)
 	}
 	return ui.Fit(body, m.width, m.height, plain)
 }
