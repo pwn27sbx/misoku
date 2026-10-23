@@ -47,7 +47,7 @@ func (m *Model) leaderGuideOpen() bool { return m.leaderPending && m.leaderGuide
 // read the next key as a leader key.
 func (m *Model) endLeaderUnderDialog() {
 	if m.saveAs != nil || m.confirm != nil || m.finder != nil || m.themes != nil ||
-		m.browser != nil || m.datePick != nil || m.promptBox != nil || m.menuBox != nil || m.showKeymap {
+		m.browser != nil || m.datePick != nil || m.promptBox != nil || m.menuBox != nil || m.palette != nil {
 		m.leaderPending = false
 	}
 }
