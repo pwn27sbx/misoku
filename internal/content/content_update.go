@@ -193,7 +193,7 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		ta.MoveCursorBy(-m.halfPage())
 	case "pgdown", "ctrl+f":
 		ta.MoveCursorBy(ta.Height())
-	case "pgup", "ctrl+b":
+	case "pgup":
 		ta.MoveCursorBy(-ta.Height())
 	case "ctrl+e":
 		ta.ScrollBy(1)

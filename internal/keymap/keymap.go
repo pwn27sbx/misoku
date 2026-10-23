@@ -102,7 +102,7 @@ var Actions = []Info{
 	{ExplorerPreview, "explorer", "Preview note (folder: open)", []string{"o"}},
 	{ExplorerExpand, "explorer", "Expand / open", []string{"l", "right"}},
 	{ExplorerCollapse, "explorer", "Collapse / go to parent", []string{"h", "left"}},
-	{ExplorerToggleFold, "explorer", "Fold / unfold", []string{"z", "space", "tab"}},
+	{ExplorerToggleFold, "explorer", "Fold / unfold", []string{"z"}},
 	{ExplorerCollapseAll, "explorer", "Collapse all", []string{"W"}},
 	{ExplorerNewNote, "explorer", "New note in this folder", []string{"n", "%"}},
 	{ExplorerNewSubNote, "explorer", "New sub-note", []string{"a"}},
@@ -166,9 +166,15 @@ func New(user map[string][]string) (Map, []string) {
 	return m, append(warnings, m.clashes()...)
 }
 
+// sameAction pairs an explorer action with the general action that does the
+// same thing: when they share a key, the general one runs first and the
+// result is identical, so the explorer key is not really shadowed.
+var sameAction = map[string]string{ExplorerFind: FindNote}
+
 // clashes reports keys bound to two actions of the same section (general
 // actions among themselves, explorer actions among themselves): only one of
-// them can run, so the config should unbind the other.
+// them can run, so the config should unbind the other. It also reports
+// explorer keys the explorer never receives, see shadowed.
 func (m Map) clashes() []string {
 	var out []string
 	owner := map[string]string{}
@@ -180,6 +186,40 @@ func (m Map) clashes() []string {
 				continue
 			}
 			owner[id] = a.Action
+		}
+	}
+	return append(out, m.shadowed()...)
+}
+
+// shadowed reports explorer keys that the app consumes before the explorer
+// sees them: the leader and its sequences, and keys of general actions,
+// which are dispatched first even while the explorer has the focus.
+func (m Map) shadowed() []string {
+	general := map[string][]string{}
+	for _, a := range Actions {
+		if a.Section != "general" {
+			continue
+		}
+		for _, k := range m.keys[a.Action] {
+			general[k] = append(general[k], a.Action)
+		}
+	}
+	var out []string
+	for _, a := range Actions {
+		if a.Section != "explorer" {
+			continue
+		}
+		for _, k := range m.keys[a.Action] {
+			if k == leader || strings.HasPrefix(k, leader+" ") {
+				out = append(out, fmt.Sprintf("keys: %q on %s starts a leader sequence, so the explorer never gets it; pick another key", k, a.Action))
+				continue
+			}
+			for _, g := range general[k] {
+				if g == sameAction[a.Action] {
+					continue
+				}
+				out = append(out, fmt.Sprintf("keys: %q is bound to both %s and %s, and %s runs first even in the explorer; unbind one of them", k, g, a.Action, g))
+			}
 		}
 	}
 	return out
@@ -260,20 +300,34 @@ func (m Map) Leader(action, s string) bool {
 func (m Map) Label(action string) string {
 	parts := make([]string, 0, len(m.keys[action]))
 	for _, k := range m.keys[action] {
-		var toks []string
-		for i, t := range strings.Fields(k) {
-			l := label(t)
-			// After SPC a lone capital is easy to misread as the lower-case
-			// key, so spell out Shift ("SPC Shift+P"). A capital on its own
-			// ("G") stays as is.
-			if i > 0 && len([]rune(t)) == 1 && unicode.IsUpper([]rune(t)[0]) {
-				l = "Shift+" + l
-			}
-			toks = append(toks, l)
-		}
-		parts = append(parts, strings.Join(toks, " "))
+		parts = append(parts, keyLabel(k))
 	}
 	return strings.Join(parts, " / ")
+}
+
+// Hint renders only the first key of action, spelled as in Label, for
+// one-line hints ("Ctrl+P"). It is empty when the action is unbound.
+func (m Map) Hint(action string) string {
+	if keys := m.keys[action]; len(keys) > 0 {
+		return keyLabel(keys[0])
+	}
+	return ""
+}
+
+// keyLabel renders one key or leader sequence: "SPC Shift+P", "Ctrl+E".
+func keyLabel(k string) string {
+	var toks []string
+	for i, t := range strings.Fields(k) {
+		l := label(t)
+		// After SPC a lone capital is easy to misread as the lower-case
+		// key, so spell out Shift ("SPC Shift+P"). A capital on its own
+		// ("G") stays as is.
+		if i > 0 && len([]rune(t)) == 1 && unicode.IsUpper([]rune(t)[0]) {
+			l = "Shift+" + l
+		}
+		toks = append(toks, l)
+	}
+	return strings.Join(toks, " ")
 }
 
 func label(t string) string {

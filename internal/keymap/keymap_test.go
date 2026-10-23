@@ -1,6 +1,7 @@
 package keymap_test
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -104,10 +105,10 @@ func TestSharedKeysAreReported(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("no clash once focus_explorer is unbound, got %v", warnings)
 	}
-	// Explorer keys only apply inside the explorer: they may reuse general keys.
+	// explorer.find runs the same finder as find_note, so it may reuse its keys.
 	_, warnings = keymap.New(map[string][]string{"explorer.find": {"ctrl+p"}})
 	if len(warnings) != 0 {
-		t.Fatalf("explorer and general actions do not clash, got %v", warnings)
+		t.Fatalf("explorer.find may share find_note's keys, got %v", warnings)
 	}
 }
 
@@ -124,5 +125,52 @@ func TestShiftIsSpelledOutForCapitalsAfterTheLeader(t *testing.T) {
 	}
 	if got := m.Label(keymap.PrevTab); got != "[ / SPC S-Tab" {
 		t.Errorf("Label(PrevTab) = %q", got)
+	}
+}
+
+func TestExplorerKeyShadowedByAGeneralKeyIsReported(t *testing.T) {
+	_, warnings := keymap.New(map[string][]string{"explorer.collapse_all": {"tab"}})
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, `"tab"`) || !strings.Contains(joined, "explorer.collapse_all") || !strings.Contains(joined, "next_pane") {
+		t.Fatalf("an explorer key that a general action takes first should be reported, got:\n%s", joined)
+	}
+}
+
+func TestExplorerKeyShadowedByTheLeaderIsReported(t *testing.T) {
+	for _, k := range []string{"space", "space r"} {
+		_, warnings := keymap.New(map[string][]string{"explorer.rename": {k}})
+		joined := strings.Join(warnings, "\n")
+		if !strings.Contains(joined, fmt.Sprintf("%q", k)) || !strings.Contains(joined, "explorer.rename") || !strings.Contains(joined, "leader") {
+			t.Errorf("%q starts the leader, so it never reaches the explorer; got:\n%s", k, joined)
+		}
+	}
+}
+
+func TestAKeySharedByTheSameActionIsNotReported(t *testing.T) {
+	// find_note and explorer.find open the same finder: the general key
+	// running first does exactly what the explorer key would.
+	_, warnings := keymap.New(map[string][]string{"find_note": {"ctrl+g"}, "explorer.find": {"ctrl+g", "f"}})
+	if len(warnings) != 0 {
+		t.Fatalf("a key shared by find_note and explorer.find is fine, got %v", warnings)
+	}
+}
+
+func TestToggleFoldDefaultsLeaveSpaceAndTabToTheApp(t *testing.T) {
+	m, _ := keymap.New(nil)
+	if got := m.Keys(keymap.ExplorerToggleFold); !reflect.DeepEqual(got, []string{"z"}) {
+		t.Fatalf("space is the leader and tab is next_pane, so fold keeps only z; got %v", got)
+	}
+}
+
+func TestHintRendersTheFirstKey(t *testing.T) {
+	m, _ := keymap.New(map[string][]string{"find_note": {"space f", "ctrl+p"}, "close_tab": {}})
+	if got := m.Hint(keymap.FindNote); got != "SPC f" {
+		t.Errorf("Hint(FindNote) = %q, want %q", got, "SPC f")
+	}
+	if got := m.Hint(keymap.ExportPDF); got != "SPC Shift+P" {
+		t.Errorf("Hint(ExportPDF) = %q, want the help screen's spelling", got)
+	}
+	if got := m.Hint(keymap.CloseTab); got != "" {
+		t.Errorf("an unbound action has no hint, got %q", got)
 	}
 }

@@ -289,7 +289,7 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `explorer.preview` | `o` | Preview note (folder: open) |
 | `explorer.expand` | `l`, `right` | Expand / open |
 | `explorer.collapse` | `h`, `left` | Collapse / go to parent |
-| `explorer.toggle_fold` | `z`, `space`, `tab` | Fold / unfold |
+| `explorer.toggle_fold` | `z` | Fold / unfold |
 | `explorer.collapse_all` | `W` | Collapse all |
 | `explorer.new_note` | `n`, `%` | New note in this folder |
 | `explorer.new_sub_note` | `a` | New sub-note |
