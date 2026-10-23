@@ -29,6 +29,8 @@ const (
 	ActionOpenProject
 	// ActionSyncSetup opens the sync setup assistant (`:sync setup`).
 	ActionSyncSetup
+	// ActionGraph opens the graph of links between notes.
+	ActionGraph
 	ActionNone
 )
 
@@ -85,6 +87,7 @@ func New(th theme.Theme) Model {
 			{Key: "e", Icon: "󰙅", Label: "Open Explorer", Action: ActionBrowse},
 			{Key: "t", Icon: "\U000f03d8", Label: "Themes", Action: ActionThemes},
 			{Key: "?", Icon: "", Label: "Keymaps", Action: ActionKeymap},
+			{Key: "g", Icon: "\U000f0431", Label: "Graph", Action: ActionGraph},
 			{Key: "q", Icon: "󰩈", Label: "Quit", Action: ActionQuit},
 		},
 	}
@@ -164,11 +167,11 @@ func (m *Model) SetRecentPages(pages []core.Page) {
 	m.cursor = min(m.cursor, m.itemCount()-1)
 }
 
-// Projects returns the folders listed under "Projects"; their keys follow
+// Projects returns the folders listed under "FOLDERS"; their keys follow
 // the recent notes' ones.
 func (m Model) Projects() []core.Page { return m.projects }
 
-// RecentPages returns the notes listed under "Recent", newest first.
+// RecentPages returns the notes listed under "RECENT", newest first.
 func (m Model) RecentPages() []core.Page { return m.recentPages }
 
 func (m Model) itemCount() int { return len(m.menuItems) + len(m.recentPages) + len(m.projects) }
@@ -229,7 +232,7 @@ func (m Model) lines() []dashLine {
 	if len(m.projects) > 0 {
 		recentRows += len(m.projects) + 2
 	}
-	needed := len(banner) + 4 + len(m.menuItems) + recentRows + 2
+	needed := len(banner) + 4 + len(m.menuItems) + recentRows + 2 + 2 // + the hint
 	if m.height >= needed+2 {
 		bannerStyle := lipgloss.NewStyle().Foreground(th.Blue).Bold(true)
 		for _, l := range banner {
@@ -259,13 +262,19 @@ func (m Model) lines() []dashLine {
 		return left + bg.Render(strings.Repeat(" ", max(gap, 1))) + right
 	}
 
+	// Section titles are grey small caps with no icon, so they do not read
+	// as folders.
+	section := func(title string) string {
+		return lipgloss.NewStyle().Foreground(th.GreyFg).Bold(true).Render("  " + strings.ToUpper(title))
+	}
+
 	for i, it := range m.menuItems {
 		add(button(i, it.Icon, it.Label, "", it.Key, th.Blue), i)
 	}
 
 	if len(m.recentPages) > 0 {
 		add("", -1)
-		add(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("  󰋚  Recent"), -1)
+		add(section("Recent"), -1)
 		for i, p := range m.recentPages {
 			sub := ""
 			if dir := path.Dir(p.ID); dir != "." {
@@ -278,7 +287,7 @@ func (m Model) lines() []dashLine {
 
 	if len(m.projects) > 0 {
 		add("", -1)
-		add(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("  󰉋  Projects"), -1)
+		add(section("Folders"), -1)
 		for i, p := range m.projects {
 			idx := len(m.menuItems) + len(m.recentPages) + i
 			key := fmt.Sprint(len(m.recentPages) + i + 1)
@@ -294,6 +303,8 @@ func (m Model) lines() []dashLine {
 	footer := lipgloss.NewStyle().Foreground(th.Green).Render("") +
 		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(fmt.Sprintf("  %d %s  ·  %s", m.totalNotes, noun, ui.Truncate(m.workspace, 34)))
 	add(center(footer), -1)
+	add("", -1)
+	add(lipgloss.NewStyle().Foreground(th.GreyFg).Render("  SPC opens every other command · ? shows them all"), -1)
 	return out
 }
 
