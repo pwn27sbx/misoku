@@ -41,6 +41,17 @@ func (m *Model) openLeaderGuide(msg leaderGuideMsg) {
 // sequence clears leaderPending, which hides the guide with it.
 func (m *Model) leaderGuideOpen() bool { return m.leaderPending && m.leaderGuide }
 
+// endLeaderUnderDialog cancels a pending leader once a dialog is open: one
+// that opened without a key (a sync conflict, :messages sent from outside)
+// takes the keys meanwhile, and closing it must not bring the guide back or
+// read the next key as a leader key.
+func (m *Model) endLeaderUnderDialog() {
+	if m.saveAs != nil || m.confirm != nil || m.finder != nil || m.themes != nil ||
+		m.browser != nil || m.datePick != nil || m.promptBox != nil || m.menuBox != nil || m.showKeymap {
+		m.leaderPending = false
+	}
+}
+
 // leaderGuideRow is one action of the guide: the key after Space and what it
 // does.
 type leaderGuideRow struct{ key, help string }

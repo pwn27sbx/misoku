@@ -25,6 +25,19 @@ func (m *Model) say(text string, isErr bool) {
 	m.messages = append(m.messages, sentMessage{at: m.clock().Format("15:04"), text: text})
 }
 
+// showProgress shows text in the bar without keeping it for `:messages`:
+// progress such as "Syncing…" is replaced by its result, and only results
+// are worth listing.
+func (m *Model) showProgress(text string) { m.status, m.statusErr = text, false }
+
+// unsayLast takes the newest message out of `:messages`, for one that is
+// about to be said again as part of a longer one.
+func (m *Model) unsayLast() {
+	if n := len(m.messages); n > 0 {
+		m.messages = m.messages[:n-1]
+	}
+}
+
 // clearStatus empties the bar's message; `:messages` still has it.
 func (m *Model) clearStatus() { m.status, m.statusErr = "", false }
 

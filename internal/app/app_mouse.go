@@ -8,6 +8,10 @@ import (
 // Mouse
 
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// A click is not part of a leader sequence: it cancels one.
+	if msg.Action == tea.MouseActionPress {
+		m.leaderPending = false
+	}
 	if m.viewMode == viewModeDashboard {
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 			if a, id, ok := m.dashboard.Click(msg.X, msg.Y); ok {

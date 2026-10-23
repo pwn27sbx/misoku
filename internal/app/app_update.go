@@ -17,6 +17,7 @@ import (
 
 // Update routes events down and handles events emitted up from child components.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.endLeaderUnderDialog()
 	switch msg := msg.(type) {
 	case CheckWorkspaceMsg:
 		return m, tea.Batch(m.startWorkspaceScan(), m.autoSync())

@@ -31,12 +31,14 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	sidebarBusy := m.focus == focusSidebar && m.sidebar.IsBusy()
 	editorBusy := m.focus == focusEditor && m.content.Mode() != content.ModeNormal && !m.graphActive()
 
-	// Ctrl/Alt shortcuts of the global actions work in every mode.
+	// Ctrl/Alt shortcuts of the global actions work in every mode. One
+	// typed after Space is the sequence's second key: it ends the sequence.
 	for _, a := range globalActions {
 		if m.keys.DirectModified(a, s) {
 			if a == keymap.NewNote && sidebarBusy {
 				break
 			}
+			m.leaderPending = false
 			m.flushPreview()
 			return m.runAction(a)
 		}
@@ -130,9 +132,12 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 				return m.runHomeAction(a)
 			}
 		}
-		// The guide lists every leader key; one that needs an open note
-		// waits quietly, as before.
-		if guide && s != "esc" && !slices.ContainsFunc(generalActions, func(a string) bool { return m.keys.Leader(a, s) }) {
+		// The guide lists every leader key, also those that need an open
+		// note: those say so instead of doing nothing.
+		switch {
+		case slices.ContainsFunc(generalActions, func(a string) bool { return m.keys.Leader(a, s) }):
+			m.setStatus(s + ": needs an open note")
+		case guide && s != "esc":
 			m.setStatus(s + ": not a leader key")
 		}
 		return nil
