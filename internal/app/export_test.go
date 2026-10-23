@@ -67,3 +67,7 @@ func LeaderSeq(tm tea.Model) int { return tm.(Model).leaderSeq }
 // LeaderGuideTick is the message the leader guide timer of the Space press
 // numbered seq delivers.
 func LeaderGuideTick(seq int) tea.Msg { return leaderGuideMsg{seq: seq} }
+
+// ExplorerHideWidth is the explorer hide width the app holds, set by
+// config ui.explorer_hide_width and the settings menu.
+func (m Model) ExplorerHideWidth() int { return m.prefs().hideWidth }

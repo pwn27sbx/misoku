@@ -334,6 +334,18 @@ with render-markdown:
 | `mode_icon` | One icon for every mode in the statusline, like lualine (`"󱗞"`) |
 | `border` | Frame of dialogs, menus and preview blocks: `rounded` (default) or `single` |
 | `modified_mark` | Shown before the tab name of a note with unsaved changes, like incline (`"[+]"`) |
+| `accordion` | `true` (default): opening a folder in the explorer closes its open siblings. `false` keeps several open |
+| `explorer_hide_width` | Terminal width, in columns, below which the explorer hides (default `120`) |
+
+### Settings menu
+
+`:settings` opens a menu for four of these keys: accordion folders (on or
+off), the explorer hide width, heading icons and bullets (one of the
+presets Misoku, Numbers, Arrows and Plain; Misoku removes both keys), and the
+dialog border. A value picked with Enter applies at once and is saved at once
+in `config.json`: only that key changes, and every other setting stays as you
+wrote it. Esc goes back without saving, and picking the value already in use
+writes nothing. If the file cannot be written, the status bar says why.
 
 ## Links
 
