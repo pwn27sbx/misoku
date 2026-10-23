@@ -40,7 +40,7 @@ func (c *compiler) inline(s string, base lipgloss.Style) string {
 			}
 			fence := rest[:n]
 			if end := strings.Index(rest[n:], fence); end >= 0 {
-				emit(c.st.code.Render(" " + strings.TrimSpace(rest[n:n+end]) + " "))
+				emit(codeOpen + c.st.code.Render(" "+strings.TrimSpace(rest[n:n+end])+" ") + codeClose)
 				i += n + end + n
 				continue
 			}

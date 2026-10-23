@@ -147,11 +147,90 @@ func (c *compiler) emit(lines ...string) {
 
 func (c *compiler) blank() { c.emit("") }
 
+// Inline code spans are bracketed by these zero-width APC sequences, so
+// wrapIndent can find them in styled text. Every marker is removed before
+// the output leaves the compiler.
+const (
+	codeOpen  = "\x1b_misoku:code\x1b\\"
+	codeClose = "\x1b_misoku:/code\x1b\\"
+)
+
+// While wrapping, a code span that fits on a line has its break points
+// swapped for look-alikes ansi.Wrap never breaks at, so it moves to the next
+// line whole instead of being cut at a space or a hyphen.
+var (
+	keepWhole    = strings.NewReplacer(" ", "\u00a0", "-", "\u2011")
+	restoreWhole = strings.NewReplacer("\u00a0", " ", "\u2011", "-")
+	stripCode    = strings.NewReplacer(codeOpen, "", codeClose, "")
+)
+
+// protectCode makes every code span in s no wider than w unbreakable and
+// drops the markers of the others, which wrap like ordinary text. Spans that
+// already hold a look-alike are left alone so restoreCode stays exact. The
+// swap may touch the span's SGR sequences too, but those never contain a
+// space or a hyphen.
+func protectCode(s string, w int) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(s, codeOpen)
+		if i < 0 {
+			break
+		}
+		j := strings.Index(s[i:], codeClose)
+		if j < 0 {
+			break
+		}
+		span := s[i+len(codeOpen) : i+j]
+		b.WriteString(s[:i])
+		if ansi.StringWidth(span) <= w && !strings.ContainsAny(span, "\u00a0\u2011") {
+			b.WriteString(codeOpen + keepWhole.Replace(span) + codeClose)
+		} else {
+			b.WriteString(span)
+		}
+		s = s[i+j+len(codeClose):]
+	}
+	b.WriteString(s)
+	return b.String()
+}
+
+// restoreCode undoes protectCode inside the marked spans of the wrapped
+// lines and removes the markers. A span can still end up across two lines
+// when the punctuation glued to it overflows, so the state carries over.
+func restoreCode(lines []string) {
+	inside := false
+	for i, l := range lines {
+		var b strings.Builder
+		for l != "" {
+			marker := codeOpen
+			if inside {
+				marker = codeClose
+			}
+			k := strings.Index(l, marker)
+			if k < 0 {
+				k = len(l)
+			}
+			if inside {
+				b.WriteString(restoreWhole.Replace(l[:k]))
+			} else {
+				b.WriteString(l[:k])
+			}
+			if k == len(l) {
+				break
+			}
+			l = l[k+len(marker):]
+			inside = !inside
+		}
+		lines[i] = b.String()
+	}
+}
+
 // wrapIndent word-wraps an already styled string to the pane width, prefixing
-// the first line with first and continuation lines with rest.
+// the first line with first and continuation lines with rest. Inline code
+// that fits on a line is never split.
 func (c *compiler) wrapIndent(s, first, rest string) []string {
 	w := max(c.width-ansi.StringWidth(first), 8)
-	lines := strings.Split(ansi.Wrap(s, w, ""), "\n")
+	lines := strings.Split(ansi.Wrap(protectCode(s, w), w, ""), "\n")
+	restoreCode(lines)
 	for i := range lines {
 		if i == 0 {
 			lines[i] = first + lines[i]
@@ -217,6 +296,10 @@ func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, ba
 
 	for len(c.out) > 0 && c.out[len(c.out)-1] == "" {
 		c.out = c.out[:len(c.out)-1]
+	}
+	for i, l := range c.out {
+		// Code spans that were not wrapped (table cells) still carry markers.
+		c.out[i] = stripCode.Replace(l)
 	}
 	c.collectLinks()
 	sort.SliceStable(c.blocks, func(a, b int) bool {
