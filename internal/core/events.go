@@ -82,6 +82,9 @@ type ThemeMsg struct {
 	Name string
 }
 
+// SettingsMsg opens the settings menu (":settings").
+type SettingsMsg struct{}
+
 // FollowLinkMsg is emitted by "gd" / "gx" in the editor: open the link on
 // Line (the cursor's line) at rune column Col.
 type FollowLinkMsg struct {

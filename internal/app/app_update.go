@@ -215,6 +215,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.setThemeByName(msg.Name)
 		return m, nil
+	case core.SettingsMsg:
+		return m, m.OpenSettings()
 	case core.PageCreatedMsg:
 		return m, m.newDraft(msg.Page.ParentID)
 	case core.PageUpdatedMsg:

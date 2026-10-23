@@ -213,6 +213,12 @@ type UI struct {
 	// ModifiedMark goes before the tab name of a note with unsaved changes,
 	// like incline's "[+]".
 	ModifiedMark string `json:"modified_mark,omitempty"`
+	// Accordion keeps one folder open per level in the explorer: opening a
+	// folder closes its open siblings. Unset means on; see AccordionOn.
+	Accordion *bool `json:"accordion,omitempty"`
+	// ExplorerHideWidth is the terminal width, in columns, below which the
+	// explorer hides. 0 means DefaultExplorerHideWidth; see HideWidth.
+	ExplorerHideWidth int `json:"explorer_hide_width,omitempty"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

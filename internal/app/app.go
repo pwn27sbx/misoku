@@ -92,6 +92,7 @@ type Model struct {
 	savedOnQuit    map[*buffer]bool   // tabs Save All already wrote, see continueSaveAll
 	modeIcon       string             // config ui.mode_icon: one icon for every mode
 	modifiedMark   string             // config ui.modified_mark: before a dirty tab name
+	settings       *settingsState     // the settings menu's values and saves, see settings.go
 	themeStamp     string             // user theme files as last seen, see syncUserTheme
 	treeGen        uint64             // bumps on every applyTree, see workspaceScannedMsg
 	scanning       bool               // a workspace scan is in flight, see CheckWorkspaceMsg

@@ -80,6 +80,8 @@ func parseVimCommand(cmdStr, content string) any {
 		return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :sync, :sync status or :sync setup)", Error: true}
 	case "colorscheme", "colo", "theme":
 		return core.ThemeMsg{Name: arg}
+	case "settings":
+		return core.SettingsMsg{}
 	case "enew", "new", "e", "edit":
 		if arg == "" || name == "enew" || name == "new" {
 			return core.VimNewBufferMsg{}
