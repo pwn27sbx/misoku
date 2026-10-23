@@ -209,8 +209,13 @@ func (m *Model) applySlash(it slashItem) tea.Cmd {
 }
 
 // SetFrontMatter sets key: value in the note's leading "---" block,
-// creating the block if needed, and keeps the cursor on the same text.
+// creating the block if needed, and keeps the cursor on the same text. It
+// is one change that u undoes.
 func (m *Model) SetFrontMatter(key, value string) {
+	m.edit(func() { m.setFrontMatter(key, value) })
+}
+
+func (m *Model) setFrontMatter(key, value string) {
 	text := m.textarea.Value()
 	row, col := m.textarea.RowCol()
 	lines := strings.Split(text, "\n")
@@ -244,8 +249,11 @@ func (m *Model) SetFrontMatter(key, value string) {
 	m.textarea.SetRowCol(row+3, col)
 }
 
-// InsertText types text at the cursor (used for "Link to page").
+// InsertText types text at the cursor (used for "Link to page"). Outside
+// INSERT it is one change that u undoes; inside, part of the session.
 func (m *Model) InsertText(s string) {
-	m.textarea.InsertString(s)
-	m.textarea.EnsureVisible()
+	m.edit(func() {
+		m.textarea.InsertString(s)
+		m.textarea.EnsureVisible()
+	})
 }

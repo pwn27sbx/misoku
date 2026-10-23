@@ -191,8 +191,13 @@ func (m *Model) applyScannedNote(b *buffer, gone bool, content string, read bool
 		return
 	}
 	b.setSaved(content)
+	// D7: what was undoable is the text the disk replaced, so the tab's
+	// history starts over from the reloaded text.
+	b.hist = nil
 	if b.id == m.active {
+		m.content.SetHistory(b.history())
 		m.content.ReplaceText(content)
+		m.content.ResetHistory()
 		m.preview.SetPage(b.page())
 		m.refreshLinks()
 	}

@@ -71,3 +71,7 @@ func LeaderGuideTick(seq int) tea.Msg { return leaderGuideMsg{seq: seq} }
 // ExplorerHideWidth is the explorer hide width the app holds, set by
 // config ui.explorer_hide_width and the settings menu.
 func (m Model) ExplorerHideWidth() int { return m.prefs().hideWidth }
+
+// EditorText is the editor's text, what the active tab holds before it is
+// saved.
+func EditorText(tm tea.Model) string { return tm.(Model).content.Value() }

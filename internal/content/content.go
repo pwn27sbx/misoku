@@ -30,6 +30,7 @@ type Model struct {
 	pending  string // first key of a two-key Vim command ("g", "d")
 	slash    *slashMenu
 	hl       *hlCache // shared across copies so View can memoise
+	hist     *History // the shown tab's undo history (SetHistory)
 	copies   *atomic.Int64
 	dragging bool
 	dragRow  int
@@ -59,6 +60,7 @@ func New(th theme.Theme) Model {
 		cmdInput: createCommandInput(th),
 		mode:     ModeNormal,
 		hl:       &hlCache{},
+		hist:     NewHistory(),
 		copies:   &atomic.Int64{},
 	}
 }
@@ -107,6 +109,8 @@ func (m *Model) SetPage(p core.Page) {
 }
 
 // SetBuffer loads a buffer's text, resetting the cursor to the top.
+// Loading is not a change: the attached history (SetHistory) is kept when
+// it belongs to this note and text, and started over otherwise.
 func (m *Model) SetBuffer(p core.Page, draft bool) {
 	m.page = p
 	m.draft = draft
@@ -114,6 +118,7 @@ func (m *Model) SetBuffer(p core.Page, draft bool) {
 	m.slash = nil
 	m.textarea.SetValue(p.Content)
 	m.textarea.GotoTop()
+	m.syncHistory()
 }
 
 // SetFocused sets focus state.
@@ -272,11 +277,14 @@ func (c *hlCache) colors(m Model) highlight.Colors {
 }
 
 // ReplaceText swaps the whole buffer text, keeping the cursor where it was
-// (clamped). Used when the preview edits the note.
+// (clamped). Used when the preview edits the note; it is one change that u
+// undoes.
 func (m *Model) ReplaceText(text string) {
-	row, col := m.textarea.RowCol()
-	m.textarea.SetValue(text)
-	m.textarea.SetRowCol(row, col)
+	m.edit(func() {
+		row, col := m.textarea.RowCol()
+		m.textarea.SetValue(text)
+		m.textarea.SetRowCol(row, col)
+	})
 }
 
 // GotoLine puts the cursor on 1-based line n, scrolled into view.

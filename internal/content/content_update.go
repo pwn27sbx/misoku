@@ -10,8 +10,17 @@ import (
 )
 
 // Update processes key and mouse messages (mouse coordinates relative to the
-// pane's top-left corner) and handles Vim editing modes.
+// pane's top-left corner) and handles Vim editing modes. Outside INSERT,
+// each command that changed the text is recorded as one change for u.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	m, cmd := m.update(msg)
+	if m.mode != ModeInsert {
+		m.record()
+	}
+	return m, cmd
+}
+
+func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	if mouse, ok := msg.(tea.MouseMsg); ok {
 		return m.handleMouse(mouse)
 	}
@@ -185,6 +194,10 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		ta.StartSelection()
 	case "p":
 		return m, m.paste()
+	case "u":
+		return m, m.undo()
+	case "ctrl+r":
+		return m, m.redo()
 	case "ctrl+d":
 		ta.ScrollBy(m.halfPage())
 		ta.MoveCursorBy(m.halfPage())
@@ -301,7 +314,7 @@ func (m Model) handleVisualKey(k tea.KeyMsg) (Model, tea.Cmd) {
 // paste inserts the system clipboard after the cursor (Vim's p); text
 // ending in a newline is pasted as whole lines below.
 func (m *Model) paste() tea.Cmd {
-	text, err := clipboard.ReadAll()
+	text, err := readClipboard()
 	if err != nil || text == "" {
 		return func() tea.Msg { return core.StatusMsg{Text: "Clipboard is empty or unavailable", Error: err != nil} }
 	}
@@ -318,3 +331,6 @@ func (m *Model) paste() tea.Cmd {
 }
 
 // View renders the editor at exactly width × height.
+
+// readClipboard reads the system clipboard; tests replace it.
+var readClipboard = clipboard.ReadAll

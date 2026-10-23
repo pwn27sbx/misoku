@@ -257,6 +257,19 @@ reported in the status bar when Misoku starts (it stays until `Esc`, and
 
 Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 
+**Undo** (editor, NORMAL mode, not configurable)
+
+| Key | What it does |
+| --- | --- |
+| `u` | Undo the last change; the status bar says which one (`1 change; before #3`) |
+| `Ctrl+R` | Redo what `u` undid |
+
+Each INSERT session is one change, and so is each NORMAL command (`dd`, `p`,
+`x`) and each edit made from the preview, a table or the `/` menu. Every tab
+keeps its own history, in memory only: up to 200 changes or 8 MB, the oldest
+dropped first. Undoing never writes to disk, and a note reloaded because it
+changed on disk starts a new history.
+
 **General**
 
 | Action | Default keys | What it does |
