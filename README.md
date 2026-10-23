@@ -267,7 +267,8 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 Each INSERT session is one change, and so is each NORMAL command (`dd`, `p`,
 `x`) and each edit made from the preview, a table or the `/` menu. Every tab
 keeps its own history, in memory only: up to 200 changes or 8 MB, the oldest
-dropped first. Undoing never writes to disk, and a note reloaded because it
+dropped first; a note over about 4 MB keeps no undo history, and `u` says so.
+Undoing never writes to disk, and a note reloaded because it
 changed on disk starts a new history.
 
 **General**

@@ -479,6 +479,11 @@ func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 
 // saveBufferAs writes b's text to dir/name and turns the tab into that file.
 func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
+	if b.id == m.active {
+		// Close an open INSERT session first (Ctrl+N, type, Ctrl+S): the
+		// reload below would otherwise find text the history never saw.
+		m.content.CommitChange()
+	}
 	text := m.liveText(b)
 	p, err := m.store.SaveAs(dir, name, text)
 	if err != nil {
