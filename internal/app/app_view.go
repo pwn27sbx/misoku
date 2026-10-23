@@ -59,6 +59,7 @@ func (m Model) View() string {
 			lipgloss.JoinHorizontal(lipgloss.Top, cols...),
 			m.bottomBar(),
 		)
+		screen = m.drawExplorerOverlay(screen)
 	}
 
 	switch {

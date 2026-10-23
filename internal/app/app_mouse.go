@@ -16,7 +16,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	}
-	l := m.layout()
+	l := m.hitLayout()
 	// The preview handles the event with what it compiled: hover handles,
 	// block drags and clicks on interactive views must match the text.
 	overPreview := l.overPreview(msg.X, msg.Y)
@@ -78,7 +78,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	switch {
 	case msg.X < l.SidebarW:
 		target = focusSidebar
-	case msg.X >= l.EditorX && msg.X < l.EditorX+l.EditorW:
+	case msg.X >= l.EditorX && msg.X < l.EditorX+l.EditorW && dividerAt(l, msg.X) == dividerNone:
 		target, local.X = focusEditor, msg.X-l.EditorX
 	case l.PreviewW > 0 && msg.X >= l.PreviewX:
 		target, local.X = focusPreview, msg.X-l.PreviewX
@@ -97,6 +97,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	switch target {
 	case focusSidebar:
 		m.sidebar, cmd = m.sidebar.Update(local)
+		cmd = m.chooseFromOverlay(cmd)
 	case focusEditor:
 		m.dragging = msg.Button == tea.MouseButtonLeft
 		cmd = m.editorPaneUpdate(local)

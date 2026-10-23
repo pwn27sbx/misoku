@@ -64,6 +64,9 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 				return m.runAction(a)
 			}
 		}
+		if s == "esc" && m.focus == focusSidebar && m.explorerOverlay() {
+			return m.closeExplorerOverlay()
+		}
 		if s == "esc" && m.focus != focusEditor && m.activeBuffer() != nil {
 			return m.focusPane(focusEditor)
 		}
