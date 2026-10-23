@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
@@ -159,5 +160,19 @@ func TestSidebarBackslashOpensFinderAndClickKeepsFocus(t *testing.T) {
 	sb, _ = sb.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	if p, _ := sb.SelectedPage(); p.ID != "a.md" {
 		t.Fatalf("keyboard should keep working after a click, got %q", p.ID)
+	}
+}
+
+func TestFindHintShowsTheEffectiveKey(t *testing.T) {
+	sb := sidebar.New(theme.DefaultTheme())
+	sb.SetSize(28, 10)
+	if v := sb.View(); !strings.Contains(v, `\ `) {
+		t.Fatalf("default find hint should be \\:\n%s", v)
+	}
+
+	km, _ := keymap.New(map[string][]string{"explorer.find": {"ctrl+f"}})
+	sb.SetKeys(km)
+	if v := sb.View(); !strings.Contains(v, "Ctrl+F") || strings.Contains(v, `\`) {
+		t.Fatalf("find hint should follow explorer.find:\n%s", v)
 	}
 }

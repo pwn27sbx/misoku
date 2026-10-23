@@ -8,6 +8,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/highlight"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
@@ -20,6 +21,7 @@ import (
 // Model represents the Content component state.
 type Model struct {
 	theme    theme.Theme
+	keys     keymap.Map // only for the hints; the app dispatches shortcuts
 	page     core.Page
 	draft    bool
 	textarea textarea.Model
@@ -49,8 +51,10 @@ func New(th theme.Theme) Model {
 	ta.Cursor.Style = lipgloss.NewStyle().Foreground(th.Fg)
 	configureTextareaStyles(&ta, th)
 
+	km, _ := keymap.New(nil)
 	return Model{
 		theme:    th,
+		keys:     km,
 		textarea: ta,
 		cmdInput: createCommandInput(th),
 		mode:     ModeNormal,
@@ -58,6 +62,9 @@ func New(th theme.Theme) Model {
 		copies:   &atomic.Int64{},
 	}
 }
+
+// SetKeys sets the shortcuts named in the editor's hints.
+func (m *Model) SetKeys(km keymap.Map) { m.keys = km }
 
 // SetTheme switches colours.
 func (m *Model) SetTheme(th theme.Theme) {
