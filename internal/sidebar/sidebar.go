@@ -191,8 +191,11 @@ func (m *Model) Expand(id string) { m.expand(id) }
 // expand is the single place a row gets opened, so every path (keys, click,
 // Expand, SetSelectedID) follows the accordion rule: with it on, the rows
 // sharing id's parent are closed first. Ancestors are never siblings, so
-// opening a subfolder leaves the folder holding it open.
+// opening a subfolder leaves the folder holding it open. Closing a sibling
+// above the cursor removes rows above it, so the cursor follows the selected
+// page back to its new row.
 func (m *Model) expand(id string) {
+	selected, hasSel := m.SelectedPage()
 	if p, ok := m.byID[id]; ok && m.accordion {
 		for _, sib := range m.pages {
 			if sib.ID != id && sib.ParentID == p.ParentID {
@@ -201,6 +204,22 @@ func (m *Model) expand(id string) {
 		}
 	}
 	m.expanded[id] = true
+	if !hasSel || !m.moveCursorTo(selected.ID) {
+		m.moveCursorTo(id)
+	}
+	m.clampCursor()
+}
+
+// moveCursorTo puts the cursor on id's visible row and reports whether it
+// found one.
+func (m *Model) moveCursorTo(id string) bool {
+	for i, item := range m.VisibleItems() {
+		if item.Page.ID == id {
+			m.cursor = i
+			return true
+		}
+	}
+	return false
 }
 
 // toggle closes an open row or opens a closed one through expand.
@@ -218,12 +237,7 @@ func (m *Model) SetSelectedID(id string) {
 	for p, ok := m.byID[id]; ok && p.ParentID != ""; p, ok = m.byID[p.ParentID] {
 		m.expand(p.ParentID)
 	}
-	for i, item := range m.VisibleItems() {
-		if item.Page.ID == id {
-			m.cursor = i
-			break
-		}
-	}
+	m.moveCursorTo(id)
 	m.ensureVisible()
 }
 

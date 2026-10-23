@@ -178,3 +178,22 @@ func TestAccordionClosingFolderStillWorks(t *testing.T) {
 		t.Error("z on an open folder should close it")
 	}
 }
+
+// Closing an open sibling above the cursor removes rows above it; the cursor
+// must stay on the folder the user opened, not on whatever row slid into its
+// old index.
+func TestAccordionCursorStaysOnOpenedFolder(t *testing.T) {
+	for _, op := range openers {
+		if op.name == "SetSelectedID" {
+			continue // it selects the revealed note, not the folder
+		}
+		t.Run(op.name, func(t *testing.T) {
+			sb := op.open(t, newAccordionSidebar(), "A")
+			sb = moveTo(t, sb, "B")
+			sb = op.open(t, sb, "B")
+			if p, _ := sb.SelectedPage(); p.ID != "B" {
+				t.Errorf("cursor should stay on the opened folder B, got %q", p.ID)
+			}
+		})
+	}
+}
