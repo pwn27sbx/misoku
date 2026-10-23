@@ -57,6 +57,11 @@ type Model struct {
 	leaderSeq     int  // bumps on every Space press, see leaderGuideMsg
 	leaderGuide   bool // the leader guide shows while leaderPending
 
+	// The explorer on narrow windows, see narrow.go.
+	explorerHideWidth int
+	explorerHideSet   bool
+	explorerNarrow    bool
+
 	// Open tabs, in order. Unsaved text lives in the buffers, never on disk.
 	buffers  []*buffer
 	active   string
@@ -235,14 +240,15 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m *Model) layout() Layout {
-	return CalculateLayout(m.width, m.height, m.sidebarOpen, m.previewOpen, m.reading, m.split)
+	return CalculateLayout(m.width, m.height, m.sidebarOpen && !m.narrowWindow(), m.previewOpen, m.reading, m.split)
 }
 
 // updateLayout recalculates dimensions across child panes.
 func (m *Model) updateLayout() {
+	m.applyExplorerWidth()
 	l := m.layout()
 	m.dashboard.SetSize(m.width, max(m.height-footerHeight, 1))
-	m.sidebar.SetSize(l.SidebarW, l.BodyH)
+	m.sidebar.SetSize(m.explorerW(l), l.BodyH)
 	m.content.SetSize(l.EditorW, l.BodyH)
 	m.preview.SetSize(l.PreviewW, l.BodyH)
 	m.graph.SetSize(l.EditorW, l.BodyH)
@@ -290,6 +296,9 @@ func (m *Model) focusPane(f focus) tea.Cmd {
 		m.sidebarOpen = true
 		m.updateLayout()
 	}
+	if f != focusSidebar && m.narrowWindow() {
+		m.sidebarOpen = false // the overlay closes when focus leaves it
+	}
 	if f == focusPreview && m.layout().PreviewW == 0 {
 		f = focusEditor
 	}
@@ -311,7 +320,7 @@ func (m *Model) focusPane(f focus) tea.Cmd {
 func (m *Model) panes() []focus {
 	l := m.layout()
 	var out []focus
-	if l.SidebarW > 0 {
+	if l.SidebarW > 0 || m.explorerOverlay() {
 		out = append(out, focusSidebar)
 	}
 	if !m.reading {

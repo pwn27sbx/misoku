@@ -213,6 +213,7 @@ never use `notes_dir`.
 - **Export to PDF** with `:export`: a clean printable document, with boards, charts and flowcharts included.
 - **2, 3 and 4 column layouts** from the `/` menu.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
+- **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
 - **Reading mode** (`space r`): hide the editor and read the note in the preview at full width; the statusline says READING.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
