@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/ui"
 )
@@ -11,7 +12,7 @@ import (
 // DefaultExplorerHideWidth is the terminal width below which the explorer
 // starts hidden and, when toggled, opens over the editor instead of beside
 // it, so a narrow window keeps the editor's columns.
-const DefaultExplorerHideWidth = 120
+const DefaultExplorerHideWidth = config.DefaultExplorerHideWidth
 
 // WithExplorerHideWidth sets the width below which the explorer is hidden
 // and opens as an overlay (DefaultExplorerHideWidth when not set). n <= 0

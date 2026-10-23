@@ -14,6 +14,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/ui"
 )
 
@@ -202,6 +203,28 @@ func TestSettingsExplorerHideWidthAppliesLiveAndIsSaved(t *testing.T) {
 	assertOnlyUIChanged(t, path, map[string]any{"explorer_hide_width": float64(90)})
 }
 
+// A hide width set in the menu drives the explorer at once: over the
+// window's width, the explorer hides and toggles open over the editor.
+func TestSettingsExplorerHideWidthHidesTheExplorer(t *testing.T) {
+	h := settingsHarness(t, tempConfig(t, userConfig))
+	if v := h.view(); !explorerShown(v) {
+		t.Fatalf("explorer must start docked at %d columns:\n%s", termW, v)
+	}
+	h.openSettings()
+	h.keys("2")
+	h.typeWidth("200")
+	h.key(tea.KeyEsc)
+	if v := h.view(); explorerShown(v) {
+		t.Fatalf("hide width 200 must hide the explorer at %d columns:\n%s", termW, v)
+	}
+	h.send(ctrlB())
+	v := h.view()
+	divider := app.CalculateLayout(termW, termH, false, true, false, app.Split{}).PreviewX - 1
+	if cols := dividers(v, 5); !explorerShown(v) || !hasCol(cols, divider) {
+		t.Fatalf("toggle_explorer must open the explorer over the editor (divider %d stays), dividers %v:\n%s", divider, cols, v)
+	}
+}
+
 func TestSettingsRejectsABadWidth(t *testing.T) {
 	path := tempConfig(t, userConfig)
 	h := settingsHarness(t, path)
@@ -331,4 +354,66 @@ func TestSettingsOlderSaveDoesNotUndoANewerOne(t *testing.T) {
 	runAll(t, on)
 	runAll(t, off)
 	assertOnlyUIChanged(t, path, map[string]any{"accordion": true})
+}
+
+// A theme picked while a settings save still runs in the background keeps
+// both changes: the theme's write and the settings save take turns on the
+// file instead of one overwriting the other.
+func TestThemeAndSettingsSavesKeepBothValues(t *testing.T) {
+	path := tempConfig(t, userConfig)
+	h := settingsHarness(t, path)
+	one := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}}
+	// changeSetting toggles accordion folders in the menu and closes it,
+	// leaving its save to run.
+	changeSetting := func() tea.Cmd {
+		t.Helper()
+		var save tea.Cmd
+		h.m, _ = h.m.Update(core.SettingsMsg{})
+		h.m, save = h.m.Update(one)
+		h.m, _ = h.m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		if save == nil {
+			t.Fatal("the settings change returned no save")
+		}
+		return save
+	}
+	themes := []string{"nord", "onedark"}
+	for i := range 200 {
+		save := changeSetting() // accordion off, on, off…
+		done := make(chan struct{})
+		go func() { runAll(t, save); close(done) }()
+		h.m, _ = h.m.Update(core.ThemeMsg{Name: themes[i%2]})
+		<-done
+		cfg, err := config.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wantOn := i%2 == 1; cfg.Theme != themes[i%2] || cfg.UI.AccordionOn() != wantOn {
+			t.Fatalf("run %d: theme %q accordion %v on disk, want %q and %v", i, cfg.Theme, cfg.UI.AccordionOn(), themes[i%2], wantOn)
+		}
+	}
+	// In order the other way round: the theme saved first, the settings
+	// save running after it.
+	save := changeSetting()
+	h.m, _ = h.m.Update(core.ThemeMsg{Name: "nord"})
+	runAll(t, save)
+	if cfg, _ := config.Load(path); cfg.Theme != "nord" || cfg.UI.AccordionOn() {
+		t.Fatalf("theme %q accordion %v on disk, want nord and off", cfg.Theme, cfg.UI.AccordionOn())
+	}
+}
+
+// :settings takes no argument: one is rejected as :sync rejects an unknown
+// one, and the menu stays closed.
+func TestSettingsCommandRejectsArguments(t *testing.T) {
+	h := settingsHarness(t, tempConfig(t, ""))
+	h.ex("settings foo")
+	v := h.view()
+	if strings.Contains(v, "Accordion folders") {
+		t.Fatalf(":settings foo must not open the menu:\n%s", v)
+	}
+	wantBar(t, h, "E488: Trailing characters: foo")
+	h.key(tea.KeyEsc)
+	h.ex("settings")
+	if v := h.view(); !strings.Contains(v, "Accordion folders") {
+		t.Fatalf(":settings must still open the menu:\n%s", v)
+	}
 }

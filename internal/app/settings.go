@@ -188,11 +188,11 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 	return nil
 }
 
-// applyExplorerHideWidth sets the width below which the explorer hides.
-// For now it only keeps the value; the explorer's auto-hide reads it once
-// it exists.
+// applyExplorerHideWidth sets the width below which the explorer hides,
+// keeps it for the settings menu, and judges the current width again.
 func (m *Model) applyExplorerHideWidth(n int) {
 	m.prefs().hideWidth = n
+	WithExplorerHideWidth(n)(m)
 }
 
 // lookName names the heading icons and bullets in use: a preset's name,

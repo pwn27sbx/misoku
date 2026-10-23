@@ -24,6 +24,11 @@ func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
 	m.preview.SetTheme(th)
 	m.graph.SetTheme(th)
 	if persist && m.configPath != "" {
+		// Settings saves run in the background and rewrite the same
+		// file: take turns with them so neither undoes the other.
+		s := m.prefs()
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		cfg, _ := config.Load(m.configPath)
 		cfg.Theme = th.Name
 		if err := config.Save(m.configPath, cfg); err != nil {

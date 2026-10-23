@@ -31,6 +31,8 @@ const (
 	ActionSyncSetup
 	// ActionGraph opens the graph of links between notes.
 	ActionGraph
+	// ActionSettings opens the settings menu (`:settings`).
+	ActionSettings
 	ActionNone
 )
 
@@ -88,6 +90,7 @@ func New(th theme.Theme) Model {
 			{Key: "t", Icon: "\U000f03d8", Label: "Themes", Action: ActionThemes},
 			{Key: "?", Icon: "", Label: "Keymaps", Action: ActionKeymap},
 			{Key: "g", Icon: "\U000f0431", Label: "Graph", Action: ActionGraph},
+			{Key: "c", Icon: "\U000f0493", Label: "Settings", Action: ActionSettings},
 			{Key: "q", Icon: "󰩈", Label: "Quit", Action: ActionQuit},
 		},
 	}

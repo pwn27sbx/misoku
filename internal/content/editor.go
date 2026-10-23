@@ -81,6 +81,9 @@ func parseVimCommand(cmdStr, content string) any {
 	case "colorscheme", "colo", "theme":
 		return core.ThemeMsg{Name: arg}
 	case "settings":
+		if arg != "" {
+			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :settings)", Error: true}
+		}
 		return core.SettingsMsg{}
 	case "enew", "new", "e", "edit":
 		if arg == "" || name == "enew" || name == "new" {
