@@ -474,3 +474,27 @@ func TestReleasingTheSyncLockLetsAnotherWindowSync(t *testing.T) {
 		t.Fatalf("once released, another window takes the lock and syncs:\n%s", second.view())
 	}
 }
+
+// A sync's outcome goes through the status bar like any other message, so
+// a failure the user dismissed with Esc is still listed by :messages.
+func TestSyncErrorIsListedInMessages(t *testing.T) {
+	t.Parallel()
+	remote, vault := syncedVault(t)
+	if err := os.RemoveAll(remote); err != nil {
+		t.Fatal(err)
+	}
+	h := window(t, vault, syncConfig(t, vault), app.WithClock(at1405))
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	h.send(tea.KeyMsg{Type: tea.KeySpace})
+	h.finish(h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}))
+	bar := h.view()
+	if !strings.Contains(bar, "Esc dismiss") {
+		t.Fatalf("setup: a sync without its remote must fail:\n%s", bar)
+	}
+	h.key(tea.KeyEsc)
+	h.ex("messages")
+	if v := h.view(); !strings.Contains(v, "14:05  Sync: offline") {
+		t.Fatalf(":messages must list the sync error:\n%s\n(bar was:\n%s)", v, bar)
+	}
+}

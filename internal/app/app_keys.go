@@ -1,6 +1,8 @@
 package app
 
 import (
+	"slices"
+
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
 	"github.com/pwn27sbx/misoku/internal/keymap"
@@ -121,17 +123,22 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	// The leader comes first: tab, for one, moves the home selection but
 	// is also the second key of "space tab".
 	if m.leaderPending {
+		guide := m.leaderGuideOpen()
 		m.leaderPending = false
 		for _, a := range homeActions {
 			if m.keys.Leader(a, s) {
 				return m.runHomeAction(a)
 			}
 		}
+		// The guide lists every leader key; one that needs an open note
+		// waits quietly, as before.
+		if guide && s != "esc" && !slices.ContainsFunc(generalActions, func(a string) bool { return m.keys.Leader(a, s) }) {
+			m.setStatus(s + ": not a leader key")
+		}
 		return nil
 	}
 	if m.keys.IsLeader(s) {
-		m.leaderPending = true
-		return nil
+		return m.startLeader()
 	}
 	for _, a := range homeActions {
 		if m.keys.DirectModified(a, s) {
@@ -153,6 +160,8 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		return m.openThemePicker()
 	case "g":
 		return m.openGraph()
+	case "c":
+		return m.OpenSettings()
 	case "s":
 		// Only while the entry shows: a folder that syncs has nothing to
 		// set up.
@@ -208,6 +217,8 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 		return m.startSetup()
 	case dashboard.ActionGraph:
 		return m.openGraph()
+	case dashboard.ActionSettings:
+		return m.OpenSettings()
 	}
 	return nil
 }

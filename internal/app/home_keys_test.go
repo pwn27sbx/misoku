@@ -146,3 +146,50 @@ func TestHomeCtrlNewNoteStartsAtTheWorkspaceRoot(t *testing.T) {
 		t.Fatalf("ctrl+n on home should save to the workspace root by default:\n%s", v)
 	}
 }
+
+// Space on the home screen shows the same leader guide as in a note: after
+// the delay it lists the keys, an unknown key closes it with a warning, and
+// a leader key still runs while it is open.
+func TestHomeSpaceOpensTheLeaderGuide(t *testing.T) {
+	h := newHarness(t, newTestStore(t))
+	m, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	h.m = m
+	if cmd == nil {
+		t.Fatal("Space on the home screen started no guide timer")
+	}
+	tickGuide(h)
+	if v := h.view(); !guideOpen(h) || !strings.Contains(v, "HOME") {
+		t.Fatalf("the leader guide should show over the home screen:\n%s", v)
+	}
+	h.keys("z")
+	v := h.view()
+	if guideOpen(h) || !strings.Contains(v, "z: not a leader key") || !strings.Contains(v, "HOME") {
+		t.Fatalf("an unknown key should close the guide, warn and stay home:\n%s", v)
+	}
+	h.keys(" ")
+	tickGuide(h)
+	h.keys("f")
+	if v := h.view(); guideOpen(h) || !finderOpen(v) {
+		t.Fatalf("space f should open the finder from the guide:\n%s", v)
+	}
+}
+
+// The home screen lists Settings: its key c and a click on the entry open
+// the settings menu.
+func TestHomeSettingsEntryOpensTheSettingsMenu(t *testing.T) {
+	settingsOpen := func(v string) bool { return strings.Contains(v, "Accordion folders") }
+	h := newHarness(t, newTestStore(t))
+	if v := h.view(); !strings.Contains(v, "Settings") || settingsOpen(v) {
+		t.Fatalf("the home screen should list a Settings entry:\n%s", v)
+	}
+	h.keys("c")
+	if v := h.view(); !settingsOpen(v) || !strings.Contains(v, "HOME") {
+		t.Fatalf("c should open the settings menu over home:\n%s", v)
+	}
+	h = newHarness(t, newTestStore(t))
+	x, y := find(t, h.view(), "Settings")
+	h.click(x, y)
+	if v := h.view(); !settingsOpen(v) {
+		t.Fatalf("clicking Settings should open the settings menu:\n%s", v)
+	}
+}

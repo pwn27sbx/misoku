@@ -339,10 +339,10 @@ with render-markdown:
 
 ### Settings menu
 
-`:settings` opens a menu for four of these keys: accordion folders (on or
-off), the explorer hide width, heading icons and bullets (one of the
-presets Misoku, Numbers, Arrows and Plain; Misoku removes both keys), and the
-dialog border. A value picked with Enter applies at once and is saved at once
+`:settings` (or **Settings**, key `c`, on the home screen) opens a menu for
+four of these keys: accordion folders (on or off), the explorer hide width,
+heading icons and bullets (one of the presets Misoku, Numbers, Arrows and
+Plain; Misoku removes both keys), and the dialog border. A value picked with Enter applies at once and is saved at once
 in `config.json`: only that key changes, and every other setting stays as you
 wrote it. Esc goes back without saving, and picking the value already in use
 writes nothing. If the file cannot be written, the status bar says why.

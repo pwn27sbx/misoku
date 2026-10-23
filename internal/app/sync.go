@@ -285,10 +285,11 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	speak := !msg.auto || news || len(msg.res.Conflicts) > 0
 	if msg.res.Updated {
 		status, statusErr := m.status, m.statusErr
-		m.status, m.statusErr = "", false
+		m.clearStatus()
 		m.checkWorkspace()
 		switch {
 		case !speak && m.status == "":
+			// Put back what was showing: it is already in :messages.
 			m.status, m.statusErr = status, statusErr
 		case m.status != "":
 			text += " · " + m.status
@@ -301,7 +302,7 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 			text, isErr = text+" · "+m.syncWarn, true
 			m.syncWarn = ""
 		}
-		m.status, m.statusErr = text, isErr
+		m.say(text, isErr)
 	}
 	if m.syncQueued {
 		m.syncQueued = false
@@ -576,7 +577,7 @@ const maxListed = 10
 // knows of its last sync.
 func (m *Model) showSyncStatus(msg syncStatusMsg) {
 	if m.status == "Reading the sync status…" {
-		m.status, m.statusErr = "", false
+		m.clearStatus()
 	}
 	info, s := msg.info, m.sync
 	state, _ := m.syncIndicator()

@@ -140,7 +140,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 	}
 	m.setupBusy, m.setupStop = false, nil
 	if m.status == setupRunning {
-		m.status, m.statusErr = "", false
+		m.clearStatus()
 	}
 	s, step := msg.s, msg.step
 	if m.setupStopped && step.Outcome != gitsync.SetupDone {
