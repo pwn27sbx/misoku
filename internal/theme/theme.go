@@ -317,3 +317,16 @@ func Get(name string) (Theme, bool) {
 	t.BorderFocus = t.Blue
 	return t, true
 }
+
+// Greyed returns t with every text colour set to Grey and the backgrounds
+// kept: how a pane without the focus is drawn.
+func (t Theme) Greyed() Theme {
+	for _, c := range []*lipgloss.Color{
+		&t.Fg, &t.GreyFg, &t.GreyFg2, &t.LightGrey, &t.Red, &t.Pink,
+		&t.Green, &t.Blue, &t.NordBlue, &t.Yellow, &t.Purple, &t.DarkPurple,
+		&t.Teal, &t.Orange, &t.Cyan, &t.Folder, &t.TitleFg, &t.MutedFg, &t.SelectedFg,
+	} {
+		*c = t.Grey
+	}
+	return t
+}
