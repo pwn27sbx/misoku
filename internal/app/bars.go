@@ -76,8 +76,10 @@ func (m *Model) tabline() (string, []tabSpan) {
 	var b strings.Builder
 	x := 0
 
+	// The tabs start in the explorer divider's column, so the active tab's
+	// marker sits right above the divider instead of one column to its right.
 	if l.SidebarW > 0 {
-		w := l.SidebarW + 1
+		w := l.SidebarW
 		b.WriteString(ui.FitLine("", w, fill))
 		spans = append(spans, tabSpan{kind: hitExplorer, start: 0, end: w})
 		x = w
