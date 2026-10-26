@@ -417,8 +417,9 @@ func (d *drawing) groupColour(key string) lipgloss.Color {
 // is cut to; with less room it is left out.
 const minNearName = 3
 
-// names draws the selection's name in full, then the open note's and the
-// neighbours' (busiest first): each in full on the right of its dot or,
+// names draws the selection's name (see selName), then the open note's
+// and the neighbours' (busiest first): each in full on the right of its
+// dot or,
 // when that side is in the way, in full on the left; failing both, cut
 // short on the right before the first dot or name in its way (at the
 // overview, only their dots count); then the layout's
@@ -427,12 +428,13 @@ const minNearName = 3
 // Names are placed on the whole map, not the pane, so panning does not
 // change which are shown, with one exception: a name goes left of its dot
 // only when it fits inside the pane, so near the pane's left edge a
-// neighbour may fall back to the right-hand cut.
+// neighbour or the selection may fall back to the right-hand cut.
 func (d *drawing) names() {
 	n := &namer{d: d, dots: d.r.dotCells(d.sx, d.sy), names: map[Point]bool{}}
 	drawn := map[int]bool{}
 	if d.sel >= 0 {
-		n.draw(d.sel, min(ansi.StringWidth(d.r.l.Nodes[d.sel].Label), maxLabelWidth), sideRight)
+		w, at := n.selName(d.mapCell(d.sel), min(ansi.StringWidth(d.r.l.Nodes[d.sel].Label), maxLabelWidth))
+		n.draw(d.sel, w, at)
 		drawn[d.sel] = true
 	}
 	var hot []int
@@ -565,6 +567,64 @@ func (n *namer) fitsLeft(p Point, w int) bool {
 		}
 	}
 	return true
+}
+
+// selName is how wide the selection's name, w cells in full, is drawn
+// beside its dot at map cell p, and on which side, so that it hides no
+// other visible note's dot (at the overview too): in full on the right
+// when that hides none; else in full on the left when it fits there (see
+// fitsLeft) and hides none; else on the right, cut with … one blank
+// before the first dot it would hide, or in full when that leaves fewer
+// than minNearName cells. It is the first name placed: only dots are in
+// its way.
+func (n *namer) selName(p Point, w int) (int, side) {
+	x0, x1 := p.X+2, p.X+1+w // the name; draw blanks a free cell each side
+	if !n.taken(Point{p.X + 1, p.Y}) {
+		x0--
+	}
+	if !n.taken(Point{p.X + 2 + w, p.Y}) {
+		x1++
+	}
+	dot := n.firstDot(x0, x1, p.Y)
+	switch {
+	case dot < 0:
+		return w, sideRight
+	case n.fitsLeft(p, w) && n.firstDot(p.X-2-w, p.X-1, p.Y) < 0:
+		return w, sideLeft
+	case dot-p.X-3 >= minNearName:
+		return dot - p.X - 3, sideRight
+	}
+	return w, sideRight
+}
+
+// firstDot is the first map column in [x0, x1] of row y holding a dot
+// that is not hidden, or -1.
+func (n *namer) firstDot(x0, x1, y int) int {
+	for x := x0; x <= x1; x++ {
+		if i, ok := n.dots[Point{x, y}]; ok && !n.d.isHidden(int(i)) {
+			return x
+		}
+	}
+	return -1
+}
+
+// selSpan is the map columns from the selection's dot to the far end of
+// its name in frame f, as names places them when the pane leaves room on
+// the dot's left (see selName); (0, 0) when f selects no note.
+func (r *Renderer) selSpan(f Frame) (x0, x1 int) {
+	d := r.newDrawing(f, f.Theme)
+	if d.sel < 0 {
+		return 0, 0
+	}
+	p := d.mapCell(d.sel)
+	w := min(ansi.StringWidth(r.l.Nodes[d.sel].Label), maxLabelWidth)
+	d.f.Offset.X = p.X - 2 - w
+	n := &namer{d: d, dots: r.dotCells(d.sx, d.sy), names: map[Point]bool{}}
+	nw, at := n.selName(p, w)
+	if at == sideLeft {
+		return p.X - 2 - nw, p.X
+	}
+	return p.X, p.X + 1 + nw
 }
 
 // draw draws node i's name, cut to w cells, two cells right (or, on the

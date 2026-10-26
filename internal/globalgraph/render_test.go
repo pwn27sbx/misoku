@@ -410,9 +410,11 @@ func TestRenderNamesAreNeverShownInPieces(t *testing.T) {
 	if out := ansi.Strip(r.Render(f)); !strings.Contains(out, "Xenophon") {
 		t.Fatalf("with nothing selected Xenophon is named:\n%s", out)
 	}
+	// The selection's name, which would hide Xenophon's dot, is cut before
+	// it (there is no room on its left), and Xenophon is named whole.
 	f.Selected = "Selection.md"
 	out := ansi.Strip(r.Render(f))
-	if !strings.Contains(out, "Selection") || strings.Contains(out, "phon") {
+	if !strings.Contains(out, "Se… · Xenophon") {
 		t.Fatalf("Xenophon's name shows around the selection's:\n%s", out)
 	}
 }
@@ -545,8 +547,82 @@ func TestRenderLeftNamesNeverOverlap(t *testing.T) {
 	}
 }
 
+// isDot reports whether cell c shows a node's dot.
+func isDot(c tcell) bool {
+	return strings.ContainsRune(string([]rune{glyphLeaf, glyphLinked, glyphHub, glyphUnresolved, glyphSelected}), c.r)
+}
+
+// The selection's name, which on the right would cover the dot of Tasks
+// (its right-hand neighbour on the grid at 3×2), goes whole on the left.
+func TestRenderSelectionNameGoesLeftOfACoveredDot(t *testing.T) {
+	r := NewRenderer(Build(vault()), vault().Edges)
+	for _, z := range []Zoom{ZoomOverview, ZoomMedium} {
+		f := vaultFrame(r, z, 100, 24)
+		if sx, sy := r.scale(f.Zoom, f.W, f.H); sx != 3 || sy != 2 {
+			t.Fatalf("setup: zoom %d scale %dx%d, want 3x2", z, sx, sy)
+		}
+		px, py := dotAt(t, r, f, "work/Plan.md")
+		tx, ty := dotAt(t, r, f, "work/Tasks.md")
+		if ty != py || tx != px+3 {
+			t.Fatalf("setup: Tasks at (%d,%d), Plan at (%d,%d)", tx, ty, px, py)
+		}
+		rows := screen(r.Render(f))
+		if got, want := rowText(rows, py, px-6, tx, px, tx), " Plan *──*"; got != want || !isDot(rows[ty][tx]) {
+			t.Errorf("zoom %d: row %d is %q (Tasks' cell %q), want %q:\n%s", z, py, got, rows[ty][tx].r, want, ansi.Strip(r.Render(f)))
+		}
+		// A click on the left-side name selects the selection itself.
+		if i, ok := r.nodeAt(f, px-3, py); !ok || r.l.Nodes[i].ID != "work/Plan.md" {
+			t.Errorf("zoom %d: the name's cell belongs to %v %v", z, i, ok)
+		}
+	}
+}
+
+// When the left side is outside the pane, the selection's name is cut
+// with … one blank before the first dot it would cover, or kept whole
+// when that leaves fewer than minNearName cells. This is where the
+// selection's name depends on the pane, like a neighbour's (see
+// TestRenderLeftNameStaysInsideThePane): one column of panning switches it.
+func TestRenderSelectionNameIsCutBeforeACoveredDot(t *testing.T) {
+	r := NewRenderer(Build(vault()), vault().Edges)
+	for _, c := range []struct {
+		zoom      Zoom
+		sel, next string
+		// The row from the pane's first column to the next dot with the
+		// left side in the pane, and from the dot on one column further.
+		left, right string
+		nextShown   bool // whether the next dot is drawn one column further
+	}{
+		// Close: work/Notes is 6 cells right of Meeting, room for "Me…".
+		{ZoomClose, "work/Meeting.md", "work/Notes.md", " Meeting *     *", "* Me… ", true},
+		// Medium: Tasks is 3 cells right of Plan, too close to cut to 3.
+		{ZoomMedium, "work/Plan.md", "work/Tasks.md", " Plan *──*", "* Plan ", false},
+	} {
+		f := vaultFrame(r, c.zoom, 100, 24)
+		f.Selected = c.sel
+		x, y := dotAt(t, r, f, c.sel)
+		w := ansi.StringWidth(r.l.Nodes[r.l.index[c.sel]].Label)
+		f.Offset.X += x - (2 + w) // the left blank at the pane's first column
+		x -= x - (2 + w)
+		nx, _ := dotAt(t, r, f, c.next)
+		rows := screen(r.Render(f))
+		if got := rowText(rows, y, 0, nx, x, nx); got != c.left {
+			t.Errorf("%s with the left side in the pane: %q, want %q:\n%s", c.sel, got, c.left, ansi.Strip(r.Render(f)))
+		}
+		f.Offset.X++
+		x, nx = x-1, nx-1
+		rows = screen(r.Render(f))
+		if got := rowText(rows, y, x, x+len([]rune(c.right))-1, x); got != c.right || isDot(rows[y][nx]) != c.nextShown {
+			t.Errorf("%s one column further: %q (next dot shown: %v), want %q (%v):\n%s", c.sel, got, isDot(rows[y][nx]), c.right, c.nextShown, ansi.Strip(r.Render(f)))
+		}
+	}
+}
+
 // A pane shows the cells a bigger pane shows at the same place: what is
-// drawn never depends on where the pane's edges are.
+// drawn never depends on where the pane's edges are, except that a name
+// goes left of its dot only inside the pane, so one column of panning at
+// the left edge switches its side (TestRenderLeftNameStaysInsideThePane,
+// TestRenderSelectionNameIsCutBeforeACoveredDot); the panes here leave
+// the left edge clear of those names.
 func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 	trueColour(t)
 	g := fixture(300, 5, 600, 9)

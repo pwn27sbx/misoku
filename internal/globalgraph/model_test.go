@@ -355,16 +355,16 @@ func TestModelEmptyMapIgnoresInput(t *testing.T) {
 }
 
 func TestModelClickSelectsThenOpens(t *testing.T) {
-	// Plan's dot is right below the selected Home's (the selection's name
-	// covers the dot of Inbox, its right-hand neighbour on the grid).
+	// Inbox's dot is the grid cell right of the selected Home's; Home's
+	// name goes left of its dot so as not to cover it.
 	m := newModel(t, 80, 20)
-	x, y := m.screen("work/Plan.md")
+	x, y := m.screen("Inbox.md")
 	click := tea.MouseMsg{X: x, Y: y + 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
 	m, msg := send(m, click)
-	if m.Selected() != "work/Plan.md" || msg != (SelectMsg{ID: "work/Plan.md"}) {
+	if m.Selected() != "Inbox.md" || msg != (SelectMsg{ID: "Inbox.md"}) {
 		t.Fatalf("first click on the dot: %q %#v", m.Selected(), msg)
 	}
-	if _, msg = send(m, click); msg != (OpenMsg{ID: "work/Plan.md"}) {
+	if _, msg = send(m, click); msg != (OpenMsg{ID: "Inbox.md"}) {
 		t.Fatalf("second click on the dot = %#v", msg)
 	}
 
@@ -751,8 +751,8 @@ func TestModelClickOnEitherHalfOfAWideNameSelectsIt(t *testing.T) {
 }
 
 // At the overview of a small vault the dots are spread as far as the pane
-// allows, up to the medium scale, and a click on each drawn dot selects
-// its note.
+// allows, up to the medium scale, and every dot is drawn (no name covers
+// one, the selection's included) and a click on it selects its note.
 func TestModelOverviewClickSelectsEveryDot(t *testing.T) {
 	for _, c := range []struct{ w, h, sx, sy int }{{100, 30, 3, 2}, {40, 11, 3, 1}} {
 		m := newModel(t, c.w, c.h)
@@ -761,7 +761,7 @@ func TestModelOverviewClickSelectsEveryDot(t *testing.T) {
 			o := m.viewOffset()
 			x, y := n.P.X*c.sx-o.X, n.P.Y*c.sy-o.Y+1
 			if got := screen(m.View())[y][x].r; !strings.ContainsRune(string([]rune{glyphLeaf, glyphLinked, glyphHub, glyphUnresolved, glyphSelected}), got) {
-				continue // covered by a name
+				t.Fatalf("%dx%d: %q's dot at (%d,%d) shows %q:\n%s", c.w, c.h, n.ID, x, y, got, ansi.Strip(m.View()))
 			}
 			m, _ = click(m, x, y)
 			if m.Selected() != n.ID {
@@ -809,7 +809,9 @@ func TestModelOverviewScaleFollowsThePaneSize(t *testing.T) {
 func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) {
 	m := newModel(t, 64, 18)
 	m, _ = press(m, "j")
-	m.offset.X++ // panned by hand
+	// Panned by hand, leaving room on Orphan's left for its name, which
+	// goes there at 3×2 (on its right it would hide Ideas' dot).
+	m.offset.X--
 	x, y := selPane(m)
 	sel, _ := m.l.Lookup(m.Selected())
 	if sel.P.X == 0 || sel.P.Y == 0 {
@@ -837,7 +839,9 @@ func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) 
 func TestModelResizeAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) {
 	m := newModel(t, 30, 8)
 	m, _ = press(m, "j")
-	m.offset.X++ // panned by hand
+	// Panned by hand, leaving room on Orphan's left for its name, which
+	// goes there at 3×2 (on its right it would hide Ideas' dot).
+	m.offset.X--
 	x, y := selPane(m)
 	sel, _ := m.l.Lookup(m.Selected())
 	if sel.P.X == 0 || sel.P.Y == 0 {
@@ -1012,5 +1016,28 @@ func TestModelClickOnALeftSideNameSelectsIt(t *testing.T) {
 		if m.Selected() != c.id || msg != (SelectMsg{ID: c.id}) {
 			t.Errorf("click at %d: selection %q, msg %#v, want %q:\n%s", c.x, m.Selected(), msg, c.id, ansi.Strip(m.View()))
 		}
+	}
+}
+
+// Moving onto a note whose name goes left of its dot scrolls that name
+// into view, so it is drawn in full there instead of being cut on the
+// right.
+func TestModelRevealShowsALeftSideSelectionName(t *testing.T) {
+	m := newModel(t, 80, 20)
+	m, _ = press(m, "+", "+")
+	x, y := m.screen("work/Plan.md")
+	m, _ = click(m, x, y+1)
+	// Pan Meeting's dot, right below Plan's, to the pane's third column.
+	m.settle()
+	mx, _ := m.screen("work/Meeting.md")
+	m.offset.X += mx - 2
+	m, _ = press(m, "j")
+	if m.Selected() != "work/Meeting.md" {
+		t.Fatalf("setup: j from Plan selected %q", m.Selected())
+	}
+	x, y = selPane(m)
+	rows := screen(m.View())
+	if x < 9 || rowText(rows, y, x-9, x, x) != " Meeting *" {
+		t.Fatalf("Meeting's dot at %d, want its name whole on its left:\n%s", x, ansi.Strip(m.View()))
 	}
 }
