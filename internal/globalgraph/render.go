@@ -140,16 +140,48 @@ func (r *Renderer) Render(f Frame) string {
 	case f.W < MinWidth || f.H < MinHeight:
 		return message("Graph needs a bigger pane", f.W, f.H, th)
 	}
-	d := r.newDrawing(f, th)
-	d.faintEdges()
-	d.litEdges()
-	d.nodes()
-	d.names()
+	return r.picture(f, th)
+}
+
+// picture draws the map of f with no size check, for a model that checks
+// the size of its whole pane instead.
+func (r *Renderer) picture(f Frame, th theme.Theme) string {
+	d := r.draw(f, th)
 	lines := make([]string, f.H)
 	for y := range lines {
 		lines[y] = d.cv.row(y)
 	}
 	return ui.Fit(strings.Join(lines, "\n"), f.W, f.H, lipgloss.NewStyle())
+}
+
+func (r *Renderer) draw(f Frame, th theme.Theme) *drawing {
+	d := r.newDrawing(f, th)
+	d.faintEdges()
+	d.litEdges()
+	d.nodes()
+	d.names()
+	return d
+}
+
+// nodeAt is the node whose dot or name is drawn at pane cell (x, y) of f.
+func (r *Renderer) nodeAt(f Frame, x, y int) (int, bool) {
+	if x < 0 || y < 0 || x >= f.W || y >= f.H || len(r.l.Nodes) == 0 {
+		return 0, false
+	}
+	own := r.draw(f, f.Theme).cv.cells[y*f.W+x].own
+	return int(own) - 1, own > 0
+}
+
+// warm builds the caches of every zoom level, so the first frames after a
+// new map need not; it is meant to run before the renderer is shared.
+func (r *Renderer) warm() {
+	for z := range zoomLevels {
+		r.dotCells(z)
+		if z != ZoomOverview && r.faint[z] == nil {
+			sx, sy := z.Scale()
+			r.faint[z] = r.buildLayer(sx, sy)
+		}
+	}
 }
 
 // message is text centred in a w×h pane.
@@ -295,8 +327,10 @@ func (d *drawing) nodes() {
 				st.fg = d.groupColour(n.Cluster)
 			}
 		}
+		d.cv.owner = int32(i) + 1
 		d.cv.set(x, y, glyph, st, prio)
 	}
+	d.cv.owner = 0
 }
 
 func dotGlyph(n Placed) rune {
@@ -376,10 +410,12 @@ func (d *drawing) names() {
 		if n.anyName(lb.X-1, lb.X+lb.W, lb.Y) {
 			continue
 		}
+		d.cv.owner = int32(i) + 1
 		d.cv.set(x-1, y, ' ', style{}, prioRestName)
 		d.cv.set(x+lb.W, y, ' ', style{}, prioRestName)
 		d.cv.text(x, y, lb.W, ui.Truncate(d.r.l.Nodes[i].Label, lb.W), st, prioRestName)
 	}
+	d.cv.owner = 0
 }
 
 // mapCell is where node i's dot is on the map at the frame's zoom.
@@ -446,6 +482,8 @@ func (n *namer) draw(i, w int) {
 	nw := ansi.StringWidth(name)
 	p := d.mapCell(i)
 	x, y := p.X-d.f.Offset.X, p.Y-d.f.Offset.Y
+	d.cv.owner = int32(i) + 1
+	defer func() { d.cv.owner = 0 }()
 	if !n.taken(Point{p.X + 1, p.Y}) {
 		d.cv.set(x+1, y, ' ', style{bg: st.bg}, prio)
 	}
@@ -469,13 +507,15 @@ type cell struct {
 	r    rune
 	st   style
 	prio int8
-	wide bool // left half of a wide character
-	tail bool // right half of a wide character
+	wide bool  // left half of a wide character
+	tail bool  // right half of a wide character
+	own  int32 // node index + 1 of the dot or name drawn here; 0 for none
 }
 
 type canvas struct {
 	cells []cell
 	w, h  int
+	owner int32 // own of the cells set next
 }
 
 func newCanvas(w, h int) *canvas { return &canvas{cells: make([]cell, w*h), w: w, h: h} }
@@ -491,7 +531,7 @@ func (c *canvas) set(x, y int, r rune, st style, prio int) {
 		return
 	}
 	c.blankPartner(x, y)
-	c.cells[i] = cell{r: r, st: st, prio: int8(prio)}
+	c.cells[i] = cell{r: r, st: st, prio: int8(prio), own: c.owner}
 }
 
 // blankPartner turns the other half of a wide character at (x, y) into a
