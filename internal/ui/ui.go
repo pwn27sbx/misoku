@@ -58,6 +58,17 @@ func FitLine(l string, w int, fill lipgloss.Style) string {
 	return l
 }
 
+// FitLineEllipsis is FitLine for a line that must show it was cut: a line
+// wider than w ends in "…" (styles are kept). When the cut lands on a wide
+// character the line comes out one column short and is padded with fill.
+func FitLineEllipsis(l string, w int, fill lipgloss.Style) string {
+	l = Sanitize(l)
+	if ansi.StringWidth(l) > w {
+		l = ansi.Truncate(l, w, "…")
+	}
+	return FitLine(l, w, fill)
+}
+
 // Column renders a vertical divider of height h.
 func Column(glyph string, h int, style lipgloss.Style) string {
 	if h <= 0 {

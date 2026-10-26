@@ -578,27 +578,120 @@ func (m Model) View() string {
 
 // titleLine names the selection and counts the vault, hidden nodes
 // included: the toggles only say they hide them. A filter shows with its
-// number of matches.
+// number of matches. In a narrow pane fitTitle decides what is left out.
 func (m Model) titleLine(th theme.Theme) string {
 	name := "All notes"
 	if n, ok := m.l.Lookup(m.sel); ok {
 		name = n.Label
 	}
 	orphans, unresolved := plural(m.orphans, "orphan"), fmt.Sprintf("%d unresolved", m.unresolved)
+	orphansDrop, unresolvedDrop := 3, 4
 	if m.hideOrphans {
-		orphans += " hidden"
+		orphans, orphansDrop = orphans+" hidden", 0
 	}
 	if m.hideUnresolved {
-		unresolved += " hidden"
+		unresolved, unresolvedDrop = unresolved+" hidden", 0
 	}
-	info := " · " + plural(m.notes, "note") + " · " + plural(m.links, "link") + " · " + orphans + " · " + unresolved
+	parts := []titlePart{
+		{text: " "},
+		{text: "󰈙 " + ui.Truncate(name, 40), style: titleName, cut: true, keep: 2},
+		{text: " · " + plural(m.notes, "note"), style: titleInfo, drop: 2},
+		{text: " · " + plural(m.links, "link"), style: titleInfo, drop: 1},
+		{text: " · " + orphans, style: titleInfo, drop: orphansDrop},
+		{text: " · " + unresolved, style: titleInfo, drop: unresolvedDrop},
+	}
 	if m.filter != "" {
-		info += fmt.Sprintf(" · filter %q: %s", m.filter, plural(m.matches(), "match"))
+		parts = append(parts,
+			titlePart{text: fmt.Sprintf(" · filter %q", m.filter), style: titleInfo, cut: true, keep: ansi.StringWidth(` · filter "`)},
+			titlePart{text: ": " + plural(m.matches(), "match"), style: titleInfo})
 	}
-	head := lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("󰈙 "+ui.Truncate(name, 40)) +
-		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(info)
-	return ui.FitLine(" "+head, m.width, lipgloss.NewStyle())
+	styles := [...]lipgloss.Style{
+		titlePlain: lipgloss.NewStyle(),
+		titleName:  lipgloss.NewStyle().Foreground(th.Blue).Bold(true),
+		titleInfo:  lipgloss.NewStyle().Foreground(th.GreyFg2),
+	}
+	return fitTitle(parts, m.width, styles)
 }
+
+// The title row's styles.
+const (
+	titlePlain = iota
+	titleName
+	titleInfo
+)
+
+// titlePart is one piece of the title row. Counters are whole words: the
+// row may leave them out but never cuts them; only the text the user wrote
+// (the note's name, the filter) may be cut.
+type titlePart struct {
+	text  string
+	style int
+	cut   bool // may be cut with a trailing "…"
+	keep  int  // columns kept whole when cut: "…" goes after them
+	drop  int  // left out when the row is too wide, 1 first; 0 never
+}
+
+// fitTitle renders parts in exactly w columns. When they do not fit it
+// leaves out the counters by their drop order, then shortens the name
+// (parts[1]), and only then cuts the row with a trailing "…" — inside the
+// name or the filter, or before a counter, never through one.
+func fitTitle(parts []titlePart, w int, styles [3]lipgloss.Style) string {
+	width := func(ps []titlePart) int {
+		n := 0
+		for _, p := range ps {
+			n += ansi.StringWidth(p.text)
+		}
+		return n
+	}
+	for d := 1; d <= 4 && width(parts) > w; d++ {
+		parts = slices.DeleteFunc(parts, func(p titlePart) bool { return p.drop == d })
+	}
+	if over := width(parts) - w; over > 0 {
+		name := &parts[1]
+		const shortest = 4 // the icon, a space, one letter and "…"
+		name.text = ui.Truncate(name.text, max(ansi.StringWidth(name.text)-over, shortest))
+	}
+	render := func(ps []titlePart) string {
+		var b strings.Builder
+		for i := 0; i < len(ps); {
+			j, text := i, ""
+			for ; j < len(ps) && ps[j].style == ps[i].style; j++ {
+				text += ps[j].text
+			}
+			b.WriteString(styles[ps[i].style].Render(text))
+			i = j
+		}
+		return b.String()
+	}
+	fill := styles[titlePlain]
+	if width(parts) <= w {
+		return ui.FitLine(render(parts), w, fill)
+	}
+	// The row must end in "…": find the first part that does not fit
+	// before it. Text is cut inside; a counter is left out whole, marked
+	// " · …"; with no room for that mark the part before it is cut instead.
+	i, used := 0, 0
+	for ; used+ansi.StringWidth(parts[i].text) <= w-1; i++ {
+		used += ansi.StringWidth(parts[i].text)
+	}
+	// Columns for parts[i] cut, "…" included; it may fit whole in w when
+	// a counter after it does not.
+	room := min(w-used, ansi.StringWidth(parts[i].text)-1)
+	for ; i >= 1; i-- {
+		if p := parts[i]; p.cut && room > p.keep {
+			return ui.FitLine(ui.FitLineEllipsis(render(parts[:i+1]), used+room, fill), w, fill)
+		}
+		if used+ansi.StringWidth(titleMore) <= w {
+			return ui.FitLine(render(append(parts[:i:i], titlePart{text: titleMore, style: titleInfo})), w, fill)
+		}
+		used -= ansi.StringWidth(parts[i-1].text)
+		room = ansi.StringWidth(parts[i-1].text) - 1
+	}
+	return ui.FitLineEllipsis(render(parts), w, fill)
+}
+
+// titleMore ends a title row that left counters out.
+const titleMore = " · …"
 
 func plural(n int, word string) string {
 	if n == 1 {

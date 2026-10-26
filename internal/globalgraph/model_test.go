@@ -3,6 +3,7 @@ package globalgraph
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -822,4 +823,102 @@ func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) 
 	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel.ID {
 		t.Fatalf("adding notes moved the selection %q from (%d,%d) to (%d,%d)", m.Selected(), x, y, x2, y2)
 	}
+}
+
+// titleModel is the vault plus two linked notes with long names, one in
+// CJK, with longName or cjkName selected.
+func titleModel(t *testing.T, sel, filter string, hidden bool) Model {
+	t.Helper()
+	g := vault()
+	g.Nodes = append(g.Nodes, Node{ID: longName}, Node{ID: cjkName})
+	g.Edges = append(g.Edges, Edge{"Home.md", longName}, Edge{"Home.md", cjkName})
+	m := New(theme.DefaultTheme())
+	m.SetSize(120, 20)
+	m.SetGraph(g)
+	m.SetOpenNote(sel)
+	m.filter, m.hideOrphans, m.hideUnresolved = filter, hidden, hidden
+	return m
+}
+
+const (
+	longName = "A note whose name is much longer than any pane could hold.md"
+	cjkName  = "日本語でとても長いノートの名前です.md"
+)
+
+// In a narrow pane the title row drops counters, lowest priority first
+// (links, notes, orphans, unresolved; "hidden" ones never), then shortens
+// the name, and only then cuts the filter. Whatever it cuts ends in "…",
+// no counter is ever cut mid-word, and the row is exactly the pane wide.
+func TestTitleFitsNarrowPanesWithoutCuttingWords(t *testing.T) {
+	cases := []struct {
+		name, sel, filter string
+		hidden            bool
+	}{
+		{"long name", longName, "", false},
+		{"CJK name", cjkName, "", false},
+		{"CJK filter", longName, "日本語のノート", false},
+		{"both hidden", longName, "plan", true},
+		{"CJK name, CJK filter, hidden", cjkName, "日本語のノートを探す", true},
+	}
+	for _, c := range cases {
+		m := titleModel(t, c.sel, c.filter, c.hidden)
+		m.SetSize(1000, 20)
+		full := strings.Split(strings.TrimRight(titleRow(m), " "), " · ")
+		// full: name, notes, links, orphans, unresolved[, filter]
+		if len(full) != 5+btoi(c.filter != "") {
+			t.Fatalf("%s: unexpected full title %q", c.name, full)
+		}
+		for w := 30; w <= 120; w++ {
+			m.SetSize(w, 20)
+			title := titleRow(m)
+			if got := ansi.StringWidth(title); got != w {
+				t.Errorf("%s, width %d: title is %d wide: %q", c.name, w, got, title)
+				continue
+			}
+			line := strings.TrimRight(title, " ")
+			stopped := strings.HasSuffix(line, " · …") // a counter left out at the end
+			line = strings.TrimSuffix(line, " · …")
+			segs := strings.Split(line, " · ")
+			shown := map[int]bool{}
+			for i, s := range segs {
+				switch k := slices.Index(full, s); {
+				case i == 0 && k != 0 && (!strings.HasSuffix(s, "…") || !strings.HasPrefix(s, " 󰈙 ")):
+					t.Errorf("%s, width %d: name shortened without …: %q", c.name, w, title)
+				case i == 0:
+				case k > 0:
+					shown[k] = true
+				case i == len(segs)-1 && strings.HasPrefix(s, `filter "`) && !strings.Contains(s, "\": "):
+					if !strings.HasSuffix(s, "…") && !stopped {
+						t.Errorf("%s, width %d: filter cut without …: %q", c.name, w, title)
+					}
+				default:
+					t.Errorf("%s, width %d: segment %q is cut mid-word: %q", c.name, w, s, title)
+				}
+			}
+			// " 󰈙 X…" is the shortest name.
+			nameShort := ansi.StringWidth(segs[0]) <= 5 || segs[0] == full[0]
+			// Drop order: links, notes, orphans, unresolved.
+			for i, k := range []int{2, 1, 3, 4} {
+				for _, later := range []int{2, 1, 3, 4}[i+1:] {
+					if shown[k] && !shown[later] && !(c.hidden && later >= 3) {
+						t.Errorf("%s, width %d: %q shown but %q dropped: %q", c.name, w, full[k], full[later], title)
+					}
+				}
+			}
+			droppable := shown[1] || shown[2] || (!c.hidden && (shown[3] || shown[4]))
+			if c.filter != "" && !shown[5] && (droppable || !nameShort) {
+				t.Errorf("%s, width %d: filter cut before the counters and the name: %q", c.name, w, title)
+			}
+			if c.hidden && (!shown[3] || !shown[4]) && (droppable || !nameShort) {
+				t.Errorf("%s, width %d: a hidden counter left out before the others: %q", c.name, w, title)
+			}
+		}
+	}
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
