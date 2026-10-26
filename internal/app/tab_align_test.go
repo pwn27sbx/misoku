@@ -17,6 +17,12 @@ func cellColumn(line string, r rune) int {
 	return -1
 }
 
+// tabMarker is the active tab's marker. It is a cell-centred vertical line,
+// like the explorer divider "│", so it continues that line in a real
+// terminal; an edge-hugging glyph such as "▎" sits left of the divider even
+// in the same column.
+const tabMarker = '┃'
+
 // The active tab starts right above the explorer's divider: its marker sits
 // in the divider's column, so the tab lines up with the line under it
 // instead of one column to its right.
@@ -27,7 +33,10 @@ func TestActiveTabLinesUpWithTheExplorerDivider(t *testing.T) {
 	if divider < 0 {
 		t.Fatalf("setup: no explorer divider on the first body row:\n%s", h.view())
 	}
-	if got := cellColumn(rows[0], '▎'); got != divider {
+	if got := []rune(rows[0])[divider]; got != tabMarker {
+		t.Fatalf("above the divider got %q, want the centred marker %q:\n%s\n%s", got, tabMarker, rows[0], rows[1])
+	}
+	if got := cellColumn(rows[0], tabMarker); got != divider {
 		t.Fatalf("active tab marker at column %d, divider at column %d:\n%s\n%s", got, divider, rows[0], rows[1])
 	}
 }
@@ -41,7 +50,7 @@ func TestActiveTabStartsAtTheLeftEdgeWithoutExplorer(t *testing.T) {
 		t.Fatalf("setup: explorer should be hidden:\n%s", h.view())
 	}
 	rows := strings.Split(stripped(h.view()), "\n")
-	if got := cellColumn(rows[0], '▎'); got != 0 {
+	if got := cellColumn(rows[0], tabMarker); got != 0 {
 		t.Fatalf("active tab marker at column %d, want 0:\n%s", got, rows[0])
 	}
 }

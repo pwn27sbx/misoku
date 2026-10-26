@@ -727,7 +727,7 @@ func TestTabIndentsAndLeaderTabSwitchesTabs(t *testing.T) {
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlT})
 	activeTab := func() string {
 		row := strings.Split(h.view(), "\n")[0]
-		return row[strings.Index(row, "▎"):][:24]
+		return row[strings.Index(row, "┃"):][:24]
 	}
 	if !strings.Contains(activeTab(), "two") {
 		t.Fatalf("expected two.md active, got %q", activeTab())
