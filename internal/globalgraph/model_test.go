@@ -635,8 +635,15 @@ func TestNewMapWarmsTheRenderer(t *testing.T) {
 	m.SetSize(40, 10)
 	m.SetMap(mp)
 	m.View()
-	if sx, sy := m.scale(); mp.r.dots[[2]int{sx, sy}] == nil || len(mp.r.dots) != 3 {
-		t.Fatalf("the first overview frame should cache its dot cells at %dx%d once: %d scales cached", sx, sy, len(mp.r.dots))
+	sx, sy := m.scale()
+	built := mp.r.dots[[2]int{sx, sy}]
+	if built == nil {
+		t.Fatalf("the first overview frame should cache its dot cells at %dx%d", sx, sy)
+	}
+	cached := len(mp.r.dots)
+	m.View()
+	if len(mp.r.dots) != cached || reflect.ValueOf(mp.r.dots[[2]int{sx, sy}]).UnsafePointer() != reflect.ValueOf(built).UnsafePointer() {
+		t.Fatalf("a second frame at the same size should reuse the dot cells at %dx%d: %d → %d scales cached", sx, sy, cached, len(mp.r.dots))
 	}
 	if !mp.relaid {
 		t.Fatal("a first map is a fresh layout")
@@ -825,6 +832,43 @@ func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) 
 	}
 }
 
+// A resize changes the overview's fit scale; a view the user placed is
+// rescaled around the selection, so the selection does not jump.
+func TestModelResizeAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) {
+	m := newModel(t, 30, 8)
+	m, _ = press(m, "j")
+	m.offset.X++ // panned by hand
+	x, y := selPane(m)
+	sel, _ := m.l.Lookup(m.Selected())
+	if sel.P.X == 0 || sel.P.Y == 0 {
+		t.Fatalf("the fixture should select a node off the grid's edges, got %q at %v", sel.ID, sel.P)
+	}
+	sx, sy := m.scale()
+	m.SetSize(64, 18)
+	if nx, ny := m.scale(); nx == sx || ny == sy {
+		t.Fatalf("the fixture should change both scales: %dx%d → %dx%d", sx, sy, nx, ny)
+	}
+	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel.ID {
+		t.Fatalf("resizing moved the selection %q from (%d,%d) to (%d,%d)", m.Selected(), x, y, x2, y2)
+	}
+	checkSelVisible(t, m, "resize")
+}
+
+// A smaller pane keeps a placed overview's anchor where it was on screen,
+// which may now be outside the pane: the view then scrolls the selection
+// back into it.
+func TestModelResizeAtTheOverviewKeepsTheSelectionShown(t *testing.T) {
+	m := newModel(t, 80, 20)
+	m, _ = press(m, "l", "l", "l") // to the right-hand cluster
+	m.offset.X -= 10               // panned by hand: the selection nearer the right edge
+	x, _ := selPane(m)
+	m.SetSize(40, 10)
+	if x < m.width {
+		t.Fatalf("the fixture should leave the kept anchor outside the smaller pane: x=%d, width %d", x, m.width)
+	}
+	checkSelVisible(t, m, "smaller pane")
+}
+
 // titleModel is the vault plus two linked notes with long names, one in
 // CJK, with longName or cjkName selected.
 func titleModel(t *testing.T, sel, filter string, hidden bool) Model {
@@ -868,11 +912,24 @@ func TestTitleFitsNarrowPanesWithoutCuttingWords(t *testing.T) {
 		if len(full) != 5+btoi(c.filter != "") {
 			t.Fatalf("%s: unexpected full title %q", c.name, full)
 		}
-		for w := 30; w <= 120; w++ {
+		// Below MinWidth the pane shows a message instead, but fitTitle's
+		// tightest paths (the shortest name, a " · …" that no longer fits,
+		// the final cut) are still checked on the title line itself.
+		widths := []int{0, 1, 5, 10, 20, 29}
+		for w := MinWidth; w <= 120; w++ {
+			widths = append(widths, w)
+		}
+		for _, w := range widths {
 			m.SetSize(w, 20)
 			title := titleRow(m)
+			if w < MinWidth {
+				title = ansi.Strip(m.titleLine(m.th))
+			}
 			if got := ansi.StringWidth(title); got != w {
 				t.Errorf("%s, width %d: title is %d wide: %q", c.name, w, got, title)
+				continue
+			}
+			if w == 0 {
 				continue
 			}
 			line := strings.TrimRight(title, " ")
@@ -882,7 +939,7 @@ func TestTitleFitsNarrowPanesWithoutCuttingWords(t *testing.T) {
 			shown := map[int]bool{}
 			for i, s := range segs {
 				switch k := slices.Index(full, s); {
-				case i == 0 && k != 0 && (!strings.HasSuffix(s, "…") || !strings.HasPrefix(s, " 󰈙 ")):
+				case i == 0 && k != 0 && (!strings.HasSuffix(s, "…") || !strings.HasPrefix(full[0], strings.TrimSuffix(s, "…"))):
 					t.Errorf("%s, width %d: name shortened without …: %q", c.name, w, title)
 				case i == 0:
 				case k > 0:

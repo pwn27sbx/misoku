@@ -104,10 +104,17 @@ func (m *Model) SetFocused(f bool) { m.focused = f }
 // SetDimmed greys the map out while another pane has the focus.
 func (m *Model) SetDimmed(d bool) { m.dimmed = d }
 
-// SetSize sets the pane size; the view is placed afresh (see viewOffset).
+// SetSize sets the pane size. A view the user placed at the overview keeps
+// its anchor in place (see keepAnchor); otherwise the view is placed afresh
+// (see viewOffset).
 func (m *Model) SetSize(w, h int) {
-	if w != m.width || h != m.height {
-		m.width, m.height, m.placed = w, h, false
+	if w == m.width && h == m.height {
+		return
+	}
+	if m.keepAnchor(func() { m.width, m.height = w, h }) {
+		m.reveal()
+	} else {
+		m.placed = false
 	}
 }
 
@@ -123,18 +130,12 @@ func (m Model) Layout() Layout { return m.l }
 // was laid out anew the view is placed afresh, on the selection unless the
 // whole map fits.
 func (m *Model) SetMap(mp Map) {
-	// The overview's scale fits the map to the pane, so a map that grows
-	// or shrinks may change it: the view is rescaled around the selection
-	// (or the middle) so it does not jump.
-	var at Point
-	sx, sy := m.scale()
-	keep := m.placed && !mp.relaid && m.zoom == ZoomOverview && len(m.l.Nodes) > 0
-	if keep {
-		at = m.anchor()
-	}
-	m.l, m.r = mp.l, mp.r
-	if keep {
-		m.rescale(at, sx, sy)
+	// A map that grows or shrinks may change the overview's fit scale.
+	replace := func() { m.l, m.r = mp.l, mp.r }
+	if mp.relaid {
+		replace()
+	} else {
+		m.keepAnchor(replace)
 	}
 	m.notes, m.links, m.orphans, m.unresolved = 0, 0, 0, 0
 	for i, n := range m.l.Nodes {
@@ -439,6 +440,24 @@ func (m *Model) zoomTo(z Zoom, at Point) {
 	m.reveal()
 }
 
+// keepAnchor applies change, which may change the overview's fit scale
+// (a new map or pane size). A view the user placed at the overview is
+// rescaled around its anchor (the selection, or the middle) so it does not
+// jump; keepAnchor reports whether it was.
+func (m *Model) keepAnchor(change func()) bool {
+	keep := m.placed && m.zoom == ZoomOverview && len(m.l.Nodes) > 0
+	var at Point
+	sx, sy := m.scale()
+	if keep {
+		at = m.anchor()
+	}
+	change()
+	if keep {
+		m.rescale(at, sx, sy)
+	}
+	return keep
+}
+
 // rescale keeps the map point under screen point at in place after the
 // scale changed from sx×sy to the current one.
 func (m *Model) rescale(at Point, sx, sy int) {
@@ -683,6 +702,11 @@ func fitTitle(parts []titlePart, w int, styles [3]lipgloss.Style) string {
 		}
 		if used+ansi.StringWidth(titleMore) <= w {
 			return ui.FitLine(render(append(parts[:i:i], titlePart{text: titleMore, style: titleInfo})), w, fill)
+		}
+		if i == 2 && strings.HasSuffix(parts[1].text, "…") {
+			// The shortened name already ends in "…" (a wide letter may
+			// leave no room to cut it further): it ends the row.
+			return ui.FitLine(render(parts[:2]), w, fill)
 		}
 		used -= ansi.StringWidth(parts[i-1].text)
 		room = ansi.StringWidth(parts[i-1].text) - 1
