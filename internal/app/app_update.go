@@ -15,8 +15,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Update routes events down and handles events emitted up from child components.
+// Update routes events down and handles events emitted up from child
+// components. Whatever the event, a link index build it asked for (see
+// refreshGraph) starts afterwards, in a command of its own.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if nm, ok := next.(Model); ok {
+		if build := nm.startLinkIndex(); build != nil {
+			return nm, tea.Batch(cmd, build)
+		}
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.endLeaderUnderDialog()
 	switch msg := msg.(type) {
 	case CheckWorkspaceMsg:
@@ -30,6 +42,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case workspaceScannedMsg:
 		m.applyWorkspaceScan(msg)
 		return m, checkWorkspaceLater()
+	case linkIndexedMsg:
+		m.applyLinkIndex(msg)
+		return m, nil
 	case SyncNowMsg, core.SyncMsg:
 		return m, m.requestSync()
 	case syncDoneMsg:

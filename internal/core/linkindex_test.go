@@ -340,6 +340,49 @@ func TestLinkIndexSetContent(t *testing.T) {
 	}
 }
 
+// A clone is updated on its own: neither Update nor SetContent on one
+// changes what the other answers.
+func TestLinkIndexClone(t *testing.T) {
+	// C links to a note only the clone gets: adding it resolves C's
+	// link again in the clone, though C did not change.
+	notes, read := memNotes([]string{"A.md", "B.md", "C.md"}, map[string]string{"A.md": "[[B]]", "B.md": "", "C.md": "[[D]]"})
+	x := NewLinkIndex(nil)
+	x.Update(notes, read)
+	want := frozen(x)
+
+	c := x.Clone()
+	// A note added re-resolves every note; a changed one is re-read.
+	more, readMore := memNotes([]string{"A.md", "B.md", "C.md", "D.md"}, map[string]string{"A.md": "[[C]]", "B.md": "[[D]]", "C.md": "[[D]]", "D.md": ""})
+	more[0].UpdatedAt, more[1].UpdatedAt = stamp(100), stamp(101)
+	c.Update(more, readMore)
+	c.SetContent("C.md", "[[A]]")
+	if got := frozen(x); !reflect.DeepEqual(got, want) {
+		t.Fatalf("updating the clone changed the original:\n got %+v\nwant %+v", got, want)
+	}
+	if got, want := c.Edges(), []Edge{{"A.md", "C.md"}, {"B.md", "D.md"}, {"C.md", "A.md"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("clone Edges = %v, want %v", got, want)
+	}
+
+	cloned := frozen(c)
+	x.SetContent("B.md", "[[C]]")
+	if got := frozen(c); !reflect.DeepEqual(got, cloned) {
+		t.Fatalf("updating the original changed the clone:\n got %+v\nwant %+v", got, cloned)
+	}
+	if got, want := x.Edges(), []Edge{{"A.md", "B.md"}, {"B.md", "C.md"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("original Edges = %v, want %v", got, want)
+	}
+}
+
+// frozen is snapshot with its own copies of the index's slices, so a later
+// change to the index can't change it too.
+func frozen(x *LinkIndex) indexSnapshot {
+	s := snapshot(x)
+	s.Notes = append([]Page(nil), s.Notes...)
+	s.Edges = append([]Edge(nil), s.Edges...)
+	s.Unresolved = append([]UnresolvedLink(nil), s.Unresolved...)
+	return s
+}
+
 func TestLinkIndexEmpty(t *testing.T) {
 	x := NewLinkIndex(nil)
 	x.Update(nil, nil)

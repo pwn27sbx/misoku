@@ -111,6 +111,23 @@ func (x *LinkIndex) SetContent(id, content string) {
 	x.rebuild()
 }
 
+// Clone returns a copy of the index that can be updated without changing
+// x, and the other way round, so one goroutine can update the copy while
+// another still reads x. Neither may be used by two goroutines at once.
+//
+// The copy shares what Update and SetContent only ever replace, never
+// change in place (the note list, lookups, edges, parsed links); each
+// note's entry is copied, since resolving it again rewrites it.
+func (x *LinkIndex) Clone() *LinkIndex {
+	c := *x
+	c.entries = make(map[string]*indexEntry, len(x.entries))
+	for id, e := range x.entries {
+		copied := *e
+		c.entries[id] = &copied
+	}
+	return &c
+}
+
 // Notes lists the indexed notes in the order Update received them. The
 // slice must not be modified.
 func (x *LinkIndex) Notes() []Page { return x.notes }
