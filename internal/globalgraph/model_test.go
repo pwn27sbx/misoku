@@ -979,3 +979,38 @@ func btoi(b bool) int {
 	}
 	return 0
 }
+
+// A click on any cell of a neighbour's name drawn left of its dot selects
+// that neighbour.
+func TestModelClickOnALeftSideNameSelectsIt(t *testing.T) {
+	nodes := []Placed{
+		{Node: Node{ID: "Ab.md"}, P: Point{22, 0}},
+		{Node: Node{ID: "日本.md"}, P: Point{29, 0}},
+		{Node: Node{ID: "S.md"}, P: Point{30, 0}},
+		{Node: Node{ID: "Cd.md"}, P: Point{40, 0}},
+		{Node: Node{ID: "Far.md"}, P: Point{59, 11}},
+	}
+	edges := []Edge{{"Ab.md", "S.md"}, {"日本.md", "S.md"}, {"S.md", "Cd.md"}, {"日本.md", "Far.md"}}
+	l := placedLayout(nodes, edges)
+	g := Graph{Edges: edges}
+	for _, n := range nodes {
+		g.Nodes = append(g.Nodes, n.Node)
+	}
+	// The map fits the 60×12 map area at 1×1, so it is drawn from map
+	// cell (0, 0), below the title row: Ab's name is at 19-20, 日本's at
+	// 24-27.
+	for _, c := range []struct {
+		x  int
+		id string
+	}{{19, "Ab.md"}, {20, "Ab.md"}, {24, "日本.md"}, {25, "日本.md"}, {26, "日本.md"}, {27, "日本.md"}} {
+		m := New(theme.DefaultTheme())
+		m.SetSize(60, 14)
+		m.SetFocused(true)
+		m.SetMap(Map{g: g, l: l, r: NewRenderer(l, edges), relaid: true})
+		m.SetOpenNote("S.md")
+		m, msg := click(m, c.x, 1)
+		if m.Selected() != c.id || msg != (SelectMsg{ID: c.id}) {
+			t.Errorf("click at %d: selection %q, msg %#v, want %q:\n%s", c.x, m.Selected(), msg, c.id, ansi.Strip(m.View()))
+		}
+	}
+}

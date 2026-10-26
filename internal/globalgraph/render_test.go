@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -435,6 +436,112 @@ func TestRenderNeighbourNamesAndDots(t *testing.T) {
 	f.Zoom = ZoomOverview
 	if plain := ansi.Strip(r.Render(f)); !strings.Contains(plain, "Neighbourhood") {
 		t.Errorf("overview: the neighbour's name does not cover the other dots:\n%s", plain)
+	}
+}
+
+// rowText is the runes of row y from x0 to x1 (inclusive), with the cells
+// of dots replaced by '*' and the right halves of wide characters skipped.
+func rowText(rows [][]tcell, y, x0, x1 int, dots ...int) string {
+	var b strings.Builder
+	for x := x0; x <= x1; x++ {
+		switch {
+		case slices.Contains(dots, x):
+			b.WriteRune('*')
+		case rows[y][x].r != 0:
+			b.WriteRune(rows[y][x].r)
+		}
+	}
+	return b.String()
+}
+
+// A neighbour right next to the selection, whose name would be cut short
+// on the right, is named in full on the left of its dot.
+func TestRenderNeighbourNameGoesLeftWhenTheRightIsCut(t *testing.T) {
+	nodes := []Placed{
+		{Node: Node{ID: "Llamas.md"}, P: Point{4, 0}},
+		{Node: Node{ID: "Nube.md"}, P: Point{5, 0}},
+	}
+	edges := []Edge{{"Llamas.md", "Nube.md"}}
+	r := NewRenderer(placedLayout(nodes, edges), edges)
+	f := Frame{W: 60, H: 10, Zoom: ZoomClose, Selected: "Nube.md", Theme: theme.DefaultTheme()}
+	rows := screen(r.Render(f))
+	plain := ansi.Strip(r.Render(f))
+	// Llamas' dot is at 24, Nube's at 30.
+	if got, want := rowText(rows, 0, 16, 36, 24, 30), " Llamas *─────* Nube "; got != want {
+		t.Errorf("row 0 from 16 is %q, want %q:\n%s", got, want, plain)
+	}
+	if strings.Contains(plain, "…") {
+		t.Errorf("a name is cut:\n%s", plain)
+	}
+}
+
+// A left-side name goes there only when it is wholly inside the pane: at
+// the pane's left edge the neighbour keeps its visible right-hand cut.
+func TestRenderLeftNameStaysInsideThePane(t *testing.T) {
+	nodes := []Placed{
+		{Node: Node{ID: "Llamas.md"}, P: Point{4, 0}},
+		{Node: Node{ID: "Nube.md"}, P: Point{5, 0}},
+	}
+	edges := []Edge{{"Llamas.md", "Nube.md"}}
+	r := NewRenderer(placedLayout(nodes, edges), edges)
+	// Llamas' dot is at map x 24; its left blank, name and blank need 8
+	// cells, so the pane must start at map x 16 or before.
+	f := Frame{W: 60, H: 10, Zoom: ZoomClose, Offset: Point{16, 0}, Selected: "Nube.md", Theme: theme.DefaultTheme()}
+	rows := screen(r.Render(f))
+	if got, want := rowText(rows, 0, 0, 20, 8, 14), " Llamas *─────* Nube "; got != want {
+		t.Errorf("offset 16: row 0 is %q, want %q:\n%s", got, want, ansi.Strip(r.Render(f)))
+	}
+	f.Offset.X = 17
+	rows = screen(r.Render(f))
+	if got, want := rowText(rows, 0, 0, 19, 7, 13), "       * Ll… * Nube "; got != want {
+		t.Errorf("offset 17: row 0 is %q, want %q:\n%s", got, want, ansi.Strip(r.Render(f)))
+	}
+}
+
+// Names placed on the left keep a blank on each side and never cover a
+// dot, another name or its blanks, wide names included; a neighbour whose
+// right-hand gap is taken (here by the selection's dot) is named on the
+// left too.
+func TestRenderLeftNamesNeverOverlap(t *testing.T) {
+	nodes := []Placed{
+		{Node: Node{ID: "Ab.md"}, P: Point{22, 0}},
+		{Node: Node{ID: "日本.md"}, P: Point{29, 0}},
+		{Node: Node{ID: "S.md"}, P: Point{30, 0}},
+		{Node: Node{ID: "Cd.md"}, P: Point{40, 0}},
+		{Node: Node{ID: "Far.md"}, P: Point{59, 11}}, // keeps the overview at 1×1 in a 60×12 pane
+	}
+	// 日本 is the busiest neighbour, so it is placed before Ab.
+	edges := []Edge{{"Ab.md", "S.md"}, {"日本.md", "S.md"}, {"S.md", "Cd.md"}, {"日本.md", "Far.md"}}
+	r := NewRenderer(placedLayout(nodes, edges), edges)
+	f := Frame{W: 60, H: 12, Zoom: ZoomOverview, Selected: "S.md", Theme: theme.DefaultTheme()}
+	if sx, sy := r.scale(f.Zoom, f.W, f.H); sx != 1 || sy != 1 {
+		t.Fatalf("setup: overview scale %dx%d, want 1x1", sx, sy)
+	}
+	rows := screen(r.Render(f))
+	plain := ansi.Strip(r.Render(f))
+	if got, want := rowText(rows, 0, 17, 45, 22, 29, 30, 40), "  Ab * 日本 ** S ──────* Cd  "; got != want {
+		t.Errorf("row 0 from 17 is %q, want %q:\n%s", got, want, plain)
+	}
+	// Two cells further left, 日本's name fits on neither side (Ab's dot
+	// is in the way on the left): it is left out, and Ab fits on the right.
+	nodes[1].P = Point{27, 0}
+	r = NewRenderer(placedLayout(nodes, edges), edges)
+	rows = screen(r.Render(f))
+	plain = ansi.Strip(r.Render(f))
+	if got, want := rowText(rows, 0, 17, 45, 22, 27, 30, 40), "     * Ab *──* S ──────* Cd  "; got != want {
+		t.Errorf("crowded row 0 from 17 is %q, want %q:\n%s", got, want, plain)
+	}
+	// Back in place, with another neighbour's dot where Ab's blank before
+	// its name would go: Ab fits on neither side and is left out, and Ef
+	// goes left of its own dot.
+	nodes[1].P = Point{29, 0}
+	nodes = append(nodes, Placed{Node: Node{ID: "Ef.md"}, P: Point{18, 0}})
+	edges = append(edges, Edge{"Ef.md", "S.md"})
+	r = NewRenderer(placedLayout(nodes, edges), edges)
+	rows = screen(r.Render(f))
+	plain = ansi.Strip(r.Render(f))
+	if got, want := rowText(rows, 0, 13, 45, 18, 22, 29, 30, 40), "  Ef *───* 日本 ** S ──────* Cd  "; got != want {
+		t.Errorf("row 0 from 13 with Ef is %q, want %q:\n%s", got, want, plain)
 	}
 }
 
