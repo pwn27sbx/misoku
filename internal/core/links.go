@@ -140,8 +140,7 @@ func stripInlineCode(line string) string {
 // fromID's folder wins, then one from the root; when several notes share a
 // name, the one in fromID's folder wins, then the shortest path.
 func ResolveNote(notes []Page, target, fromID string) (Page, bool) {
-	t := strings.ToLower(strings.Trim(strings.ReplaceAll(strings.TrimSpace(target), `\`, "/"), "/"))
-	t = strings.TrimSuffix(t, mdExt)
+	t := linkKey(target)
 	if t == "" {
 		return Page{}, false
 	}
@@ -152,7 +151,7 @@ func ResolveNote(notes []Page, target, fromID string) (Page, bool) {
 		if p.IsFolder {
 			continue
 		}
-		id := strings.ToLower(strings.TrimSuffix(p.ID, mdExt))
+		id := noteKey(p.ID)
 		score := -1
 		switch {
 		case path.Join(fromDir, t) == id:
@@ -170,6 +169,18 @@ func ResolveNote(notes []Page, target, fromID string) (Page, bool) {
 		}
 	}
 	return best, bestScore >= 0
+}
+
+// linkKey normalises a link target the way ResolveNote matches it: slash
+// separated, without surrounding slashes or ".md", in lower case.
+func linkKey(target string) string {
+	t := strings.ToLower(strings.Trim(strings.ReplaceAll(strings.TrimSpace(target), `\`, "/"), "/"))
+	return strings.TrimSuffix(t, mdExt)
+}
+
+// noteKey is the form of a note ID that a linkKey is matched against.
+func noteKey(id string) string {
+	return strings.ToLower(strings.TrimSuffix(id, mdExt))
 }
 
 // closer reports whether a sits nearer to dir than b (same folder first,
@@ -318,8 +329,13 @@ func (s *Store) Backlinks(id string) []Backlink {
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Title) < strings.ToLower(out[j].Title) })
+	sortBacklinks(out)
 	return out
+}
+
+// sortBacklinks orders backlinks by title, ignoring case.
+func sortBacklinks(out []Backlink) {
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Title) < strings.ToLower(out[j].Title) })
 }
 
 // Edge is a link from one note to another, as drawn in the note graph.
@@ -380,9 +396,18 @@ type noteLink struct {
 	text string // that line, trimmed
 }
 
-// noteLinks finds every link in from that resolves to a note, skipping code.
-func noteLinks(notes []Page, from Page) []noteLink {
-	var out []noteLink
+// linkRef is a link inside a note as written, before it is resolved.
+type linkRef struct {
+	target string // wiki-link target, or the note ID a Markdown link names
+	md     bool   // a Markdown link, matched to a note ID exactly
+	line   int    // 1-based line
+	text   string // that line, trimmed
+}
+
+// parseLinks finds every wiki link and Markdown link to a ".md" file in
+// from, in order, skipping code.
+func parseLinks(from Page) []linkRef {
+	var out []linkRef
 	fence := ""
 	for i, line := range strings.Split(from.Content, "\n") {
 		t := strings.TrimSpace(line)
@@ -398,10 +423,7 @@ func noteLinks(notes []Page, from Page) []noteLink {
 		}
 		code := stripInlineCode(line)
 		for _, m := range wikiLinkRe.FindAllStringSubmatch(code, -1) {
-			l := ParseWikiLink(m[2])
-			if p, ok := ResolveNote(notes, l.Target, from.ID); ok {
-				out = append(out, noteLink{p.ID, i + 1, t})
-			}
+			out = append(out, linkRef{target: ParseWikiLink(m[2]).Target, line: i + 1, text: t})
 		}
 		for _, m := range mdLinkRe.FindAllStringSubmatch(code, -1) {
 			if strings.Contains(m[1], "://") {
@@ -412,11 +434,26 @@ func noteLinks(notes []Page, from Page) []noteLink {
 				target = u
 			}
 			id := path.Clean(path.Join(path.Dir(from.ID), target))
-			for _, p := range notes {
-				if p.ID == id {
-					out = append(out, noteLink{id, i + 1, t})
-					break
-				}
+			out = append(out, linkRef{target: id, md: true, line: i + 1, text: t})
+		}
+	}
+	return out
+}
+
+// noteLinks finds every link in from that resolves to a note, skipping code.
+func noteLinks(notes []Page, from Page) []noteLink {
+	var out []noteLink
+	for _, r := range parseLinks(from) {
+		if !r.md {
+			if p, ok := ResolveNote(notes, r.target, from.ID); ok {
+				out = append(out, noteLink{p.ID, r.line, r.text})
+			}
+			continue
+		}
+		for _, p := range notes {
+			if p.ID == r.target {
+				out = append(out, noteLink{r.target, r.line, r.text})
+				break
 			}
 		}
 	}
