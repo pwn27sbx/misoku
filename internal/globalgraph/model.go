@@ -123,7 +123,19 @@ func (m Model) Layout() Layout { return m.l }
 // was laid out anew the view is placed afresh, on the selection unless the
 // whole map fits.
 func (m *Model) SetMap(mp Map) {
+	// The overview's scale fits the map to the pane, so a map that grows
+	// or shrinks may change it: the view is rescaled around the selection
+	// (or the middle) so it does not jump.
+	var at Point
+	sx, sy := m.scale()
+	keep := m.placed && !mp.relaid && m.zoom == ZoomOverview && len(m.l.Nodes) > 0
+	if keep {
+		at = m.anchor()
+	}
 	m.l, m.r = mp.l, mp.r
+	if keep {
+		m.rescale(at, sx, sy)
+	}
 	m.notes, m.links, m.orphans, m.unresolved = 0, 0, 0, 0
 	for i, n := range m.l.Nodes {
 		switch {
@@ -313,7 +325,7 @@ func (m *Model) toward(d Point) string {
 // counts as cellAspect columns.
 func (m *Model) nearestToMiddle() string {
 	m.settle()
-	sx, sy := m.zoom.Scale()
+	sx, sy := m.scale()
 	cx, cy := float64(m.offset.X)+float64(m.width)/2, float64(m.offset.Y)+float64(m.mapRows())/2
 	best, bestD := "", math.Inf(1)
 	for _, n := range m.l.Nodes {
@@ -421,18 +433,27 @@ func (m *Model) zoomTo(z Zoom, at Point) {
 		return
 	}
 	m.settle()
-	sx, sy := m.zoom.Scale()
-	gx, gy := float64(at.X+m.offset.X)/float64(sx), float64(at.Y+m.offset.Y)/float64(sy)
+	sx, sy := m.scale()
 	m.zoom = z
-	sx, sy = z.Scale()
-	m.offset = Point{int(math.Round(gx*float64(sx))) - at.X, int(math.Round(gy*float64(sy))) - at.Y}
+	m.rescale(at, sx, sy)
 	m.reveal()
 }
+
+// rescale keeps the map point under screen point at in place after the
+// scale changed from sx×sy to the current one.
+func (m *Model) rescale(at Point, sx, sy int) {
+	gx, gy := float64(at.X+m.offset.X)/float64(sx), float64(at.Y+m.offset.Y)/float64(sy)
+	nx, ny := m.scale()
+	m.offset = Point{int(math.Round(gx*float64(nx))) - at.X, int(math.Round(gy*float64(ny))) - at.Y}
+}
+
+// scale is how many screen cells one grid cell spans in the map area.
+func (m Model) scale() (sx, sy int) { return m.r.scale(m.zoom, m.width, m.mapRows()) }
 
 // screen is where node id's dot is on the map area of the pane.
 func (m *Model) screen(id string) (x, y int) {
 	n, _ := m.l.Lookup(id)
-	sx, sy := m.zoom.Scale()
+	sx, sy := m.scale()
 	o := m.viewOffset()
 	return n.P.X*sx - o.X, n.P.Y*sy - o.Y
 }
@@ -444,7 +465,7 @@ func (m Model) viewOffset() Point {
 	if m.placed {
 		return m.offset
 	}
-	sx, sy := m.zoom.Scale()
+	sx, sy := m.scale()
 	if (m.l.W-1)*sx < m.width && (m.l.H-1)*sy < m.mapRows() {
 		return m.r.Centred(m.zoom, m.width, m.mapRows())
 	}
@@ -458,7 +479,7 @@ func (m Model) onSelection() Point {
 	if !ok {
 		return m.r.Centred(m.zoom, m.width, m.mapRows())
 	}
-	sx, sy := m.zoom.Scale()
+	sx, sy := m.scale()
 	return Point{n.P.X*sx - m.width/2, n.P.Y*sy - m.mapRows()/2}
 }
 
@@ -475,7 +496,7 @@ func (m *Model) reveal() {
 		return
 	}
 	m.settle()
-	sx, sy := m.zoom.Scale()
+	sx, sy := m.scale()
 	x0, y := n.P.X*sx, n.P.Y*sy
 	x1 := x0 + 1 + min(ansi.StringWidth(n.Label), maxLabelWidth)
 	if x1-x0 >= m.width {
