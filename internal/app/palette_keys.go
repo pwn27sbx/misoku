@@ -37,6 +37,7 @@ const (
 	groupCommands = " COMMANDS"
 	groupPreview  = " PREVIEW"
 	groupGraph    = "󰘚 GRAPH"
+	groupGlobal   = "󰘚 GLOBAL GRAPH"
 	groupMouse    = "󰍽 MOUSE"
 )
 
@@ -78,6 +79,15 @@ var graphKeys = []fixedKey{
 	{"Esc", "Back", "In the graph, goes back to the note shown before, as the back button does."},
 }
 
+var globalGraphKeys = []fixedKey{
+	{"h j k l", "Move to the nearest note", "In the global graph, selects the nearest note to the left, below, above or to the right; the arrow keys do the same."},
+	{"n / N", "Next / previous link", "In the global graph, selects the next (n) or the previous (N) note the selected one links to or is linked from."},
+	{"Enter", "Open the note, or start a missing one", "In the global graph, opens the selected note in the editor; on a link to a note that doesn't exist yet, starts that note, unsaved until you save it."},
+	{"+ / -", "Zoom: dots, busy names, all names", "In the global graph, + shows the map closer, with more names, and - further away; the wheel zooms around the mouse."},
+	{"0", "Centre on the selection", "In the global graph, moves the view so the selected note is in the middle."},
+	{"Esc", "Back to the previous selection", "In the global graph, selects the note selected before, as the back button does."},
+}
+
 var mouseKeys = []fixedKey{
 	{"Click", "Tabs, tree, cursor", "A click picks a tab, a row of the explorer, a place in the editor, or a checkbox or a link in the preview."},
 	{"Wheel", "Scroll any pane", "The wheel scrolls the pane under the mouse, whichever has the focus."},
@@ -87,7 +97,7 @@ var mouseKeys = []fixedKey{
 // paletteEntries lists every row of the palette, in display order: how to
 // export first (issue #4), then the configurable actions with the keys in
 // use, the fixed editor keys, the editor's commands, and the keys of the
-// preview, the graph and the mouse.
+// preview, the graph, the global graph and the mouse.
 func (m *Model) paletteEntries() []paletteEntry {
 	var out []paletteEntry
 	commands := slices.Clone(content.Commands)
@@ -124,6 +134,7 @@ func (m *Model) paletteEntries() []paletteEntry {
 	}
 	out = append(out, fixedEntries(groupPreview, previewKeys)...)
 	out = append(out, fixedEntries(groupGraph, graphKeys)...)
+	out = append(out, fixedEntries(groupGlobal, globalGraphKeys)...)
 	return append(out, fixedEntries(groupMouse, mouseKeys)...)
 }
 

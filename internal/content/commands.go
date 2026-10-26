@@ -40,6 +40,8 @@ var Commands = []Command{
 		Long: "Writes this note as a PDF. Without a file it goes in the note's folder, named after the note; a file or folder picks where. :pdf does the same."},
 	{Usage: ":graph", Names: []string{"graph"}, Help: "Graph of this note's links", Run: "graph", NoNote: true,
 		Long: "Shows the map of the notes this note links to and the ones linking to it."},
+	{Usage: ":graph all", Names: []string{"graph"}, Help: "Graph of every note", Run: "graph all", NoNote: true,
+		Long: "Shows the map of every note in the vault and the links between them, notes without links and links to missing notes included."},
 	{Usage: ":messages", Names: []string{"messages", "mes"}, Help: "Last messages of the bar", Run: "messages", NoNote: true,
 		Long: "Lists the last 100 messages the status bar showed, with their time, so an error that went away can be read again."},
 	{Usage: ":colo [name]", Names: []string{"colo", "colorscheme", "theme"}, Help: "Switch theme", Run: "colo", NoNote: true,

@@ -29,7 +29,7 @@ var generalActions = []string{
 	keymap.ToggleExplorer, keymap.FocusExplorer,
 	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
 	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview, keymap.ReadingMode,
-	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.Home, keymap.SyncNow, keymap.Help,
+	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.Home, keymap.SyncNow, keymap.Help,
 }
 
 // globalActions also fire while typing (INSERT mode, renaming), but only
@@ -77,6 +77,8 @@ func (m *Model) runAction(action string) tea.Cmd {
 		return m.openThemePicker()
 	case keymap.Graph:
 		return m.openGraph()
+	case keymap.GlobalGraph:
+		return m.openGlobalGraph()
 	case keymap.Home:
 		m.goHome()
 	case keymap.SyncNow:

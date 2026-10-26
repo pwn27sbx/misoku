@@ -71,7 +71,13 @@ func parseVimCommand(cmdStr, content string) any {
 	case "export", "pdf":
 		return core.ExportMsg{Path: arg}
 	case "graph":
-		return core.GraphMsg{}
+		switch arg {
+		case "":
+			return core.GraphMsg{}
+		case "all":
+			return core.GlobalGraphMsg{}
+		}
+		return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :graph or :graph all)", Error: true}
 	case "mes", "messages":
 		return core.MessagesMsg{}
 	case "sync":

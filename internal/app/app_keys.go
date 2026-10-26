@@ -92,8 +92,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		m.preview, cmd = m.preview.Update(k)
 	default:
 		if m.graphActive() {
-			m.graph, cmd = m.graph.Update(k)
-			return cmd
+			return m.editorPaneUpdate(k)
 		}
 		if m.activeBuffer() == nil && s == "i" {
 			return m.newDraft(m.sidebar.ContextParentID())
@@ -117,7 +116,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 // and export actions need an open note, so they wait for one.
 var homeActions = []string{
 	keymap.NewNote, keymap.FindNote, keymap.ToggleExplorer, keymap.FocusExplorer,
-	keymap.Themes, keymap.Graph, keymap.SyncNow, keymap.Help, keymap.Quit,
+	keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.SyncNow, keymap.Help, keymap.Quit,
 }
 
 func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
@@ -163,7 +162,7 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	case "t":
 		return m.openThemePicker()
 	case "g":
-		return m.openGraph()
+		return m.openGlobalGraph()
 	case "c":
 		return m.OpenSettings()
 	case "s":
@@ -220,7 +219,7 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 	case dashboard.ActionSyncSetup:
 		return m.startSetup()
 	case dashboard.ActionGraph:
-		return m.openGraph()
+		return m.openGlobalGraph()
 	case dashboard.ActionSettings:
 		return m.OpenSettings()
 	}

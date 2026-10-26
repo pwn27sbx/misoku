@@ -71,7 +71,9 @@ func TestHomeCtrlShortcutsFollowTheKeymap(t *testing.T) {
 	}
 }
 
-func TestHomeGraphEntryOpensTheGraph(t *testing.T) {
+// Home has no note to centre a local graph on: its Graph entry opens the
+// global graph, every note of the vault.
+func TestHomeGraphEntryOpensTheGlobalGraph(t *testing.T) {
 	h := newHarness(t, newTestStore(t))
 	if v := h.view(); !strings.Contains(v, "Graph") {
 		t.Fatalf("the home screen should list Graph:\n%s", v)
@@ -82,8 +84,8 @@ func TestHomeGraphEntryOpensTheGraph(t *testing.T) {
 	}
 	h.key(tea.KeyEnter)
 	v := h.view()
-	if strings.Contains(v, "HOME") || !strings.Contains(strings.Split(v, "\n")[0], "Graph") {
-		t.Fatalf("Enter on Graph should open the graph tab:\n%s", v)
+	if strings.Contains(v, "HOME") || !strings.Contains(strings.Split(v, "\n")[0], "Global graph") {
+		t.Fatalf("Enter on Graph should open the global graph tab:\n%s", v)
 	}
 }
 
@@ -107,8 +109,8 @@ func TestHomeLetterKeysStillWork(t *testing.T) {
 
 	h = newHarness(t, store)
 	h.keys("g")
-	if v := h.view(); !strings.Contains(strings.Split(v, "\n")[0], "Graph") {
-		t.Fatalf("g should open the graph:\n%s", v)
+	if v := h.view(); !strings.Contains(strings.Split(v, "\n")[0], "Global graph") || !strings.Contains(v, "1 note · ") {
+		t.Fatalf("g should open the global graph:\n%s", v)
 	}
 
 	h = newHarness(t, store)

@@ -38,9 +38,12 @@ func (m Model) View() string {
 			cols = append(cols, m.sidebar.View(), div(dividerSidebar))
 		}
 		if l.EditorW > 0 {
-			if m.graphActive() {
+			switch {
+			case m.globalGraphActive():
+				cols = append(cols, m.globalGraph.View())
+			case m.graphActive():
 				cols = append(cols, m.graph.View())
-			} else {
+			default:
 				cols = append(cols, m.content.View())
 			}
 			if l.PreviewW > 0 {

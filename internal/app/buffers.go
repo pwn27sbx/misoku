@@ -87,7 +87,12 @@ func (b *buffer) draft() bool { return isDraftID(b.id) }
 // that is never dirty and never saved.
 const graphID = draftIDPrefix + "graph"
 
-func (b *buffer) isGraph() bool { return b.id == graphID }
+// isGraph reports whether b is a graph tab, the local or the global one:
+// what is true of one (no file, no text, never saved) is true of both.
+func (b *buffer) isGraph() bool { return b.id == graphID || b.isGlobalGraph() }
+
+// isGlobalGraph reports whether b is the global graph's tab.
+func (b *buffer) isGlobalGraph() bool { return b.id == globalGraphID }
 
 func (b *buffer) fileName() string {
 	if b.draft() {
@@ -213,7 +218,7 @@ func (m *Model) showBuffer(b *buffer) {
 	m.refreshLinks()
 	if b.isGraph() {
 		m.content.SetBuffer(core.Page{}, false)
-		m.previewNote(m.graph.Selected())
+		m.previewNote(m.graphSelected())
 	}
 	m.sidebar.SetActiveID(b.id)
 	if !b.draft() {

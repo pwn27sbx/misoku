@@ -8,6 +8,7 @@ func (m *Model) dimPanes() {
 	m.sidebar.SetDimmed(m.focus != focusSidebar)
 	m.content.SetDimmed(m.focus != focusEditor)
 	m.graph.SetDimmed(m.focus != focusEditor)
+	m.globalGraph.SetDimmed(m.focus != focusEditor)
 	m.preview.SetDimmed(m.focus != focusPreview)
 }
 
