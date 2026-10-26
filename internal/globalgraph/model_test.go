@@ -322,7 +322,7 @@ func slicesDelete(nodes []Node, id string) []Node {
 func TestModelUnknownKeysAreIgnored(t *testing.T) {
 	m := newModel(t, 80, 20)
 	before := m.View()
-	for _, k := range []string{"q", "x", "g", ":", "/", "tab", "H", "L"} {
+	for _, k := range []string{"q", "x", "g", ":", "tab", "H", "L"} {
 		next, cmd := m.Update(keyMsg(k))
 		if cmd != nil {
 			t.Fatalf("key %q returned a command", k)

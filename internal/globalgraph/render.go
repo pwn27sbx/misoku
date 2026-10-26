@@ -44,6 +44,11 @@ type Frame struct {
 	Focused  bool        // the pane has the focus: the selection gets a background
 	Dimmed   bool        // draw every text colour grey, like other unfocused panes
 	Theme    theme.Theme // colours
+
+	// The filter and the toggles (see filter.go): nodes the filter doesn't
+	// match are greyed out; hidden ones and their edges are not drawn.
+	Filter                      string
+	HideOrphans, HideUnresolved bool
 }
 
 // Renderer draws one layout. It caches the faint edges and the dot cells of
@@ -53,6 +58,7 @@ type Renderer struct {
 	out, in [][]int32  // linked and linking node indexes, per node
 	pairs   [][2]int32 // each linked pair once
 	faint   [zoomLevels]*edgeLayer
+	known   [zoomLevels]*edgeLayer // faint without the edges to unresolved targets
 	dots    [zoomLevels]map[Point]int32
 }
 
@@ -179,7 +185,7 @@ func (r *Renderer) warm() {
 		r.dotCells(z)
 		if z != ZoomOverview && r.faint[z] == nil {
 			sx, sy := z.Scale()
-			r.faint[z] = r.buildLayer(sx, sy)
+			r.faint[z] = r.buildLayer(sx, sy, false)
 		}
 	}
 }
@@ -201,18 +207,37 @@ type drawing struct {
 	open   int          // open note index, -1 for none
 	near   map[int]bool // neighbours of the selection; true when linked from it
 	groups []lipgloss.Color
+	hidden []bool // per node, hidden by a toggle; nil when none is on
+	dim    []bool // per node, not matched by the filter; nil with no filter
 }
 
 func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
 	d := &drawing{r: r, f: f, th: th, cv: newCanvas(f.W, f.H), sel: -1, open: -1, near: map[int]bool{}}
 	d.sx, d.sy = f.Zoom.Scale()
+	if f.HideOrphans || f.HideUnresolved {
+		d.hidden = make([]bool, len(r.l.Nodes))
+		for i, n := range r.l.Nodes {
+			d.hidden[i] = hides(n, f.HideOrphans, f.HideUnresolved)
+		}
+	}
+	if f.Filter != "" {
+		q := strings.ToLower(f.Filter)
+		d.dim = make([]bool, len(r.l.Nodes))
+		for i, n := range r.l.Nodes {
+			d.dim[i] = matchRank(n, q) == noMatch
+		}
+	}
 	if i, ok := r.l.index[f.Selected]; ok {
 		d.sel = i
 		for _, j := range r.in[i] {
-			d.near[int(j)] = false
+			if !d.isHidden(int(j)) {
+				d.near[int(j)] = false
+			}
 		}
 		for _, j := range r.out[i] {
-			d.near[int(j)] = true
+			if !d.isHidden(int(j)) {
+				d.near[int(j)] = true
+			}
 		}
 	}
 	if i, ok := r.l.index[f.Open]; ok {
@@ -221,6 +246,12 @@ func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
 	d.groups = []lipgloss.Color{th.Blue, th.Purple, th.Teal, th.Orange, th.Cyan, th.Pink, th.Red, th.NordBlue}
 	return d
 }
+
+func (d *drawing) isHidden(i int) bool { return d.hidden != nil && d.hidden[i] }
+
+// isDim reports whether node i is greyed out by the filter: the selection
+// never is.
+func (d *drawing) isDim(i int) bool { return d.dim != nil && d.dim[i] && i != d.sel }
 
 // screen is where node i's dot is in the pane.
 func (d *drawing) screen(i int) (x, y int) {
@@ -247,10 +278,14 @@ func (d *drawing) faintEdges() {
 	if z == ZoomOverview {
 		return
 	}
-	if d.r.faint[z] == nil {
-		d.r.faint[z] = d.r.buildLayer(d.sx, d.sy)
+	layers := &d.r.faint
+	if d.f.HideUnresolved {
+		layers = &d.r.known
 	}
-	layer := d.r.faint[z]
+	if layers[z] == nil {
+		layers[z] = d.r.buildLayer(d.sx, d.sy, d.f.HideUnresolved)
+	}
+	layer := layers[z]
 	st := style{fg: d.th.Line}
 	for y := range d.f.H {
 		ly := y + d.f.Offset.Y
@@ -299,7 +334,7 @@ func sortedIndexes(m map[int]bool) []int {
 func (d *drawing) nodes() {
 	for i, n := range d.r.l.Nodes {
 		x, y := d.screen(i)
-		if x < 0 || y < 0 || x >= d.f.W || y >= d.f.H {
+		if x < 0 || y < 0 || x >= d.f.W || y >= d.f.H || d.isHidden(i) {
 			continue
 		}
 		c := d.class(i)
@@ -323,9 +358,15 @@ func (d *drawing) nodes() {
 				st.fg = d.th.Blue
 			}
 		default:
-			if d.sel < 0 && !n.Unresolved {
+			switch {
+			case d.dim != nil && !d.dim[i] && n.Unresolved:
+				st.fg = d.th.Fg // a match stands out of the greyed rest
+			case (d.sel < 0 || d.dim != nil) && !n.Unresolved:
 				st.fg = d.groupColour(n.Cluster)
 			}
+		}
+		if d.isDim(i) {
+			st.fg = d.th.Grey
 		}
 		d.cv.owner = int32(i) + 1
 		d.cv.set(x, y, glyph, st, prio)
@@ -371,7 +412,7 @@ func (d *drawing) names() {
 		drawn[d.sel] = true
 	}
 	var hot []int
-	if d.open >= 0 && d.open != d.sel {
+	if d.open >= 0 && d.open != d.sel && !d.isHidden(d.open) {
 		hot = append(hot, d.open)
 	}
 	near := sortedIndexes(d.near)
@@ -404,8 +445,15 @@ func (d *drawing) names() {
 	for _, lb := range d.r.l.Labels[d.f.Zoom] {
 		i := d.r.l.index[lb.ID]
 		x, y := lb.X-d.f.Offset.X, lb.Y-d.f.Offset.Y
-		if drawn[i] || d.class(i) != classRest || y < 0 || y >= d.f.H || x+lb.W < 0 || x >= d.f.W {
+		if drawn[i] || d.class(i) != classRest || d.isHidden(i) || y < 0 || y >= d.f.H || x+lb.W < 0 || x >= d.f.W {
 			continue
+		}
+		st := st
+		switch {
+		case d.isDim(i):
+			st.fg = d.th.Grey
+		case d.dim != nil:
+			st.fg = d.th.Fg
 		}
 		if n.anyName(lb.X-1, lb.X+lb.W, lb.Y) {
 			continue
@@ -449,7 +497,7 @@ func (n *namer) taken(p Point) bool {
 		return true
 	}
 	i, ok := n.dots[p]
-	return ok && (n.d.f.Zoom != ZoomOverview || n.d.class(int(i)) != classRest)
+	return ok && !n.d.isHidden(int(i)) && (n.d.f.Zoom != ZoomOverview || n.d.class(int(i)) != classRest)
 }
 
 // anyName reports whether a cell [x0, x1] of map row y holds a name.
@@ -477,6 +525,9 @@ func (n *namer) draw(i, w int) {
 		}
 	case classOpen:
 		st.bold, prio = true, prioOpenName
+	}
+	if d.isDim(i) {
+		st.fg = d.th.Grey
 	}
 	name := ui.Truncate(d.r.l.Nodes[i].Label, w)
 	nw := ansi.StringWidth(name)
@@ -693,10 +744,15 @@ type edgeLayer struct {
 	w, h int
 }
 
-func (r *Renderer) buildLayer(sx, sy int) *edgeLayer {
+// buildLayer rasterises the edges at scale sx×sy; known leaves out those
+// to unresolved targets.
+func (r *Renderer) buildLayer(sx, sy int, known bool) *edgeLayer {
 	l := &edgeLayer{w: max((r.l.W-1)*sx+1, 0), h: max((r.l.H-1)*sy+1, 0)}
 	l.mask = make([]uint8, l.w*l.h)
 	for _, p := range r.pairs {
+		if known && (r.l.Nodes[p[0]].Unresolved || r.l.Nodes[p[1]].Unresolved) {
+			continue
+		}
 		a, b := r.l.Nodes[p[0]].P, r.l.Nodes[p[1]].P
 		line(a.X*sx, a.Y*sy, b.X*sx, b.Y*sy, func(x, y int, m uint8) {
 			l.mask[y*l.w+x] |= m

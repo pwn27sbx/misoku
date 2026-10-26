@@ -460,11 +460,20 @@ title row counts notes, links, notes without links and missing notes.
 | `enter` | Open the selected note; on a missing note, start it (nothing is written until you save) |
 | `-` / `+` | Zoom out / in: dots only, then the names of the busiest notes, then every name that fits |
 | `0` | Centre the view on the selected note |
-| `esc` | Back to the previous selection |
+| `esc` | Clear the filter; without one, back to the previous selection |
+| `/` | Filter: notes whose name or path doesn't hold the text are greyed out, not removed. `enter` selects the best match (a name starting with the text, then a name holding it, then a path; the shortest name first) and keeps the filter; `esc` clears it. While you type, every key is text |
+| `o` | Hide / show notes without links (orphans) |
+| `u` | Hide / show links to missing notes |
+
+Hidden notes keep their place, so the map keeps its shape; the keys and the
+mouse skip them, and if the selected note is hidden the selection moves to
+the note you were in, or to the nearest note still shown. The title row
+keeps counting them and says which are hidden.
 
 The mouse works as in the graph: click a note to preview it and again to
 open it, scroll to zoom around the mouse, drag to move, and the bottom row's
-buttons (`−` `+` `0 centre` `esc back` `reset`). Both graph tabs can be open
+buttons (`−` `+` `0 centre` `esc back` `reset`, and on a wide enough pane
+`/ filter` `o orphans` `u unresolved`). Both graph tabs can be open
 at once, each keeping its own selection. Keys you bind in
 [`keys`](#configuration) win over these letters, as in the graph. `:graph`
 with anything but `all` after it is an error.

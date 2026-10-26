@@ -4,6 +4,8 @@ package globalgraph
 // the map, and a row of buttons and key hints. Keys follow the local graph
 // where they overlap (enter, + -, 0, esc, the buttons); h j k l move to the
 // nearest node on that side, since this map has no tree to walk.
+// / filters the map, o and u hide orphans and unresolved targets (see
+// filter.go).
 
 import (
 	"cmp"
@@ -79,7 +81,14 @@ type Model struct {
 
 	dragging bool
 	dragAt   Point
+
+	filter                      string // text of the filter, "" for none
+	typing                      bool   // the filter's prompt is open
+	hideOrphans, hideUnresolved bool
 }
+
+// Typing reports whether the filter's prompt is open: every key is text.
+func (m Model) Typing() bool { return m.typing }
 
 // New makes an empty map; SetMap or SetGraph fills it.
 func New(th theme.Theme) Model {
@@ -137,6 +146,7 @@ func (m *Model) SetMap(mp Map) {
 	if mp.relaid {
 		m.placed = false
 	}
+	m.keepSelectionShown()
 }
 
 // SetOpenNote marks the note open when the graph was opened and selects
@@ -147,6 +157,7 @@ func (m *Model) SetOpenNote(id string) {
 		m.sel, m.placed = id, false
 		m.ringAt = ""
 	}
+	m.keepSelectionShown()
 }
 
 // Selected returns the selected node's ID, "" for none.
@@ -166,7 +177,9 @@ func (m Model) tooSmall() bool { return m.width < MinWidth || m.height < MinHeig
 // Update handles keys and mouse events (coordinates relative to the pane).
 // h j k l and the arrows move to the nearest node on that side; n and N go
 // round the selection's links; enter opens; + and - zoom; 0 centres the
-// view on the selection; esc goes back to the previous selection.
+// view on the selection; esc clears the filter or else goes back to the
+// previous selection; / opens the filter's prompt, which then takes every
+// key; o and u hide or show orphans and unresolved targets.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	if len(m.l.Nodes) == 0 {
 		return m, nil
@@ -175,6 +188,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	before := m.sel
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.typing {
+			m.promptKey(msg)
+			break
+		}
 		cmd = m.key(msg.String())
 	case tea.MouseMsg:
 		if m.tooSmall() {
@@ -222,7 +239,17 @@ func (m *Model) key(k string) tea.Cmd {
 	case "0":
 		m.act("centre")
 	case "esc":
+		if m.filter != "" {
+			m.filter = ""
+			return nil
+		}
 		m.act("back")
+	case "/":
+		m.act("filter")
+	case "o":
+		m.act("orphans")
+	case "u":
+		m.act("unresolved")
 	}
 	return nil
 }
@@ -259,6 +286,9 @@ func (m *Model) toward(d Point) string {
 	}
 	var best *cand
 	for _, n := range m.l.Nodes {
+		if !m.selectable(n.ID) {
+			continue
+		}
 		dx, dy := float64(n.P.X-from.P.X), cellAspect*float64(n.P.Y-from.P.Y)
 		along, across := dx*float64(d.X)+dy*float64(d.Y), math.Abs(dx*float64(d.Y)+dy*float64(d.X))
 		if along <= 0 {
@@ -285,7 +315,7 @@ func (m *Model) nearestToMiddle() string {
 	best, bestD := "", math.Inf(1)
 	for _, n := range m.l.Nodes {
 		dx, dy := float64(n.P.X*sx)-cx, cellAspect*(float64(n.P.Y*sy)-cy)
-		if d := dx*dx + dy*dy; d < bestD {
+		if d := dx*dx + dy*dy; d < bestD && m.selectable(n.ID) {
 			best, bestD = n.ID, d
 		}
 	}
@@ -301,7 +331,7 @@ func (m *Model) cycle(d int) {
 		return
 	}
 	hub := m.sel
-	if m.ringAt == m.sel && m.exists(m.ring) {
+	if m.ringAt == m.sel && m.selectable(m.ring) {
 		hub = m.ring
 	}
 	near := m.neighbours(hub)
@@ -317,7 +347,7 @@ func (m *Model) cycle(d int) {
 	m.ring, m.ringAt = hub, m.sel
 }
 
-// neighbours lists the nodes linked to or from id, in ID order.
+// neighbours lists the nodes shown linked to or from id, in ID order.
 func (m *Model) neighbours(id string) []string {
 	i := m.l.index[id]
 	set := map[int]bool{}
@@ -329,7 +359,9 @@ func (m *Model) neighbours(id string) []string {
 	}
 	var ids []string
 	for _, j := range sortedIndexes(set) {
-		ids = append(ids, m.l.Nodes[j].ID)
+		if id := m.l.Nodes[j].ID; m.selectable(id) {
+			ids = append(ids, id)
+		}
 	}
 	return ids
 }
@@ -347,7 +379,7 @@ func (m *Model) act(action string) {
 		for len(m.history) > 0 {
 			prev := m.history[len(m.history)-1]
 			m.history = m.history[:len(m.history)-1]
-			if m.exists(prev) { // skip nodes removed since
+			if m.selectable(prev) { // skip nodes removed or hidden since
 				m.sel = prev
 				m.reveal()
 				break
@@ -356,6 +388,10 @@ func (m *Model) act(action string) {
 	case "reset":
 		m.zoom, m.offset, m.placed = ZoomOverview, m.r.Centred(ZoomOverview, m.width, m.mapRows()), true
 		m.reveal()
+	case "filter":
+		m.typing = true
+	case "orphans", "unresolved":
+		m.toggle(action)
 	}
 }
 
@@ -458,6 +494,9 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	case msg.Button == tea.MouseButtonWheelDown:
 		m.zoomTo(m.zoom-1, at)
 	case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y == m.height-1:
+		if m.typing { // the row is the prompt
+			break
+		}
 		for _, b := range m.buttons() {
 			if msg.X >= b.x0 && msg.X < b.x1 && b.enabled {
 				m.act(b.action)
@@ -487,7 +526,8 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 // frame is the map's part of the pane.
 func (m Model) frame() Frame {
 	return Frame{W: m.width, H: m.mapRows(), Offset: m.viewOffset(), Zoom: m.zoom, Selected: m.sel,
-		Open: m.open, Focused: m.focused, Dimmed: m.dimmed, Theme: m.th}
+		Open: m.open, Focused: m.focused, Dimmed: m.dimmed, Theme: m.th,
+		Filter: m.filter, HideOrphans: m.hideOrphans, HideUnresolved: m.hideUnresolved}
 }
 
 // View renders the map at exactly the pane's size: title, map and hints,
@@ -508,14 +548,25 @@ func (m Model) View() string {
 	return ui.Fit(strings.Join(lines, "\n"), m.width, m.height, lipgloss.NewStyle())
 }
 
-// titleLine names the selection and counts the vault.
+// titleLine names the selection and counts the vault, hidden nodes
+// included: the toggles only say they hide them. A filter shows with its
+// number of matches.
 func (m Model) titleLine(th theme.Theme) string {
 	name := "All notes"
 	if n, ok := m.l.Lookup(m.sel); ok {
 		name = n.Label
 	}
-	info := " · " + plural(m.notes, "note") + " · " + plural(m.links, "link") + " · " +
-		plural(m.orphans, "orphan") + " · " + fmt.Sprintf("%d unresolved", m.unresolved)
+	orphans, unresolved := plural(m.orphans, "orphan"), fmt.Sprintf("%d unresolved", m.unresolved)
+	if m.hideOrphans {
+		orphans += " hidden"
+	}
+	if m.hideUnresolved {
+		unresolved += " hidden"
+	}
+	info := " · " + plural(m.notes, "note") + " · " + plural(m.links, "link") + " · " + orphans + " · " + unresolved
+	if m.filter != "" {
+		info += fmt.Sprintf(" · filter %q: %s", m.filter, plural(m.matches(), "match"))
+	}
 	head := lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("󰈙 "+ui.Truncate(name, 40)) +
 		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(info)
 	return ui.FitLine(" "+head, m.width, lipgloss.NewStyle())
@@ -525,7 +576,21 @@ func plural(n int, word string) string {
 	if n == 1 {
 		return "1 " + word
 	}
+	if strings.HasSuffix(word, "ch") {
+		return fmt.Sprintf("%d %ses", n, word)
+	}
 	return fmt.Sprintf("%d %ss", n, word)
+}
+
+// matches counts the nodes shown that the filter matches.
+func (m Model) matches() int {
+	q, n := strings.ToLower(m.filter), 0
+	for _, nd := range m.l.Nodes {
+		if matchRank(nd, q) != noMatch && m.selectable(nd.ID) {
+			n++
+		}
+	}
+	return n
 }
 
 // button is a clickable control on the hint row.
@@ -538,6 +603,19 @@ type button struct {
 var (
 	longLabels  = [5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}
 	shortLabels = [5]string{" − ", " + ", " 0 ", " esc ", " reset "}
+	// The filter's and the toggles' buttons come after those, only where
+	// the pane has room for them as well.
+	longExtra  = []string{" / filter ", " o orphans ", " u unresolved "}
+	shortExtra = []string{" / ", " o ", " u "}
+)
+
+// Hint row tails, longest first.
+const (
+	tailFull   = "  hjkl move · n/N links · enter open · click: preview, again: open · scroll: zoom · drag: move"
+	tailDrag   = "  hjkl move · n/N links · enter open · drag: move"
+	tailOpen   = "  hjkl move · n/N links · enter open"
+	tailKeys   = "  hjkl · n/N · enter"
+	tailNarrow = "  hjkl · enter"
 )
 
 // hints are the hint row's layouts, widest first: the buttons' labels (in
@@ -545,29 +623,34 @@ var (
 // first that fits the pane is used; the last fits MinWidth.
 var hints = []struct {
 	labels [5]string
+	extra  []string
 	tail   string
 }{
-	{longLabels, "  hjkl move · n/N links · enter open · click: preview, again: open · scroll: zoom · drag: move"},
-	{longLabels, "  hjkl move · n/N links · enter open · drag: move"},
-	{longLabels, "  hjkl move · n/N links · enter open"},
-	{longLabels, "  hjkl · n/N · enter"},
-	{shortLabels, "  hjkl · n/N · enter"},
-	{shortLabels, "  hjkl · enter"},
-	{shortLabels, ""},
+	{longLabels, longExtra, tailFull},
+	{longLabels, longExtra, tailDrag},
+	{longLabels, longExtra, tailOpen},
+	{longLabels, shortExtra, tailDrag},
+	{longLabels, shortExtra, tailOpen},
+	{longLabels, shortExtra, tailKeys},
+	{longLabels, nil, tailKeys},
+	{shortLabels, nil, tailKeys},
+	{shortLabels, nil, tailNarrow},
+	{shortLabels, nil, ""},
 }
 
-func (m Model) hint() (labels [5]string, tail string) {
+func (m Model) hint() (labels []string, tail string) {
 	for _, h := range hints {
-		w := 1 + len(h.labels) - 1 + ansi.StringWidth(h.tail)
-		for _, l := range h.labels {
+		labels = append(h.labels[:], h.extra...)
+		w := 1 + len(labels) - 1 + ansi.StringWidth(h.tail)
+		for _, l := range labels {
 			w += ansi.StringWidth(l)
 		}
 		if w <= m.width {
-			return h.labels, h.tail
+			return labels, h.tail
 		}
 	}
 	last := hints[len(hints)-1]
-	return last.labels, last.tail
+	return last.labels[:], last.tail
 }
 
 // buttons sit at the start of the hint row.
@@ -580,6 +663,11 @@ func (m Model) buttons() []button {
 		{label: labels[3], action: "back", enabled: len(m.history) > 0},
 		{label: labels[4], action: "reset", enabled: true},
 	}
+	for i, action := range []string{"filter", "orphans", "unresolved"} {
+		if 5+i < len(labels) {
+			bs = append(bs, button{label: labels[5+i], action: action, enabled: true})
+		}
+	}
 	x := 1
 	for i := range bs {
 		bs[i].x0 = x
@@ -590,8 +678,12 @@ func (m Model) buttons() []button {
 	return bs
 }
 
-// helpLine is the hint row: the buttons, then the other keys.
+// helpLine is the hint row: the buttons, then the other keys; or the
+// filter's prompt while it is open.
 func (m Model) helpLine(th theme.Theme) string {
+	if m.typing {
+		return ui.FitLine(lipgloss.NewStyle().Foreground(th.Fg).Render(m.promptLine()), m.width, lipgloss.NewStyle())
+	}
 	var b strings.Builder
 	b.WriteString(" ")
 	for i, bt := range m.buttons() {

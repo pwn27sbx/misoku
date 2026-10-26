@@ -85,7 +85,10 @@ var globalGraphKeys = []fixedKey{
 	{"Enter", "Open the note, or start a missing one", "In the global graph, opens the selected note in the editor; on a link to a note that doesn't exist yet, starts that note, unsaved until you save it."},
 	{"+ / -", "Zoom: dots, busy names, all names", "In the global graph, + shows the map closer, with more names, and - further away; the wheel zooms around the mouse."},
 	{"0", "Centre on the selection", "In the global graph, moves the view so the selected note is in the middle."},
-	{"Esc", "Back to the previous selection", "In the global graph, selects the note selected before, as the back button does."},
+	{"Esc", "Back to the previous selection", "In the global graph, clears the filter first; without one, selects the note selected before, as the back button does."},
+	{"/", "Filter the map by name or path", "In the global graph, greys out the notes whose name or path doesn't hold the text typed; Enter selects the best match and keeps the filter, Esc clears it."},
+	{"o", "Hide / show notes without links", "In the global graph, hides the notes that link nowhere and that nothing links to, or shows them again. They keep their place on the map."},
+	{"u", "Hide / show missing notes", "In the global graph, hides the links to notes that don't exist yet, or shows them again."},
 }
 
 var mouseKeys = []fixedKey{
