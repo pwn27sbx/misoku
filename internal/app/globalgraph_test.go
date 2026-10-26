@@ -50,7 +50,10 @@ func globalWorkspace(t *testing.T) *harness {
 func globalTitle(h *harness) string {
 	h.t.Helper()
 	for _, l := range strings.Split(editorPane(h.view()), "\n") {
-		if strings.Contains(l, " notes · ") || strings.Contains(l, " note · ") {
+		// The title row starts with the note icon and has " · " counters (a
+		// narrow pane may leave the notes counter out); the local graph's
+		// title looks the same but always counts backlinks.
+		if t := strings.TrimSpace(l); strings.HasPrefix(t, "󰈙 ") && strings.Contains(t, " · ") && !strings.Contains(t, "backlink") {
 			return strings.TrimSpace(l)
 		}
 	}
