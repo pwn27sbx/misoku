@@ -113,13 +113,15 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 
 // linkIndexOutOfDate reports whether pages, as a workspace scan listed
 // them, have a note the index in use doesn't know, lacks one, or has one
-// modified since. While a build runs it says no: that build may already
-// cover the change, and the next scan compares again once it lands.
+// modified since, or has a note it could not read (one that is unreadable
+// for a while keeps its modification time). While a build runs it says no:
+// that build may already cover the change, and the next scan compares again
+// once it lands.
 func (m *Model) linkIndexOutOfDate(pages []core.Page) bool {
 	if m.index.gen != m.index.applied {
 		return false
 	}
-	if m.index.idx == nil {
+	if m.index.idx == nil || m.index.idx.Unread() > 0 {
 		return true
 	}
 	known, i := m.index.idx.Notes(), 0
@@ -156,9 +158,25 @@ func (m *Model) backlinks(id string) []core.Backlink {
 // liveGraph updates the edited note's links from the editor, so links show
 // up in the graph as they are typed. It copies and scans the whole note:
 // keys that leave the text as it was don't call it (see editorEdited).
+//
+// While the graph tab is showing there is no edited note, so the links of
+// the note it was opened from stay those of its unsaved text: a new index,
+// built when another note changes on disk, must not drop them.
 func (m *Model) liveGraph() {
 	edges := m.graphEdges
-	if id := m.currentNoteID(); id != "" && m.content.HasPage() {
+	id, text := m.currentNoteID(), ""
+	switch {
+	case id != "" && m.content.HasPage():
+		text = m.content.Value()
+	case m.graphActive():
+		if i := m.bufferIndex(m.graphLiveID); i >= 0 {
+			id, text = m.graphLiveID, m.liveText(m.buffers[i])
+		}
+	default:
+		id = ""
+	}
+	m.graphLiveID = id
+	if id != "" {
 		edges = make([]core.Edge, 0, len(m.graphEdges))
 		for _, e := range m.graphEdges {
 			if e.From != id {
@@ -166,7 +184,7 @@ func (m *Model) liveGraph() {
 			}
 		}
 		m.pv.linkScans++
-		for _, to := range core.OutLinks(m.graphNotes, core.Page{ID: id, Content: m.content.Value()}) {
+		for _, to := range core.OutLinks(m.graphNotes, core.Page{ID: id, Content: text}) {
 			if to != id {
 				edges = append(edges, core.Edge{From: id, To: to})
 			}

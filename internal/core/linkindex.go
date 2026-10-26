@@ -128,6 +128,10 @@ func (x *LinkIndex) Clone() *LinkIndex {
 	return &c
 }
 
+// Unread counts the notes whose text the last Update could not read: they
+// are listed, without links, until a later Update reads them.
+func (x *LinkIndex) Unread() int { return len(x.notes) - len(x.entries) }
+
 // Notes lists the indexed notes in the order Update received them. The
 // slice must not be modified.
 func (x *LinkIndex) Notes() []Page { return x.notes }
