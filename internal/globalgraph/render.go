@@ -418,17 +418,21 @@ func (d *drawing) groupColour(key string) lipgloss.Color {
 const minNearName = 3
 
 // names draws the selection's name in full, then the open note's and the
-// neighbours' (busiest first), each cut short before the first dot or name
-// in its way (at the overview, only their dots count); then the layout's
+// neighbours' (busiest first): each in full on the right of its dot or,
+// when that side is in the way, in full on the left; failing both, cut
+// short on the right before the first dot or name in its way (at the
+// overview, only their dots count); then the layout's
 // names for the zoom (none at the overview) that cover none of those.
 // Every name keeps a blank cell on each side, so edges never run into it.
-// Names are placed on the whole map, not the pane, so panning never
-// changes which are shown.
+// Names are placed on the whole map, not the pane, so panning does not
+// change which are shown, with one exception: a name goes left of its dot
+// only when it fits inside the pane, so near the pane's left edge a
+// neighbour may fall back to the right-hand cut.
 func (d *drawing) names() {
 	n := &namer{d: d, dots: d.r.dotCells(d.sx, d.sy), names: map[Point]bool{}}
 	drawn := map[int]bool{}
 	if d.sel >= 0 {
-		n.draw(d.sel, min(ansi.StringWidth(d.r.l.Nodes[d.sel].Label), maxLabelWidth))
+		n.draw(d.sel, min(ansi.StringWidth(d.r.l.Nodes[d.sel].Label), maxLabelWidth), sideRight)
 		drawn[d.sel] = true
 	}
 	var hot []int
@@ -452,10 +456,17 @@ func (d *drawing) names() {
 		if room < w || n.taken(Point{p.X + 2 + w, p.Y}) {
 			room-- // keep a blank before what is in the way
 		}
-		if n.taken(Point{p.X + 1, p.Y}) || room < min(w, minNearName) {
+		gap := n.taken(Point{p.X + 1, p.Y})
+		switch {
+		case !gap && room >= w:
+			n.draw(i, w, sideRight)
+		case n.fitsLeft(p, w):
+			n.draw(i, w, sideLeft)
+		case gap || room < min(w, minNearName):
 			continue
+		default:
+			n.draw(i, room, sideRight)
 		}
-		n.draw(i, room)
 		drawn[i] = true
 	}
 	st := style{fg: d.th.GreyFg2}
@@ -532,11 +543,35 @@ func (n *namer) anyName(x0, x1, y int) bool {
 	return false
 }
 
-// draw draws node i's name, cut to w cells, two cells right of its dot,
-// with a blank cell on each side that is not taken, and marks those cells.
-// The selection's dot, gap and name share a background when the pane has
-// the focus.
-func (n *namer) draw(i, w int) {
+// side is where a name goes beside its dot.
+type side int
+
+const (
+	sideRight side = iota
+	sideLeft
+)
+
+// fitsLeft reports whether a name w cells wide fits left of the dot at map
+// cell p: a blank next to the dot, the name, and a blank before it, none
+// of them taken and all inside the pane. A name cut off by the pane's left
+// edge would show less than the right-hand cut does.
+func (n *namer) fitsLeft(p Point, w int) bool {
+	if p.X-2-w-n.d.f.Offset.X < 0 {
+		return false
+	}
+	for x := p.X - 2 - w; x <= p.X-1; x++ {
+		if n.taken(Point{x, p.Y}) {
+			return false
+		}
+	}
+	return true
+}
+
+// draw draws node i's name, cut to w cells, two cells right (or, on the
+// left side, left) of its dot, with a blank cell on each side that is not
+// taken, and marks those cells. The selection's dot, gap and name share a
+// background when the pane has the focus.
+func (n *namer) draw(i, w int, at side) {
 	d := n.d
 	st, prio := style{fg: d.th.Fg}, prioNearName
 	switch d.class(i) {
@@ -557,6 +592,15 @@ func (n *namer) draw(i, w int) {
 	x, y := p.X-d.f.Offset.X, p.Y-d.f.Offset.Y
 	d.cv.owner = int32(i) + 1
 	defer func() { d.cv.owner = 0 }()
+	if at == sideLeft { // fitsLeft checked every cell
+		d.cv.set(x-2-nw, y, ' ', style{}, prio)
+		d.cv.text(x-1-nw, y, nw, name, st, prio)
+		d.cv.set(x-1, y, ' ', style{}, prio)
+		for c := p.X - 2 - nw; c <= p.X-1; c++ {
+			n.names[Point{c, p.Y}] = true
+		}
+		return
+	}
 	if !n.taken(Point{p.X + 1, p.Y}) {
 		d.cv.set(x+1, y, ' ', style{bg: st.bg}, prio)
 	}
