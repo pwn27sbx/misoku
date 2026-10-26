@@ -508,7 +508,7 @@ func (m *Model) settle() {
 }
 
 // reveal scrolls the view as little as it takes to show the selection's
-// dot and, when it fits, its name.
+// dot and, when it fits, its name, on whichever side of the dot it goes.
 func (m *Model) reveal() {
 	n, ok := m.l.Lookup(m.sel)
 	if !ok {
@@ -516,10 +516,10 @@ func (m *Model) reveal() {
 	}
 	m.settle()
 	sx, sy := m.scale()
-	x0, y := n.P.X*sx, n.P.Y*sy
-	x1 := x0 + 1 + min(ansi.StringWidth(n.Label), maxLabelWidth)
+	dot, y := n.P.X*sx, n.P.Y*sy
+	x0, x1 := m.r.selSpan(m.frame())
 	if x1-x0 >= m.width {
-		x1 = x0
+		x0, x1 = dot, dot
 	}
 	if m.offset.X > x0 {
 		m.offset.X = x0
