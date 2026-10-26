@@ -202,7 +202,7 @@ never use `notes_dir`.
 - **Plain Markdown files.** No database or lock-in: use git, sync the folder, open notes in any editor.
 - **A full workspace.** Start screen, file tree, tabs, statusline and 97 themes.
 - **Folders on the start screen**: the top-level folders of your notes, one key away (they follow the Recent notes on 1–9); opening one shows it expanded in the explorer.
-- **A start screen that follows your shortcuts**: its letter keys stay fixed (`n`, `f`, `e`, `t`, `?`, `g` for the graph, `s`, `q`, `1`–`9`), and the leader (`space`) sequences and Ctrl/Alt shortcuts from your [`keys`](#configuration) work there too.
+- **A start screen that follows your shortcuts**: its letter keys stay fixed (`n`, `f`, `e`, `t`, `?`, `g` for the [global graph](#global-graph), `s`, `q`, `1`–`9`), and the leader (`space`) sequences and Ctrl/Alt shortcuts from your [`keys`](#configuration) work there too.
 - **Modal keyboard editing** with mouse support, plus unsaved tabs and Save As.
 - **`/` block menu** for headings, to-dos, tables, callouts, code, images and more.
 - **Live preview** laid out like a page, with syntax highlighting, images and cover banners drawn in the terminal.
@@ -223,7 +223,7 @@ never use `notes_dir`.
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
 - **Links between notes** with `[[Note]]`: jump to headings and blocks, embed one note in another, and see what links back.
 - **Messages you can read again**: errors stay in red in the status bar until you press `Esc` (which still does what it always does); other messages clear on the next key. `:messages` lists the last 100, with the time of each (results only: progress such as `Syncing…` is not kept).
-- **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it.
+- **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it; `:graph all` maps every note of the vault at once.
 - **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `s` on the start screen, or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
 
 ## Shortcuts
@@ -313,6 +313,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `export_pdf` | `space P` (Space, then Shift+P) | Export note as PDF (same as `:export`) |
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |
+| `global_graph` | `space G` (Space, then Shift+G) | Graph of every note (same as `:graph all`, see [Global graph](#global-graph)) |
 | `home` | `space d` | Home screen |
 | `sync_now` | `space s` | Sync the vault with git now (same as `:sync`, see [Sync](#sync)) |
 | `help` | `?`, `space h`, `space ?` | This help: the [command palette](#command-palette) |
@@ -441,6 +442,32 @@ The bottom row lists these keys, shortened to fit narrow panes.
 
 Close the graph like any tab.
 It picks up links as you type them in other tabs.
+
+#### Global graph
+
+`:graph all` (or `Space G`, or `g` on the start screen) opens a second
+graph tab with every note of the vault, whether it links anywhere or not,
+and the links between them. Each top-level folder is a group of its own;
+notes with more links get a bigger dot (`·` `•` `●`), and a link to a note
+that doesn't exist yet is a hollow `○` named after the link. The note you
+were in is selected; its links are lit and the rest is greyed out. The
+title row counts notes, links, notes without links and missing notes.
+
+| Key | What it does |
+| --- | --- |
+| `h` `j` `k` `l` / arrows | Select the nearest note on that side |
+| `n` / `N` | Next / previous note the selected one links to or is linked from |
+| `enter` | Open the selected note; on a missing note, start it (nothing is written until you save) |
+| `-` / `+` | Zoom out / in: dots only, then the names of the busiest notes, then every name that fits |
+| `0` | Centre the view on the selected note |
+| `esc` | Back to the previous selection |
+
+The mouse works as in the graph: click a note to preview it and again to
+open it, scroll to zoom around the mouse, drag to move, and the bottom row's
+buttons (`−` `+` `0 centre` `esc back` `reset`). Both graph tabs can be open
+at once, each keeping its own selection. Keys you bind in
+[`keys`](#configuration) win over these letters, as in the graph. `:graph`
+with anything but `all` after it is an error.
 
 ## Flowcharts
 

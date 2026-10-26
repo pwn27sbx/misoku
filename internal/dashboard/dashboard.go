@@ -29,7 +29,8 @@ const (
 	ActionOpenProject
 	// ActionSyncSetup opens the sync setup assistant (`:sync setup`).
 	ActionSyncSetup
-	// ActionGraph opens the graph of links between notes.
+	// ActionGraph opens the global graph: every note and the links between
+	// them (home has no open note to centre a local graph on).
 	ActionGraph
 	// ActionSettings opens the settings menu (`:settings`).
 	ActionSettings

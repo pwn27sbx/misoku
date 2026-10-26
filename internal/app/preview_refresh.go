@@ -75,12 +75,15 @@ func (m *Model) flushPreview() {
 	m.syncPreview()
 }
 
-// syncPreview recompiles the preview, and the live graph's links of the
+// syncPreview recompiles the preview, and the live graphs' links of the
 // edited note, from the editor's text.
 func (m *Model) syncPreview() {
 	m.preview.SetContent(m.content.Value())
 	m.pv.compiles++
 	if m.bufferIndex(graphID) >= 0 {
 		m.liveGraph()
+	}
+	if m.bufferIndex(globalGraphID) >= 0 {
+		m.global.wanted = true
 	}
 }

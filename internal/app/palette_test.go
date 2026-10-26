@@ -79,6 +79,12 @@ func TestPaletteListsTheFixedKeys(t *testing.T) {
 		{"+ / -", "Zoom in / out"},
 		{"0", "Centre the graph"},
 		{"Esc", "Back"},
+		// global graph
+		{"h j k l", "Move to the nearest note"},
+		{"n / N", "Next / previous link"},
+		{"Enter", "Open the note, or start a missing one"},
+		{"0", "Centre on the selection"},
+		{"Esc", "Back to the previous selection"},
 	} {
 		if paletteRow(v, k[0], k[1]) == "" {
 			t.Errorf("no row with %q and %q", k[0], k[1])

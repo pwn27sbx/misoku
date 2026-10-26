@@ -661,3 +661,73 @@ func TestModelFirstViewFitsTheWholeMapWhenItCan(t *testing.T) {
 		t.Fatalf("a map too big should centre on the selection, got (%d,%d)", x, y)
 	}
 }
+
+// n and N go round the links of the node they started from only while the
+// selection is the one they reached: a selection reached any other way
+// (keys, a click, the open note) has its own links gone round.
+func TestModelNGoesRoundTheSelectionReachedAnotherWay(t *testing.T) {
+	// Home, n → Inbox; l → Go; h → back on Inbox: n goes round Inbox's
+	// links (Home, Ideas), not Home's (Inbox, study/Go, …).
+	m := newModel(t, 80, 20)
+	m, _ = press(m, "n")
+	if m.Selected() != "Inbox.md" {
+		t.Fatalf("setup: n from Home = %q", m.Selected())
+	}
+	m, _ = press(m, "l")
+	if m.Selected() != "study/Go.md" {
+		t.Fatalf("setup: l from Inbox = %q", m.Selected())
+	}
+	m, _ = press(m, "h")
+	if m.Selected() != "Inbox.md" {
+		t.Fatalf("setup: h from Go = %q", m.Selected())
+	}
+	if m, _ = press(m, "n"); m.Selected() != "Home.md" {
+		t.Fatalf("n back on Inbox should go round Inbox's links, got %q", m.Selected())
+	}
+
+	// The same after the open note moved the selection onto where n left it.
+	m = newModel(t, 80, 20)
+	m, _ = press(m, "n")
+	m.SetOpenNote("Inbox.md")
+	if m, _ = press(m, "n"); m.Selected() != "Home.md" {
+		t.Fatalf("n on the open note should go round its own links, got %q", m.Selected())
+	}
+
+	// And after esc came back to where n left the selection.
+	m = newModel(t, 80, 20)
+	m, _ = press(m, "n", "j", "esc")
+	if m.Selected() != "Inbox.md" {
+		t.Fatalf("setup: esc = %q", m.Selected())
+	}
+	if m, _ = press(m, "n"); m.Selected() != "Home.md" {
+		t.Fatalf("n after esc should go round Inbox's links, got %q", m.Selected())
+	}
+}
+
+// A wide (CJK) name takes two cells per character: a click on either half
+// of any of them selects its note.
+func TestModelClickOnEitherHalfOfAWideNameSelectsIt(t *testing.T) {
+	const id = "study/日本語のノート.md"
+	for _, half := range []int{0, 1, 2, 3} {
+		// Rust sits left of it: select Rust and centre the view there.
+		m := newModel(t, 80, 20)
+		m, _ = press(m, "+", "+", "n", "n", "j", "0")
+		if m.Selected() != "study/Rust.md" {
+			t.Fatalf("setup: selection %q", m.Selected())
+		}
+		var x, y = -1, -1
+		for row, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+			if i := strings.Index(l, "日本語"); i >= 0 && row > 0 {
+				x, y = ansi.StringWidth(l[:i]), row
+				break
+			}
+		}
+		if x < 0 {
+			t.Fatalf("the wide name is not drawn:\n%s", ansi.Strip(m.View()))
+		}
+		m, msg := click(m, x+half, y)
+		if m.Selected() != id || msg != (SelectMsg{ID: id}) {
+			t.Fatalf("click on cell %d of the name: %q %#v", half, m.Selected(), msg)
+		}
+	}
+}

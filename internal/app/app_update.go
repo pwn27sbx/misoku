@@ -9,6 +9,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/globalgraph"
 	"github.com/pwn27sbx/misoku/internal/graph"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
@@ -17,12 +18,14 @@ import (
 
 // Update routes events down and handles events emitted up from child
 // components. Whatever the event, a link index build it asked for (see
-// refreshGraph) starts afterwards, in a command of its own.
+// refreshGraph) and a layout of the global map (see startGlobalMap) start
+// afterwards, in commands of their own.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
-		if build := nm.startLinkIndex(); build != nil {
-			return nm, tea.Batch(cmd, build)
+		build, layout := nm.startLinkIndex(), nm.startGlobalMap()
+		if build != nil || layout != nil {
+			return nm, tea.Batch(cmd, build, layout)
 		}
 	}
 	return next, cmd
@@ -44,6 +47,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, checkWorkspaceLater()
 	case linkIndexedMsg:
 		m.applyLinkIndex(msg)
+		return m, nil
+	case globalMapMsg:
+		m.applyGlobalMap(msg)
 		return m, nil
 	case SyncNowMsg, core.SyncMsg:
 		return m, m.requestSync()
@@ -158,9 +164,16 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openFinder()
 	case core.GraphMsg:
 		return m, m.openGraph()
+	case core.GlobalGraphMsg:
+		return m, m.openGlobalGraph()
 	case graph.OpenMsg:
 		return m, m.openFile(msg.ID)
+	case globalgraph.OpenMsg:
+		return m, m.openGlobalNode(msg)
 	case graph.SelectMsg:
+		m.previewNote(msg.ID)
+		return m, nil
+	case globalgraph.SelectMsg:
 		m.previewNote(msg.ID)
 		return m, nil
 	case preview.HitMsg:

@@ -99,7 +99,7 @@ func TestCommandCatalogNoNoteCommandsRunAndLeaveTheNoteAlone(t *testing.T) {
 		}
 		no[c.Usage] = c.NoNote
 	}
-	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":enew", ":sync", ":sync status", ":sync setup"} {
+	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":graph all", ":enew", ":sync", ":sync status", ":sync setup"} {
 		if !no[u] {
 			t.Errorf("%s needs no note", u)
 		}
@@ -108,5 +108,20 @@ func TestCommandCatalogNoNoteCommandsRunAndLeaveTheNoteAlone(t *testing.T) {
 		if no[u] {
 			t.Errorf("%s acts on the open note", u)
 		}
+	}
+}
+
+// ":graph" opens the local graph, ":graph all" the global one; any other
+// argument is an error, like :sync's.
+func TestGraphCommandTakesAllOrNothing(t *testing.T) {
+	if _, ok := content.RunCommand("graph", "").(core.GraphMsg); !ok {
+		t.Errorf(":graph = %#v, want GraphMsg", content.RunCommand("graph", ""))
+	}
+	if _, ok := content.RunCommand("graph all", "").(core.GlobalGraphMsg); !ok {
+		t.Errorf(":graph all = %#v, want GlobalGraphMsg", content.RunCommand("graph all", ""))
+	}
+	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :graph or :graph all)", Error: true}
+	if got := content.RunCommand("graph foo", ""); got != want {
+		t.Errorf(":graph foo = %#v, want %#v", got, want)
 	}
 }

@@ -68,7 +68,7 @@ type Model struct {
 	sel     string   // selected node, "" for none
 	history []string // earlier selections, for esc
 	ring    string   // the node whose neighbours n and N go round
-	ringAt  string   // where n or N left the selection last
+	ringAt  string   // where n or N left the selection; "" once it moved any other way
 
 	zoom          Zoom
 	width, height int
@@ -145,6 +145,7 @@ func (m *Model) SetOpenNote(id string) {
 	m.open, m.history = id, nil
 	if m.exists(id) {
 		m.sel, m.placed = id, false
+		m.ringAt = ""
 	}
 }
 
@@ -235,7 +236,7 @@ func (m *Model) pick(id string) {
 	if m.sel != "" {
 		m.history = append(m.history, m.sel)
 	}
-	m.sel = id
+	m.sel, m.ringAt = id, "" // cycle sets ringAt again when it was the one moving
 	m.reveal()
 }
 

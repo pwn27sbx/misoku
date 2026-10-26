@@ -14,6 +14,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/globalgraph"
 	"github.com/pwn27sbx/misoku/internal/graph"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
@@ -109,6 +110,9 @@ type Model struct {
 	content   content.Model
 	preview   preview.Model
 	graph     graph.Model
+
+	globalGraph globalgraph.Model // the global graph's tab, see globalgraph.go
+	global      globalGraphState
 
 	graphNotes  []core.Page // the workspace's notes and links, see linkGraph
 	graphEdges  []core.Edge
@@ -214,6 +218,7 @@ func New(store *core.Store, opts ...Option) Model {
 		content:     content.New(th),
 		preview:     preview.New(th),
 		graph:       graph.New(th),
+		globalGraph: globalgraph.New(th),
 		execProcess: tea.ExecProcess,
 		// Before the options: what they say (a broken shortcut in the
 		// config) is kept for `:messages` too.
@@ -255,6 +260,7 @@ func (m *Model) updateLayout() {
 	m.content.SetSize(l.EditorW, l.BodyH)
 	m.preview.SetSize(l.PreviewW, l.BodyH)
 	m.graph.SetSize(l.EditorW, l.BodyH)
+	m.globalGraph.SetSize(l.EditorW, l.BodyH)
 	if m.focus == focusPreview && l.PreviewW == 0 {
 		m.focusPane(focusEditor)
 	}
@@ -312,6 +318,7 @@ func (m *Model) focusPane(f focus) tea.Cmd {
 	m.sidebar.SetFocused(f == focusSidebar)
 	m.preview.SetFocused(f == focusPreview)
 	m.graph.SetFocused(f == focusEditor)
+	m.globalGraph.SetFocused(f == focusEditor)
 	if f == focusEditor {
 		return m.content.Focus()
 	}

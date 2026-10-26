@@ -76,6 +76,10 @@ type ExportMsg struct {
 // GraphMsg opens the graph of notes and links (":graph").
 type GraphMsg struct{}
 
+// GlobalGraphMsg opens the map of every note and link of the vault
+// (":graph all").
+type GlobalGraphMsg struct{}
+
 // ThemeMsg switches the colour theme (":colorscheme name"). An empty Name
 // opens the theme picker.
 type ThemeMsg struct {

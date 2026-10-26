@@ -33,6 +33,7 @@ const (
 	ExportPDF      = "export_pdf"
 	Themes         = "themes"
 	Graph          = "graph"
+	GlobalGraph    = "global_graph"
 	Home           = "home"
 	SyncNow        = "sync_now"
 	Help           = "help"
@@ -119,6 +120,8 @@ var Actions = []Info{
 		Long: "Opens the theme picker: the highlighted theme applies at once, Enter keeps it and Esc goes back.", defaults: []string{"space t"}},
 	{Action: Graph, Section: "general", Group: GroupView, Help: "Graph of this note's links",
 		Long: "Shows a map of the notes this note links to and the ones linking to it; move with h j k l and open one with Enter.", defaults: []string{"space g"}},
+	{Action: GlobalGraph, Section: "general", Group: GroupView, Help: "Graph of every note",
+		Long: "Shows a map of every note in the vault, grouped by top-level folder, with the links between them; h j k l move to the nearest note, n and N go round the selected note's links.", defaults: []string{"space G"}},
 	{Action: Home, Section: "general", Group: GroupGo, Help: "Home screen",
 		Long: "Goes back to the home screen, with recent notes and folders. Open tabs stay open.", defaults: []string{"space d"}},
 	{Action: SyncNow, Section: "general", Group: GroupNote, Help: "Sync the vault with git now",

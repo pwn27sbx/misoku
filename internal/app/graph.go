@@ -11,9 +11,19 @@ import (
 )
 
 // The graph lives in its own tab. While it is showing, the preview on the
-// right shows the note selected in it.
+// right shows the note selected in it. The global graph (globalgraph.go)
+// is a second such tab.
 
-func (m *Model) graphActive() bool { return m.active == graphID }
+// graphActive reports whether a graph tab, local or global, is showing.
+func (m *Model) graphActive() bool { return m.active == graphID || m.globalGraphActive() }
+
+// graphSelected is the note selected in the graph tab showing.
+func (m *Model) graphSelected() string {
+	if m.globalGraphActive() {
+		return m.globalGraph.Selected()
+	}
+	return m.graph.Selected()
+}
 
 // openGraph shows the graph tab (":graph", Space g), centred on the note
 // that was open.
@@ -100,8 +110,11 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		m.graphNotes, m.graphEdges = m.linkGraph()
 		m.liveGraph()
 	}
+	if m.bufferIndex(globalGraphID) >= 0 {
+		m.global.wanted = true
+	}
 	if m.graphActive() {
-		m.previewNote(m.graph.Selected())
+		m.previewNote(m.graphSelected())
 		return
 	}
 	var back []core.Backlink
@@ -158,24 +171,9 @@ func (m *Model) backlinks(id string) []core.Backlink {
 // liveGraph updates the edited note's links from the editor, so links show
 // up in the graph as they are typed. It copies and scans the whole note:
 // keys that leave the text as it was don't call it (see editorEdited).
-//
-// While the graph tab is showing there is no edited note, so the links of
-// the note it was opened from stay those of its unsaved text: a new index,
-// built when another note changes on disk, must not drop them.
 func (m *Model) liveGraph() {
 	edges := m.graphEdges
-	id, text := m.currentNoteID(), ""
-	switch {
-	case id != "" && m.content.HasPage():
-		text = m.content.Value()
-	case m.graphActive():
-		if i := m.bufferIndex(m.graphLiveID); i >= 0 {
-			id, text = m.graphLiveID, m.liveText(m.buffers[i])
-		}
-	default:
-		id = ""
-	}
-	m.graphLiveID = id
+	id, text := m.liveNote()
 	if id != "" {
 		edges = make([]core.Edge, 0, len(m.graphEdges))
 		for _, e := range m.graphEdges {
@@ -191,6 +189,28 @@ func (m *Model) liveGraph() {
 		}
 	}
 	m.graph.SetLinks(m.graphNotes, edges)
+}
+
+// liveNote is the note whose unsaved text the graphs show links of, and
+// that text: the edited note, or, while a graph tab is showing and there
+// is no edited note, the note the graph was opened from. So its unsaved
+// links stay when a new index, built when another note changes on disk,
+// lands.
+func (m *Model) liveNote() (id, text string) {
+	id = m.currentNoteID()
+	switch {
+	case id != "" && m.content.HasPage():
+		text = m.content.Value()
+	case m.graphActive():
+		id = ""
+		if i := m.bufferIndex(m.graphLiveID); i >= 0 {
+			id, text = m.graphLiveID, m.liveText(m.buffers[i])
+		}
+	default:
+		id = ""
+	}
+	m.graphLiveID = id
+	return id, text
 }
 
 // previewNote shows a note in the preview without opening it.
@@ -219,7 +239,11 @@ func (m *Model) previewNote(id string) {
 // editorPaneUpdate sends input to whatever the editor pane shows.
 func (m *Model) editorPaneUpdate(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
-	if m.graphActive() {
+	switch {
+	case m.globalGraphActive():
+		m.globalGraph, cmd = m.globalGraph.Update(msg)
+		return cmd
+	case m.graphActive():
 		m.graph, cmd = m.graph.Update(msg)
 		return cmd
 	}
