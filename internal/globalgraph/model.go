@@ -146,6 +146,9 @@ func (m *Model) SetMap(mp Map) {
 	if mp.relaid {
 		m.placed = false
 	}
+	if len(m.l.Nodes) == 0 { // an empty map takes no keys: nothing could close the prompt
+		m.typing, m.filter = false, ""
+	}
 	m.keepSelectionShown()
 }
 
@@ -376,10 +379,14 @@ func (m *Model) act(action string) {
 	case "centre":
 		m.offset, m.placed = m.onSelection(), true
 	case "back":
-		for len(m.history) > 0 {
-			prev := m.history[len(m.history)-1]
-			m.history = m.history[:len(m.history)-1]
-			if m.selectable(prev) { // skip nodes removed or hidden since
+		// Nodes removed since are dropped; hidden ones are skipped but kept,
+		// for when the toggle shows them again.
+		for i := len(m.history) - 1; i >= 0; i-- {
+			prev := m.history[i]
+			if !m.exists(prev) {
+				m.history = slices.Delete(m.history, i, i+1)
+			} else if m.selectable(prev) {
+				m.history = slices.Delete(m.history, i, i+1)
 				m.sel = prev
 				m.reveal()
 				break
