@@ -59,7 +59,7 @@ func (m *Model) renderTab(b *buffer) (string, int) {
 	}
 	s := left + base.Render("  ") + base.Foreground(closeFg).Render(closeGlyph) + base.Render(" ")
 	if active {
-		s = lipgloss.NewStyle().Background(bg).Foreground(th.Blue).Render("▎") + s
+		s = lipgloss.NewStyle().Background(bg).Foreground(th.Blue).Render("┃") + s
 	} else {
 		s = base.Render(" ") + s
 	}
