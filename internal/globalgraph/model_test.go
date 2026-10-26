@@ -354,15 +354,16 @@ func TestModelEmptyMapIgnoresInput(t *testing.T) {
 }
 
 func TestModelClickSelectsThenOpens(t *testing.T) {
-	// Inbox's dot is the cell right of the selected Home's.
+	// Plan's dot is right below the selected Home's (the selection's name
+	// covers the dot of Inbox, its right-hand neighbour on the grid).
 	m := newModel(t, 80, 20)
-	x, y := selPane(m)
-	click := tea.MouseMsg{X: x + 1, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
+	x, y := m.screen("work/Plan.md")
+	click := tea.MouseMsg{X: x, Y: y + 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
 	m, msg := send(m, click)
-	if m.Selected() != "Inbox.md" || msg != (SelectMsg{ID: "Inbox.md"}) {
+	if m.Selected() != "work/Plan.md" || msg != (SelectMsg{ID: "work/Plan.md"}) {
 		t.Fatalf("first click on the dot: %q %#v", m.Selected(), msg)
 	}
-	if _, msg = send(m, click); msg != (OpenMsg{ID: "Inbox.md"}) {
+	if _, msg = send(m, click); msg != (OpenMsg{ID: "work/Plan.md"}) {
 		t.Fatalf("second click on the dot = %#v", msg)
 	}
 
@@ -620,12 +621,21 @@ func TestModelRemovedSelectionFallsBackToTheOpenNote(t *testing.T) {
 	}
 }
 
+// The overview's dot cells depend on the pane size, so only medium and
+// close are warmed; the first overview frame builds its own.
 func TestNewMapWarmsTheRenderer(t *testing.T) {
 	mp := NewMap(Layout{}, vault())
-	for z := range zoomLevels {
-		if mp.r.dots[z] == nil || z != ZoomOverview && mp.r.faint[z] == nil {
+	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
+		if sx, sy := z.fixedScale(); mp.r.dots[[2]int{sx, sy}] == nil || mp.r.faint[z] == nil {
 			t.Fatalf("zoom %d not warmed", z)
 		}
+	}
+	m := New(theme.DefaultTheme())
+	m.SetSize(40, 10)
+	m.SetMap(mp)
+	m.View()
+	if sx, sy := m.scale(); mp.r.dots[[2]int{sx, sy}] == nil || len(mp.r.dots) != 3 {
+		t.Fatalf("the first overview frame should cache its dot cells at %dx%d once: %d scales cached", sx, sy, len(mp.r.dots))
 	}
 	if !mp.relaid {
 		t.Fatal("a first map is a fresh layout")
@@ -729,5 +739,87 @@ func TestModelClickOnEitherHalfOfAWideNameSelectsIt(t *testing.T) {
 		if m.Selected() != id || msg != (SelectMsg{ID: id}) {
 			t.Fatalf("click on cell %d of the name: %q %#v", half, m.Selected(), msg)
 		}
+	}
+}
+
+// At the overview of a small vault the dots are spread as far as the pane
+// allows, up to the medium scale, and a click on each drawn dot selects
+// its note.
+func TestModelOverviewClickSelectsEveryDot(t *testing.T) {
+	for _, c := range []struct{ w, h, sx, sy int }{{100, 30, 3, 2}, {40, 11, 3, 1}} {
+		m := newModel(t, c.w, c.h)
+		clicked := 0
+		for _, n := range m.l.Nodes {
+			o := m.viewOffset()
+			x, y := n.P.X*c.sx-o.X, n.P.Y*c.sy-o.Y+1
+			if got := screen(m.View())[y][x].r; !strings.ContainsRune(string([]rune{glyphLeaf, glyphLinked, glyphHub, glyphUnresolved, glyphSelected}), got) {
+				continue // covered by a name
+			}
+			m, _ = click(m, x, y)
+			if m.Selected() != n.ID {
+				t.Fatalf("%dx%d: a click on %q's dot at (%d,%d) selected %q:\n%s", c.w, c.h, n.ID, x, y, m.Selected(), ansi.Strip(m.View()))
+			}
+			clicked++
+		}
+		if clicked < len(m.l.Nodes)/2 {
+			t.Fatalf("%dx%d: only %d of %d dots were drawn where the overview scale puts them", c.w, c.h, clicked, len(m.l.Nodes))
+		}
+	}
+}
+
+// When the overview already uses the medium scale, + keeps the picture
+// where it is.
+func TestModelZoomInFromAMediumScaleOverviewKeepsTheView(t *testing.T) {
+	m := newModel(t, 100, 24)
+	before := m.viewOffset()
+	m, _ = press(m, "+")
+	if m.zoom != ZoomMedium || m.viewOffset() != before {
+		t.Fatalf("+ moved the view %v → %v (zoom %d)", before, m.viewOffset(), m.zoom)
+	}
+}
+
+// rowGap is how many rows apart Home (grid row 0) and work/Plan (grid row
+// 4) are drawn.
+func rowGap(m Model) int {
+	_, y0 := m.screen("Home.md")
+	_, y1 := m.screen("work/Plan.md")
+	return y1 - y0
+}
+
+func TestModelOverviewScaleFollowsThePaneSize(t *testing.T) {
+	m := newModel(t, 100, 24)
+	big := rowGap(m)
+	m.SetSize(40, 10)
+	if small := rowGap(m); small >= big {
+		t.Fatalf("a smaller pane should draw the overview smaller: rows apart %d → %d", big, small)
+	}
+	checkSelVisible(t, m, "smaller pane")
+}
+
+// A note added in a new cluster changes the overview's fit scale; the view
+// is rescaled around the selection, so the selection does not jump.
+func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) {
+	m := newModel(t, 64, 18)
+	m, _ = press(m, "j")
+	m.offset.X++ // panned by hand
+	x, y := selPane(m)
+	sel, _ := m.l.Lookup(m.Selected())
+	if sel.P.X == 0 || sel.P.Y == 0 {
+		t.Fatalf("the fixture should select a node off the grid's edges, got %q at %v", sel.ID, sel.P)
+	}
+	gap := rowGap(m)
+	g := vault()
+	for i := range 12 {
+		g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("new/N%02d.md", i), Cluster: "new"})
+	}
+	m.SetGraph(g)
+	if m.Layout().H == Build(vault()).H && m.Layout().W == Build(vault()).W {
+		t.Fatal("the fixture should grow the grid")
+	}
+	if rowGap(m) == gap {
+		t.Fatalf("the fixture should change the overview scale (rows apart %d)", gap)
+	}
+	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel.ID {
+		t.Fatalf("adding notes moved the selection %q from (%d,%d) to (%d,%d)", m.Selected(), x, y, x2, y2)
 	}
 }

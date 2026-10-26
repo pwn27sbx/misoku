@@ -63,8 +63,11 @@ const (
 	zoomLevels
 )
 
-// Scale returns how many screen cells one grid cell spans at z.
-func (z Zoom) Scale() (sx, sy int) {
+// fixedScale is how many screen cells one grid cell spans at z, with the
+// overview at 1×1. The overview drawn on screen is scaled to fit the pane
+// (see Renderer.scale); this fixed one only places the layout's labels,
+// which the overview has none of.
+func (z Zoom) fixedScale() (sx, sy int) {
 	switch z {
 	case ZoomMedium:
 		return 3, 2
@@ -409,7 +412,7 @@ func mediumMinDegree(nodes []Placed) int {
 // where the name, the space before it and the space after it cover no dot
 // and no other name.
 func placeLabels(nodes []Placed, z Zoom, minDegree int) []Label {
-	sx, sy := z.Scale()
+	sx, sy := z.fixedScale()
 	taken := make(map[Point]bool, len(nodes)*4)
 	order := make([]int, 0, len(nodes))
 	for i, n := range nodes {

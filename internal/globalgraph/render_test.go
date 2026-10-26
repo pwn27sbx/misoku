@@ -120,7 +120,7 @@ func dotAt(t *testing.T, r *Renderer, f Frame, id string) (x, y int) {
 	if !ok {
 		t.Fatalf("no node %q", id)
 	}
-	sx, sy := f.Zoom.Scale()
+	sx, sy := r.scale(f.Zoom, f.W, f.H)
 	return n.P.X*sx - f.Offset.X, n.P.Y*sy - f.Offset.Y
 }
 
@@ -355,6 +355,7 @@ func TestRenderSameCellColourPriority(t *testing.T) {
 		{Node: Node{ID: "H.md"}, P: Point{2, 1}},
 		{Node: Node{ID: "E.md"}, P: Point{8, 2}},
 		{Node: Node{ID: "F.md"}, P: Point{8, 4}},
+		{Node: Node{ID: "Far.md"}, P: Point{40, 12}}, // keeps the overview at 1×1 in a 60×12 pane
 	}
 	// Alpha→Gamma runs over Beta; Delta→Alpha crosses the faint G-H.
 	edges := []Edge{{"Alpha.md", "Gamma.md"}, {"Delta.md", "Alpha.md"}, {"G.md", "H.md"}, {"E.md", "F.md"}}
@@ -446,14 +447,30 @@ func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 	g.Edges = append(g.Edges, vault().Edges...)
 	r := NewRenderer(Build(g), g.Edges)
 	for z := range zoomLevels {
-		big := Frame{W: 300, H: 80, Zoom: z, Offset: r.Centred(z, 300, 80), Selected: "work/Plan.md", Open: "Home.md", Focused: true, Theme: theme.DefaultTheme()}
+		w, h := 300, 80
+		if z == ZoomOverview {
+			// The overview's scale fits the map to the pane: the whole map
+			// is drawn in the biggest pane with the small panes' scale.
+			sx, sy := r.scale(z, 40, 10)
+			if sx < maxFitX {
+				w = min(w, (sx+1)*(r.l.W-1))
+			}
+			if sy < maxFitY {
+				h = min(h, (sy+1)*(r.l.H-1))
+			}
+			if bx, by := r.scale(z, w, h); bx != sx || by != sy || w < 40 || h < 10 {
+				t.Fatalf("no %dx%d pane draws the overview at %dx%d", w, h, sx, sy)
+			}
+		}
+		big := Frame{W: w, H: h, Zoom: z, Offset: r.Centred(z, w, h), Selected: "work/Plan.md", Open: "Home.md", Focused: true, Theme: theme.DefaultTheme()}
 		whole := screen(r.Render(big))
-		spots := []Point{{0, 0}, {37, 11}, {131, 40}, {260, 70}, {5, 60}}
+		clamp := func(x, y int) Point { return Point{min(max(x, 0), w-40), min(max(y, 0), h-10)} }
+		spots := []Point{{0, 0}, clamp(37, 11), clamp(131, 40), clamp(260, 70), clamp(5, 60)}
 		// Panes whose right edge cuts the names of the neighbourhood.
 		for _, id := range []string{"work/Plan.md", "Home.md", "work/Tasks.md", "work/Meeting.md", "study/Go.md"} {
 			x, y := dotAt(t, r, big, id)
 			for _, dx := range []int{3, 5, 8} {
-				spots = append(spots, Point{min(max(x+dx-39, 0), 260), min(max(y-5, 0), 70)})
+				spots = append(spots, clamp(x+dx-39, y-5))
 			}
 		}
 		for _, at := range spots {
@@ -587,9 +604,12 @@ func TestRenderWideNamesAreNeverSplit(t *testing.T) {
 	r := NewRenderer(Build(g), g.Edges)
 	n, _ := r.l.Lookup(g.Nodes[0].ID)
 	for z := range zoomLevels {
-		sx, sy := z.Scale()
 		for dx := -40; dx <= 4; dx++ {
 			for _, w := range []int{30, 31, 33, 40} {
+				sx, sy := r.scale(z, w, 8)
+				if wx, wy := r.scale(z, w+20, 8); wx != sx || wy != sy {
+					t.Fatalf("zoom %d: the wider pane below uses another scale", z)
+				}
 				f := Frame{W: w, H: 8, Zoom: z, Offset: Point{n.P.X*sx + 2 + dx, n.P.Y*sy - 2}, Selected: n.ID, Theme: theme.DefaultTheme()}
 				out := r.Render(f)
 				checkSize(t, out, w, 8, "wide")
@@ -702,4 +722,30 @@ func BenchmarkView5k(b *testing.B) {
 			NewRenderer(r.l, g.Edges).Render(f)
 		}
 	})
+}
+
+// At the overview a small map is spread over the pane, so the notes and
+// the lines between them can be told apart, and the same layout in the
+// same pane always gives the same picture.
+func TestRenderOverviewSpreadsASmallMapOverThePane(t *testing.T) {
+	const w, h = 48, 12
+	draw := func() (string, *Renderer) {
+		r := NewRenderer(Build(vault()), vault().Edges)
+		return r.Render(Frame{W: w, H: h, Zoom: ZoomOverview, Offset: r.Centred(ZoomOverview, w, h), Theme: theme.DefaultTheme()}), r
+	}
+	out, r := draw()
+	x0, y0, x1, y1 := w, h, -1, -1
+	for y, row := range screen(out) {
+		for x, c := range row {
+			if strings.ContainsRune(string([]rune{glyphLeaf, glyphLinked, glyphHub, glyphUnresolved}), c.r) {
+				x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
+			}
+		}
+	}
+	if x1-x0+1 < w/2 || y1-y0+1 < h/2 {
+		t.Fatalf("the %dx%d grid spans %dx%d cells of a %dx%d pane, want at least half:\n%s", r.l.W, r.l.H, x1-x0+1, y1-y0+1, w, h, ansi.Strip(out))
+	}
+	if again, _ := draw(); again != out {
+		t.Fatal("the same layout in the same pane drew differently")
+	}
 }

@@ -337,7 +337,7 @@ func TestLabelsAreCollisionFreeAtEveryZoom(t *testing.T) {
 		t.Fatalf("medium %d labels, close %d: close must show more", len(l.Labels[ZoomMedium]), len(l.Labels[ZoomClose]))
 	}
 	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
-		sx, sy := z.Scale()
+		sx, sy := z.fixedScale()
 		dots := map[Point]bool{}
 		for _, n := range l.Nodes {
 			dots[Point{n.P.X * sx, n.P.Y * sy}] = true
@@ -364,7 +364,7 @@ func TestLabelsAreCollisionFreeAtEveryZoom(t *testing.T) {
 func TestCloseZoomLabelsEveryNodeThatFits(t *testing.T) {
 	g := fixture(800, 6, 1500, 8)
 	l := Build(g)
-	sx, sy := ZoomClose.Scale()
+	sx, sy := ZoomClose.fixedScale()
 	taken := map[Point]bool{}
 	for _, n := range l.Nodes {
 		taken[Point{n.P.X * sx, n.P.Y * sy}] = true

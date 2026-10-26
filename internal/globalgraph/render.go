@@ -51,21 +51,22 @@ type Frame struct {
 	HideOrphans, HideUnresolved bool
 }
 
-// Renderer draws one layout. It caches the faint edges and the dot cells of
-// each zoom level, so it is meant for one goroutine (the Bubble Tea View).
+// Renderer draws one layout. It caches the faint edges of each zoom level
+// and the dot cells of each scale, so it is meant for one goroutine (the
+// Bubble Tea View).
 type Renderer struct {
 	l       Layout
 	out, in [][]int32  // linked and linking node indexes, per node
 	pairs   [][2]int32 // each linked pair once
 	faint   [zoomLevels]*edgeLayer
-	known   [zoomLevels]*edgeLayer // faint without the edges to unresolved targets
-	dots    [zoomLevels]map[Point]int32
+	known   [zoomLevels]*edgeLayer     // faint without the edges to unresolved targets
+	dots    map[[2]int]map[Point]int32 // by scale: sx, sy
 }
 
 // NewRenderer prepares l and its edges for drawing. Edges to unknown nodes,
 // self-links and repeats are ignored.
 func NewRenderer(l Layout, edges []Edge) *Renderer {
-	r := &Renderer{l: l, out: make([][]int32, len(l.Nodes)), in: make([][]int32, len(l.Nodes))}
+	r := &Renderer{l: l, out: make([][]int32, len(l.Nodes)), in: make([][]int32, len(l.Nodes)), dots: map[[2]int]map[Point]int32{}}
 	seen, paired := map[[2]int32]bool{}, map[[2]int32]bool{}
 	for _, e := range edges {
 		a, okA := l.index[e.From]
@@ -88,10 +89,27 @@ func NewRenderer(l Layout, edges []Edge) *Renderer {
 	return r
 }
 
+// maxFitX and maxFitY cap the overview's scale at the medium one, so
+// zooming in never draws the map smaller.
+const maxFitX, maxFitY = 3, 2
+
+// scale is how many screen cells one grid cell spans at zoom z in a w×h
+// pane. Medium and close have fixed scales; the overview takes the largest
+// whole scale, up to the medium one, that fits the map in the pane, so a
+// small map is spread out instead of packed in the middle.
+func (r *Renderer) scale(z Zoom, w, h int) (sx, sy int) {
+	if z != ZoomOverview {
+		return z.fixedScale()
+	}
+	sx = min(max((w-1)/max(r.l.W-1, 1), 1), maxFitX)
+	sy = min(max((h-1)/max(r.l.H-1, 1), 1), maxFitY)
+	return sx, sy
+}
+
 // Centred is the offset that puts the middle of the map at the middle of a
 // w×h pane at zoom z.
 func (r *Renderer) Centred(z Zoom, w, h int) Point {
-	sx, sy := z.Scale()
+	sx, sy := r.scale(z, w, h)
 	mw, mh := max((r.l.W-1)*sx+1, 1), max((r.l.H-1)*sy+1, 1)
 	return Point{floorHalf(mw - w), floorHalf(mh - h)}
 }
@@ -178,13 +196,15 @@ func (r *Renderer) nodeAt(f Frame, x, y int) (int, bool) {
 	return int(own) - 1, own > 0
 }
 
-// warm builds the caches of every zoom level, so the first frames after a
-// new map need not; it is meant to run before the renderer is shared.
+// warm builds the caches of the medium and close zoom levels, so the first
+// frames after a new map need not; it is meant to run before the renderer
+// is shared. The overview's dot cells depend on the pane size, unknown
+// here, so its first frame builds them; it draws no faint edges.
 func (r *Renderer) warm() {
-	for z := range zoomLevels {
-		r.dotCells(z)
-		if z != ZoomOverview && r.faint[z] == nil {
-			sx, sy := z.Scale()
+	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
+		sx, sy := z.fixedScale()
+		r.dotCells(sx, sy)
+		if r.faint[z] == nil {
 			r.faint[z] = r.buildLayer(sx, sy, false)
 		}
 	}
@@ -213,7 +233,7 @@ type drawing struct {
 
 func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
 	d := &drawing{r: r, f: f, th: th, cv: newCanvas(f.W, f.H), sel: -1, open: -1, near: map[int]bool{}}
-	d.sx, d.sy = f.Zoom.Scale()
+	d.sx, d.sy = r.scale(f.Zoom, f.W, f.H)
 	if f.HideOrphans || f.HideUnresolved {
 		d.hidden = make([]bool, len(r.l.Nodes))
 		for i, n := range r.l.Nodes {
@@ -405,7 +425,7 @@ const minNearName = 3
 // Names are placed on the whole map, not the pane, so panning never
 // changes which are shown.
 func (d *drawing) names() {
-	n := &namer{d: d, dots: d.r.dotCells(d.f.Zoom), names: map[Point]bool{}}
+	n := &namer{d: d, dots: d.r.dotCells(d.sx, d.sy), names: map[Point]bool{}}
 	drawn := map[int]bool{}
 	if d.sel >= 0 {
 		n.draw(d.sel, min(ansi.StringWidth(d.r.l.Nodes[d.sel].Label), maxLabelWidth))
@@ -472,16 +492,18 @@ func (d *drawing) mapCell(i int) Point {
 	return Point{p.X * d.sx, p.Y * d.sy}
 }
 
-// dotCells maps each node's cell at zoom z to the node, built once per zoom.
-func (r *Renderer) dotCells(z Zoom) map[Point]int32 {
-	if r.dots[z] == nil {
-		sx, sy := z.Scale()
-		r.dots[z] = make(map[Point]int32, len(r.l.Nodes))
+// dotCells maps each node's cell at scale sx×sy to the node, built once
+// per scale (at most a handful: the overview's fits and the fixed ones).
+func (r *Renderer) dotCells(sx, sy int) map[Point]int32 {
+	key := [2]int{sx, sy}
+	if r.dots[key] == nil {
+		cells := make(map[Point]int32, len(r.l.Nodes))
 		for i, n := range r.l.Nodes {
-			r.dots[z][Point{n.P.X * sx, n.P.Y * sy}] = int32(i)
+			cells[Point{n.P.X * sx, n.P.Y * sy}] = int32(i)
 		}
+		r.dots[key] = cells
 	}
-	return r.dots[z]
+	return r.dots[key]
 }
 
 // namer places the neighbourhood's names on the map.
