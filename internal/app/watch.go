@@ -60,6 +60,11 @@ func (m *Model) checkWorkspace() {
 // selected note, which is still the same one after the refresh.
 func (m *Model) applyScannedTree(pages []core.Page) {
 	if treeSignature(pages) == m.treeSig {
+		// Notes edited outside keep the tree as it was, but their links
+		// may have changed: the graph and backlinks read them again.
+		if m.linkIndexOutOfDate(pages) {
+			m.refreshGraph()
+		}
 		return
 	}
 	selected, ok := m.sidebar.SelectedPage()

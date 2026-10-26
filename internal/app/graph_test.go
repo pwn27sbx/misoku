@@ -1,8 +1,13 @@
 package app_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/pwn27sbx/misoku/internal/app"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -171,5 +176,84 @@ func TestGraphTabIsNotAnUnsavedNote(t *testing.T) {
 	v := h.view()
 	if strings.Contains(v, "unsaved changes") || !strings.Contains(v, "1 first [[Untitled-3]]") {
 		t.Fatalf("following a link from the graph tab should just open the note:\n%s", v)
+	}
+}
+
+// editOutside rewrites a note the way another program would, with a
+// modification time well past any save the test made, so even a filesystem
+// with coarse timestamps sees the change.
+func editOutside(t *testing.T, root, rel, content string) {
+	t.Helper()
+	writeOutside(t, root, rel, content)
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(root, filepath.FromSlash(rel)), later, later); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A link added by another program to a note that has no tab reaches the
+// graph on the next workspace check, though the tree did not change.
+func TestGraphShowsLinkAddedOutsideToAClosedNote(t *testing.T) {
+	h := graphWorkspace(t)
+	if ed := editorPane(h.view()); !strings.Contains(ed, "Untitled-2 · 1 link · 1 backlink ·") {
+		t.Fatalf("unexpected graph:\n%s", ed)
+	}
+	editOutside(t, h.store.Root(), "Untitled-3.md", "third [[Untitled-2]]")
+	h.send(app.CheckWorkspaceMsg{})
+	if ed := editorPane(h.view()); !strings.Contains(ed, "Untitled-2 · 1 link · 2 backlinks ·") {
+		t.Fatalf("the link added outside should show after the check:\n%s", ed)
+	}
+}
+
+// A link added by another program to a note open in a tab reloads the tab
+// and reaches the graph on the same check.
+func TestGraphShowsLinkAddedOutsideToAnOpenNote(t *testing.T) {
+	h := graphWorkspace(t) // Untitled-2 is open in a tab, without edits
+	h.keys("l")            // select Untitled-1
+	editOutside(t, h.store.Root(), "Untitled-2.md", "[Untitled-1](Untitled-1.md) [[Untitled-3]]")
+	h.send(app.CheckWorkspaceMsg{})
+	if ed := editorPane(h.view()); !strings.Contains(ed, "Untitled-2 · 2 links · 1 backlink ·") {
+		t.Fatalf("the open note's new link should show after the check:\n%s", ed)
+	}
+	if !strings.Contains(previewPane(h.view()), "first Untitled-3") {
+		t.Fatalf("the selection's preview should stay:\n%s", h.view())
+	}
+}
+
+// Saving a note refreshes the links of the whole workspace: the note it
+// now links to lists it under its backlinks.
+func TestSaveRefreshesBacklinksOfLinkedNote(t *testing.T) {
+	h := graphWorkspace(t)
+	h.key(tea.KeyEsc)
+	h.send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}})
+	h.keys("untitled-3")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.typeAtTop("see [o](Other.md) ")
+	h.ex("w")
+	h.send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}})
+	h.keys("other")
+	h.key(tea.KeyEnter)
+	if v := h.view(); !strings.Contains(v, "Linked from 1 note") {
+		t.Fatalf("Other should list the note just saved under its backlinks:\n%s", v)
+	}
+}
+
+// A closed note that starts linking to the open one, changed by another
+// program, shows up in the open note's backlinks after the check.
+func TestPreviewBacklinksFollowLinkAddedOutside(t *testing.T) {
+	h := graphWorkspace(t)
+	h.key(tea.KeyEsc)
+	h.send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}})
+	h.keys("untitled-3")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	if v := h.view(); !strings.Contains(v, "Linked from 1 note") {
+		t.Fatalf("Untitled-3 should have one backlink:\n%s", v)
+	}
+	editOutside(t, h.store.Root(), "Other.md", "[[Untitled-2]] and [[Untitled-3]]")
+	h.send(app.CheckWorkspaceMsg{})
+	if v := h.view(); !strings.Contains(v, "Linked from 2 notes") {
+		t.Fatalf("the backlink added outside should show after the check:\n%s", v)
 	}
 }

@@ -44,7 +44,7 @@ func (m *Model) refreshLinks() {
 	m.preview.SetNotes(m.noteLookup())
 	var back []core.Backlink
 	if id := m.currentNoteID(); id != "" {
-		back = m.store.Backlinks(id)
+		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
 }
