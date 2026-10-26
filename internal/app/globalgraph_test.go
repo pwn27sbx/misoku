@@ -435,3 +435,56 @@ func TestUserBindingStealsAToggleLetter(t *testing.T) {
 		t.Fatalf("o is themes in the config and should open the picker, not hide orphans:\n%s", v)
 	}
 }
+
+// A vault emptied while the filter prompt is open closes the prompt, so
+// the app's keys work again: the empty map takes no keys to close it.
+func TestGlobalGraphEmptiedVaultClosesTheFilterPrompt(t *testing.T) {
+	h := globalWorkspace(t)
+	h.keys(" x") // close Home: an open note stays on the map
+	h.ex("graph all")
+	h.keys("/pl")
+	for _, rel := range []string{"Home.md", "work/Plan.md", "Orphan.md"} {
+		removeOutside(t, h.store.Root(), rel)
+	}
+	h.send(app.CheckWorkspaceMsg{})
+	if v := h.view(); !strings.Contains(editorPane(v), "No notes yet") {
+		t.Fatalf("setup: the map should be empty:\n%s", v)
+	}
+	h.keys("?")
+	if v := h.view(); !strings.Contains(v, paletteTitle) {
+		t.Fatalf("? should open the palette once the map is empty:\n%s", v)
+	}
+}
+
+// When a refresh of the map moves the selection off a node a toggle now
+// hides, the preview follows it to the open note.
+func TestGlobalGraphPreviewFollowsASelectionARefreshHides(t *testing.T) {
+	h := globalWorkspace(t)
+	h.keys("nn") // Ghost, then work/Plan
+	h.keys("o")
+	if !strings.Contains(previewPane(h.view()), "back") {
+		t.Fatalf("setup: work/Plan should be previewed:\n%s", h.view())
+	}
+	editOutside(t, h.store.Root(), "work/Plan.md", "no links now")
+	editOutside(t, h.store.Root(), "Home.md", "only [[Ghost]]")
+	h.send(app.CheckWorkspaceMsg{})
+	if title := globalTitle(h); !strings.Contains(title, "Home") || !strings.Contains(previewPane(h.view()), "only") {
+		t.Fatalf("the hidden work/Plan should give way to Home, previewed:\n%s", h.view())
+	}
+}
+
+// Opening the map from a note a toggle hides selects the nearest note
+// shown, Home here, and the preview shows that note, not the hidden one.
+func TestGlobalGraphOpenedFromAHiddenNotePreviewsTheSelection(t *testing.T) {
+	h := globalWorkspace(t)
+	h.keys("o")
+	h.send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}})
+	h.keys("orphan")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.ex("graph all")
+	title, pv := globalTitle(h), previewPane(h.view())
+	if !strings.Contains(title, "Home") || strings.Contains(pv, "alone") || !strings.Contains(pv, "go to") {
+		t.Fatalf("the hidden Orphan should not be selected nor previewed:\n%s", h.view())
+	}
+}

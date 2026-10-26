@@ -104,15 +104,26 @@ func (m *Model) toggle(action string) {
 
 // keepSelectionShown moves a selection a toggle hides to the open note or,
 // when that is hidden too, to the nearest node shown (a row counts as
-// cellAspect columns; ties go to the smaller ID).
+// cellAspect columns; ties go to the smaller ID). With nothing selected,
+// as after a toggle hid every node, or with the selection gone from the
+// map, it goes by the open note in the same way; with no open note on the
+// map, nothing is selected.
 func (m *Model) keepSelectionShown() {
-	if m.sel == "" || m.selectable(m.sel) {
+	if m.selectable(m.sel) {
 		return
 	}
+	origin := m.sel
+	if !m.exists(origin) {
+		origin = m.open
+	}
+	if !m.exists(origin) {
+		m.sel = ""
+		return
+	}
+	from, _ := m.l.Lookup(origin)
 	if m.selectable(m.open) {
 		m.sel = m.open
 	} else {
-		from, _ := m.l.Lookup(m.sel)
 		best, bestD := "", math.Inf(1)
 		for _, n := range m.l.Nodes {
 			dx, dy := float64(n.P.X-from.P.X), cellAspect*float64(n.P.Y-from.P.Y)

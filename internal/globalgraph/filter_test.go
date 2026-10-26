@@ -266,3 +266,54 @@ func TestFilterAndToggleButtons(t *testing.T) {
 		}
 	}
 }
+
+// A map that becomes empty while the prompt is open closes the prompt:
+// the empty map takes no keys, so nothing else could close it, and the app
+// would keep typing every key into it.
+func TestEmptyMapClosesThePrompt(t *testing.T) {
+	m := newModel(t, 120, 20)
+	m, _ = press(m, "/", "pl")
+	m.SetGraph(Graph{})
+	m, _ = press(m, "esc")
+	if m.Typing() {
+		t.Fatal("the prompt should be closed on an empty map")
+	}
+	m.SetGraph(vault())
+	if m.Typing() || m.filter != "" {
+		t.Fatalf("the map coming back should not reopen the prompt: typing %v filter %q", m.Typing(), m.filter)
+	}
+}
+
+// esc skips the selections a toggle hides without forgetting them: once
+// they show again, esc goes back to them.
+func TestBackSkipsHiddenSelectionsWithoutDroppingThem(t *testing.T) {
+	m := newModel(t, 120, 20)
+	m, _ = press(m, "j", "l") // Home → Orphan → Ideas
+	if m.Selected() != "Ideas" {
+		t.Fatalf("setup: selected %q, want Ideas", m.Selected())
+	}
+	if m, _ = press(m, "o", "esc"); m.Selected() != "Home.md" {
+		t.Fatalf("esc should skip the hidden Orphan, got %q", m.Selected())
+	}
+	m, msg := press(m, "o", "esc")
+	if m.Selected() != "Orphan.md" || msg != (SelectMsg{ID: "Orphan.md"}) {
+		t.Fatalf("with orphans shown again esc should go back to Orphan, got %q %#v", m.Selected(), msg)
+	}
+}
+
+// When a toggle hides every node nothing is selected; showing them again
+// selects the open note.
+func TestShowingNodesAgainSelectsTheOpenNote(t *testing.T) {
+	m := New(theme.DefaultTheme())
+	m.SetSize(80, 20)
+	m.SetFocused(true)
+	m.SetGraph(Graph{Nodes: []Node{{ID: "A.md"}, {ID: "B.md"}}}) // two orphans
+	m.SetOpenNote("A.md")
+	if m, _ = press(m, "o"); m.Selected() != "" {
+		t.Fatalf("with every node hidden nothing should be selected, got %q", m.Selected())
+	}
+	m, msg := press(m, "o")
+	if m.Selected() != "A.md" || msg != (SelectMsg{ID: "A.md"}) {
+		t.Fatalf("showing the nodes again should select the open note, got %q %#v", m.Selected(), msg)
+	}
+}
