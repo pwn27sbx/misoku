@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -194,5 +195,34 @@ func TestLinkIndexBuildDoesNotShareTheIndexInUse(t *testing.T) {
 	deliver(&m, msg)
 	if got := backlinkIDs(m.backlinks("B.md")); !reflect.DeepEqual(got, []string{"C.md"}) {
 		t.Fatalf("backlinks of B after the build = %v, want [C.md]", got)
+	}
+}
+
+// A note that could not be read is read again on the next workspace check,
+// though its modification time did not change.
+func TestScanRereadsANoteThatFailedToRead(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs file permissions that stop the owner reading")
+	}
+	store := indexStore(t)
+	abs := filepath.Join(store.Root(), "A.md")
+	if err := os.Chmod(abs, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	m := New(store)
+	deliver(&m, startIndex(t, &m)())
+	if got := backlinkIDs(m.backlinks("B.md")); got != nil {
+		t.Fatalf("backlinks of B = %v while A can't be read", got)
+	}
+	if err := os.Chmod(abs, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m.applyWorkspaceScan(workspaceScannedMsg{treeGen: m.treeGen, pages: store.List()})
+	if !m.index.wanted {
+		t.Fatal("a note that failed to read should be read again on the next check")
+	}
+	deliver(&m, m.startLinkIndex()())
+	if got := backlinkIDs(m.backlinks("B.md")); !reflect.DeepEqual(got, []string{"A.md"}) {
+		t.Fatalf("backlinks of B = %v, want [A.md]", got)
 	}
 }

@@ -110,9 +110,10 @@ type Model struct {
 	preview   preview.Model
 	graph     graph.Model
 
-	graphNotes []core.Page // the workspace's notes and links, see linkGraph
-	graphEdges []core.Edge
-	index      linkIndexState // every note's links, for the graph and backlinks
+	graphNotes  []core.Page // the workspace's notes and links, see linkGraph
+	graphEdges  []core.Edge
+	index       linkIndexState // every note's links, for the graph and backlinks
+	graphLiveID string         // the note whose unsaved links the graph shows, see liveGraph
 
 	pv previewSync // the preview's copy of the editor text, see preview_refresh.go
 

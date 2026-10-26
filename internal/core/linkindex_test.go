@@ -314,10 +314,16 @@ func TestLinkIndexReadErrorKeepsNote(t *testing.T) {
 	if got, want := x.Edges(), []Edge{{"B.md", "A.md"}}; len(x.Notes()) != 2 || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Notes = %v, Edges = %v; want both notes and %v", x.Notes(), got, want)
 	}
+	if got := x.Unread(); got != 1 {
+		t.Fatalf("Unread = %d, want 1", got)
+	}
 	fail = false
 	x.Update(notes, read)
 	if got := x.Edges(); len(got) != 2 {
 		t.Fatalf("a note that failed to read must be retried; Edges = %v", got)
+	}
+	if got := x.Unread(); got != 0 {
+		t.Fatalf("Unread after the retry = %d, want 0", got)
 	}
 }
 
