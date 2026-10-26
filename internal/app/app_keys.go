@@ -29,7 +29,10 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	}
 
 	sidebarBusy := m.focus == focusSidebar && m.sidebar.IsBusy()
-	editorBusy := m.focus == focusEditor && m.content.Mode() != content.ModeNormal && !m.graphActive()
+	// Typing in the editor, or in the global graph's filter prompt: letters,
+	// the space and tab are text there, not the app's keys.
+	editorBusy := m.focus == focusEditor && (m.content.Mode() != content.ModeNormal && !m.graphActive() ||
+		m.globalGraphActive() && m.globalGraph.Typing())
 
 	// Ctrl/Alt shortcuts of the global actions work in every mode. One
 	// typed after Space is the sequence's second key: it ends the sequence.

@@ -395,3 +395,16 @@ func TestPaletteFromHomeOnlyRunsCommandsThatNeedNoNote(t *testing.T) {
 		t.Fatalf(":q runs from home, as q does:\n%s", h.view())
 	}
 }
+
+func TestPaletteListsTheGlobalGraphFilterKeys(t *testing.T) {
+	v := tallPalette(t)
+	for _, k := range [][2]string{
+		{"/", "Filter the map by name or path"},
+		{"o", "Hide / show notes without links"},
+		{"u", "Hide / show missing notes"},
+	} {
+		if paletteRow(v, k[0], k[1]) == "" {
+			t.Errorf("no row with %q and %q", k[0], k[1])
+		}
+	}
+}

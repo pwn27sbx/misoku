@@ -378,3 +378,60 @@ func TestGlobalGraphFollowsLinksTypedInAnotherTab(t *testing.T) {
 		t.Fatalf("the link typed in Home should reach the map:\n%s", h.view())
 	}
 }
+
+// While the filter prompt is open the app's own keys are text, as in the
+// editor's INSERT mode: the leader, ? for the palette, [ and ] for tabs, \
+// to find a note and tab for the next pane.
+func TestGlobalGraphFilterPromptTakesAppKeysAsText(t *testing.T) {
+	h := globalWorkspace(t)
+	h.keys(`/ ?[]\G`)
+	h.key(tea.KeyTab)
+	h.key(tea.KeyBackspace) // reaches the prompt only if the focus stayed
+	v := h.view()
+	if strings.Contains(v, paletteTitle) || !strings.Contains(strings.Split(v, "\n")[0], "Global graph") {
+		t.Fatalf("keys typed in the prompt should not reach the app:\n%s", v)
+	}
+	if ed := editorPane(v); !strings.Contains(ed, `/  ?[]\`) || strings.Contains(ed, `/  ?[]\G`) {
+		t.Fatalf("the prompt should hold every key typed:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	h.keys("?")
+	if v := h.view(); !strings.Contains(v, paletteTitle) {
+		t.Fatalf("with the prompt closed, ? opens the palette again:\n%s", v)
+	}
+}
+
+// / jumps to the note found and previews it; o and u hide orphans and
+// missing notes, and the title says so.
+func TestGlobalGraphFilterAndToggles(t *testing.T) {
+	h := globalWorkspace(t)
+	h.keys("/plan")
+	h.key(tea.KeyEnter)
+	if title := globalTitle(h); !strings.Contains(title, "Plan") || !strings.Contains(previewPane(h.view()), "back") {
+		t.Fatalf("enter should select work/Plan and preview it:\n%s", h.view())
+	}
+	h = globalWorkspace(t)
+	h.keys("ou++") // close up: without the toggles Orphan and Ghost show here
+	ed := editorPane(h.view())
+	if !strings.Contains(globalTitle(h), "1 orphan hidden") || strings.Contains(ed, "Orphan") || strings.Contains(ed, "Ghost") || !strings.Contains(ed, "Home") {
+		t.Fatalf("o and u should hide Orphan and the missing Ghost:\n%s", h.view())
+	}
+}
+
+// A user binding wins over the filter's and the toggles' letters, but not
+// while the prompt is open: then the letter is text.
+func TestUserBindingStealsAToggleLetter(t *testing.T) {
+	store := globalStore(t).store
+	h := newHarness(t, store, app.WithKeys(map[string][]string{"themes": {"o"}}))
+	h.openHome()
+	h.ex("graph all")
+	h.keys("/o")
+	if v := h.view(); themePickerOpen(v) {
+		t.Fatalf("o typed in the prompt is text:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	h.keys("o")
+	if v := h.view(); !themePickerOpen(v) || strings.Contains(v, "orphan hidden") {
+		t.Fatalf("o is themes in the config and should open the picker, not hide orphans:\n%s", v)
+	}
+}
