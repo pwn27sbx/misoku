@@ -13,20 +13,46 @@ import (
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
-// The fixture's map (vault(), grid cells):
+// The fixture's map (vault() hand-placed by vaultLayout, grid cells):
 //
 //	x:  1      2           8     9
 //	y0: Home   Inbox       Go    study/Notes
 //	y1: Orphan Ideas       Rust  日本語のノート
 //	y4: Plan   Tasks
 //	y5: Meeting work/Notes
+//
+// The keys, mouse and filter tests need neighbours in set directions and
+// distances, so they place the notes by hand instead of taking whatever
+// the galaxy layout (Build) makes of them; layout_test pins Build.
+var vaultCells = map[string]Point{
+	"Home.md": {1, 0}, "Inbox.md": {2, 0}, "Orphan.md": {1, 1}, "Ideas": {2, 1},
+	"study/Go.md": {8, 0}, "study/Notes.md": {9, 0}, "study/Rust.md": {8, 1}, "study/日本語のノート.md": {9, 1},
+	"work/Plan.md": {1, 4}, "work/Tasks.md": {2, 4}, "work/Meeting.md": {1, 5}, "work/Notes.md": {2, 5},
+}
+
+// vaultLayout is vault() at vaultCells, one cluster per folder.
+func vaultLayout() Layout {
+	nodes, _ := normalize(vault())
+	for i := range nodes {
+		nodes[i].P = vaultCells[nodes[i].ID]
+	}
+	clusters := []Cluster{
+		{Key: "", Rect: Rect{0, 0, 4, 2}, Centre: Point{1, 0}},
+		{Key: "study", Rect: Rect{7, 0, 4, 2}, Centre: Point{8, 0}},
+		{Key: "work", Rect: Rect{0, 4, 4, 2}, Centre: Point{1, 4}},
+	}
+	return finish(nodes, clusters)
+}
 
 func newModel(t testing.TB, w, h int) Model {
 	t.Helper()
 	m := New(theme.DefaultTheme())
 	m.SetSize(w, h)
 	m.SetFocused(true)
-	m.SetGraph(vault())
+	l := vaultLayout()
+	r := NewRenderer(l, vault().Edges)
+	r.warm()
+	m.SetMap(Map{g: vault(), l: l, r: r, relaid: true})
 	m.SetOpenNote("Home.md")
 	return m
 }
@@ -149,6 +175,62 @@ func TestModelArrowAndHJKLKeysMoveToTheNearestNode(t *testing.T) {
 			}
 			checkSelVisible(t, m, c.key)
 		})
+	}
+}
+
+// With nothing selected and a map bigger than the pane, the view opens
+// on the centre of the biggest galaxy, not on the middle of the whole map,
+// which may be the empty space between galaxies.
+func TestModelWithNothingSelectedCentresTheBiggestGalaxy(t *testing.T) {
+	var g Graph
+	add := func(key string, n int) {
+		for i := range n {
+			g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("%s/n%02d.md", key, i), Cluster: key})
+			if i > 0 {
+				g.Edges = append(g.Edges, Edge{fmt.Sprintf("%s/n00.md", key), fmt.Sprintf("%s/n%02d.md", key, i)})
+			}
+		}
+	}
+	add("a", 3)
+	add("big", 30)
+	add("z", 30) // as big, but "big" sorts first
+	g.Edges = append(g.Edges, Edge{"a/n01.md", "big/n01.md"}, Edge{"z/n01.md", "big/n02.md"})
+	m := New(theme.DefaultTheme())
+	m.SetSize(60, 20)
+	m.SetFocused(true)
+	m.SetGraph(g)
+	for _, keys := range [][]string{nil, {"+"}, {"+", "+"}} {
+		m2, _ := press(m, keys...)
+		if m2.Selected() != "" {
+			t.Fatalf("setup: %v selected %q", keys, m2.Selected())
+		}
+		sx, sy := m2.scale()
+		if (m2.l.W-1)*sx < m2.width && (m2.l.H-1)*sy < m2.mapRows() {
+			continue // the whole map fits: it is centred instead
+		}
+		x, y := m2.screen("big/n00.md")
+		if x != m2.width/2 || y != m2.mapRows()/2 {
+			t.Fatalf("%v: the biggest galaxy's centre is at (%d,%d), want the pane's middle (%d,%d)", keys, x, y, m2.width/2, m2.mapRows()/2)
+		}
+		if c := screen(m2.View())[y+1][x]; !isDot(c) {
+			t.Fatalf("%v: the middle of the pane shows %q, want the hub's dot", keys, c.r)
+		}
+	}
+	// A map that fits at the overview is centred whole there; zooming in
+	// with the keys then opens on the biggest galaxy too.
+	small := Graph{
+		Nodes: []Node{{ID: "Home.md"}, {ID: "Orphan.md"}, {ID: "Ghost", Unresolved: true}, {ID: "work/Plan.md", Cluster: "work"}},
+		Edges: []Edge{{"Home.md", "work/Plan.md"}, {"Home.md", "Ghost"}},
+	}
+	m = New(theme.DefaultTheme())
+	m.SetSize(54, 36)
+	m.SetFocused(true)
+	m.SetGraph(small)
+	for _, keys := range [][]string{{"+"}, {"+", "+"}} {
+		m2, _ := press(m, keys...)
+		if x, y := m2.screen("Home.md"); x != m2.width/2 || y != m2.mapRows()/2 {
+			t.Fatalf("%v: the biggest galaxy's centre Home is at (%d,%d), want the pane's middle (%d,%d)", keys, x, y, m2.width/2, m2.mapRows()/2)
+		}
 	}
 }
 
@@ -823,7 +905,7 @@ func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) 
 		g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("new/N%02d.md", i), Cluster: "new"})
 	}
 	m.SetGraph(g)
-	if m.Layout().H == Build(vault()).H && m.Layout().W == Build(vault()).W {
+	if m.Layout().H == vaultLayout().H && m.Layout().W == vaultLayout().W {
 		t.Fatal("the fixture should grow the grid")
 	}
 	if rowGap(m) == gap {

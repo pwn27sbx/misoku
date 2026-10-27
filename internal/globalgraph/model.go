@@ -385,10 +385,20 @@ func (m *Model) neighbours(id string) []string {
 // act runs a button.
 func (m *Model) act(action string) {
 	switch action {
-	case "zoom-in":
-		m.zoomTo(m.zoom+1, m.anchor())
-	case "zoom-out":
-		m.zoomTo(m.zoom-1, m.anchor())
+	case "zoom-in", "zoom-out":
+		// With nothing selected and the view not moved by hand, the view
+		// keeps following viewOffset at the new zoom: the whole map when it
+		// fits, else the biggest galaxy, never the empty middle between
+		// galaxies.
+		follow := !m.placed && m.sel == ""
+		z := m.zoom + 1
+		if action == "zoom-out" {
+			z = m.zoom - 1
+		}
+		m.zoomTo(z, m.anchor())
+		if follow {
+			m.placed = false
+		}
 	case "centre":
 		m.offset, m.placed = m.onSelection(), true
 	case "back":
@@ -491,15 +501,40 @@ func (m Model) viewOffset() Point {
 	return m.onSelection()
 }
 
-// onSelection is the view centred on the selection, or on the whole map
-// with nothing selected.
+// onSelection is the view centred on the selection or, with nothing
+// selected, on the centre of the biggest galaxy (most nodes, ties by key):
+// the middle of the whole map may be empty space between galaxies.
 func (m Model) onSelection() Point {
-	n, ok := m.l.Lookup(m.sel)
+	p, ok := Point{}, false
+	if n, found := m.l.Lookup(m.sel); found {
+		p, ok = n.P, true
+	} else if c, found := m.biggestGalaxy(); found {
+		p, ok = c.Centre, true
+	}
 	if !ok {
 		return m.r.Centred(m.zoom, m.width, m.mapRows())
 	}
 	sx, sy := m.scale()
-	return Point{n.P.X*sx - m.width/2, n.P.Y*sy - m.mapRows()/2}
+	return Point{p.X*sx - m.width/2, p.Y*sy - m.mapRows()/2}
+}
+
+// biggestGalaxy is the cluster with the most nodes; Clusters are sorted by
+// key, so the first of equals wins.
+func (m Model) biggestGalaxy() (Cluster, bool) {
+	size := map[string]int{}
+	for _, n := range m.l.Nodes {
+		size[n.Cluster]++
+	}
+	best := -1
+	for i, c := range m.l.Clusters {
+		if best < 0 || size[c.Key] > size[m.l.Clusters[best].Key] {
+			best = i
+		}
+	}
+	if best < 0 {
+		return Cluster{}, false
+	}
+	return m.l.Clusters[best], true
 }
 
 // settle fixes the view before it is moved.

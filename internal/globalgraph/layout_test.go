@@ -1,7 +1,9 @@
 package globalgraph
 
 import (
+	"cmp"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"reflect"
 	"testing"
@@ -56,9 +58,15 @@ func checkInvariants(t *testing.T, l Layout, g Graph) {
 	if len(l.Nodes) != len(want) {
 		t.Fatalf("placed %d nodes, want %d", len(l.Nodes), len(want))
 	}
-	rects := map[string]Rect{}
+	galaxies := map[string]Cluster{}
 	for _, c := range l.Clusters {
-		rects[c.Key] = c.Rect
+		galaxies[c.Key] = c
+		if c.RX != cellAspect*c.RY || c.Rect != (Rect{c.Centre.X - c.RX, c.Centre.Y - c.RY, 2*c.RX + 1, 2*c.RY + 1}) {
+			t.Fatalf("galaxy %q: rect %v is not the box of centre %v and radii %d×%d", c.Key, c.Rect, c.Centre, c.RX, c.RY)
+		}
+		if c.Rect.X < 0 || c.Rect.Y < 0 || c.Rect.X+c.Rect.W > l.W || c.Rect.Y+c.Rect.H > l.H {
+			t.Fatalf("galaxy %q %v outside the %dx%d map", c.Key, c.Rect, l.W, l.H)
+		}
 	}
 	cells := map[Point]string{}
 	for _, n := range l.Nodes {
@@ -69,9 +77,9 @@ func checkInvariants(t *testing.T, l Layout, g Graph) {
 			t.Fatalf("%q and %q share cell %v", n.ID, other, n.P)
 		}
 		cells[n.P] = n.ID
-		r, ok := rects[n.Cluster]
-		if !ok || n.P.X < r.X || n.P.X >= r.X+r.W || n.P.Y < r.Y || n.P.Y >= r.Y+r.H {
-			t.Fatalf("%q at %v outside its cluster %q %v", n.ID, n.P, n.Cluster, r)
+		c, ok := galaxies[n.Cluster]
+		if !ok || screenDist2(n.P, c.Centre) > c.RX*c.RX {
+			t.Fatalf("%q at %v outside its galaxy %q %+v", n.ID, n.P, n.Cluster, c)
 		}
 		if n.P.X < 0 || n.P.Y < 0 || n.P.X >= l.W || n.P.Y >= l.H {
 			t.Fatalf("%q at %v outside the %dx%d map", n.ID, n.P, l.W, l.H)
@@ -79,13 +87,34 @@ func checkInvariants(t *testing.T, l Layout, g Graph) {
 	}
 	for i, a := range l.Clusters {
 		for _, b := range l.Clusters[i+1:] {
-			// One empty cell at least between two clusters.
-			if a.Rect.X < b.Rect.X+b.Rect.W+1 && b.Rect.X < a.Rect.X+a.Rect.W+1 &&
-				a.Rect.Y < b.Rect.Y+b.Rect.H+1 && b.Rect.Y < a.Rect.Y+a.Rect.H+1 {
-				t.Fatalf("clusters %q %v and %q %v overlap or touch", a.Key, a.Rect, b.Key, b.Rect)
+			// Round galaxies on screen, with an empty band between two.
+			if d := a.RX + b.RX + galaxyGap; screenDist2(a.Centre, b.Centre) < d*d {
+				t.Fatalf("galaxies %q %+v and %q %+v are closer than the gap", a.Key, a, b.Key, b)
 			}
 		}
 	}
+}
+
+// ring is the ring of galaxy c that cell p sits nearest, 0 being the
+// centre.
+func ring(c Cluster, p Point) int {
+	d := math.Sqrt(float64(screenDist2(p, c.Centre)))
+	best := 0
+	for k := 1; float64(ringRadius(k-1)) <= d; k++ {
+		if math.Abs(d-float64(ringRadius(k))) < math.Abs(d-float64(ringRadius(best))) {
+			best = k
+		}
+	}
+	return best
+}
+
+func cluster(l Layout, key string) Cluster {
+	for _, c := range l.Clusters {
+		if c.Key == key {
+			return c
+		}
+	}
+	return Cluster{}
 }
 
 func positions(l Layout) map[string]Point {
@@ -182,7 +211,7 @@ func TestDegreeIgnoresSelfDuplicateAndUnknownEdges(t *testing.T) {
 	}
 }
 
-func TestBuildPutsHubsNearClusterCentre(t *testing.T) {
+func TestBuildPutsTheHubAtTheGalaxyCentre(t *testing.T) {
 	g := fixture(300, 1, 0, 3) // one root cluster
 	hub := g.Nodes[17].ID
 	for _, n := range g.Nodes[:120] {
@@ -191,23 +220,158 @@ func TestBuildPutsHubsNearClusterCentre(t *testing.T) {
 		}
 	}
 	l := Build(g)
-	c := l.Clusters[0].Rect
-	dist := func(p Point) float64 {
-		dx := float64(p.X) - float64(c.X) - float64(c.W-1)/2
-		dy := 2 * (float64(p.Y) - float64(c.Y) - float64(c.H-1)/2)
-		return dx*dx + dy*dy
+	checkInvariants(t, l, g)
+	if h, _ := l.Lookup(hub); h.P != l.Clusters[0].Centre {
+		t.Fatalf("hub at %v, galaxy centre at %v", h.P, l.Clusters[0].Centre)
 	}
-	h, _ := l.Lookup(hub)
-	for _, n := range l.Nodes {
-		if n.ID != hub && dist(n.P) < dist(h.P) {
-			t.Fatalf("%q (degree %d) is nearer the centre than the hub", n.ID, n.Degree)
+}
+
+// busiest is the node a galaxy puts in its centre: the note with the most
+// links, ties by ID, or an unresolved target when the galaxy has no note.
+func busiest(nodes []Placed) Placed {
+	best := nodes[0]
+	for _, n := range nodes[1:] {
+		if cmp.Or(cmpBool(n.Unresolved, best.Unresolved), cmp.Compare(best.Degree, n.Degree), cmp.Compare(n.ID, best.ID)) < 0 {
+			best = n
 		}
 	}
-	// Linked notes come before orphans and unresolved targets after notes.
+	return best
+}
+
+func members(l Layout) map[string][]Placed {
+	m := map[string][]Placed{}
 	for _, n := range l.Nodes {
-		for _, m := range l.Nodes {
-			if n.Degree > m.Degree && n.Unresolved == m.Unresolved && dist(n.P) > dist(m.P) {
-				t.Fatalf("%q (degree %d) is farther out than %q (degree %d)", n.ID, n.Degree, m.ID, m.Degree)
+		m[n.Cluster] = append(m[n.Cluster], n)
+	}
+	return m
+}
+
+func TestGalaxyCentreIsTheBusiestNote(t *testing.T) {
+	g := fixture(700, 8, 2500, 11)
+	l := Build(g)
+	checkInvariants(t, l, g)
+	for key, ns := range members(l) {
+		c := cluster(l, key)
+		if b := busiest(ns); b.P != c.Centre {
+			t.Errorf("galaxy %q: busiest %q (degree %d) at %v, centre %v", key, b.ID, b.Degree, b.P, c.Centre)
+		}
+	}
+}
+
+func TestGalaxyRingsFollowDegree(t *testing.T) {
+	g := fixture(700, 8, 2500, 12)
+	l := Build(g)
+	for key, ns := range members(l) {
+		c := cluster(l, key)
+		for _, a := range ns {
+			if ra := ring(c, a.P); ra == 0 && a.P != c.Centre {
+				t.Fatalf("galaxy %q: %q at %v rounds onto the centre", key, a.ID, a.P)
+			}
+			for _, b := range ns {
+				if a.Unresolved == b.Unresolved && a.Degree > b.Degree && ring(c, a.P) > ring(c, b.P) {
+					t.Fatalf("galaxy %q: %q (degree %d) on ring %d, outside %q (degree %d) on ring %d",
+						key, a.ID, a.Degree, ring(c, a.P), b.ID, b.Degree, ring(c, b.P))
+				}
+			}
+		}
+		// Unresolved targets go on rings outside the notes.
+		for _, a := range ns {
+			for _, b := range ns {
+				if !a.Unresolved && b.Unresolved && ring(c, a.P) > ring(c, b.P) {
+					t.Fatalf("galaxy %q: note %q outside unresolved %q", key, a.ID, b.ID)
+				}
+			}
+		}
+	}
+}
+
+func TestGalaxiesLookRoundOnScreen(t *testing.T) {
+	g := fixture(1200, 6, 3000, 13)
+	l := Build(g)
+	checked := 0
+	for key, ns := range members(l) {
+		if len(ns) < 40 {
+			continue
+		}
+		c := cluster(l, key)
+		// The outer ring may be part filled; the full rings inside it
+		// give the galaxy its shape.
+		outer := 0
+		for _, n := range ns {
+			outer = max(outer, ring(c, n.P))
+		}
+		dx, dy := 0, 0
+		for _, n := range ns {
+			if ring(c, n.P) < outer {
+				dx, dy = max(dx, abs(n.P.X-c.Centre.X)), max(dy, abs(n.P.Y-c.Centre.Y))
+			}
+		}
+		// Twice as many columns as rows looks round in cells twice as
+		// tall as wide.
+		if ratio := float64(dx) / float64(cellAspect*dy); ratio < 0.8 || ratio > 1.25 {
+			t.Errorf("galaxy %q of %d notes spans %d columns by %d rows from its centre: not round", key, len(ns), dx, dy)
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no galaxy big enough to check")
+	}
+}
+
+func TestLinkedGalaxiesSitCloser(t *testing.T) {
+	var g Graph
+	add := func(key string, n int) {
+		for i := range n {
+			g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("%s/n%02d.md", key, i), Cluster: key})
+		}
+	}
+	link := func(a, b string, n int) {
+		for i := range n {
+			g.Edges = append(g.Edges, Edge{fmt.Sprintf("%s/n%02d.md", a, i%20), fmt.Sprintf("%s/n%02d.md", b, (i*7)%20)})
+		}
+	}
+	// The stranger sorts first and is as big as the others, so only the
+	// links can push it away.
+	add("main", 60)
+	add("a-stranger", 20)
+	add("m-acquaintance", 20)
+	add("z-friend", 20)
+	link("main", "z-friend", 30)
+	link("main", "m-acquaintance", 2)
+	link("a-stranger", "a-stranger", 10)
+	for _, in := range []Graph{g, shuffled(g, 3)} {
+		l := Build(in)
+		checkInvariants(t, l, in)
+		main := cluster(l, "main").Centre
+		d := func(key string) int { return screenDist2(main, cluster(l, key).Centre) }
+		if d("z-friend") > d("m-acquaintance") || d("m-acquaintance") >= d("a-stranger") {
+			t.Fatalf("distance² to main: friend %d, acquaintance %d, stranger %d; want friend ≤ acquaintance < stranger",
+				d("z-friend"), d("m-acquaintance"), d("a-stranger"))
+		}
+	}
+}
+
+func TestUpdatePutsANewNoteOnTheInnermostFreeSlot(t *testing.T) {
+	base := fixture(400, 6, 800, 4)
+	prev := Build(base)
+	key := prev.Clusters[1].Key
+	g := Graph{Nodes: append(append([]Node(nil), base.Nodes...), Node{ID: key + "/new.md", Cluster: key}), Edges: base.Edges}
+	l, kept := Update(prev, g)
+	if !kept {
+		t.Fatal("Update fell back to a full layout")
+	}
+	checkInvariants(t, l, g)
+	c := cluster(l, key)
+	n, _ := l.Lookup(key + "/new.md")
+	// Every slot of the rings inside the new note's ring is taken.
+	taken := map[Point]bool{}
+	for _, m := range l.Nodes {
+		taken[m.P] = true
+	}
+	for k := range ring(c, n.P) {
+		for _, s := range ringSlots(k) {
+			if p := (Point{c.Centre.X + s.X, c.Centre.Y + s.Y}); !taken[p] {
+				t.Fatalf("new note at %v on ring %d, but %v on ring %d is free", n.P, ring(c, n.P), p, k)
 			}
 		}
 	}
@@ -268,12 +432,12 @@ func TestUpdateRemovingNotesMovesNoOtherNode(t *testing.T) {
 func TestUpdateGrowsFullClustersWithoutOverlap(t *testing.T) {
 	g := fixture(300, 9, 100, 6)
 	l := Build(g)
-	// The top-left cluster has a neighbour on its right and a shelf below,
-	// so it can only grow until it reaches them.
-	key := ""
-	for _, c := range l.Clusters {
-		if c.Rect.X == 0 && c.Rect.Y == 0 {
-			key = c.Key
+	// The biggest galaxy is laid out first, in the middle, with the
+	// others around it, so it can only grow until it reaches them.
+	key, most := "", 0
+	for k, ns := range members(l) {
+		if len(ns) > most || len(ns) == most && k < key {
+			key, most = k, len(ns)
 		}
 	}
 	for i := range 2000 {
@@ -416,6 +580,16 @@ func TestMediumZoomLabelsOnlyBusyNodes(t *testing.T) {
 // per index change; the plan's frame budget (16 ms) is for the renderer.
 func BenchmarkLayout5k(b *testing.B) {
 	g := fixture(5000, 20, 10000, 10)
+	b.ReportAllocs()
+	for b.Loop() {
+		Build(g)
+	}
+}
+
+// BenchmarkLayoutManyFolders: placing galaxies costs about the square of
+// the folders, so a vault of many top-level folders must stay in budget too.
+func BenchmarkLayoutManyFolders(b *testing.B) {
+	g := fixture(5000, 400, 20000, 14)
 	b.ReportAllocs()
 	for b.Loop() {
 		Build(g)
