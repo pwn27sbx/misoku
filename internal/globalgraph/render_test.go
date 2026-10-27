@@ -168,7 +168,7 @@ func TestRenderZeroSizeIsEmpty(t *testing.T) {
 }
 
 func TestRenderSmallPaneShowsMessage(t *testing.T) {
-	r := NewRenderer(Build(vault()), vault().Edges)
+	r := NewRenderer(vaultLayout(), vault().Edges) // small enough for the smallest pane
 	for _, s := range [][2]int{{29, 8}, {30, 7}, {29, 30}, {120, 7}} {
 		out := ansi.Strip(r.Render(vaultFrame(r, ZoomClose, s[0], s[1])))
 		if !strings.Contains(out, "Graph needs a bigger pane") {
@@ -205,7 +205,7 @@ func TestRenderNoLinksShowsEveryNoteAsOrphan(t *testing.T) {
 	g := vault()
 	g.Edges = nil
 	r := NewRenderer(Build(g), nil)
-	f := vaultFrame(r, ZoomClose, 120, 30)
+	f := vaultFrame(r, ZoomOverview, 120, 30) // the whole map in the pane
 	rows := screen(r.Render(f))
 	for _, n := range r.l.Nodes {
 		x, y := dotAt(t, r, f, n.ID)
@@ -555,7 +555,7 @@ func isDot(c tcell) bool {
 // The selection's name, which on the right would cover the dot of Tasks
 // (its right-hand neighbour on the grid at 3×2), goes whole on the left.
 func TestRenderSelectionNameGoesLeftOfACoveredDot(t *testing.T) {
-	r := NewRenderer(Build(vault()), vault().Edges)
+	r := NewRenderer(vaultLayout(), vault().Edges)
 	for _, z := range []Zoom{ZoomOverview, ZoomMedium} {
 		f := vaultFrame(r, z, 100, 24)
 		if sx, sy := r.scale(f.Zoom, f.W, f.H); sx != 3 || sy != 2 {
@@ -583,7 +583,7 @@ func TestRenderSelectionNameGoesLeftOfACoveredDot(t *testing.T) {
 // selection's name depends on the pane, like a neighbour's (see
 // TestRenderLeftNameStaysInsideThePane): one column of panning switches it.
 func TestRenderSelectionNameIsCutBeforeACoveredDot(t *testing.T) {
-	r := NewRenderer(Build(vault()), vault().Edges)
+	r := NewRenderer(vaultLayout(), vault().Edges)
 	for _, c := range []struct {
 		zoom      Zoom
 		sel, next string
@@ -678,7 +678,7 @@ func placedLayout(nodes []Placed, edges []Edge) Layout {
 	for _, n := range nodes {
 		g.Nodes = append(g.Nodes, n.Node)
 	}
-	norm := normalize(g)
+	norm, _ := normalize(g)
 	pos := map[string]Point{}
 	for _, n := range nodes {
 		pos[n.ID] = n.P
@@ -688,7 +688,7 @@ func placedLayout(nodes []Placed, edges []Edge) Layout {
 		norm[i].P = pos[norm[i].ID]
 		w, h = max(w, norm[i].P.X+1), max(h, norm[i].P.Y+1)
 	}
-	return finish(norm, map[string]Rect{"": {0, 0, w, h}})
+	return finish(norm, []Cluster{{Rect: Rect{0, 0, w, h}}})
 }
 
 func TestRenderEdgesUsePlainLineGlyphs(t *testing.T) {
@@ -784,7 +784,9 @@ func TestRenderFollowsTheTheme(t *testing.T) {
 // becomes blank cells; it is never split.
 func TestRenderWideNamesAreNeverSplit(t *testing.T) {
 	g := Graph{Nodes: []Node{{ID: "日本語のノートのとても長い名前ですね本当に.md"}, {ID: "x.md"}}, Edges: []Edge{{"x.md", "日本語のノートのとても長い名前ですね本当に.md"}}}
-	r := NewRenderer(Build(g), g.Edges)
+	// Hand-placed side by side: a map this small takes the overview's
+	// biggest scale in every pane the test uses.
+	r := NewRenderer(placedLayout([]Placed{{Node: g.Nodes[1], P: Point{1, 0}}, {Node: g.Nodes[0], P: Point{2, 0}}}, g.Edges), g.Edges)
 	n, _ := r.l.Lookup(g.Nodes[0].ID)
 	for z := range zoomLevels {
 		for dx := -40; dx <= 4; dx++ {
@@ -913,7 +915,7 @@ func BenchmarkView5k(b *testing.B) {
 func TestRenderOverviewSpreadsASmallMapOverThePane(t *testing.T) {
 	const w, h = 48, 12
 	draw := func() (string, *Renderer) {
-		r := NewRenderer(Build(vault()), vault().Edges)
+		r := NewRenderer(vaultLayout(), vault().Edges) // a map much smaller than the pane
 		return r.Render(Frame{W: w, H: h, Zoom: ZoomOverview, Offset: r.Centred(ZoomOverview, w, h), Theme: theme.DefaultTheme()}), r
 	}
 	out, r := draw()
