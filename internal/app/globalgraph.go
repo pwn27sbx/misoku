@@ -2,6 +2,7 @@ package app
 
 import (
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -80,6 +81,7 @@ func (m *Model) startGlobalMap() tea.Cmd {
 	m.global.gen++
 	gen, idx, prev, last := m.global.gen, m.index.idx, m.globalGraph.Layout(), m.global.graph
 	id, text := m.liveNote()
+	vault := filepath.Base(m.store.Root()) // the vault's sun carries its name
 	return func() tea.Msg {
 		x := idx
 		if id != "" {
@@ -87,6 +89,7 @@ func (m *Model) startGlobalMap() tea.Cmd {
 			x.SetContent(id, text)
 		}
 		g, drafts := globalGraphOf(x.Notes(), x.Edges(), x.Unresolved())
+		g.Name = vault
 		if slices.Equal(g.Nodes, last.Nodes) && slices.Equal(g.Edges, last.Edges) {
 			return globalMapMsg{gen: gen, same: true}
 		}

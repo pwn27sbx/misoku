@@ -1,13 +1,19 @@
 package globalgraph
 
-// The map is drawn as galaxies, one node per cell: a dot sized by how many
-// notes it links, a hollow ring for a link target with no note, each in its
-// galaxy's colour, and the galaxy's folder name above it. Edges are thin
-// braille lines (2×4 dots per cell, so several edges share a cell) at every
-// zoom: inside a galaxy in its colour faded toward the background, between
-// galaxies in grey; the selection's own edges are lit over them. Edges
-// always run under dots and names, so moving the selection never hides a
-// node, and with a selection the rest of the map fades instead of greying.
+// The map is drawn as a solar system, one node per cell: a dot sized by how
+// many notes it links, a hollow ring for a link target with no note, each
+// in its galaxy's colour. A solar map (one Build or Update laid out) also
+// shows its frame: the vault's sun in a halo with the vault's name, each
+// galaxy's sun with the folder's name and count above, every galaxy joined
+// to the vault's sun by a gently curved line, every note joined to its sun
+// by a spoke and dotted rings through the notes, all dimmer than the dots.
+// Lines are braille (2×4 dots per cell, so several share a cell) at every
+// zoom. The real links run over that frame, brighter and gently curved:
+// in the galaxy's colour inside one, a light grey between two; the
+// selection's own links are lit over them. The overview spreads the map
+// over most of the pane, at a scale that may be a fraction of a cell. Lines always run under names,
+// dots and suns, so moving the selection never hides a node, and with a
+// selection the rest of the map fades instead of greying.
 
 import (
 	"cmp"
@@ -29,16 +35,35 @@ import (
 const MinWidth, MinHeight = 30, 8
 
 // Node glyphs. A dot grows with the node's degree: up to leafDegree links,
-// fewer than hubDegree, and more.
+// fewer than hubDegree, and more. On a solar map no note is smaller than
+// glyphLinked, and each galaxy's busiest linked note is a glyphHub.
 const (
 	glyphLeaf       = '·'
 	glyphLinked     = '•'
 	glyphHub        = '●'
 	glyphUnresolved = '○'
 	glyphSelected   = '●'
+	glyphSun        = '✦' // a folder's sun
+	glyphVaultSun   = '◉' // the vault's sun
 	leafDegree      = 1
 	hubDegree       = 10
+	topNotes        = 1 // notes of each galaxy the overview names, past its hub
 )
+
+// halo is the ring round the vault's sun: the braille dots of each cell,
+// by cell from the sun, of a circle round the middle of its cell.
+var halo = func() map[Point]uint8 {
+	const rad = 3.5 // braille dots from the middle of the sun's cell (0.5, 1.5)
+	cells := map[Point]uint8{}
+	n := 44 // points round it, more than its dots
+	for j := range n {
+		a := 2 * math.Pi * float64(j) / float64(n)
+		px, py := int(math.Round(0.5+rad*math.Cos(a))), int(math.Round(1.5+rad*math.Sin(a)))
+		cells[Point{px >> 1, py >> 2}] |= brailleBits[py&3][px&1]
+	}
+	delete(cells, Point{})
+	return cells
+}()
 
 // Frame is what one picture of the map depends on besides the layout.
 type Frame struct {
@@ -57,41 +82,60 @@ type Frame struct {
 	HideOrphans, HideUnresolved bool
 }
 
-// Renderer draws one layout. It caches the faint edges of each zoom level
-// and the dot cells of each scale, so it is meant for one goroutine (the
+// Renderer draws one layout. It caches the lines of each zoom level and
+// the dot cells of each scale, so it is meant for one goroutine (the
 // Bubble Tea View).
 type Renderer struct {
 	l       Layout
 	out, in [][]int32  // linked and linking node indexes, per node
 	pairs   [][2]int32 // each linked pair once
 	galaxy  []int32    // per node, its index in l.Clusters
-	centres []int32    // per galaxy, the node at its centre, or -1
+	hubs    []int32    // per galaxy, its busiest linked note, or -1
+	tops    [][]int32  // per galaxy, its topNotes busiest notes, the overview names
+	notes   []int      // per galaxy, its notes (not counting missing ones)
+	outer   []int      // per galaxy, its outermost ring that holds a node
 	layers  map[layerKey]*edgeLayer
-	dots    map[[2]int]map[Point]int32 // by scale: sx, sy
+	frames  map[layerKey]*frameLayer
+	dots    map[scale]map[Point]int32
 }
 
-// layerKey picks a cached edge layer: the scale, and whether the edges to
-// unresolved targets are left out.
+// layerKey picks a cached layer of lines: the scale, and whether the lines
+// to unresolved targets and to orphans are left out.
 type layerKey struct {
-	k     int
-	known bool
+	k             scale
+	known, linked bool
 }
 
 // NewRenderer prepares l and its edges for drawing. Edges to unknown nodes,
 // self-links and repeats are ignored.
 func NewRenderer(l Layout, edges []Edge) *Renderer {
-	r := &Renderer{l: l, out: make([][]int32, len(l.Nodes)), in: make([][]int32, len(l.Nodes)), layers: map[layerKey]*edgeLayer{}, dots: map[[2]int]map[Point]int32{}}
+	r := &Renderer{l: l, out: make([][]int32, len(l.Nodes)), in: make([][]int32, len(l.Nodes)),
+		layers: map[layerKey]*edgeLayer{}, frames: map[layerKey]*frameLayer{}, dots: map[scale]map[Point]int32{}}
 	r.galaxy = make([]int32, len(l.Nodes))
-	r.centres = make([]int32, len(l.Clusters))
-	for c := range r.centres {
-		r.centres[c] = -1
+	r.hubs = make([]int32, len(l.Clusters))
+	for c := range r.hubs {
+		r.hubs[c] = -1
 	}
+	r.tops, r.notes, r.outer = make([][]int32, len(l.Clusters)), make([]int, len(l.Clusters)), make([]int, len(l.Clusters))
 	for i, n := range l.Nodes {
 		c, _ := slices.BinarySearchFunc(l.Clusters, n.Cluster, func(c Cluster, k string) int { return strings.Compare(c.Key, k) })
-		r.galaxy[i] = int32(min(c, max(len(l.Clusters)-1, 0)))
-		if c < len(l.Clusters) && l.Clusters[c].Key == n.Cluster && l.Clusters[c].Centre == n.P {
-			r.centres[c] = int32(i)
+		c = min(c, max(len(l.Clusters)-1, 0))
+		r.galaxy[i] = int32(c)
+		if l.solar {
+			r.outer[c] = max(r.outer[c], ringOf(l.Clusters[c].Centre, n.P))
 		}
+		if !n.Unresolved {
+			r.notes[c]++
+			r.tops[c] = append(r.tops[c], int32(i))
+		}
+		if h := r.hubs[c]; n.Degree > 0 && !n.Unresolved && (h < 0 || n.Degree > l.Nodes[h].Degree) {
+			r.hubs[c] = int32(i) // nodes are sorted by ID: ties keep the first
+		}
+	}
+	for c, top := range r.tops {
+		// Nodes are sorted by ID, so the stable sort breaks ties by ID.
+		slices.SortStableFunc(top, func(a, b int32) int { return l.Nodes[b].Degree - l.Nodes[a].Degree })
+		r.tops[c] = top[:min(len(top), topNotes)]
 	}
 	seen, paired := map[[2]int32]bool{}, map[[2]int32]bool{}
 	for _, e := range edges {
@@ -115,38 +159,51 @@ func NewRenderer(l Layout, edges []Edge) *Renderer {
 	return r
 }
 
+// scale is how many screen cells one grid cell spans, in 64ths of a cell,
+// the same across and down so galaxies stay round. A grid cell lands on
+// the screen cell nearest its place; from one cell per grid cell up, two
+// grid cells never land on one screen cell.
+type scale int
+
+const scaleUnit = 64
+
+// whole is the scale of n screen cells per grid cell.
+func whole(n int) scale { return scale(n * scaleUnit) }
+
+// of is grid coordinate v on the screen.
+func (k scale) of(v int) int { return roundDiv(v*int(k), scaleUnit) }
+
+// at is grid cell p on the screen.
+func (k scale) at(p Point) Point { return Point{k.of(p.X), k.of(p.Y)} }
+
 // maxFit caps the overview's scale at the medium one, so zooming in never
 // draws the map smaller.
-var maxFit, _ = ZoomMedium.fixedScale()
+var maxFit = func() scale { s, _ := ZoomMedium.fixedScale(); return whole(s) }()
+
+// fitShare is how much of the pane the overview fills on the axis the map
+// fills first: a margin is left round it.
+const fitShare = 0.9
 
 // scale is how many screen cells one grid cell spans at zoom z in a w×h
-// pane, the same across and down (sx == sy) so galaxies stay round. Medium
-// and close have fixed scales; the overview takes the largest whole scale,
-// up to the medium one, that fits the map in the pane, so a small map is
-// spread out instead of packed in the middle.
-func (r *Renderer) scale(z Zoom, w, h int) (sx, sy int) {
+// pane. Medium and close have fixed whole scales; the overview takes the
+// scale, fractions of a cell included, that spreads the map over most of
+// the pane (see fitShare), from one cell per grid cell up to the medium
+// scale, so a small map is spread out instead of packed in the middle.
+func (r *Renderer) scale(z Zoom, w, h int) scale {
 	if z != ZoomOverview {
-		return z.fixedScale()
+		s, _ := z.fixedScale()
+		return whole(s)
 	}
-	k := min((w-1)/max(r.l.W-1, 1), (h-1)/max(r.l.H-1, 1))
-	k = min(max(k, 1), maxFit)
-	return k, k
-}
-
-// centreOf is the node at the centre of galaxy c.
-func (r *Renderer) centreOf(c Cluster) (int, bool) {
-	i, ok := slices.BinarySearchFunc(r.l.Clusters, c.Key, func(c Cluster, k string) int { return strings.Compare(c.Key, k) })
-	if !ok || r.centres[i] < 0 {
-		return 0, false
-	}
-	return int(r.centres[i]), true
+	fit := func(pane, grid int) float64 { return fitShare * float64(pane-1) / float64(max(grid-1, 1)) }
+	k := scale(min(fit(w, r.l.W), fit(h, r.l.H)) * scaleUnit)
+	return min(max(k, whole(1)), maxFit)
 }
 
 // Centred is the offset that puts the middle of the map at the middle of a
 // w×h pane at zoom z.
 func (r *Renderer) Centred(z Zoom, w, h int) Point {
-	sx, sy := r.scale(z, w, h)
-	mw, mh := max((r.l.W-1)*sx+1, 1), max((r.l.H-1)*sy+1, 1)
+	k := r.scale(z, w, h)
+	mw, mh := max(k.of(r.l.W-1)+1, 1), max(k.of(r.l.H-1)+1, 1)
 	return Point{floorHalf(mw - w), floorHalf(mh - h)}
 }
 
@@ -157,11 +214,16 @@ func floorHalf(n int) int {
 	return n / 2
 }
 
-// Cell priorities, lowest first: faint edges, then the selection's lit
-// edges, under the names and dots of the rest of the map, the selection's
-// neighbours, the open note and the selection.
+// Cell priorities, lowest first: the solar frame (rings, spokes, the
+// lines from the galaxies to the vault's sun), the real links, the
+// selection's lit links, under the names and dots of the rest of the map,
+// the selection's neighbours, the open note and the selection, and the
+// suns over all.
 const (
 	prioNone = iota
+	prioRing
+	prioSpoke
+	prioTrunk
 	prioFaint
 	prioLit
 	prioRestName
@@ -172,6 +234,7 @@ const (
 	prioOpenDot
 	prioSelName
 	prioSelDot
+	prioSun
 )
 
 // class ranks how a node is highlighted.
@@ -216,9 +279,11 @@ func (r *Renderer) picture(f Frame, th theme.Theme) string {
 
 func (r *Renderer) draw(f Frame, th theme.Theme) *drawing {
 	d := r.newDrawing(f, th)
+	d.frame()
 	d.faintEdges()
 	d.litEdges()
 	d.nodes()
+	d.suns()
 	d.names()
 	return d
 }
@@ -239,19 +304,40 @@ func (r *Renderer) nodeAt(f Frame, x, y int) (int, bool) {
 // scale.
 func (r *Renderer) warm() {
 	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
-		k, _ := z.fixedScale()
-		r.dotCells(k, k)
+		s, _ := z.fixedScale()
+		k := whole(s)
+		r.dotCells(k)
 		r.layer(k, false)
+		r.frameAt(layerKey{k: k})
 	}
 }
 
-// layer is the cached edge layer at scale k, built on first use.
-func (r *Renderer) layer(k int, known bool) *edgeLayer {
-	key := layerKey{k, known}
-	if r.layers[key] == nil {
-		r.layers[key] = r.buildLayer(k, known)
+// maxCached is how many scales a cache keeps before it starts again: the
+// overview's scale follows the pane, so resizing would otherwise keep one
+// set of layers per size the pane went through.
+const maxCached = 12
+
+// cached is m[key], built on first use.
+func cached[K comparable, V any](m map[K]V, key K, build func() V) V {
+	v, ok := m[key]
+	if !ok {
+		if len(m) >= maxCached {
+			clear(m)
+		}
+		v = build()
+		m[key] = v
 	}
-	return r.layers[key]
+	return v
+}
+
+// layer is the cached edge layer at scale k.
+func (r *Renderer) layer(k scale, known bool) *edgeLayer {
+	return cached(r.layers, layerKey{k: k, known: known}, func() *edgeLayer { return r.buildLayer(k, known) })
+}
+
+// frameAt is the cached solar frame for key.
+func (r *Renderer) frameAt(key layerKey) *frameLayer {
+	return cached(r.frames, key, func() *frameLayer { return r.buildFrame(key) })
 }
 
 // message is text centred in a w×h pane.
@@ -265,21 +351,27 @@ type drawing struct {
 	r      *Renderer
 	f      Frame
 	th     theme.Theme
-	sx, sy int
+	k      scale
 	cv     *canvas
 	sel    int              // selected node index, -1 for none
 	open   int              // open note index, -1 for none
 	near   map[int]bool     // neighbours of the selection; true when linked from it
 	hue    []lipgloss.Color // per galaxy: its colour
 	faded  []lipgloss.Color // per galaxy: its colour faded, for the rest of the map
-	edge   []lipgloss.Color // per galaxy: the colour of the edges inside it
+	muted  []lipgloss.Color // per galaxy: its colour a little faded, for the overview's names
+	link   []lipgloss.Color // per galaxy: the colour of the links inside it
+	spoke  []lipgloss.Color // per galaxy: its spokes
+	ring   []lipgloss.Color // per galaxy: its rings
+	cross  lipgloss.Color   // links between galaxies
+	trunk  lipgloss.Color   // the lines from the galaxies to the vault's sun
+	halo   lipgloss.Color   // the ring round the vault's sun
 	hidden []bool           // per node, hidden by a toggle; nil when none is on
 	dim    []bool           // per node, not matched by the filter; nil with no filter
 }
 
 func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
 	d := &drawing{r: r, f: f, th: th, cv: newCanvas(f.W, f.H), sel: -1, open: -1, near: map[int]bool{}}
-	d.sx, d.sy = r.scale(f.Zoom, f.W, f.H)
+	d.k = r.scale(f.Zoom, f.W, f.H)
 	if f.HideOrphans || f.HideUnresolved {
 		d.hidden = make([]bool, len(r.l.Nodes))
 		for i, n := range r.l.Nodes {
@@ -311,19 +403,39 @@ func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
 	}
 	palette := []lipgloss.Color{th.Blue, th.Purple, th.Teal, th.Orange, th.Cyan, th.Pink, th.Red, th.NordBlue}
 	n := len(r.l.Clusters)
-	d.hue, d.faded, d.edge = make([]lipgloss.Color, n), make([]lipgloss.Color, n), make([]lipgloss.Color, n)
+	d.hue, d.faded, d.link = make([]lipgloss.Color, n), make([]lipgloss.Color, n), make([]lipgloss.Color, n)
+	d.muted, d.spoke, d.ring = make([]lipgloss.Color, n), make([]lipgloss.Color, n), make([]lipgloss.Color, n)
+	d.cross, d.trunk, d.halo = th.LightGrey, d.fade(th.Fg, trunkFade, th.Line), d.fade(th.Fg, haloFade, th.GreyFg)
+	if d.sel >= 0 {
+		d.cross = d.fade(th.LightGrey, restFade, th.GreyFg)
+	}
 	for c := range n {
 		d.hue[c] = palette[c%len(palette)]
 		d.faded[c] = d.fade(d.hue[c], restFade, th.GreyFg)
-		d.edge[c] = d.fade(d.hue[c], edgeFade, th.Line)
+		d.muted[c] = d.fade(d.hue[c], nameFade, th.GreyFg2)
+		d.link[c] = d.hue[c]
+		if d.sel >= 0 {
+			d.link[c] = d.faded[c]
+		}
+		d.spoke[c] = d.fade(d.hue[c], spokeFade, th.Line)
+		d.ring[c] = d.fade(d.hue[c], ringFade, th.Line)
 	}
 	return d
 }
 
-// How far toward the background a colour fades: the dots and hub names of
-// the rest of the map while a note is selected (and links to missing
-// notes), and the edges inside a galaxy.
-const restFade, edgeFade = 0.55, 0.62
+// How far toward the background a colour fades: the dots, hub names and
+// links of the rest of the map while a note is selected (and links to
+// missing notes); the overview's note names, a little; the solar frame
+// always: the vault's sun's halo, the lines to it, the spokes and,
+// faintest, the rings.
+const (
+	restFade  = 0.55
+	nameFade  = 0.3
+	haloFade  = 0.4
+	trunkFade = 0.55
+	spokeFade = 0.5
+	ringFade  = 0.62
+)
 
 // fade is c faded toward the background by t, or c itself when the pane
 // is greyed out (every colour there is already the same grey).
@@ -373,7 +485,7 @@ func (d *drawing) isDim(i int) bool { return d.dim != nil && d.dim[i] && i != d.
 // screen is where node i's dot is in the pane.
 func (d *drawing) screen(i int) (x, y int) {
 	p := d.r.l.Nodes[i].P
-	return p.X*d.sx - d.f.Offset.X, p.Y*d.sy - d.f.Offset.Y
+	return d.k.of(p.X) - d.f.Offset.X, d.k.of(p.Y) - d.f.Offset.Y
 }
 
 func (d *drawing) class(i int) class {
@@ -389,11 +501,66 @@ func (d *drawing) class(i int) class {
 	return classRest
 }
 
-// faintEdges copies the visible part of the scale's cached edge layer:
-// a cell inside one galaxy in that galaxy's edge colour, any other in grey.
+// frame copies the visible part of the scale's cached solar frame, each
+// cell in the colour of the strongest line through it: a ring, a spoke (in
+// their galaxy's colours) or a line to the vault's sun. A map placed by
+// hand has none.
+func (d *drawing) frame() {
+	if !d.r.l.solar {
+		return
+	}
+	layer := d.r.frameAt(layerKey{k: d.k, known: d.f.HideUnresolved, linked: d.f.HideOrphans})
+	for y := range d.f.H {
+		ly := y + d.f.Offset.Y
+		if ly < 0 || ly >= layer.h {
+			continue
+		}
+		for x := max(0, -d.f.Offset.X); x < d.f.W && x+d.f.Offset.X < layer.w; x++ {
+			i := ly*layer.w + x + d.f.Offset.X
+			m := layer.bits[i]
+			if m == 0 {
+				continue
+			}
+			st, prio := style{fg: d.trunk}, prioTrunk
+			switch g := layer.galaxy[i]; layer.kind[i] {
+			case prioSpoke:
+				st, prio = style{fg: d.spoke[g]}, prioSpoke
+			case prioRing:
+				st, prio = style{fg: d.ring[g]}, prioRing
+			}
+			d.cv.set(x, y, brailleBlank+rune(m), st, prio)
+		}
+	}
+}
+
+// suns draws the vault's sun, with its halo, and each folder's, over
+// everything: they are no nodes, so no click or key picks them. The halo
+// goes over the frame only.
+func (d *drawing) suns() {
+	if !d.r.l.solar {
+		return
+	}
+	put := func(p Point, r rune, st style) {
+		d.cv.set(d.k.of(p.X)-d.f.Offset.X, d.k.of(p.Y)-d.f.Offset.Y, r, st, prioSun)
+	}
+	sun := d.k.at(d.r.l.Sun)
+	for at, bits := range halo {
+		d.cv.set(sun.X+at.X-d.f.Offset.X, sun.Y+at.Y-d.f.Offset.Y, brailleBlank+rune(bits), style{fg: d.halo}, prioTrunk)
+	}
+	put(d.r.l.Sun, glyphVaultSun, style{fg: d.th.Fg, bold: true})
+	for g, c := range d.r.l.Clusters {
+		if c.Key != "" {
+			put(c.Centre, glyphSun, style{fg: d.hue[g], bold: true})
+		}
+	}
+}
+
+// faintEdges copies the visible part of the scale's cached edge layer, the
+// real links, over the frame: a cell inside one galaxy in that galaxy's
+// link colour, any other in light grey.
 func (d *drawing) faintEdges() {
-	layer := d.r.layer(d.sx, d.f.HideUnresolved)
-	between := style{fg: d.th.GreyFg}
+	layer := d.r.layer(d.k, d.f.HideUnresolved)
+	between := style{fg: d.cross}
 	for y := range d.f.H {
 		ly := y + d.f.Offset.Y
 		if ly < 0 || ly >= layer.h {
@@ -404,7 +571,7 @@ func (d *drawing) faintEdges() {
 			if m := layer.bits[i]; m != 0 {
 				st := between
 				if g := layer.galaxy[i]; g > 0 {
-					st = style{fg: d.edge[g-1]}
+					st = style{fg: d.link[g-1]}
 				}
 				d.cv.set(x, y, brailleBlank+rune(m), st, prioFaint)
 			}
@@ -425,7 +592,7 @@ func (d *drawing) litEdges() {
 		}
 		st := style{fg: fg}
 		a, b := d.mapCell(min(d.sel, j)), d.mapCell(max(d.sel, j)) // the faint layer's direction
-		brailleLine(a.X, a.Y, b.X, b.Y, func(x, y int, bit uint8) {
+		d.r.link(a, b, func(x, y int, bit uint8) {
 			x, y = x-d.f.Offset.X, y-d.f.Offset.Y
 			if x < 0 || y < 0 || x >= d.f.W || y >= d.f.H {
 				return
@@ -458,7 +625,7 @@ func (d *drawing) nodes() {
 			continue
 		}
 		c := d.class(i)
-		glyph := dotGlyph(n)
+		glyph := d.r.glyph(i)
 		st := style{fg: d.th.GreyFg}
 		prio := prioRestDot
 		switch c {
@@ -489,11 +656,15 @@ func (d *drawing) nodes() {
 	d.cv.owner = 0
 }
 
-func dotGlyph(n Placed) rune {
+// glyph is node i's dot.
+func (r *Renderer) glyph(i int) rune {
+	n := r.l.Nodes[i]
 	switch {
 	case n.Unresolved:
 		return glyphUnresolved
-	case n.Degree <= leafDegree:
+	case r.l.solar && r.hubs[r.galaxy[i]] == int32(i):
+		return glyphHub
+	case n.Degree <= leafDegree && !r.l.solar:
 		return glyphLeaf
 	case n.Degree < hubDegree:
 		return glyphLinked
@@ -538,7 +709,7 @@ const minNearName = 3
 // only when it fits inside the pane, so near the pane's left edge a
 // neighbour or the selection may fall back to the right-hand cut.
 func (d *drawing) names() {
-	n := &namer{d: d, dots: d.r.dotCells(d.sx, d.sy), names: map[Point]bool{}}
+	n := newNamer(d)
 	drawn := map[int]bool{}
 	if d.sel >= 0 {
 		w, at := n.selName(d.mapCell(d.sel), min(ansi.StringWidth(d.r.l.Nodes[d.sel].Label), maxLabelWidth))
@@ -561,7 +732,17 @@ func (d *drawing) names() {
 	}
 	n.headings()
 	if d.f.Zoom == ZoomOverview {
-		for _, i := range d.hubs() {
+		named := d.hubs()
+		if d.r.l.solar {
+			for rank := range topNotes {
+				for _, top := range d.r.tops {
+					if rank < len(top) {
+						named = append(named, int(top[rank]))
+					}
+				}
+			}
+		}
+		for _, i := range named {
 			if !drawn[i] && d.class(i) == classRest && !d.isHidden(i) {
 				drawn[i] = n.place(i)
 			}
@@ -584,10 +765,10 @@ func (d *drawing) names() {
 	d.cv.owner = 0
 }
 
-// hubs lists the galaxies' centre notes, busiest first, ties by ID.
+// hubs lists each galaxy's busiest linked note, busiest first, ties by ID.
 func (d *drawing) hubs() []int {
 	var hubs []int
-	for _, i := range d.r.centres {
+	for _, i := range d.r.hubs {
 		if i >= 0 {
 			hubs = append(hubs, int(i))
 		}
@@ -599,16 +780,20 @@ func (d *drawing) hubs() []int {
 }
 
 // restNameStyle is the colour of a name outside the highlighted few: a
-// hub's in its galaxy's colour (faded like its dot), any other in grey,
-// a little darker while a note is selected; with a filter, grey when it
-// does not match and the text colour when it does.
+// hub's in its galaxy's colour (faded like its dot), and on a solar map
+// any galaxy's top note's too, a little faded (see nameFade); any other
+// in grey, a little darker while a note is selected; with a filter, grey
+// when it does not match and the text colour when it does.
 func (d *drawing) restNameStyle(i int) style {
+	g := d.r.galaxy[i]
 	switch {
 	case d.isDim(i):
 		return style{fg: d.th.Grey}
 	case d.dim != nil:
 		return style{fg: d.th.Fg}
-	case d.r.centres[d.r.galaxy[i]] == int32(i):
+	case d.r.l.solar && d.sel < 0 && (d.r.hubs[g] == int32(i) || slices.Contains(d.r.tops[g], int32(i))):
+		return style{fg: d.muted[g]}
+	case d.r.hubs[g] == int32(i):
 		return style{fg: d.restColour(i)}
 	case d.sel >= 0:
 		return style{fg: d.th.GreyFg}
@@ -616,71 +801,117 @@ func (d *drawing) restNameStyle(i int) style {
 	return style{fg: d.th.GreyFg2}
 }
 
-// headings names each galaxy (the notes at the vault root have no name),
-// bold in its colour, centred over it on the top row of its box, which no
-// ring reaches, or the row above when a name or dot is there; with no room
-// on either, it is left out. A heading wider than its galaxy's box is cut,
-// or left out when that leaves fewer than minNearName cells.
+// headings writes each galaxy's name and number of notes over its sun,
+// the name bold in its colour and the number fainter, and the vault's name
+// over the vault's sun in the text colour, on the row just over its halo
+// when that is free: centred on the row just over the galaxy's outermost
+// ring that holds a note, else on the top row of its box, which no ring
+// reaches, else on the row above it, else on the row below the box; with
+// no room on any of them it is left out. Each
+// galaxy's box keeps room for its heading, so the overview, which fits the
+// map in the pane, shows every heading whole; it is cut with … only when
+// the pane is narrower.
 func (n *namer) headings() {
 	d := n.d
+	if l := d.r.l; l.solar && l.Name != "" {
+		top, bottom := l.Sun.Y-1, l.Sun.Y
+		if g, ok := slices.BinarySearchFunc(l.Clusters, "", func(c Cluster, k string) int { return strings.Compare(c.Key, k) }); ok {
+			top, bottom = l.Clusters[g].Rect.Y, l.Clusters[g].Rect.Y+l.Clusters[g].Rect.H-1
+		}
+		rows := []int{d.k.of(l.Sun.Y) - 2, d.k.of(top), d.k.of(top) - 1, d.k.of(bottom) + 1}
+		n.heading(l.Name, "", l.Sun.X, rows, style{fg: d.th.Fg, bold: true}, style{})
+	}
 	for g, c := range d.r.l.Clusters {
-		full := ansi.StringWidth(c.Key)
-		w := min(full, maxLabelWidth, c.Rect.W*d.sx-2)
-		if c.Key == "" || w < min(full, minNearName) {
+		if c.Key != "" {
+			top, bottom := c.Rect.Y, c.Rect.Y+c.Rect.H-1
+			hug := d.k.of(c.Centre.Y-(ringRadius(d.r.outer[g])+1)/cellAspect) - 1 // over the ring's top row
+			n.heading(c.Key, fmt.Sprintf(" · %d", d.r.notes[g]), c.Centre.X, []int{max(hug, d.k.of(top)), d.k.of(top), d.k.of(top) - 1, d.k.of(bottom) + 1},
+				style{fg: d.hue[g], bold: true}, style{fg: d.muted[g]})
+		}
+	}
+}
+
+// heading writes name, then tail, centred on grid column cx, on the first
+// free one of the map rows (see headings), with a blank cell on each side,
+// and marks those cells. When both do not fit in the pane, the tail is
+// left out first.
+func (n *namer) heading(name, tail string, cx int, rows []int, st, tailSt style) {
+	d := n.d
+	full, tw := ansi.StringWidth(name), ansi.StringWidth(tail)
+	if full+tw > d.f.W-2 {
+		tail, tw = "", 0
+	}
+	w := min(full, d.f.W-2)
+	if w < min(full, minNearName) {
+		return
+	}
+	all := w + tw
+	x0 := d.k.of(cx) - all/2
+	for _, y := range rows {
+		free := true
+		for x := x0 - 1; x <= x0+all && free; x++ {
+			free = !n.taken(Point{x, y})
+		}
+		if !free {
 			continue
 		}
-		x0 := c.Centre.X*d.sx - w/2
-		for _, y := range []int{c.Rect.Y * d.sy, c.Rect.Y*d.sy - 1} {
-			free := true
-			for x := x0 - 1; x <= x0+w && free; x++ {
-				free = !n.taken(Point{x, y})
-			}
-			if !free {
-				continue
-			}
-			for x := x0 - 1; x <= x0+w; x++ {
-				n.names[Point{x, y}] = true
-			}
-			sx, sy := x0-d.f.Offset.X, y-d.f.Offset.Y
-			d.cv.set(sx-1, sy, ' ', style{}, prioRestName)
-			d.cv.set(sx+w, sy, ' ', style{}, prioRestName)
-			d.cv.text(sx, sy, w, ui.Truncate(c.Key, w), style{fg: d.hue[g], bold: true}, prioRestName)
-			break
+		for x := x0 - 1; x <= x0+all; x++ {
+			n.names[Point{x, y}] = true
 		}
+		sx, sy := x0-d.f.Offset.X, y-d.f.Offset.Y
+		d.cv.set(sx-1, sy, ' ', style{}, prioRestName)
+		d.cv.set(sx+all, sy, ' ', style{}, prioRestName)
+		d.cv.text(sx, sy, w, ui.Truncate(name, w), st, prioRestName)
+		if tw > 0 {
+			d.cv.text(sx+w, sy, tw, tail, tailSt, prioRestName)
+		}
+		return
 	}
 }
 
 // mapCell is where node i's dot is on the map at the frame's zoom.
 func (d *drawing) mapCell(i int) Point {
 	p := d.r.l.Nodes[i].P
-	return Point{p.X * d.sx, p.Y * d.sy}
+	return d.k.at(p)
 }
 
-// dotCells maps each node's cell at scale sx×sy to the node, built once
-// per scale (at most a handful: the overview's fits and the fixed ones).
-func (r *Renderer) dotCells(sx, sy int) map[Point]int32 {
-	key := [2]int{sx, sy}
-	if r.dots[key] == nil {
+// dotCells maps each node's cell at scale k to the node.
+func (r *Renderer) dotCells(k scale) map[Point]int32 {
+	return cached(r.dots, k, func() map[Point]int32 {
 		cells := make(map[Point]int32, len(r.l.Nodes))
 		for i, n := range r.l.Nodes {
-			cells[Point{n.P.X * sx, n.P.Y * sy}] = int32(i)
+			cells[k.at(n.P)] = int32(i)
 		}
-		r.dots[key] = cells
-	}
-	return r.dots[key]
+		return cells
+	})
 }
 
 // namer places the neighbourhood's names on the map.
 type namer struct {
 	d     *drawing
 	dots  map[Point]int32
+	suns  map[Point]bool
 	names map[Point]bool // cells of the names placed so far, with their blanks
 }
 
+func newNamer(d *drawing) *namer {
+	n := &namer{d: d, dots: d.r.dotCells(d.k), suns: map[Point]bool{}, names: map[Point]bool{}}
+	for _, p := range d.r.l.suns() {
+		n.suns[d.k.at(p)] = true
+	}
+	if d.r.l.solar {
+		sun := d.k.at(d.r.l.Sun)
+		for at := range halo {
+			n.suns[Point{sun.X + at.X, sun.Y + at.Y}] = true
+		}
+	}
+	return n
+}
+
 // taken reports whether a name may not use map cell p: another name, its
-// blanks or a shown dot are there.
+// blanks, a sun or a shown dot are there.
 func (n *namer) taken(p Point) bool {
-	if n.names[p] {
+	if n.names[p] || n.suns[p] {
 		return true
 	}
 	i, ok := n.dots[p]
@@ -778,11 +1009,11 @@ func (n *namer) selName(p Point, w int) (int, side) {
 	return w, sideRight
 }
 
-// firstDot is the first map column in [x0, x1] of row y holding a dot
-// that is not hidden, or -1.
+// firstDot is the first map column in [x0, x1] of row y holding a sun or
+// a dot that is not hidden, or -1: no name covers either.
 func (n *namer) firstDot(x0, x1, y int) int {
 	for x := x0; x <= x1; x++ {
-		if i, ok := n.dots[Point{x, y}]; ok && !n.d.isHidden(int(i)) {
+		if i, ok := n.dots[Point{x, y}]; ok && !n.d.isHidden(int(i)) || n.suns[Point{x, y}] {
 			return x
 		}
 	}
@@ -800,7 +1031,7 @@ func (r *Renderer) selSpan(f Frame) (x0, x1 int) {
 	p := d.mapCell(d.sel)
 	w := min(ansi.StringWidth(r.l.Nodes[d.sel].Label), maxLabelWidth)
 	d.f.Offset.X = p.X - 2 - w
-	n := &namer{d: d, dots: r.dotCells(d.sx, d.sy), names: map[Point]bool{}}
+	n := newNamer(d)
 	nw, at := n.selName(p, w)
 	if at == sideLeft {
 		return p.X - 2 - nw, p.X
@@ -1009,6 +1240,50 @@ func brailleLine(x0, y0, x1, y1 int, plot func(x, y int, bit uint8)) {
 	}
 }
 
+// link plots the line of a real link between screen cells a and b: on a
+// solar map a curve bent by linkBend, on a map placed by hand straight.
+func (r *Renderer) link(a, b Point, plot func(x, y int, bit uint8)) {
+	if r.l.solar {
+		brailleCurve(a.X, a.Y, b.X, b.Y, linkBend, plot)
+	} else {
+		brailleLine(a.X, a.Y, b.X, b.Y, plot)
+	}
+}
+
+// brailleCurve is brailleLine bent into a quadratic Bézier curve: its
+// control point sits bend × the line's length off the line's middle, to
+// the left going from (x0, y0) to (x1, y1). Braille dots are as far apart
+// across as down, so the bend is the same whichever way the line runs.
+func brailleCurve(x0, y0, x1, y1 int, bend float64, plot func(x, y int, bit uint8)) {
+	ax, ay, bx, by := 2*x0, 4*y0+1, 2*x1, 4*y1+1
+	fax, fay, fbx, fby := float64(ax), float64(ay), float64(bx), float64(by)
+	cx, cy := (fax+fbx)/2+bend*(fby-fay), (fay+fby)/2-bend*(fbx-fax)
+	// The curve moves at most 2×max(|C-A|, |B-C|) along an axis over the
+	// whole of t, so that many steps never skip a dot.
+	reach := max(math.Abs(cx-fax), math.Abs(fbx-cx), math.Abs(cy-fay), math.Abs(fby-cy))
+	n := int(2*reach) + 1
+	// Forward differences: B(t) = A + 2(C−A)t + (A−2C+B)t², stepped by 1/n.
+	h := 1 / float64(n)
+	x, y := fax, fay
+	dx, dy := 2*(cx-fax)*h+(fax-2*cx+fbx)*h*h, 2*(cy-fay)*h+(fay-2*cy+fby)*h*h
+	ddx, ddy := 2*(fax-2*cx+fbx)*h*h, 2*(fay-2*cy+fby)*h*h
+	px, py := ax, ay
+	for i := 1; i < n; i++ {
+		x, y = x+dx, y+dy
+		dx, dy = dx+ddx, dy+ddy
+		qx, qy := int(math.Floor(x+0.5)), int(math.Floor(y+0.5))
+		if qx == px && qy == py {
+			continue
+		}
+		px, py = qx, qy
+		x, y := qx>>1, qy>>2
+		if (x == x0 && y == y0) || (x == x1 && y == y1) {
+			continue
+		}
+		plot(x, y, brailleBits[qy&3][qx&1])
+	}
+}
+
 func abs(n int) int {
 	if n < 0 {
 		return -n
@@ -1036,8 +1311,8 @@ type edgeLayer struct {
 
 // buildLayer rasterises the edges at scale k; known leaves out those to
 // unresolved targets.
-func (r *Renderer) buildLayer(k int, known bool) *edgeLayer {
-	l := &edgeLayer{w: max((r.l.W-1)*k+1, 0), h: max((r.l.H-1)*k+1, 0)}
+func (r *Renderer) buildLayer(k scale, known bool) *edgeLayer {
+	l := &edgeLayer{w: max(k.of(r.l.W-1)+1, 0), h: max(k.of(r.l.H-1)+1, 0)}
 	l.bits, l.galaxy = make([]uint8, l.w*l.h), make([]int32, l.w*l.h)
 	for _, p := range r.pairs {
 		if known && (r.l.Nodes[p[0]].Unresolved || r.l.Nodes[p[1]].Unresolved) {
@@ -1047,8 +1322,11 @@ func (r *Renderer) buildLayer(k int, known bool) *edgeLayer {
 		if r.galaxy[p[0]] == r.galaxy[p[1]] {
 			g = r.galaxy[p[0]] + 1
 		}
-		a, b := r.l.Nodes[p[0]].P, r.l.Nodes[p[1]].P
-		brailleLine(a.X*k, a.Y*k, b.X*k, b.Y*k, func(x, y int, bit uint8) {
+		a, b := k.at(r.l.Nodes[p[0]].P), k.at(r.l.Nodes[p[1]].P)
+		r.link(a, b, func(x, y int, bit uint8) {
+			if x < 0 || y < 0 || x >= l.w || y >= l.h {
+				return
+			}
 			i := y*l.w + x
 			l.bits[i] |= bit
 			if l.galaxy[i] == 0 {
@@ -1059,4 +1337,120 @@ func (r *Renderer) buildLayer(k int, known bool) *edgeLayer {
 		})
 	}
 	return l
+}
+
+// frameLayer is the solar frame rasterised at one scale: the braille dots
+// of each cell, the strongest kind of line through it (prioRing, prioSpoke
+// or prioTrunk) and the galaxy of that line.
+type frameLayer struct {
+	bits   []uint8
+	kind   []int8
+	galaxy []int32
+	w, h   int
+}
+
+// The rings and spokes are dotted, so they never read as links: a dot
+// every ringDots braille dots round a ring, every lineDots along a spoke.
+// The lines to the vault's sun are dotted too, more closely.
+const ringDots, lineDots, trunkDots = 3, 2, 2
+
+// How far lines bend (see brailleCurve): the lines to the vault's sun all
+// the same way round, like the arms of a galaxy; the real links a little.
+const trunkBend, linkBend = 0.16, 0.1
+
+// buildFrame rasterises the frame at scale key.k: a line from each folder's
+// galaxy to the vault's (from outside the rings of one to outside the
+// rings of the other, so the suns stay clear), a spoke from each shown
+// node to its galaxy's sun, and a dotted ring through the nodes of each
+// ring that holds one. Nodes key leaves out (unresolved targets, orphans)
+// get no spoke and no ring.
+func (r *Renderer) buildFrame(key layerKey) *frameLayer {
+	k := key.k
+	f := &frameLayer{w: max(k.of(r.l.W-1)+1, 0), h: max(k.of(r.l.H-1)+1, 0)}
+	f.bits, f.kind, f.galaxy = make([]uint8, f.w*f.h), make([]int8, f.w*f.h), make([]int32, f.w*f.h)
+	plot := func(kind int8, g int32, every int) func(x, y int, bit uint8) {
+		step := 0
+		return func(x, y int, bit uint8) {
+			if step++; (step-1)%every != 0 || x < 0 || y < 0 || x >= f.w || y >= f.h {
+				return
+			}
+			i := y*f.w + x
+			f.bits[i] |= bit
+			if kind >= f.kind[i] {
+				f.kind[i], f.galaxy[i] = kind, g
+			}
+		}
+	}
+	sun := r.l.Sun
+	centre := func(g int32) Point {
+		if r.l.Clusters[g].Key == "" {
+			return sun
+		}
+		return r.l.Clusters[g].Centre
+	}
+	rings := make([]map[int]bool, len(r.l.Clusters))
+	outer := make([]int, len(r.l.Clusters)) // outermost ring drawn, per galaxy
+	for i, n := range r.l.Nodes {
+		if key.known && n.Unresolved || key.linked && n.Degree == 0 {
+			continue
+		}
+		g := r.galaxy[i]
+		c := centre(g)
+		a, b := k.at(c), k.at(n.P)
+		brailleLine(a.X, a.Y, b.X, b.Y, plot(prioSpoke, g, lineDots))
+		if rings[g] == nil {
+			rings[g] = map[int]bool{}
+		}
+		ring := ringOf(c, n.P)
+		rings[g][ring] = true
+		outer[g] = max(outer[g], ring)
+	}
+	rootOuter := 0
+	for g, c := range r.l.Clusters {
+		if c.Key == "" {
+			rootOuter = outer[g]
+		}
+	}
+	for g, c := range r.l.Clusters {
+		for ring := range rings[g] {
+			p := centre(int32(g))
+			at := k.at(p)
+			dottedRing(at.X, at.Y, k.of(ringRadius(ring)), plot(prioRing, int32(g), 1))
+		}
+		if c.Key == "" {
+			continue
+		}
+		// Clear of both galaxies' rings, a cell past the outer one.
+		inner, far := k.of(ringRadius(rootOuter)+1), k.of(ringRadius(outer[g])+1)
+		trunk := plot(prioTrunk, int32(g), trunkDots)
+		from, to := k.at(sun), k.at(c.Centre)
+		brailleCurve(from.X, from.Y, to.X, to.Y, trunkBend, func(x, y int, bit uint8) {
+			if screenDist2(Point{x, y}, from) > inner*inner && screenDist2(Point{x, y}, to) > far*far {
+				trunk(x, y, bit)
+			}
+		})
+	}
+	return f
+}
+
+// ringOf is the ring around sun c that cell p is on.
+func ringOf(c, p Point) int {
+	d := math.Sqrt(float64(screenDist2(p, c)))
+	return max(1, int(math.Round((d+ringStep/2)/ringStep)))
+}
+
+// dottedRing plots a dot every ringDots braille dots round the circle of
+// r screen columns about the dot of cell (cx, cy): r columns across and
+// r/2 rows down are both 2r braille dots, so it is a circle in dots.
+func dottedRing(cx, cy, r int, plot func(x, y int, bit uint8)) {
+	if r <= 0 {
+		return
+	}
+	ax, ay, rad := 2*cx, 4*cy+1, float64(2*r)
+	n := max(8, int(2*math.Pi*rad/ringDots))
+	for j := range n {
+		a := 2 * math.Pi * float64(j) / float64(n)
+		px, py := ax+int(math.Round(rad*math.Cos(a))), ay+int(math.Round(rad*math.Sin(a)))
+		plot(px>>1, py>>2, brailleBits[py&3][px&1])
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -85,13 +86,27 @@ func checkInvariants(t *testing.T, l Layout, g Graph) {
 			t.Fatalf("%q at %v outside the %dx%d map", n.ID, n.P, l.W, l.H)
 		}
 	}
-	for i, a := range l.Clusters {
-		for _, b := range l.Clusters[i+1:] {
-			// Round galaxies on screen, with an empty band between two.
-			if d := a.RX + b.RX + galaxyGap; screenDist2(a.Centre, b.Centre) < d*d {
-				t.Fatalf("galaxies %q %+v and %q %+v are closer than the gap", a.Key, a, b.Key, b)
+	// Each galaxy's rings and name keep an empty band to every other's.
+	boxes := map[string]Rect{}
+	for _, c := range l.Clusters {
+		gx := galaxy{key: c.Key, c: c.Centre, rings: max(0, (c.RX-ringMargin+ringStep/2)/ringStep), head: ansi.StringWidth(c.Key)}
+		if c.Key == "" {
+			gx.head = ansi.StringWidth(l.Name)
+		}
+		boxes[c.Key] = gx.box()
+		if c.Key != "" && c.Centre == l.Sun {
+			t.Fatalf("galaxy %q sits on the vault's sun", c.Key)
+		}
+	}
+	for a, ba := range boxes {
+		for b, bb := range boxes {
+			if a < b && !apart(ba, bb) {
+				t.Fatalf("galaxies %q %v and %q %v are closer than the gap", a, ba, b, bb)
 			}
 		}
+	}
+	if !l.solar || l.Sun.X < 0 || l.Sun.Y < 0 || l.Sun.X >= l.W || l.Sun.Y >= l.H {
+		t.Fatalf("the vault's sun %v is not on the %dx%d map (solar %v)", l.Sun, l.W, l.H, l.solar)
 	}
 }
 
@@ -211,7 +226,9 @@ func TestDegreeIgnoresSelfDuplicateAndUnknownEdges(t *testing.T) {
 	}
 }
 
-func TestBuildPutsTheHubAtTheGalaxyCentre(t *testing.T) {
+// S7: the notes at the vault root orbit the vault's sun, the hub on the
+// innermost ring that holds notes (the first is left to the sun's halo).
+func TestBuildPutsTheHubNextToTheVaultSun(t *testing.T) {
 	g := fixture(300, 1, 0, 3) // one root cluster
 	hub := g.Nodes[17].ID
 	for _, n := range g.Nodes[:120] {
@@ -221,13 +238,17 @@ func TestBuildPutsTheHubAtTheGalaxyCentre(t *testing.T) {
 	}
 	l := Build(g)
 	checkInvariants(t, l, g)
-	if h, _ := l.Lookup(hub); h.P != l.Clusters[0].Centre {
-		t.Fatalf("hub at %v, galaxy centre at %v", h.P, l.Clusters[0].Centre)
+	if c := l.Clusters[0]; c.Key != "" || c.Centre != l.Sun {
+		t.Fatalf("the root's galaxy %+v is not round the vault's sun %v", c, l.Sun)
+	}
+	if h, _ := l.Lookup(hub); ring(l.Clusters[0], h.P) != rootFirstRing {
+		t.Fatalf("hub at %v, on ring %d round the sun %v; want ring %d", h.P, ring(l.Clusters[0], h.P), l.Sun, rootFirstRing)
 	}
 }
 
-// busiest is the node a galaxy puts in its centre: the note with the most
-// links, ties by ID, or an unresolved target when the galaxy has no note.
+// busiest is the node a galaxy puts first, on its innermost ring: the note
+// with the most links, ties by ID, or an unresolved target when the galaxy
+// has no note.
 func busiest(nodes []Placed) Placed {
 	best := nodes[0]
 	for _, n := range nodes[1:] {
@@ -246,14 +267,26 @@ func members(l Layout) map[string][]Placed {
 	return m
 }
 
-func TestGalaxyCentreIsTheBusiestNote(t *testing.T) {
+// S7: a galaxy's centre is its sun, which is no note; the busiest note
+// sits on the innermost ring that holds notes (round the vault's sun, the
+// second).
+func TestGalaxySunHoldsNoNoteAndTheBusiestIsNextToIt(t *testing.T) {
 	g := fixture(700, 8, 2500, 11)
 	l := Build(g)
 	checkInvariants(t, l, g)
 	for key, ns := range members(l) {
 		c := cluster(l, key)
-		if b := busiest(ns); b.P != c.Centre {
-			t.Errorf("galaxy %q: busiest %q (degree %d) at %v, centre %v", key, b.ID, b.Degree, b.P, c.Centre)
+		for _, n := range ns {
+			if n.P == c.Centre {
+				t.Fatalf("galaxy %q: %q sits on the sun %v", key, n.ID, c.Centre)
+			}
+		}
+		first := 1
+		if key == "" {
+			first = rootFirstRing
+		}
+		if b := busiest(ns); ring(c, b.P) != first {
+			t.Errorf("galaxy %q: busiest %q (degree %d) on ring %d, want %d", key, b.ID, b.Degree, ring(c, b.P), first)
 		}
 	}
 }
@@ -318,7 +351,8 @@ func TestGalaxiesLookRoundOnScreen(t *testing.T) {
 	}
 }
 
-func TestLinkedGalaxiesSitCloser(t *testing.T) {
+// S7: folders that link to each other sit side by side on the orbit.
+func TestLinkedGalaxiesSitSideBySide(t *testing.T) {
 	var g Graph
 	add := func(key string, n int) {
 		for i := range n {
@@ -342,11 +376,18 @@ func TestLinkedGalaxiesSitCloser(t *testing.T) {
 	for _, in := range []Graph{g, shuffled(g, 3)} {
 		l := Build(in)
 		checkInvariants(t, l, in)
-		main := cluster(l, "main").Centre
-		d := func(key string) int { return screenDist2(main, cluster(l, key).Centre) }
-		if d("z-friend") > d("m-acquaintance") || d("m-acquaintance") >= d("a-stranger") {
-			t.Fatalf("distance² to main: friend %d, acquaintance %d, stranger %d; want friend ≤ acquaintance < stranger",
-				d("z-friend"), d("m-acquaintance"), d("a-stranger"))
+		// Round the orbit, main's two neighbours are the two it links to.
+		keys := []string{"main", "a-stranger", "m-acquaintance", "z-friend"}
+		angle := func(key string) float64 {
+			c := cluster(l, key).Centre
+			return math.Atan2(float64(cellAspect*(c.Y-l.Sun.Y)), float64(c.X-l.Sun.X))
+		}
+		slices.SortFunc(keys, func(a, b string) int { return cmp.Compare(angle(a), angle(b)) })
+		i := slices.Index(keys, "main")
+		near := []string{keys[(i+1)%4], keys[(i+3)%4]}
+		slices.Sort(near)
+		if !slices.Equal(near, []string{"m-acquaintance", "z-friend"}) {
+			t.Fatalf("round the orbit %v main sits between %v; want its friend and acquaintance", keys, near)
 		}
 	}
 }
@@ -363,16 +404,21 @@ func TestUpdatePutsANewNoteOnTheInnermostFreeSlot(t *testing.T) {
 	checkInvariants(t, l, g)
 	c := cluster(l, key)
 	n, _ := l.Lookup(key + "/new.md")
-	// Every slot of the rings inside the new note's ring is taken.
+	// Every ring inside the new note's ring is full: as many of its slots
+	// are taken as it holds.
 	taken := map[Point]bool{}
 	for _, m := range l.Nodes {
 		taken[m.P] = true
 	}
-	for k := range ring(c, n.P) {
+	for k := 1; k < ring(c, n.P); k++ {
+		held := 0
 		for _, s := range ringSlots(k) {
-			if p := (Point{c.Centre.X + s.X, c.Centre.Y + s.Y}); !taken[p] {
-				t.Fatalf("new note at %v on ring %d, but %v on ring %d is free", n.P, ring(c, n.P), p, k)
+			if taken[Point{c.Centre.X + s.X, c.Centre.Y + s.Y}] {
+				held++
 			}
+		}
+		if held < ringCapacity(k) {
+			t.Fatalf("new note at %v on ring %d, but ring %d holds %d of %d", n.P, ring(c, n.P), k, held, ringCapacity(k))
 		}
 	}
 }
@@ -429,37 +475,48 @@ func TestUpdateRemovingNotesMovesNoOtherNode(t *testing.T) {
 	}
 }
 
-func TestUpdateGrowsFullClustersWithoutOverlap(t *testing.T) {
+// R3-001: a full galaxy grows a ring and pushes the galaxies in its way
+// outward; the others stay where they are, every pushed galaxy keeps its
+// notes round its sun, and a map that would leave the grid moves whole
+// (Layout.moved). Growing never falls back to a fresh layout. The root's
+// galaxy, round the vault's sun in the middle, is the most hemmed in.
+func TestUpdateGrowsFullGalaxiesByPushingOthers(t *testing.T) {
 	g := fixture(300, 9, 100, 6)
 	l := Build(g)
-	// The biggest galaxy is laid out first, in the middle, with the
-	// others around it, so it can only grow until it reaches them.
-	key, most := "", 0
-	for k, ns := range members(l) {
-		if len(ns) > most || len(ns) == most && k < key {
-			key, most = k, len(ns)
-		}
-	}
-	for i := range 2000 {
-		before := positions(l)
-		g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("%s/grow%04d.md", key, i), Cluster: key})
+	pushed, shifted := false, false
+	for i := range 600 {
+		g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("grow%04d.md", i)})
 		next, kept := Update(l, g)
-		checkInvariants(t, next, g)
 		if !kept {
-			if !reflect.DeepEqual(next, Build(g)) {
-				t.Fatal("fallback is not a fresh layout")
-			}
-			return // the cluster was hemmed in: a full layout is the way out
+			t.Fatalf("step %d: growing fell back to a fresh layout", i)
 		}
-		after := positions(next)
-		for id, p := range before {
-			if q := after[id]; q != p {
-				t.Fatalf("step %d: %q moved from %v to %v", i, id, p, q)
+		checkInvariants(t, next, g)
+		mv := next.moved
+		shifted = shifted || mv != (Point{})
+		if next.Sun != (Point{l.Sun.X + mv.X, l.Sun.Y + mv.Y}) {
+			t.Fatalf("step %d: the vault's sun moved from %v to %v, not by %v", i, l.Sun, next.Sun, mv)
+		}
+		for _, c := range l.Clusters {
+			nc := cluster(next, c.Key)
+			if nc.Centre != (Point{c.Centre.X + mv.X, c.Centre.Y + mv.Y}) {
+				pushed = true
+				if screenDist2(nc.Centre, next.Sun) <= screenDist2(c.Centre, l.Sun) {
+					t.Fatalf("step %d: galaxy %q moved from %v to %v, not away from the sun", i, c.Key, c.Centre, nc.Centre)
+				}
+			}
+		}
+		for _, n := range l.Nodes {
+			m, _ := next.Lookup(n.ID)
+			oc, nc := cluster(l, n.Cluster).Centre, cluster(next, n.Cluster).Centre
+			if m.P.X-nc.X != n.P.X-oc.X || m.P.Y-nc.Y != n.P.Y-oc.Y {
+				t.Fatalf("step %d: %q left its place round its sun: %v → %v", i, n.ID, n.P, m.P)
 			}
 		}
 		l = next
 	}
-	t.Fatalf("cluster %q never ran out of room: the fallback is untested", key)
+	if !pushed || !shifted {
+		t.Fatalf("the fixture should push galaxies (%v) and move the whole map (%v)", pushed, shifted)
+	}
 }
 
 func TestLabelsDisambiguateSameNames(t *testing.T) {
@@ -593,5 +650,25 @@ func BenchmarkLayoutManyFolders(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		Build(g)
+	}
+}
+
+// S7 (look): a galaxy's size grows with its notes, so a folder of 16 reads
+// bigger than one of 8, and that bigger than one of 2.
+func TestGalaxyRadiusGrowsWithItsNotes(t *testing.T) {
+	g := Graph{}
+	sizes := map[string]int{"big": 16, "mid": 8, "small": 2}
+	for key, n := range sizes {
+		for i := range n {
+			g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("%s/n%02d.md", key, i), Cluster: key})
+		}
+	}
+	l := Build(g)
+	rx := map[string]int{}
+	for _, c := range l.Clusters {
+		rx[c.Key] = c.RX
+	}
+	if !(rx["small"] < rx["mid"] && rx["mid"] < rx["big"]) {
+		t.Fatalf("radii small %d, mid %d, big %d: want them growing", rx["small"], rx["mid"], rx["big"])
 	}
 }

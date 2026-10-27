@@ -181,20 +181,17 @@ func TestModelArrowAndHJKLKeysMoveToTheNearestNode(t *testing.T) {
 // With nothing selected and a map bigger than the pane, the view opens
 // on the centre of the biggest galaxy, not on the middle of the whole map,
 // which may be the empty space between galaxies.
-func TestModelWithNothingSelectedCentresTheBiggestGalaxy(t *testing.T) {
-	var g Graph
-	add := func(key string, n int) {
-		for i := range n {
-			g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("%s/n%02d.md", key, i), Cluster: key})
-			if i > 0 {
-				g.Edges = append(g.Edges, Edge{fmt.Sprintf("%s/n00.md", key), fmt.Sprintf("%s/n%02d.md", key, i)})
-			}
-		}
-	}
-	add("a", 3)
-	add("big", 30)
-	add("z", 30) // as big, but "big" sorts first
-	g.Edges = append(g.Edges, Edge{"a/n01.md", "big/n01.md"}, Edge{"z/n01.md", "big/n02.md"})
+// sunPane is where the vault's sun is drawn on the map area.
+func sunPane(m Model) (x, y int) {
+	k := m.scale()
+	o := m.viewOffset()
+	return k.of(m.l.Sun.X) - o.X, k.of(m.l.Sun.Y) - o.Y
+}
+
+// S7: with nothing selected and a map bigger than the pane, the view opens
+// on the vault's sun, the middle of the solar system, at every zoom.
+func TestModelWithNothingSelectedCentresTheVaultSun(t *testing.T) {
+	g := realisticVault()
 	m := New(theme.DefaultTheme())
 	m.SetSize(60, 20)
 	m.SetFocused(true)
@@ -204,36 +201,35 @@ func TestModelWithNothingSelectedCentresTheBiggestGalaxy(t *testing.T) {
 		if m2.Selected() != "" {
 			t.Fatalf("setup: %v selected %q", keys, m2.Selected())
 		}
-		sx, sy := m2.scale()
-		if (m2.l.W-1)*sx < m2.width && (m2.l.H-1)*sy < m2.mapRows() {
-			continue // the whole map fits: it is centred instead
-		}
-		x, y := m2.screen("big/n00.md")
+		x, y := sunPane(m2)
 		if x != m2.width/2 || y != m2.mapRows()/2 {
-			t.Fatalf("%v: the biggest galaxy's centre is at (%d,%d), want the pane's middle (%d,%d)", keys, x, y, m2.width/2, m2.mapRows()/2)
+			t.Fatalf("%v: the vault's sun is at (%d,%d), want the pane's middle (%d,%d)", keys, x, y, m2.width/2, m2.mapRows()/2)
 		}
-		if c := screen(m2.View())[y+1][x]; !isDot(c) {
-			t.Fatalf("%v: the middle of the pane shows %q, want the hub's dot", keys, c.r)
+		if c := screen(m2.View())[y+1][x]; c.r != glyphVaultSun {
+			t.Fatalf("%v: the middle of the pane shows %q, want the vault's sun", keys, c.r)
 		}
 	}
-	// A map that fits at the overview is centred whole there; zooming in
-	// with the keys then opens on the biggest galaxy too.
-	small := Graph{
-		Nodes: []Node{{ID: "Home.md"}, {ID: "Orphan.md"}, {ID: "Ghost", Unresolved: true}, {ID: "work/Plan.md", Cluster: "work"}},
-		Edges: []Edge{{"Home.md", "work/Plan.md"}, {"Home.md", "Ghost"}},
+}
+
+// R3-003: 0 with nothing selected shows the whole map again when it fits,
+// after the view was panned away.
+func TestModelZeroWithNothingSelectedShowsTheWholeMap(t *testing.T) {
+	g := realisticVault()
+	m := New(theme.DefaultTheme())
+	m.SetSize(180, 58)
+	m.SetGraph(g)
+	if k := m.scale(); k.of(m.l.W-1) >= m.width || k.of(m.l.H-1) >= m.mapRows() {
+		t.Fatalf("setup: the %dx%d map should fit the pane", m.l.W, m.l.H)
 	}
-	m = New(theme.DefaultTheme())
-	m.SetSize(54, 36)
-	m.SetFocused(true)
-	m.SetGraph(small)
-	for _, keys := range [][]string{{"+"}, {"+", "+"}} {
-		m2, _ := press(m, keys...)
-		if sx, sy := m2.scale(); (m2.l.W-1)*sx < m2.width && (m2.l.H-1)*sy < m2.mapRows() {
-			continue // medium is the overview's scale here: + keeps the view
-		}
-		if x, y := m2.screen("Home.md"); x != m2.width/2 || y != m2.mapRows()/2 {
-			t.Fatalf("%v: the biggest galaxy's centre Home is at (%d,%d), want the pane's middle (%d,%d)", keys, x, y, m2.width/2, m2.mapRows()/2)
-		}
+	want := m.r.Centred(m.zoom, m.width, m.mapRows())
+	m.settle()
+	m.offset.X, m.offset.Y = m.offset.X+9, m.offset.Y-4 // panned by hand
+	if m.viewOffset() == want {
+		t.Fatal("setup: the drag should pan the view")
+	}
+	m, _ = press(m, "0")
+	if got := m.viewOffset(); got != want || m.Selected() != "" {
+		t.Fatalf("0 left the view at %v (selection %q), want the whole map centred at %v", got, m.Selected(), want)
 	}
 }
 
@@ -635,58 +631,41 @@ func TestModelSelectionStaysInViewOnABigMap(t *testing.T) {
 }
 
 func TestModelIncrementalMapKeepsTheView(t *testing.T) {
-	m := newModel(t, 80, 20)
+	m := New(theme.DefaultTheme())
+	m.SetSize(80, 20)
+	m.SetFocused(true)
+	m.SetGraph(vault())
+	m.SetOpenNote("Home.md")
 	m, _ = press(m, "l", "+")
 	m.offset.X += 3 // panned by hand
-	before := m.viewOffset()
+	sel := m.Selected()
+	x, y := selPane(m)
 	g := vault()
 	g.Nodes = append(g.Nodes, Node{ID: "new/One.md", Cluster: "new"})
 	m.SetGraph(g)
-	if m.viewOffset() != before || m.Selected() != "Inbox.md" {
-		t.Fatalf("adding a note moved the view %v → %v or the selection to %q", before, m.viewOffset(), m.Selected())
+	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel {
+		t.Fatalf("adding a note moved the selection %q from (%d,%d) to %q at (%d,%d)", sel, x, y, m.Selected(), x2, y2)
 	}
 }
 
+// A map that cannot be kept (here: the previous one was placed by hand,
+// so Update lays it out afresh) keeps the selection and centres it.
 func TestModelFullRelayoutKeepsAndCentresTheSelection(t *testing.T) {
-	// Grow the top-left cluster until the layout can no longer keep its
-	// nodes in place, as in TestUpdateGrowsFullClustersWithoutOverlap.
-	g := fixture(300, 9, 100, 6)
-	m := New(theme.DefaultTheme())
-	m.SetSize(60, 16)
-	m.SetGraph(g)
-	key := ""
-	for _, c := range m.Layout().Clusters {
-		if c.Rect.X == 0 && c.Rect.Y == 0 {
-			key = c.Key
-		}
-	}
-	var next Graph
-	for i := range 2000 {
-		next = Graph{Nodes: append(append([]Node(nil), g.Nodes...), Node{ID: fmt.Sprintf("%s/grow%04d.md", key, i), Cluster: key}), Edges: g.Edges}
-		if NewMap(m.Layout(), next).relaid {
-			break
-		}
-		m.SetGraph(next)
-		g = next
-	}
-	fresh, sel := Build(next), ""
-	for _, n := range m.Layout().Nodes {
-		if f, _ := fresh.Lookup(n.ID); f.P != n.P && sel == "" {
-			sel = n.ID
-		}
-	}
-	if sel == "" {
-		t.Fatal("the fixture should force a fresh layout that moves nodes")
-	}
-	m.SetOpenNote(sel)
+	m := newModel(t, 60, 16)
+	m, _ = press(m, "j")
+	sel := m.Selected()
 	m.offset.X, m.offset.Y = m.offset.X+7, m.offset.Y+2 // panned by hand
-	m, _ = press(m, "l", "esc")
-	m.SetGraph(next)
+	g := realisticVault()
+	g.Nodes = append(g.Nodes, vault().Nodes...)
+	if !NewMap(m.Layout(), g).relaid {
+		t.Fatal("the fixture should force a fresh layout")
+	}
+	m.SetGraph(g)
 	if m.Selected() != sel {
 		t.Fatalf("selection moved to %q", m.Selected())
 	}
 	got, _ := m.Layout().Lookup(sel)
-	want, _ := fresh.Lookup(sel)
+	want, _ := Build(g).Lookup(sel)
 	if got.P != want.P {
 		t.Fatalf("the model should hold the fresh layout: %v, want %v", got.P, want.P)
 	}
@@ -713,7 +692,7 @@ func TestModelRemovedSelectionFallsBackToTheOpenNote(t *testing.T) {
 func TestNewMapWarmsTheRenderer(t *testing.T) {
 	mp := NewMap(Layout{}, vault())
 	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
-		if sx, sy := z.fixedScale(); mp.r.dots[[2]int{sx, sy}] == nil || mp.r.layers[layerKey{sx, false}] == nil {
+		if s, _ := z.fixedScale(); mp.r.dots[whole(s)] == nil || mp.r.layers[layerKey{k: whole(s)}] == nil {
 			t.Fatalf("zoom %d not warmed", z)
 		}
 	}
@@ -721,15 +700,15 @@ func TestNewMapWarmsTheRenderer(t *testing.T) {
 	m.SetSize(40, 10)
 	m.SetMap(mp)
 	m.View()
-	sx, sy := m.scale()
-	built := mp.r.dots[[2]int{sx, sy}]
+	k := m.scale()
+	built := mp.r.dots[k]
 	if built == nil {
-		t.Fatalf("the first overview frame should cache its dot cells at %dx%d", sx, sy)
+		t.Fatalf("the first overview frame should cache its dot cells at scale %d", k)
 	}
 	cached := len(mp.r.dots)
 	m.View()
-	if len(mp.r.dots) != cached || reflect.ValueOf(mp.r.dots[[2]int{sx, sy}]).UnsafePointer() != reflect.ValueOf(built).UnsafePointer() {
-		t.Fatalf("a second frame at the same size should reuse the dot cells at %dx%d: %d → %d scales cached", sx, sy, cached, len(mp.r.dots))
+	if len(mp.r.dots) != cached || reflect.ValueOf(mp.r.dots[k]).UnsafePointer() != reflect.ValueOf(built).UnsafePointer() {
+		t.Fatalf("a second frame at the same size should reuse the dot cells at scale %d: %d → %d scales cached", k, cached, len(mp.r.dots))
 	}
 	if !mp.relaid {
 		t.Fatal("a first map is a fresh layout")
@@ -837,18 +816,20 @@ func TestModelClickOnEitherHalfOfAWideNameSelectsIt(t *testing.T) {
 }
 
 // At the overview of a small vault the dots are spread as far as the pane
-// allows, up to the medium scale, and every dot is drawn (no name covers
-// one, the selection's included) and a click on it selects its note.
+// allows, up to the medium scale, fractions of a cell included, and every
+// dot is drawn (no name covers one, the selection's included) and a click
+// on it selects its note.
 func TestModelOverviewClickSelectsEveryDot(t *testing.T) {
-	for _, c := range []struct{ w, h, sx, sy int }{{100, 30, 2, 2}, {40, 11, 1, 1}} {
+	for _, c := range []struct{ w, h int }{{100, 30}, {40, 11}, {77, 23}} {
 		m := newModel(t, c.w, c.h)
-		if sx, sy := m.scale(); sx != c.sx || sy != c.sy {
-			t.Fatalf("setup: %dx%d at the overview scale %dx%d, want %dx%d", c.w, c.h, sx, sy, c.sx, c.sy)
+		k := m.scale()
+		if k < whole(1) || k > maxFit {
+			t.Fatalf("setup: %dx%d at the overview scale %d/%d", c.w, c.h, k, scaleUnit)
 		}
 		clicked := 0
 		for _, n := range m.l.Nodes {
 			o := m.viewOffset()
-			x, y := n.P.X*c.sx-o.X, n.P.Y*c.sy-o.Y+1
+			x, y := k.of(n.P.X)-o.X, k.of(n.P.Y)-o.Y+1
 			if got := screen(m.View())[y][x].r; !strings.ContainsRune(string([]rune{glyphLeaf, glyphLinked, glyphHub, glyphUnresolved, glyphSelected}), got) {
 				t.Fatalf("%dx%d: %q's dot at (%d,%d) shows %q:\n%s", c.w, c.h, n.ID, x, y, got, ansi.Strip(m.View()))
 			}
@@ -896,30 +877,31 @@ func TestModelOverviewScaleFollowsThePaneSize(t *testing.T) {
 // A note added in a new cluster changes the overview's fit scale; the view
 // is rescaled around the selection, so the selection does not jump.
 func TestModelIncrementalMapAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) {
-	m := newModel(t, 64, 18)
+	m := New(theme.DefaultTheme())
+	m.SetSize(90, 26)
+	m.SetFocused(true)
+	m.SetGraph(vault())
+	m.SetOpenNote("Home.md")
 	m, _ = press(m, "j")
-	// Panned by hand, leaving room on Orphan's left for its name, which
-	// goes there at 3×2 (on its right it would hide Ideas' dot).
-	m.offset.X--
+	m.settle()
+	m.offset.X-- // panned by hand
 	x, y := selPane(m)
-	sel, _ := m.l.Lookup(m.Selected())
-	if sel.P.X == 0 || sel.P.Y == 0 {
-		t.Fatalf("the fixture should select a node off the grid's edges, got %q at %v", sel.ID, sel.P)
-	}
-	gap := rowGap(m)
+	sel := m.Selected()
+	k := m.scale()
+	before := m.Layout()
 	g := vault()
 	for i := range 12 {
 		g.Nodes = append(g.Nodes, Node{ID: fmt.Sprintf("new/N%02d.md", i), Cluster: "new"})
 	}
 	m.SetGraph(g)
-	if m.Layout().H == vaultLayout().H && m.Layout().W == vaultLayout().W {
+	if m.Layout().H == before.H && m.Layout().W == before.W {
 		t.Fatal("the fixture should grow the grid")
 	}
-	if rowGap(m) == gap {
-		t.Fatalf("the fixture should change the overview scale (rows apart %d)", gap)
+	if k2 := m.scale(); k2 == k {
+		t.Fatalf("the fixture should change the overview scale (%d)", k)
 	}
-	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel.ID {
-		t.Fatalf("adding notes moved the selection %q from (%d,%d) to (%d,%d)", m.Selected(), x, y, x2, y2)
+	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel {
+		t.Fatalf("adding notes moved the selection %q from (%d,%d) to %q at (%d,%d)", sel, x, y, m.Selected(), x2, y2)
 	}
 }
 
@@ -936,10 +918,10 @@ func TestModelResizeAtTheOverviewKeepsTheSelectionInPlace(t *testing.T) {
 	if sel.P.X == 0 || sel.P.Y == 0 {
 		t.Fatalf("the fixture should select a node off the grid's edges, got %q at %v", sel.ID, sel.P)
 	}
-	sx, sy := m.scale()
+	k := m.scale()
 	m.SetSize(64, 18)
-	if nx, ny := m.scale(); nx == sx || ny == sy {
-		t.Fatalf("the fixture should change both scales: %dx%d → %dx%d", sx, sy, nx, ny)
+	if nk := m.scale(); nk == k {
+		t.Fatalf("the fixture should change the scale: %d → %d", k, nk)
 	}
 	if x2, y2 := selPane(m); x2 != x || y2 != y || m.Selected() != sel.ID {
 		t.Fatalf("resizing moved the selection %q from (%d,%d) to (%d,%d)", m.Selected(), x, y, x2, y2)
