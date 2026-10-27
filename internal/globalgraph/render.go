@@ -1,14 +1,20 @@
 package globalgraph
 
-// The map is drawn with plain glyphs, one node per cell: a dot sized by how
-// many notes it links, a hollow ring for a link target with no note, and
-// edges as straight runs of ─ │ ╲ ╱ (the same box-drawing family as the
-// local graph). At medium and close zoom every edge is drawn faintly; the
-// selection's own edges are lit at every zoom. Edges always run under dots
-// and names, so moving the selection never hides a node.
+// The map is drawn as galaxies, one node per cell: a dot sized by how many
+// notes it links, a hollow ring for a link target with no note, each in its
+// galaxy's colour, and the galaxy's folder name above it. Edges are thin
+// braille lines (2×4 dots per cell, so several edges share a cell) at every
+// zoom: inside a galaxy in its colour faded toward the background, between
+// galaxies in grey; the selection's own edges are lit over them. Edges
+// always run under dots and names, so moving the selection never hides a
+// node, and with a selection the rest of the map fades instead of greying.
 
 import (
+	"cmp"
+	"fmt"
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -58,15 +64,35 @@ type Renderer struct {
 	l       Layout
 	out, in [][]int32  // linked and linking node indexes, per node
 	pairs   [][2]int32 // each linked pair once
-	faint   [zoomLevels]*edgeLayer
-	known   [zoomLevels]*edgeLayer     // faint without the edges to unresolved targets
+	galaxy  []int32    // per node, its index in l.Clusters
+	centres []int32    // per galaxy, the node at its centre, or -1
+	layers  map[layerKey]*edgeLayer
 	dots    map[[2]int]map[Point]int32 // by scale: sx, sy
+}
+
+// layerKey picks a cached edge layer: the scale, and whether the edges to
+// unresolved targets are left out.
+type layerKey struct {
+	k     int
+	known bool
 }
 
 // NewRenderer prepares l and its edges for drawing. Edges to unknown nodes,
 // self-links and repeats are ignored.
 func NewRenderer(l Layout, edges []Edge) *Renderer {
-	r := &Renderer{l: l, out: make([][]int32, len(l.Nodes)), in: make([][]int32, len(l.Nodes)), dots: map[[2]int]map[Point]int32{}}
+	r := &Renderer{l: l, out: make([][]int32, len(l.Nodes)), in: make([][]int32, len(l.Nodes)), layers: map[layerKey]*edgeLayer{}, dots: map[[2]int]map[Point]int32{}}
+	r.galaxy = make([]int32, len(l.Nodes))
+	r.centres = make([]int32, len(l.Clusters))
+	for c := range r.centres {
+		r.centres[c] = -1
+	}
+	for i, n := range l.Nodes {
+		c, _ := slices.BinarySearchFunc(l.Clusters, n.Cluster, func(c Cluster, k string) int { return strings.Compare(c.Key, k) })
+		r.galaxy[i] = int32(min(c, max(len(l.Clusters)-1, 0)))
+		if c < len(l.Clusters) && l.Clusters[c].Key == n.Cluster && l.Clusters[c].Centre == n.P {
+			r.centres[c] = int32(i)
+		}
+	}
 	seen, paired := map[[2]int32]bool{}, map[[2]int32]bool{}
 	for _, e := range edges {
 		a, okA := l.index[e.From]
@@ -89,21 +115,31 @@ func NewRenderer(l Layout, edges []Edge) *Renderer {
 	return r
 }
 
-// maxFitX and maxFitY cap the overview's scale at the medium one, so
-// zooming in never draws the map smaller.
-const maxFitX, maxFitY = 3, 2
+// maxFit caps the overview's scale at the medium one, so zooming in never
+// draws the map smaller.
+var maxFit, _ = ZoomMedium.fixedScale()
 
 // scale is how many screen cells one grid cell spans at zoom z in a w×h
-// pane. Medium and close have fixed scales; the overview takes the largest
-// whole scale, up to the medium one, that fits the map in the pane, so a
-// small map is spread out instead of packed in the middle.
+// pane, the same across and down (sx == sy) so galaxies stay round. Medium
+// and close have fixed scales; the overview takes the largest whole scale,
+// up to the medium one, that fits the map in the pane, so a small map is
+// spread out instead of packed in the middle.
 func (r *Renderer) scale(z Zoom, w, h int) (sx, sy int) {
 	if z != ZoomOverview {
 		return z.fixedScale()
 	}
-	sx = min(max((w-1)/max(r.l.W-1, 1), 1), maxFitX)
-	sy = min(max((h-1)/max(r.l.H-1, 1), 1), maxFitY)
-	return sx, sy
+	k := min((w-1)/max(r.l.W-1, 1), (h-1)/max(r.l.H-1, 1))
+	k = min(max(k, 1), maxFit)
+	return k, k
+}
+
+// centreOf is the node at the centre of galaxy c.
+func (r *Renderer) centreOf(c Cluster) (int, bool) {
+	i, ok := slices.BinarySearchFunc(r.l.Clusters, c.Key, func(c Cluster, k string) int { return strings.Compare(c.Key, k) })
+	if !ok || r.centres[i] < 0 {
+		return 0, false
+	}
+	return int(r.centres[i]), true
 }
 
 // Centred is the offset that puts the middle of the map at the middle of a
@@ -198,16 +234,24 @@ func (r *Renderer) nodeAt(f Frame, x, y int) (int, bool) {
 
 // warm builds the caches of the medium and close zoom levels, so the first
 // frames after a new map need not; it is meant to run before the renderer
-// is shared. The overview's dot cells depend on the pane size, unknown
-// here, so its first frame builds them; it draws no faint edges.
+// is shared. The overview's scale depends on the pane size, unknown here,
+// so its first frame builds what it needs unless it shares the medium
+// scale.
 func (r *Renderer) warm() {
 	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
-		sx, sy := z.fixedScale()
-		r.dotCells(sx, sy)
-		if r.faint[z] == nil {
-			r.faint[z] = r.buildLayer(sx, sy, false)
-		}
+		k, _ := z.fixedScale()
+		r.dotCells(k, k)
+		r.layer(k, false)
 	}
+}
+
+// layer is the cached edge layer at scale k, built on first use.
+func (r *Renderer) layer(k int, known bool) *edgeLayer {
+	key := layerKey{k, known}
+	if r.layers[key] == nil {
+		r.layers[key] = r.buildLayer(k, known)
+	}
+	return r.layers[key]
 }
 
 // message is text centred in a w×h pane.
@@ -223,12 +267,14 @@ type drawing struct {
 	th     theme.Theme
 	sx, sy int
 	cv     *canvas
-	sel    int          // selected node index, -1 for none
-	open   int          // open note index, -1 for none
-	near   map[int]bool // neighbours of the selection; true when linked from it
-	groups []lipgloss.Color
-	hidden []bool // per node, hidden by a toggle; nil when none is on
-	dim    []bool // per node, not matched by the filter; nil with no filter
+	sel    int              // selected node index, -1 for none
+	open   int              // open note index, -1 for none
+	near   map[int]bool     // neighbours of the selection; true when linked from it
+	hue    []lipgloss.Color // per galaxy: its colour
+	faded  []lipgloss.Color // per galaxy: its colour faded, for the rest of the map
+	edge   []lipgloss.Color // per galaxy: the colour of the edges inside it
+	hidden []bool           // per node, hidden by a toggle; nil when none is on
+	dim    []bool           // per node, not matched by the filter; nil with no filter
 }
 
 func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
@@ -263,8 +309,59 @@ func (r *Renderer) newDrawing(f Frame, th theme.Theme) *drawing {
 	if i, ok := r.l.index[f.Open]; ok {
 		d.open = i
 	}
-	d.groups = []lipgloss.Color{th.Blue, th.Purple, th.Teal, th.Orange, th.Cyan, th.Pink, th.Red, th.NordBlue}
+	palette := []lipgloss.Color{th.Blue, th.Purple, th.Teal, th.Orange, th.Cyan, th.Pink, th.Red, th.NordBlue}
+	n := len(r.l.Clusters)
+	d.hue, d.faded, d.edge = make([]lipgloss.Color, n), make([]lipgloss.Color, n), make([]lipgloss.Color, n)
+	for c := range n {
+		d.hue[c] = palette[c%len(palette)]
+		d.faded[c] = d.fade(d.hue[c], restFade, th.GreyFg)
+		d.edge[c] = d.fade(d.hue[c], edgeFade, th.Line)
+	}
 	return d
+}
+
+// How far toward the background a colour fades: the dots and hub names of
+// the rest of the map while a note is selected (and links to missing
+// notes), and the edges inside a galaxy.
+const restFade, edgeFade = 0.55, 0.62
+
+// fade is c faded toward the background by t, or c itself when the pane
+// is greyed out (every colour there is already the same grey).
+func (d *drawing) fade(c lipgloss.Color, t float64, fallback lipgloss.Color) lipgloss.Color {
+	if d.f.Dimmed {
+		return c
+	}
+	return fade(c, d.th.Bg, t, fallback)
+}
+
+// fade blends colour a toward b by t (0 is a, 1 is b). Both must be
+// "#rrggbb"; otherwise (a terminal palette index, say) it is fallback.
+func fade(a, b lipgloss.Color, t float64, fallback lipgloss.Color) lipgloss.Color {
+	ra, okA := hexRGB(string(a))
+	rb, okB := hexRGB(string(b))
+	if !okA || !okB {
+		return fallback
+	}
+	var out [3]int
+	for k := range out {
+		out[k] = int(math.Round(float64(ra[k]) + (float64(rb[k])-float64(ra[k]))*t))
+	}
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", out[0], out[1], out[2]))
+}
+
+func hexRGB(s string) ([3]int, bool) {
+	var c [3]int
+	if len(s) != 7 || s[0] != '#' {
+		return c, false
+	}
+	for k := range c {
+		v, err := strconv.ParseUint(s[1+2*k:3+2*k], 16, 8)
+		if err != nil {
+			return c, false
+		}
+		c[k] = int(v)
+	}
+	return c, true
 }
 
 func (d *drawing) isHidden(i int) bool { return d.hidden != nil && d.hidden[i] }
@@ -292,49 +389,52 @@ func (d *drawing) class(i int) class {
 	return classRest
 }
 
-// faintEdges copies the visible part of the zoom's cached edge layer.
+// faintEdges copies the visible part of the scale's cached edge layer:
+// a cell inside one galaxy in that galaxy's edge colour, any other in grey.
 func (d *drawing) faintEdges() {
-	z := d.f.Zoom
-	if z == ZoomOverview {
-		return
-	}
-	layers := &d.r.faint
-	if d.f.HideUnresolved {
-		layers = &d.r.known
-	}
-	if layers[z] == nil {
-		layers[z] = d.r.buildLayer(d.sx, d.sy, d.f.HideUnresolved)
-	}
-	layer := layers[z]
-	st := style{fg: d.th.Line}
+	layer := d.r.layer(d.sx, d.f.HideUnresolved)
+	between := style{fg: d.th.GreyFg}
 	for y := range d.f.H {
 		ly := y + d.f.Offset.Y
 		if ly < 0 || ly >= layer.h {
 			continue
 		}
 		for x := max(0, -d.f.Offset.X); x < d.f.W && x+d.f.Offset.X < layer.w; x++ {
-			if m := layer.mask[ly*layer.w+x+d.f.Offset.X]; m != 0 {
-				d.cv.set(x, y, maskGlyph(m), st, prioFaint)
+			i := ly*layer.w + x + d.f.Offset.X
+			if m := layer.bits[i]; m != 0 {
+				st := between
+				if g := layer.galaxy[i]; g > 0 {
+					st = style{fg: d.edge[g-1]}
+				}
+				d.cv.set(x, y, brailleBlank+rune(m), st, prioFaint)
 			}
 		}
 	}
 }
 
-// litEdges draws the selection's links (Blue) and backlinks (Purple).
+// litEdges draws the selection's links (Blue) and backlinks (Purple) over
+// the faint ones, on the same dots: a lit edge's cell shows only lit dots.
 func (d *drawing) litEdges() {
 	if d.sel < 0 {
 		return
 	}
-	x0, y0 := d.screen(d.sel)
 	for _, j := range sortedIndexes(d.near) {
 		fg := d.th.Purple
 		if d.near[j] {
 			fg = d.th.Blue
 		}
-		x1, y1 := d.screen(j)
 		st := style{fg: fg}
-		line(x0, y0, x1, y1, func(x, y int, m uint8) {
-			d.cv.set(x, y, maskGlyph(m), st, prioLit)
+		a, b := d.mapCell(min(d.sel, j)), d.mapCell(max(d.sel, j)) // the faint layer's direction
+		brailleLine(a.X, a.Y, b.X, b.Y, func(x, y int, bit uint8) {
+			x, y = x-d.f.Offset.X, y-d.f.Offset.Y
+			if x < 0 || y < 0 || x >= d.f.W || y >= d.f.H {
+				return
+			}
+			r := brailleBlank + rune(bit)
+			if c := d.cv.cells[y*d.f.W+x]; c.prio == prioLit {
+				r |= c.r
+			}
+			d.cv.set(x, y, r, st, prioLit)
 		})
 	}
 }
@@ -378,12 +478,7 @@ func (d *drawing) nodes() {
 				st.fg = d.th.Blue
 			}
 		default:
-			switch {
-			case d.dim != nil && !d.dim[i] && n.Unresolved:
-				st.fg = d.th.Fg // a match stands out of the greyed rest
-			case (d.sel < 0 || d.dim != nil) && !n.Unresolved:
-				st.fg = d.groupColour(n.Cluster)
-			}
+			st.fg = d.restColour(i)
 		}
 		if d.isDim(i) {
 			st.fg = d.th.Grey
@@ -406,11 +501,22 @@ func dotGlyph(n Placed) rune {
 	return glyphHub
 }
 
-// groupColour is a project's colour while nothing is selected: the theme's
-// accents in turn, by the clusters' sorted order.
-func (d *drawing) groupColour(key string) lipgloss.Color {
-	i, _ := slices.BinarySearchFunc(d.r.l.Clusters, key, func(c Cluster, k string) int { return strings.Compare(c.Key, k) })
-	return d.groups[i%len(d.groups)]
+// restColour is the colour of node i outside the highlighted few: its
+// galaxy's colour (the theme's accents in turn, by the galaxies' sorted
+// order), faded while another note is selected and for a link to a
+// missing note. A filter instead greys what it does not match (see isDim)
+// and shows a matching missing note in the text colour.
+func (d *drawing) restColour(i int) lipgloss.Color {
+	g, unresolved := d.r.galaxy[i], d.r.l.Nodes[i].Unresolved
+	switch {
+	case d.dim != nil && unresolved:
+		return d.th.Fg
+	case d.dim != nil:
+		return d.hue[g]
+	case d.sel >= 0 || unresolved:
+		return d.faded[g]
+	}
+	return d.hue[g]
 }
 
 // minNearName is the fewest cells a neighbour's or the open note's name
@@ -418,13 +524,15 @@ func (d *drawing) groupColour(key string) lipgloss.Color {
 const minNearName = 3
 
 // names draws the selection's name (see selName), then the open note's
-// and the neighbours' (busiest first): each in full on the right of its
-// dot or,
-// when that side is in the way, in full on the left; failing both, cut
-// short on the right before the first dot or name in its way (at the
-// overview, only their dots count); then the layout's
-// names for the zoom (none at the overview) that cover none of those.
-// Every name keeps a blank cell on each side, so edges never run into it.
+// and the neighbours' (busiest first), then each galaxy's heading, then
+// the hubs' names: at the overview each galaxy's centre note, closer in
+// the layout's names for the zoom. A highlighted note's or a hub's name
+// goes in full on the right of its dot or, when that side is in the way,
+// in full on the left; failing both, cut short on the right before the
+// first dot or name in its way (see place). A name of the layout's table
+// that covers any of those is left out. No name covers another note's dot
+// (the selection's only when nothing else fits, see selName), and every
+// name keeps a blank cell on each side, so edges never run into it.
 // Names are placed on the whole map, not the pane, so panning does not
 // change which are shown, with one exception: a name goes left of its dot
 // only when it fits inside the pane, so near the pane's left edge a
@@ -449,31 +557,15 @@ func (d *drawing) names() {
 		}
 	}
 	for _, i := range hot {
-		p := d.mapCell(i)
-		w := min(ansi.StringWidth(d.r.l.Nodes[i].Label), maxLabelWidth)
-		room := 0
-		for room < w && !n.taken(Point{p.X + 2 + room, p.Y}) {
-			room++
-		}
-		if room < w || n.taken(Point{p.X + 2 + w, p.Y}) {
-			room-- // keep a blank before what is in the way
-		}
-		gap := n.taken(Point{p.X + 1, p.Y})
-		switch {
-		case !gap && room >= w:
-			n.draw(i, w, sideRight)
-		case n.fitsLeft(p, w):
-			n.draw(i, w, sideLeft)
-		case gap || room < min(w, minNearName):
-			continue
-		default:
-			n.draw(i, room, sideRight)
-		}
-		drawn[i] = true
+		drawn[i] = n.place(i)
 	}
-	st := style{fg: d.th.GreyFg2}
-	if d.sel >= 0 {
-		st.fg = d.th.GreyFg
+	n.headings()
+	if d.f.Zoom == ZoomOverview {
+		for _, i := range d.hubs() {
+			if !drawn[i] && d.class(i) == classRest && !d.isHidden(i) {
+				drawn[i] = n.place(i)
+			}
+		}
 	}
 	for _, lb := range d.r.l.Labels[d.f.Zoom] {
 		i := d.r.l.index[lb.ID]
@@ -481,22 +573,81 @@ func (d *drawing) names() {
 		if drawn[i] || d.class(i) != classRest || d.isHidden(i) || y < 0 || y >= d.f.H || x+lb.W < 0 || x >= d.f.W {
 			continue
 		}
-		st := st
-		switch {
-		case d.isDim(i):
-			st.fg = d.th.Grey
-		case d.dim != nil:
-			st.fg = d.th.Fg
-		}
 		if n.anyName(lb.X-1, lb.X+lb.W, lb.Y) {
 			continue
 		}
 		d.cv.owner = int32(i) + 1
 		d.cv.set(x-1, y, ' ', style{}, prioRestName)
 		d.cv.set(x+lb.W, y, ' ', style{}, prioRestName)
-		d.cv.text(x, y, lb.W, ui.Truncate(d.r.l.Nodes[i].Label, lb.W), st, prioRestName)
+		d.cv.text(x, y, lb.W, ui.Truncate(d.r.l.Nodes[i].Label, lb.W), d.restNameStyle(i), prioRestName)
 	}
 	d.cv.owner = 0
+}
+
+// hubs lists the galaxies' centre notes, busiest first, ties by ID.
+func (d *drawing) hubs() []int {
+	var hubs []int
+	for _, i := range d.r.centres {
+		if i >= 0 {
+			hubs = append(hubs, int(i))
+		}
+	}
+	slices.SortFunc(hubs, func(a, b int) int {
+		return cmp.Or(d.r.l.Nodes[b].Degree-d.r.l.Nodes[a].Degree, strings.Compare(d.r.l.Nodes[a].ID, d.r.l.Nodes[b].ID))
+	})
+	return hubs
+}
+
+// restNameStyle is the colour of a name outside the highlighted few: a
+// hub's in its galaxy's colour (faded like its dot), any other in grey,
+// a little darker while a note is selected; with a filter, grey when it
+// does not match and the text colour when it does.
+func (d *drawing) restNameStyle(i int) style {
+	switch {
+	case d.isDim(i):
+		return style{fg: d.th.Grey}
+	case d.dim != nil:
+		return style{fg: d.th.Fg}
+	case d.r.centres[d.r.galaxy[i]] == int32(i):
+		return style{fg: d.restColour(i)}
+	case d.sel >= 0:
+		return style{fg: d.th.GreyFg}
+	}
+	return style{fg: d.th.GreyFg2}
+}
+
+// headings names each galaxy (the notes at the vault root have no name),
+// bold in its colour, centred over it on the top row of its box, which no
+// ring reaches, or the row above when a name or dot is there; with no room
+// on either, it is left out. A heading wider than its galaxy's box is cut,
+// or left out when that leaves fewer than minNearName cells.
+func (n *namer) headings() {
+	d := n.d
+	for g, c := range d.r.l.Clusters {
+		full := ansi.StringWidth(c.Key)
+		w := min(full, maxLabelWidth, c.Rect.W*d.sx-2)
+		if c.Key == "" || w < min(full, minNearName) {
+			continue
+		}
+		x0 := c.Centre.X*d.sx - w/2
+		for _, y := range []int{c.Rect.Y * d.sy, c.Rect.Y*d.sy - 1} {
+			free := true
+			for x := x0 - 1; x <= x0+w && free; x++ {
+				free = !n.taken(Point{x, y})
+			}
+			if !free {
+				continue
+			}
+			for x := x0 - 1; x <= x0+w; x++ {
+				n.names[Point{x, y}] = true
+			}
+			sx, sy := x0-d.f.Offset.X, y-d.f.Offset.Y
+			d.cv.set(sx-1, sy, ' ', style{}, prioRestName)
+			d.cv.set(sx+w, sy, ' ', style{}, prioRestName)
+			d.cv.text(sx, sy, w, ui.Truncate(c.Key, w), style{fg: d.hue[g], bold: true}, prioRestName)
+			break
+		}
+	}
 }
 
 // mapCell is where node i's dot is on the map at the frame's zoom.
@@ -526,13 +677,43 @@ type namer struct {
 	names map[Point]bool // cells of the names placed so far, with their blanks
 }
 
-// taken reports whether a name may not use map cell p.
+// taken reports whether a name may not use map cell p: another name, its
+// blanks or a shown dot are there.
 func (n *namer) taken(p Point) bool {
 	if n.names[p] {
 		return true
 	}
 	i, ok := n.dots[p]
-	return ok && !n.d.isHidden(int(i)) && (n.d.f.Zoom != ZoomOverview || n.d.class(int(i)) != classRest)
+	return ok && !n.d.isHidden(int(i))
+}
+
+// place draws node i's name in full on the right of its dot or, when that
+// side is in the way, in full on the left (see fitsLeft); failing both,
+// cut short on the right one blank before what is in its way, unless that
+// leaves fewer than minNearName cells or the gap next to the dot is taken:
+// then it is left out. It reports whether the name was drawn.
+func (n *namer) place(i int) bool {
+	p := n.d.mapCell(i)
+	w := min(ansi.StringWidth(n.d.r.l.Nodes[i].Label), maxLabelWidth)
+	room := 0
+	for room < w && !n.taken(Point{p.X + 2 + room, p.Y}) {
+		room++
+	}
+	if room < w || n.taken(Point{p.X + 2 + w, p.Y}) {
+		room-- // keep a blank before what is in the way
+	}
+	gap := n.taken(Point{p.X + 1, p.Y})
+	switch {
+	case !gap && room >= w:
+		n.draw(i, w, sideRight)
+	case n.fitsLeft(p, w):
+		n.draw(i, w, sideLeft)
+	case gap || room < min(w, minNearName):
+		return false
+	default:
+		n.draw(i, room, sideRight)
+	}
+	return true
 }
 
 // anyName reports whether a cell [x0, x1] of map row y holds a name.
@@ -635,6 +816,8 @@ func (n *namer) draw(i, w int, at side) {
 	d := n.d
 	st, prio := style{fg: d.th.Fg}, prioNearName
 	switch d.class(i) {
+	case classRest:
+		st, prio = d.restNameStyle(i), prioRestName
 	case classSel:
 		st.bold, prio = true, prioSelName
 		if d.f.Focused {
@@ -801,51 +984,28 @@ func (c *canvas) row(y int) string {
 	return b.String()
 }
 
-// Edge directions crossing a cell.
-const (
-	maskH uint8 = 1 << iota
-	maskV
-	maskDown // ╲
-	maskUp   // ╱
-)
+// brailleBlank is the empty braille pattern; a pattern's dots are bits
+// added to it, brailleBits[row][column] in a cell of 2 columns by 4 rows.
+const brailleBlank = '\u2800'
 
-func maskGlyph(m uint8) rune {
-	switch {
-	case m&maskH != 0 && m&maskV != 0:
-		return '┼'
-	case m&maskDown != 0 && m&maskUp != 0:
-		return '╳'
-	case m&maskH != 0:
-		return '─'
-	case m&maskV != 0:
-		return '│'
-	case m&maskDown != 0:
-		return '╲'
-	}
-	return '╱'
-}
+var brailleBits = [4][2]uint8{{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}}
 
-// line calls plot for each cell strictly between (x0, y0) and (x1, y1) on
-// a straight line, with the direction of the step that reached it.
-func line(x0, y0, x1, y1 int, plot func(x, y int, m uint8)) {
-	dx, dy := x1-x0, y1-y0
+// brailleLine calls plot with the cell and braille dot of each step of a
+// straight line between the dots of cells (x0, y0) and (x1, y1), at braille
+// resolution, outside those two cells. Every line leaves a dot from its
+// cell's middle dot row (the second of four) and left column, so lines
+// from one dot meet there.
+func brailleLine(x0, y0, x1, y1 int, plot func(x, y int, bit uint8)) {
+	ax, ay, bx, by := 2*x0, 4*y0+1, 2*x1, 4*y1+1
+	dx, dy := bx-ax, by-ay
 	n := max(abs(dx), abs(dy))
-	px, py := x0, y0
 	for i := 1; i < n; i++ {
-		x, y := x0+roundDiv(dx*i, n), y0+roundDiv(dy*i, n)
-		var m uint8
-		switch {
-		case y == py:
-			m = maskH
-		case x == px:
-			m = maskV
-		case (x-px)*(y-py) > 0:
-			m = maskDown
-		default:
-			m = maskUp
+		px, py := ax+roundDiv(dx*i, n), ay+roundDiv(dy*i, n)
+		x, y := px>>1, py>>2 // floor, also below zero
+		if (x == x0 && y == y0) || (x == x1 && y == y1) {
+			continue
 		}
-		plot(x, y, m)
-		px, py = x, y
+		plot(x, y, brailleBits[py&3][px&1])
 	}
 }
 
@@ -864,24 +1024,38 @@ func roundDiv(a, b int) int {
 	return (a*2 + b) / (2 * b)
 }
 
-// edgeLayer is every edge of the map rasterised at one zoom level.
+// edgeLayer is every edge of the map rasterised at one scale: the braille
+// dots of each cell, and the galaxy (index + 1) whose inner edges alone
+// cross it, or -1 for a cell an edge between galaxies, or edges of
+// several, cross.
 type edgeLayer struct {
-	mask []uint8
-	w, h int
+	bits   []uint8
+	galaxy []int32
+	w, h   int
 }
 
-// buildLayer rasterises the edges at scale sx×sy; known leaves out those
-// to unresolved targets.
-func (r *Renderer) buildLayer(sx, sy int, known bool) *edgeLayer {
-	l := &edgeLayer{w: max((r.l.W-1)*sx+1, 0), h: max((r.l.H-1)*sy+1, 0)}
-	l.mask = make([]uint8, l.w*l.h)
+// buildLayer rasterises the edges at scale k; known leaves out those to
+// unresolved targets.
+func (r *Renderer) buildLayer(k int, known bool) *edgeLayer {
+	l := &edgeLayer{w: max((r.l.W-1)*k+1, 0), h: max((r.l.H-1)*k+1, 0)}
+	l.bits, l.galaxy = make([]uint8, l.w*l.h), make([]int32, l.w*l.h)
 	for _, p := range r.pairs {
 		if known && (r.l.Nodes[p[0]].Unresolved || r.l.Nodes[p[1]].Unresolved) {
 			continue
 		}
+		g := int32(-1)
+		if r.galaxy[p[0]] == r.galaxy[p[1]] {
+			g = r.galaxy[p[0]] + 1
+		}
 		a, b := r.l.Nodes[p[0]].P, r.l.Nodes[p[1]].P
-		line(a.X*sx, a.Y*sy, b.X*sx, b.Y*sy, func(x, y int, m uint8) {
-			l.mask[y*l.w+x] |= m
+		brailleLine(a.X*k, a.Y*k, b.X*k, b.Y*k, func(x, y int, bit uint8) {
+			i := y*l.w + x
+			l.bits[i] |= bit
+			if l.galaxy[i] == 0 {
+				l.galaxy[i] = g
+			} else if l.galaxy[i] != g {
+				l.galaxy[i] = -1
+			}
 		})
 	}
 	return l

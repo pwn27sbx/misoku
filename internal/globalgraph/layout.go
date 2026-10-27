@@ -72,15 +72,17 @@ const (
 )
 
 // fixedScale is how many screen cells one grid cell spans at z, with the
-// overview at 1×1. The overview drawn on screen is scaled to fit the pane
-// (see Renderer.scale); this fixed one only places the layout's labels,
-// which the overview has none of.
+// overview at 1×1. The grid already counts columns and rows the way the
+// screen does (a galaxy is twice as wide as tall), so both axes take the
+// same scale and galaxies stay round at every zoom. The overview drawn on
+// screen is scaled to fit the pane (see Renderer.scale); this fixed one
+// only places the layout's labels, which the overview has none of.
 func (z Zoom) fixedScale() (sx, sy int) {
 	switch z {
 	case ZoomMedium:
-		return 3, 2
+		return 2, 2
 	case ZoomClose:
-		return 6, 2
+		return 4, 4
 	}
 	return 1, 1
 }

@@ -192,7 +192,7 @@ func TestToggleUnresolvedHidesTheirLinks(t *testing.T) {
 	// Inbox sits right above Ideas: the cell between them is their link.
 	x, y := m.screen("Inbox.md")
 	between := func() rune { return screen(m.View())[y+2][x].r }
-	if between() != '│' {
+	if between() != '⡇' {
 		t.Fatalf("the link Inbox → Ideas should be drawn, got %q", between())
 	}
 	m, _ = press(m, "u")

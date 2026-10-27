@@ -228,6 +228,9 @@ func TestModelWithNothingSelectedCentresTheBiggestGalaxy(t *testing.T) {
 	m.SetGraph(small)
 	for _, keys := range [][]string{{"+"}, {"+", "+"}} {
 		m2, _ := press(m, keys...)
+		if sx, sy := m2.scale(); (m2.l.W-1)*sx < m2.width && (m2.l.H-1)*sy < m2.mapRows() {
+			continue // medium is the overview's scale here: + keeps the view
+		}
 		if x, y := m2.screen("Home.md"); x != m2.width/2 || y != m2.mapRows()/2 {
 			t.Fatalf("%v: the biggest galaxy's centre Home is at (%d,%d), want the pane's middle (%d,%d)", keys, x, y, m2.width/2, m2.mapRows()/2)
 		}
@@ -704,12 +707,13 @@ func TestModelRemovedSelectionFallsBackToTheOpenNote(t *testing.T) {
 	}
 }
 
-// The overview's dot cells depend on the pane size, so only medium and
-// close are warmed; the first overview frame builds its own.
+// The overview's scale depends on the pane size, so only medium and close
+// are warmed (dot cells and edge layer); the first overview frame builds
+// its own, unless it shares the medium scale.
 func TestNewMapWarmsTheRenderer(t *testing.T) {
 	mp := NewMap(Layout{}, vault())
 	for _, z := range []Zoom{ZoomMedium, ZoomClose} {
-		if sx, sy := z.fixedScale(); mp.r.dots[[2]int{sx, sy}] == nil || mp.r.faint[z] == nil {
+		if sx, sy := z.fixedScale(); mp.r.dots[[2]int{sx, sy}] == nil || mp.r.layers[layerKey{sx, false}] == nil {
 			t.Fatalf("zoom %d not warmed", z)
 		}
 	}
@@ -836,8 +840,11 @@ func TestModelClickOnEitherHalfOfAWideNameSelectsIt(t *testing.T) {
 // allows, up to the medium scale, and every dot is drawn (no name covers
 // one, the selection's included) and a click on it selects its note.
 func TestModelOverviewClickSelectsEveryDot(t *testing.T) {
-	for _, c := range []struct{ w, h, sx, sy int }{{100, 30, 3, 2}, {40, 11, 3, 1}} {
+	for _, c := range []struct{ w, h, sx, sy int }{{100, 30, 2, 2}, {40, 11, 1, 1}} {
 		m := newModel(t, c.w, c.h)
+		if sx, sy := m.scale(); sx != c.sx || sy != c.sy {
+			t.Fatalf("setup: %dx%d at the overview scale %dx%d, want %dx%d", c.w, c.h, sx, sy, c.sx, c.sy)
+		}
 		clicked := 0
 		for _, n := range m.l.Nodes {
 			o := m.viewOffset()
@@ -1105,7 +1112,7 @@ func TestModelClickOnALeftSideNameSelectsIt(t *testing.T) {
 // into view, so it is drawn in full there instead of being cut on the
 // right.
 func TestModelRevealShowsALeftSideSelectionName(t *testing.T) {
-	m := newModel(t, 80, 20)
+	m := newModel(t, 80, 40) // Plan, 16 rows below Home at close, in view
 	m, _ = press(m, "+", "+")
 	x, y := m.screen("work/Plan.md")
 	m, _ = click(m, x, y+1)
