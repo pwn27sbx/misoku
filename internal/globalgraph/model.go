@@ -130,8 +130,17 @@ func (m Model) Layout() Layout { return m.l }
 // was laid out anew the view is placed afresh, on the selection unless the
 // whole map fits.
 func (m *Model) SetMap(mp Map) {
-	// A map that grows or shrinks may change the overview's fit scale.
-	replace := func() { m.l, m.r = mp.l, mp.r }
+	// A map that grows or shrinks may change the overview's fit scale. A
+	// map Update moved as a whole (see Layout.moved) moves a placed view
+	// with it, so nothing jumps on screen.
+	replace := func() {
+		if m.placed {
+			k := m.scale()
+			m.offset.X += k.of(mp.l.moved.X)
+			m.offset.Y += k.of(mp.l.moved.Y)
+		}
+		m.l, m.r = mp.l, mp.r
+	}
 	if mp.relaid {
 		replace()
 	} else {
@@ -193,9 +202,10 @@ func (m Model) tooSmall() bool { return m.width < MinWidth || m.height < MinHeig
 // Update handles keys and mouse events (coordinates relative to the pane).
 // h j k l and the arrows move to the nearest node on that side; n and N go
 // round the selection's links; enter opens; + and - zoom; 0 centres the
-// view on the selection; esc clears the filter or else goes back to the
-// previous selection; / opens the filter's prompt, which then takes every
-// key; o and u hide or show orphans and unresolved targets.
+// view on the selection (with none, shows the whole map again); esc clears
+// the filter or else goes back to the previous selection; / opens the
+// filter's prompt, which then takes every key; o and u hide or show
+// orphans and unresolved targets.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	if len(m.l.Nodes) == 0 {
 		return m, nil
@@ -326,11 +336,11 @@ func (m *Model) toward(d Point) string {
 // counts as cellAspect columns.
 func (m *Model) nearestToMiddle() string {
 	m.settle()
-	sx, sy := m.scale()
+	k := m.scale()
 	cx, cy := float64(m.offset.X)+float64(m.width)/2, float64(m.offset.Y)+float64(m.mapRows())/2
 	best, bestD := "", math.Inf(1)
 	for _, n := range m.l.Nodes {
-		dx, dy := float64(n.P.X*sx)-cx, cellAspect*(float64(n.P.Y*sy)-cy)
+		dx, dy := float64(k.of(n.P.X))-cx, cellAspect*(float64(k.of(n.P.Y))-cy)
 		if d := dx*dx + dy*dy; d < bestD && m.selectable(n.ID) {
 			best, bestD = n.ID, d
 		}
@@ -400,7 +410,11 @@ func (m *Model) act(action string) {
 			m.placed = false
 		}
 	case "centre":
-		m.offset, m.placed = m.onSelection(), true
+		if m.sel == "" {
+			m.placed = false // the whole map when it fits, see viewOffset
+		} else {
+			m.offset, m.placed = m.onSelection(), true
+		}
 	case "back":
 		// Nodes removed since are dropped; hidden ones are skipped but kept,
 		// for when the toggle shows them again.
@@ -444,9 +458,9 @@ func (m *Model) zoomTo(z Zoom, at Point) {
 		return
 	}
 	m.settle()
-	sx, sy := m.scale()
+	k := m.scale()
 	m.zoom = z
-	m.rescale(at, sx, sy)
+	m.rescale(at, k)
 	m.reveal()
 }
 
@@ -457,34 +471,33 @@ func (m *Model) zoomTo(z Zoom, at Point) {
 func (m *Model) keepAnchor(change func()) bool {
 	keep := m.placed && m.zoom == ZoomOverview && len(m.l.Nodes) > 0
 	var at Point
-	sx, sy := m.scale()
+	k := m.scale()
 	if keep {
 		at = m.anchor()
 	}
 	change()
 	if keep {
-		m.rescale(at, sx, sy)
+		m.rescale(at, k)
 	}
 	return keep
 }
 
 // rescale keeps the map point under screen point at in place after the
-// scale changed from sx×sy to the current one.
-func (m *Model) rescale(at Point, sx, sy int) {
-	gx, gy := float64(at.X+m.offset.X)/float64(sx), float64(at.Y+m.offset.Y)/float64(sy)
-	nx, ny := m.scale()
-	m.offset = Point{int(math.Round(gx*float64(nx))) - at.X, int(math.Round(gy*float64(ny))) - at.Y}
+// scale changed from k to the current one.
+func (m *Model) rescale(at Point, k scale) {
+	f := float64(m.scale()) / float64(k)
+	m.offset = Point{int(math.Round(float64(at.X+m.offset.X)*f)) - at.X, int(math.Round(float64(at.Y+m.offset.Y)*f)) - at.Y}
 }
 
 // scale is how many screen cells one grid cell spans in the map area.
-func (m Model) scale() (sx, sy int) { return m.r.scale(m.zoom, m.width, m.mapRows()) }
+func (m Model) scale() scale { return m.r.scale(m.zoom, m.width, m.mapRows()) }
 
 // screen is where node id's dot is on the map area of the pane.
 func (m *Model) screen(id string) (x, y int) {
 	n, _ := m.l.Lookup(id)
-	sx, sy := m.scale()
+	k := m.scale()
 	o := m.viewOffset()
-	return n.P.X*sx - o.X, n.P.Y*sy - o.Y
+	return k.of(n.P.X) - o.X, k.of(n.P.Y) - o.Y
 }
 
 // viewOffset is where the user panned to or, until then, the whole map
@@ -494,28 +507,30 @@ func (m Model) viewOffset() Point {
 	if m.placed {
 		return m.offset
 	}
-	sx, sy := m.scale()
-	if (m.l.W-1)*sx < m.width && (m.l.H-1)*sy < m.mapRows() {
+	if k := m.scale(); k.of(m.l.W-1) < m.width && k.of(m.l.H-1) < m.mapRows() {
 		return m.r.Centred(m.zoom, m.width, m.mapRows())
 	}
 	return m.onSelection()
 }
 
 // onSelection is the view centred on the selection or, with nothing
-// selected, on the centre of the biggest galaxy (most nodes, ties by key):
-// the middle of the whole map may be empty space between galaxies.
+// selected, on the vault's sun or, on a map placed by hand, the centre of
+// the biggest galaxy (most nodes, ties by key): the middle of such a map
+// may be empty space between galaxies.
 func (m Model) onSelection() Point {
 	p, ok := Point{}, false
 	if n, found := m.l.Lookup(m.sel); found {
 		p, ok = n.P, true
+	} else if m.l.solar {
+		p, ok = m.l.Sun, true
 	} else if c, found := m.biggestGalaxy(); found {
 		p, ok = c.Centre, true
 	}
 	if !ok {
 		return m.r.Centred(m.zoom, m.width, m.mapRows())
 	}
-	sx, sy := m.scale()
-	return Point{p.X*sx - m.width/2, p.Y*sy - m.mapRows()/2}
+	k := m.scale()
+	return Point{k.of(p.X) - m.width/2, k.of(p.Y) - m.mapRows()/2}
 }
 
 // biggestGalaxy is the cluster with the most nodes; Clusters are sorted by
@@ -550,8 +565,8 @@ func (m *Model) reveal() {
 		return
 	}
 	m.settle()
-	sx, sy := m.scale()
-	dot, y := n.P.X*sx, n.P.Y*sy
+	k := m.scale()
+	dot, y := k.of(n.P.X), k.of(n.P.Y)
 	x0, x1 := m.r.selSpan(m.frame())
 	if x1-x0 >= m.width {
 		x0, x1 = dot, dot

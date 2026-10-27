@@ -1,21 +1,27 @@
 // Package globalgraph lays out and draws the map of every note.
 package globalgraph
 
-// The map is a set of galaxies, one per top-level folder (a project): the
-// folder's busiest note sits in the centre and the others on rings around
-// it, busier notes on inner rings. Rings are twice as wide as tall, so a
-// galaxy looks round in terminal cells. The biggest galaxy goes first, in
-// the middle; each next one is the one most linked to those already
-// placed, and goes where it is nearest to them, with an empty band around
-// every galaxy and a wider one between galaxies with no link. One node
-// takes one cell. Everything is sorted before it is placed, so the same
-// notes and links always give the same map, whatever order they arrive in.
+// The map is a solar system of folders. The vault's sun sits in the middle
+// with the notes at the vault root on rings around it, past a first ring
+// left to its halo. Each top-level folder (a project) is a galaxy: a sun
+// of its own, the folder's notes on rings around it (busier notes on
+// inner rings, ring k holding at most ringShare×k, so a galaxy's size
+// follows its notes), and its name and count above. The galaxies sit on
+// one or more big elliptical orbits around the vault's sun, big and small
+// ones taking turns round it and the most linked side by side. Rings are
+// twice as wide as tall, so they look round in terminal cells; orbits are
+// flatter, the shape of a pane. Every galaxy keeps an empty band around
+// its box. One node takes one cell; suns are not nodes. Everything is sorted before it
+// is placed, so the same notes and links always give the same map,
+// whatever order they arrive in.
 
 import (
 	"cmp"
 	"math"
 	"slices"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -34,6 +40,7 @@ type Edge struct{ From, To string }
 type Graph struct {
 	Nodes []Node
 	Edges []Edge
+	Name  string // the vault's name, written over its sun
 }
 
 // Point is a cell of the virtual grid.
@@ -50,9 +57,10 @@ type Placed struct {
 	P      Point
 }
 
-// Cluster is the galaxy of one top-level folder: the ellipse of RX columns
-// by RY rows around Centre that its rings may use (RX = 2×RY, round on
-// screen), and Rect, the box around that ellipse.
+// Cluster is the galaxy of one top-level folder: its sun at Centre (for
+// the notes at the root, the vault's sun), the ellipse of RX columns by RY
+// rows around it that its rings may use (RX = 2×RY, round on screen), and
+// Rect, the box around that ellipse.
 type Cluster struct {
 	Key    string
 	Rect   Rect
@@ -99,104 +107,143 @@ type Layout struct {
 	Nodes    []Placed  // sorted by ID
 	Clusters []Cluster // sorted by Key
 	W, H     int       // grid size
+	Sun      Point     // the vault's sun, in the middle of the orbits
+	Name     string    // the vault's name
 	Labels   [zoomLevels][]Label
 	index    map[string]int
+	solar    bool  // laid out by Build or Update, so it has suns, rings and orbits; a map placed by hand has none
+	moved    Point // how far Update moved the whole map to keep it inside the grid
 }
 
 const (
-	maxLabelWidth    = 24    // longer names are cut by the renderer
-	mediumLabelShare = 5     // medium zoom names the busiest 1/5 of the nodes
-	cellAspect       = 2     // a terminal cell is about twice as tall as wide
-	ringStep         = 4     // screen columns between two rings of a galaxy; the first is half as far out
-	ringMargin       = 2     // columns a galaxy reserves past its outer ring for rounding
-	dotSpacing       = 2.5   // screen columns between two slots of a ring
-	galaxyGap        = 8     // least screen columns between two galaxies
-	looseGap         = 6     // extra columns between two galaxies with no link
-	placeAngles      = 24    // directions tried around a placed galaxy
-	maxAnchors       = 12    // placed galaxies a new one is tried beside
-	paneAspect       = 3     // columns per row of a usual pane (200×60)
-	linkPull         = 1     // weight of the distance to linked galaxies against the map's size
+	maxLabelWidth    = 24  // longer names are cut by the renderer
+	mediumLabelShare = 5   // medium zoom names the busiest 1/5 of the nodes
+	cellAspect       = 2   // a terminal cell is about twice as tall as wide
+	ringStep         = 4   // screen columns between two rings of a galaxy; the first is half as far out
+	ringMargin       = 2   // columns a galaxy reserves past its outer ring for rounding
+	dotSpacing       = 2.5 // screen columns between two slots of a ring
+	ringShare        = 4   // ring k holds at most ringShare×k notes, so a galaxy grows with its notes,
+	sparseRings      = 3   // on its first sparseRings rings
+	galaxyGap        = 3   // least empty columns between two galaxies' boxes
+	galaxyRowGap     = 1   // least empty rows between them
+	orbitFlat        = 3.2 // columns per row across an orbit: flatter than a ring, like a pane
+	orbitRound       = 2.0 // the orbit's superellipse power: 2 is an ellipse, more is squarer
+	firstOrbit       = 14  // galaxies on the first orbit; each next one holds orbitGrowth more
+	orbitGrowth      = 8
+	newAngles        = 48 // directions Update tries for a new galaxy
+	orbitSearch      = 24 // columns past the first orbit that fits that Update still tries
+	linkPull         = 1  // weight of the distance to linked galaxies against the orbit's size
+	maxHeading       = 40 // a galaxy keeps room for this much of its name
+	headCount        = 6  // and for its count of notes: " · 999"
+	rootFirstRing    = 2  // the vault's notes start on ring 2, clear of its sun's halo
+	goldenTurn       = 0.6180339887498949
 	noRect           = -1000 // marks a node with no place yet
 )
 
 // Build lays out g from scratch.
 func Build(g Graph) Layout {
 	nodes, pairs := normalize(g)
+	if len(nodes) == 0 {
+		return finish(nil, nil) // an empty vault has no map, not even a sun
+	}
 	groups := groupByCluster(nodes)
-	keys := sortedKeys(groups)
-	gs := make([]*galaxy, len(keys))
-	for i, key := range keys {
-		gs[i] = &galaxy{key: key, size: len(groups[key]), rings: ringsFor(len(groups[key]))}
-	}
-	links := clusterLinks(nodes, pairs, keys)
-	placeAll(gs, links)
-	if len(gs) > 0 {
-		// Move the map so its top-left galaxy edge is at (0, 0).
-		x0, y0 := math.MaxInt, math.MaxInt
-		for _, gx := range gs {
-			x0, y0 = min(x0, gx.c.X-gx.rx()), min(y0, gx.c.Y-gx.ry())
-		}
-		for _, gx := range gs {
-			gx.c.X -= x0
-			gx.c.Y -= y0
+	root := &galaxy{root: true, size: len(groups[""]), head: ansi.StringWidth(g.Name), placed: true}
+	root.rings = ringsFor(root.size, rootFirstRing)
+	var gs []*galaxy // the folders
+	for _, key := range sortedKeys(groups) {
+		if key != "" {
+			gs = append(gs, &galaxy{key: key, size: len(groups[key]), rings: ringsFor(len(groups[key]), 1), head: ansi.StringWidth(key) + headCount})
 		}
 	}
+	placeOrbits(root, gs, clusterLinks(nodes, pairs, gs))
+	all := append([]*galaxy{root}, gs...)
+	b := bounds(all)
+	shift(all, Point{-b.X, -b.Y})
 	used := map[Point]bool{}
-	for _, gx := range gs {
+	for _, gx := range all {
 		fill(nodes, groups[gx.key], gx, used)
 	}
-	return finish(nodes, clustersOf(gs))
+	return assemble(nodes, all, g.Name)
 }
 
-// Update lays out g keeping every node of prev where it was: new nodes take
-// the free ring slots nearest their galaxy's centre, a full galaxy grows a
-// ring while it keeps the gap to the others, and a new folder gets a galaxy
-// of its own beside those it links to. When a full galaxy is hemmed in by
-// others it returns a fresh Build and false.
+// Update lays out g keeping every node of prev where it is in its galaxy:
+// new nodes take the free ring slots nearest their galaxy's sun, a full
+// galaxy grows a ring and pushes the galaxies in its way outward (their
+// notes move with them, the rest stay), and a new folder gets a galaxy on
+// the orbits, beside those it links to. When the whole map would leave the
+// grid's top-left corner, every node moves by the same step (see moved).
+// It returns a fresh Build and false only when prev was not laid out by
+// Build or Update or when pushing goes round in circles.
 func Update(prev Layout, g Graph) (Layout, bool) {
+	if !prev.solar {
+		return Build(g), false
+	}
 	nodes, pairs := normalize(g)
 	groups := groupByCluster(nodes)
-	keys := sortedKeys(groups)
-	gs := make([]*galaxy, len(keys))
-	byKey := map[string]*galaxy{}
-	for i, key := range keys {
-		gs[i] = &galaxy{key: key, size: len(groups[key])}
-		byKey[key] = gs[i]
+	root := &galaxy{root: true, size: len(groups[""]), head: ansi.StringWidth(g.Name), c: prev.Sun, placed: true}
+	all := []*galaxy{root}
+	byKey := map[string]*galaxy{"": root}
+	for _, key := range sortedKeys(groups) {
+		if key != "" {
+			gx := &galaxy{key: key, size: len(groups[key]), head: ansi.StringWidth(key) + headCount}
+			all, byKey[key] = append(all, gx), gx
+		}
 	}
 	for _, c := range prev.Clusters {
 		if gx := byKey[c.Key]; gx != nil {
 			gx.c, gx.rings, gx.placed = c.Centre, max(0, (c.RX-ringMargin+ringStep/2)/ringStep), true
 		}
 	}
-	used := map[Point]bool{}
+	// Kept nodes hold their offset from their sun while galaxies move.
+	taken := map[*galaxy]map[Point]bool{}
 	pending := map[string][]int{}
 	for i := range nodes {
-		n := &nodes[i]
-		if old, ok := prev.Lookup(n.ID); ok && old.Cluster == n.Cluster && byKey[n.Cluster].placed {
-			n.P = old.P
-			used[n.P] = true
+		n, gx := &nodes[i], byKey[nodes[i].Cluster]
+		if old, ok := prev.Lookup(n.ID); ok && old.Cluster == n.Cluster && gx.placed {
+			if taken[gx] == nil {
+				taken[gx] = map[Point]bool{}
+			}
+			n.P = Point{old.P.X - gx.c.X, old.P.Y - gx.c.Y}
+			taken[gx][n.P] = true
 		} else {
 			pending[n.Cluster] = append(pending[n.Cluster], i)
 		}
 	}
 	var links map[[2]int]int
+	folders := all[1:]
 	for _, key := range sortedKeys(pending) {
 		gx := byKey[key]
 		if !gx.placed {
 			if links == nil {
-				links = clusterLinks(nodes, pairs, keys)
+				links = clusterLinks(nodes, pairs, folders)
 			}
-			gx.rings = ringsFor(gx.size)
-			placeNew(gs, slices.Index(keys, key), links, true)
+			gx.rings = ringsFor(gx.size, 1)
+			placeNew(gx, all, root.c, links)
 		}
-		for freeSlots(gx, used) < len(pending[key]) {
-			if !growRing(gx, gs) {
+		for freeSlots(gx, taken[gx]) < len(pending[key]) {
+			gx.rings++
+			if !makeRoom(gx, all, root.c) {
 				return Build(g), false
 			}
 		}
-		fill(nodes, pending[key], gx, used)
 	}
-	return finish(nodes, clustersOf(gs)), true
+	b := bounds(all)
+	moved := Point{max(0, -b.X), max(0, -b.Y)}
+	shift(all, moved)
+	used := map[Point]bool{}
+	for i := range nodes {
+		if n := &nodes[i]; n.P.X != noRect {
+			gx := byKey[n.Cluster]
+			n.P = Point{n.P.X + gx.c.X, n.P.Y + gx.c.Y}
+			used[n.P] = true
+		}
+	}
+	for _, key := range sortedKeys(pending) {
+		fill(nodes, pending[key], byKey[key], used)
+	}
+	l := assemble(nodes, all, g.Name)
+	l.moved = moved
+	return l, true
 }
 
 // Lookup returns the placed node with id.
@@ -271,13 +318,25 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// galaxy is a cluster while it is laid out: rings of slots around c.
+// galaxy is a cluster while it is laid out: a sun at c with rings of slots
+// around it.
 type galaxy struct {
 	key    string
 	size   int   // members
-	rings  int   // rings reserved around the centre slot
-	c      Point // centre cell
+	rings  int   // rings reserved around the sun
+	head   int   // width of its name: the folder's, or the vault's for the root
+	c      Point // the sun's cell
 	placed bool
+	root   bool // the vault's sun and the notes at the root
+}
+
+// firstRing is the innermost ring that holds notes: round the vault's sun
+// the first ring is left to its halo.
+func (gx *galaxy) firstRing() int {
+	if gx.root {
+		return rootFirstRing
+	}
+	return 1
 }
 
 // rx and ry are the radii of the ellipse the galaxy reserves, in columns
@@ -285,17 +344,75 @@ type galaxy struct {
 func (gx *galaxy) rx() int { return ringRadius(gx.rings) + ringMargin }
 func (gx *galaxy) ry() int { return gx.rx() / cellAspect }
 
-func clustersOf(gs []*galaxy) []Cluster {
-	cs := make([]Cluster, 0, len(gs))
-	for _, gx := range gs {
+// box is what a galaxy keeps to itself: its rings, and its name centred
+// on the row above them (with a blank each side), the top row of its
+// ellipse; the ellipse's bottom row is left to the gap.
+func (gx *galaxy) box() Rect {
+	hw := gx.rx()
+	if gx.head > 0 {
+		hw = max(hw, min(gx.head, maxHeading)/2+1)
+	}
+	return Rect{gx.c.X - hw, gx.c.Y - gx.ry(), 2*hw + 1, 2 * gx.ry()}
+}
+
+// apart reports whether two boxes keep the gap between galaxies.
+func apart(a, b Rect) bool {
+	return a.X+a.W+galaxyGap <= b.X || b.X+b.W+galaxyGap <= a.X || a.Y+a.H+galaxyRowGap <= b.Y || b.Y+b.H+galaxyRowGap <= a.Y
+}
+
+// fitsAmong reports whether gx keeps the gap to every other placed galaxy.
+func fitsAmong(gx *galaxy, all []*galaxy) bool {
+	b := gx.box()
+	for _, o := range all {
+		if o != gx && o.placed && !apart(b, o.box()) {
+			return false
+		}
+	}
+	return true
+}
+
+// bounds is the box around every placed galaxy's box.
+func bounds(all []*galaxy) Rect {
+	x0, y0, x1, y1 := math.MaxInt, math.MaxInt, math.MinInt, math.MinInt
+	for _, gx := range all {
+		b := gx.box()
+		x0, y0 = min(x0, b.X), min(y0, b.Y)
+		x1, y1 = max(x1, b.X+b.W), max(y1, b.Y+b.H)
+	}
+	return Rect{x0, y0, x1 - x0, y1 - y0}
+}
+
+func shift(all []*galaxy, d Point) {
+	for _, gx := range all {
+		gx.c.X += d.X
+		gx.c.Y += d.Y
+	}
+}
+
+// assemble builds the layout of a solar map: the galaxies with notes as
+// clusters (the root's only when it has notes), the grid wide enough for
+// every galaxy's box and name.
+func assemble(nodes []Placed, all []*galaxy, name string) Layout {
+	cs := make([]Cluster, 0, len(all))
+	for _, gx := range all {
+		if gx.size == 0 {
+			continue
+		}
 		rx, ry := gx.rx(), gx.ry()
 		cs = append(cs, Cluster{Key: gx.key, Rect: Rect{gx.c.X - rx, gx.c.Y - ry, 2*rx + 1, 2*ry + 1}, Centre: gx.c, RX: rx, RY: ry})
 	}
-	return cs
+	sun := all[0].c
+	l := build(nodes, cs, &sun)
+	l.Name = name
+	for _, gx := range all {
+		b := gx.box()
+		l.W, l.H = max(l.W, b.X+b.W), max(l.H, b.Y+b.H)
+	}
+	return l
 }
 
-// ringRadius is how many screen columns ring k is from the centre: 2, 6,
-// 10… so the first ring hugs the hub; the centre is ring 0.
+// ringRadius is how many screen columns ring k is from the sun: 2, 6,
+// 10… so the first ring hugs it; the sun itself is ring 0.
 func ringRadius(k int) int {
 	if k == 0 {
 		return 0
@@ -333,35 +450,51 @@ func ringSlots(k int) []Point {
 // half.
 func cellRound(v float64) int { return int(math.Round(math.Round(v*1e6) / 1e6)) }
 
-// ringsFor is how many rings a new galaxy of n nodes reserves: enough for
-// all of them plus a quarter, and at least two more, to grow into.
-func ringsFor(n int) int {
-	need := n + max(2, n/4)
-	k, capacity := 0, 1
+// ringCapacity is how many nodes ring k holds: on the first sparseRings
+// rings ringShare×k (or fewer when it has fewer slots), past them every
+// slot. Inner rings are left part empty, so the size of a small galaxy
+// follows its notes instead of jumping a whole ring at a time; a big one
+// stays as compact as before.
+func ringCapacity(k int) int {
+	if k > sparseRings {
+		return len(ringSlots(k))
+	}
+	return min(len(ringSlots(k)), ringShare*k)
+}
+
+// ringsFor is how many rings a new galaxy of n nodes reserves, its notes
+// from ring first out: enough for all of them plus an eighth to grow
+// into. The sun takes no slot.
+func ringsFor(n, first int) int {
+	need := n + n/8
+	k, capacity := first-1, 0
 	for capacity < need {
 		k++
-		capacity += len(ringSlots(k))
+		capacity += ringCapacity(k)
 	}
 	return k
 }
 
 // fill gives the members, busiest first, the free slots of gx, inner rings
-// first. A ring with more free slots than members left spreads them evenly
-// round it. Unresolved targets go after notes; ties go by ID.
+// first, each ring up to its capacity. A ring with more room than members
+// left spreads them evenly round it. Unresolved targets go after notes;
+// ties go by ID.
 func fill(nodes []Placed, members []int, gx *galaxy, used map[Point]bool) {
 	slices.SortFunc(members, func(a, b int) int {
 		na, nb := nodes[a], nodes[b]
 		return cmp.Or(cmpBool(na.Unresolved, nb.Unresolved), cmp.Compare(nb.Degree, na.Degree), cmp.Compare(na.ID, nb.ID))
 	})
 	next := 0
-	for k := 0; k <= gx.rings && next < len(members); k++ {
+	for k := gx.firstRing(); k <= gx.rings && next < len(members); k++ {
 		var free []Point
-		for _, s := range ringSlots(k) {
+		slots := ringSlots(k)
+		for _, s := range slots {
 			if p := (Point{gx.c.X + s.X, gx.c.Y + s.Y}); !used[p] {
 				free = append(free, p)
 			}
 		}
-		take := min(len(free), len(members)-next)
+		room := ringCapacity(k) - (len(slots) - len(free))
+		take := max(0, min(len(free), room, len(members)-next))
 		for i := range take {
 			p := free[i*len(free)/take]
 			nodes[members[next]].P = p
@@ -371,33 +504,64 @@ func fill(nodes []Placed, members []int, gx *galaxy, used map[Point]bool) {
 	}
 }
 
-func freeSlots(gx *galaxy, used map[Point]bool) int {
+// freeSlots counts the nodes the rings of gx still have room for, past
+// those kept; taken holds offsets from the sun.
+func freeSlots(gx *galaxy, taken map[Point]bool) int {
 	free := 0
-	for k := 0; k <= gx.rings; k++ {
+	for k := gx.firstRing(); k <= gx.rings; k++ {
+		held := 0
 		for _, s := range ringSlots(k) {
-			if !used[Point{gx.c.X + s.X, gx.c.Y + s.Y}] {
-				free++
+			if taken[s] {
+				held++
 			}
 		}
+		free += max(0, ringCapacity(k)-held)
 	}
 	return free
 }
 
-// growRing adds a ring to gx when the bigger galaxy keeps the gap to every
-// other placed one and stays inside the map's top-left corner.
-func growRing(gx *galaxy, gs []*galaxy) bool {
-	gx.rings++
-	if gx.c.X-gx.rx() < 0 || gx.c.Y-gx.ry() < 0 {
-		gx.rings--
-		return false
-	}
-	for _, o := range gs {
-		if o != gx && o.placed && screenDist2(gx.c, o.c) < sq(gx.rx()+o.rx()+galaxyGap) {
-			gx.rings--
-			return false
+// makeRoom moves galaxies until gx, grown a ring, keeps the gap to every
+// other: of two galaxies too close, the one farther from the vault's sun
+// moves straight away from it (never the root's), and is checked again in
+// turn. It reports false when that takes more moves than the map could
+// need, which only a loop would.
+func makeRoom(gx *galaxy, all []*galaxy, sun Point) bool {
+	queue := []*galaxy{gx}
+	for moves := 0; len(queue) > 0; {
+		q := queue[0]
+		queue = queue[1:]
+		for _, o := range all {
+			if o == q || !o.placed || apart(q.box(), o.box()) {
+				continue
+			}
+			mv, still := o, q
+			if o.root || !q.root && screenDist2(q.c, sun) > screenDist2(o.c, sun) {
+				mv, still = q, o
+			}
+			if moves++; mv.root || moves > 4*len(all)*len(all) {
+				return false
+			}
+			pushOut(mv, still, sun)
+			queue = append(queue, mv)
+			if mv == q {
+				break // q moved: it is checked again from the queue
+			}
 		}
 	}
 	return true
+}
+
+// pushOut moves mv straight away from the vault's sun, a column at a time
+// on screen, until it keeps the gap to still.
+func pushOut(mv, still *galaxy, sun Point) {
+	dx, dy := float64(mv.c.X-sun.X), float64(cellAspect*(mv.c.Y-sun.Y))
+	d := math.Hypot(dx, dy)
+	if d == 0 {
+		dx, d = 1, 1
+	}
+	for t := d + 1; !apart(mv.box(), still.box()); t++ {
+		mv.c = Point{sun.X + cellRound(dx/d*t), sun.Y + cellRound(dy/d*t/cellAspect)}
+	}
 }
 
 // screenDist2 is the squared distance on screen between two cells, a row
@@ -407,19 +571,19 @@ func screenDist2(a, b Point) int {
 	return dx*dx + dy*dy
 }
 
-func sq(n int) int { return n * n }
-
-// clusterLinks counts the links between each two galaxies, by their index
-// in keys, the lower index first.
-func clusterLinks(nodes []Placed, pairs [][2]int, keys []string) map[[2]int]int {
-	idx := make(map[string]int, len(keys))
-	for i, k := range keys {
-		idx[k] = i
+// clusterLinks counts the links between each two folders' galaxies, by
+// their index in gs, the lower index first. Links to the root's notes
+// don't count.
+func clusterLinks(nodes []Placed, pairs [][2]int, gs []*galaxy) map[[2]int]int {
+	idx := make(map[string]int, len(gs))
+	for i, gx := range gs {
+		idx[gx.key] = i
 	}
 	links := map[[2]int]int{}
 	for _, p := range pairs {
-		a, b := idx[nodes[p[0]].Cluster], idx[nodes[p[1]].Cluster]
-		if a != b {
+		a, okA := idx[nodes[p[0]].Cluster]
+		b, okB := idx[nodes[p[1]].Cluster]
+		if okA && okB && a != b {
 			links[[2]int{min(a, b), max(a, b)}]++
 		}
 	}
@@ -430,151 +594,265 @@ func linkCount(links map[[2]int]int, a, b int) int {
 	return links[[2]int{min(a, b), max(a, b)}]
 }
 
-// gapFor is the least screen columns between two galaxies with w links.
-func gapFor(w int) int {
-	if w > 0 {
-		return galaxyGap
-	}
-	return galaxyGap + looseGap
-}
-
-// placeAll places every galaxy of a fresh map: the biggest at (0, 0), then
-// again and again the one with most links to those placed (ties: bigger,
-// then by key) where placeNew puts it.
-func placeAll(gs []*galaxy, links map[[2]int]int) {
+// pullOrder lists the galaxies the way they go on the orbits: the biggest
+// first, then again and again the one with most links to those listed
+// (ties: bigger, then by key).
+func pullOrder(gs []*galaxy, links map[[2]int]int) []int {
 	if len(gs) == 0 {
-		return
+		return nil
 	}
 	adj := make([][]int, len(gs))
 	for p := range links {
 		adj[p[0]] = append(adj[p[0]], p[1])
 		adj[p[1]] = append(adj[p[1]], p[0])
 	}
-	pull := make([]int, len(gs)) // links to placed galaxies
 	first := 0
 	for i, gx := range gs {
 		if gx.size > gs[first].size {
 			first = i
 		}
 	}
-	gs[first].placed = true
-	for i := first; ; {
+	pull, listed := make([]int, len(gs)), make([]bool, len(gs))
+	order := []int{first}
+	listed[first] = true
+	for i := first; len(order) < len(gs); {
 		for _, j := range adj[i] {
 			pull[j] += linkCount(links, i, j)
 		}
 		i = -1
 		for j, gx := range gs {
-			if !gx.placed && (i < 0 || pull[j] > pull[i] || pull[j] == pull[i] && gx.size > gs[i].size) {
+			if !listed[j] && (i < 0 || pull[j] > pull[i] || pull[j] == pull[i] && gx.size > gs[i].size) {
 				i = j
 			}
 		}
-		if i < 0 {
-			return
+		listed[i] = true
+		order = append(order, i)
+	}
+	return order
+}
+
+// placeOrbits puts the root's sun at (0, 0) and the galaxies on orbits
+// around it, in pullOrder: firstOrbit of them on the first, orbitGrowth
+// more on each next one out.
+func placeOrbits(root *galaxy, gs []*galaxy, links map[[2]int]int) {
+	order := pullOrder(gs, links)
+	placed := []*galaxy{root}
+	rx := 1
+	for k, start := 0, 0; start < len(order); k++ {
+		n := min(firstOrbit+k*orbitGrowth, len(order)-start)
+		on := orbitOrder(order[start:start+n], gs, links)
+		rx = fitOrbit(on, placed, rx)
+		for _, gx := range on {
+			gx.placed = true
 		}
-		placeNew(gs, i, links, false)
+		placed = append(placed, on...)
+		start += n
 	}
 }
 
-// placeNew puts galaxy i next to the placed galaxies: tried in placeAngles
-// directions just past each of its anchors (the placed galaxies it links
-// to, else the last ones placed), it takes the free spot that keeps the
-// map smallest and shaped like a pane, and nearest its linked galaxies,
-// weighted by links. With keepCorner (Update), spots must keep the map's
-// top-left corner where it is, so no placed node has to move.
-func placeNew(gs []*galaxy, i int, links map[[2]int]int, keepCorner bool) {
-	x := gs[i]
-	var placed, anchors []int
-	w := make([]int, len(gs)) // links from i to each galaxy
-	for j, gx := range gs {
-		if gx.placed {
-			placed = append(placed, j)
-			if w[j] = linkCount(links, i, j); w[j] > 0 {
-				anchors = append(anchors, j)
+// orbitOrder lists one orbit's galaxies clockwise from the top. A galaxy
+// that links to one already listed goes beside it, on the side of the
+// neighbour it links to more; any other goes where the golden turn of its
+// rank in ids (the biggest first) falls round the orbit, but never between
+// two linked galaxies, so big and small galaxies take turns all the way
+// round instead of the small ones piling up together.
+func orbitOrder(ids []int, gs []*galaxy, links map[[2]int]int) []*galaxy {
+	type seat struct {
+		id int
+		at float64 // the turn it is listed at
+	}
+	var round []seat
+	for rank, j := range ids {
+		best, most := -1, 0
+		for s, o := range round {
+			if w := linkCount(links, o.id, j); w > most {
+				best, most = s, w
+			}
+		}
+		if best >= 0 {
+			pos := best + 1
+			if n := len(round); n > 1 && linkCount(links, round[(best+n-1)%n].id, j) > linkCount(links, round[(best+1)%n].id, j) {
+				pos = best
+			}
+			round = slices.Insert(round, pos, seat{j, round[best].at})
+			continue
+		}
+		at := math.Mod(float64(rank)*goldenTurn, 1)
+		pos := sort.Search(len(round), func(s int) bool { return round[s].at > at })
+		for tries, n := 0, len(round); n > 1 && tries < n; tries++ { // never between two linked galaxies
+			if linkCount(links, round[(pos+n-1)%n].id, round[pos%n].id) == 0 {
+				break
+			}
+			pos = pos%n + 1
+		}
+		round = slices.Insert(round, pos, seat{j, at})
+	}
+	on := make([]*galaxy, len(round))
+	for i, st := range round {
+		on[i] = gs[st.id]
+	}
+	return on
+}
+
+// orbitSteps is how finely an orbit is walked round.
+const orbitSteps = 720
+
+// onOrbit is the cell at turn t (0 is the top, then clockwise, 1 a whole
+// turn, measured along the orbit's length on screen) of the orbit of rx
+// columns round sun: an ellipse (see orbitRound) rx/orbitFlat rows tall.
+func onOrbit(sun Point, rx, t float64) Point {
+	t -= math.Floor(t)
+	lengths := orbitLengths()
+	j := min(max(sort.SearchFloat64s(lengths, t), 1), len(lengths)-1)
+	f := (t - lengths[j-1]) / (lengths[j] - lengths[j-1])
+	x, y := orbitAt(float64(j-1) + f)
+	return Point{sun.X + cellRound(rx*x), sun.Y + cellRound(rx/orbitFlat*y)}
+}
+
+// orbitAt is the point of the unit orbit at step s of orbitSteps, from
+// the top clockwise.
+func orbitAt(s float64) (x, y float64) {
+	a := 2*math.Pi*s/orbitSteps - math.Pi/2
+	curve := func(v float64) float64 { return math.Copysign(math.Pow(math.Abs(v), 2/orbitRound), v) }
+	return curve(math.Cos(a)), curve(math.Sin(a))
+}
+
+// orbitLengths is, per step of the unit orbit, the share of its length on
+// screen (a row counting as cellAspect columns) up to that step.
+var orbitLengths = sync.OnceValue(func() []float64 {
+	lengths := make([]float64, orbitSteps+1)
+	px, py := orbitAt(0)
+	for j := 1; j <= orbitSteps; j++ {
+		x, y := orbitAt(float64(j))
+		lengths[j] = lengths[j-1] + math.Hypot(x-px, cellAspect*(y-py)/orbitFlat)
+		px, py = x, y
+	}
+	for j := range lengths {
+		lengths[j] /= lengths[orbitSteps]
+	}
+	return lengths
+})
+
+// fitOrbit puts the galaxies of on, in that order, round the smallest
+// orbit, from rx columns out, where they keep the gap to each other and to
+// those placed, and returns its size. On each orbit tried the first goes
+// on top (with one galaxy, on the right; with two, on the left), each next
+// one at the first turn past the one before where it keeps the gap to it,
+// and the room left over before the first comes round again is shared out
+// evenly between them.
+func fitOrbit(on []*galaxy, placed []*galaxy, rx int) int {
+	start := 0.0
+	switch len(on) {
+	case 1:
+		start = 0.25
+	case 2:
+		start = 0.75
+	}
+	sun := placed[0].c
+	turns := make([]float64, len(on))
+	// next is the first turn from t where gx keeps the gap to prev, or
+	// one past the end of the orbit.
+	next := func(gx, prev *galaxy, r, t float64) float64 {
+		for ; t <= start+1; t += 1.0 / orbitSteps {
+			if gx.c = onOrbit(sun, r, t); apart(gx.box(), prev.box()) {
+				return t
+			}
+		}
+		return start + 2
+	}
+	for ; ; rx += max(1, rx/32) {
+		r := float64(rx)
+		turns[0] = start
+		on[0].c = onOrbit(sun, r, start)
+		end := start
+		for i := 1; i < len(on) && end <= start+1; i++ {
+			turns[i] = next(on[i], on[i-1], r, turns[i-1])
+			end = turns[i]
+		}
+		if len(on) > 1 && end <= start+1 {
+			end = next(on[0], on[len(on)-1], r, end) // where the first may come round again
+		}
+		if end > start+1 {
+			continue
+		}
+		slack := 0.0
+		if len(on) > 1 {
+			slack = (start + 1 - end) / float64(len(on))
+		}
+		for _, share := range []float64{slack, 0} {
+			for i, gx := range on {
+				gx.c = onOrbit(sun, r, turns[i]+share*float64(i))
+			}
+			if orbitFits(on, placed) {
+				return rx
 			}
 		}
 	}
-	defer func() { x.placed = true }()
-	if len(placed) == 0 {
-		x.c = Point{x.rx(), x.ry()}
-		return
-	}
-	linked := len(anchors) > 0
-	if linked {
-		slices.SortStableFunc(anchors, func(a, b int) int { return cmp.Compare(w[b], w[a]) })
-	} else {
-		anchors = placed[max(0, len(placed)-maxAnchors):]
-	}
-	anchors = anchors[:min(len(anchors), maxAnchors)]
-	var mid Point
-	for _, j := range placed {
-		mid.X += gs[j].c.X
-		mid.Y += gs[j].c.Y
-	}
-	mid = Point{mid.X / len(placed), mid.Y / len(placed)}
-	fits := func(c Point) bool {
-		if keepCorner && (c.X-x.rx() < 0 || c.Y-x.ry() < 0) {
-			return false
-		}
-		for _, j := range placed {
-			if screenDist2(c, gs[j].c) < sq(x.rx()+gs[j].rx()+gapFor(w[j])) {
+}
+
+func orbitFits(on, placed []*galaxy) bool {
+	for i, gx := range on {
+		b := gx.box()
+		for _, o := range on[i+1:] {
+			if !apart(b, o.box()) {
 				return false
 			}
 		}
-		return true
-	}
-	// box is the area the placed galaxies span; a spot that widens it costs
-	// its new width plus paneAspect times its new height, so the map grows
-	// about as wide as a terminal pane.
-	x0, y0, x1, y1 := math.MaxInt, math.MaxInt, math.MinInt, math.MinInt
-	for _, j := range placed {
-		g := gs[j]
-		x0, y0 = min(x0, g.c.X-g.rx()), min(y0, g.c.Y-g.ry())
-		x1, y1 = max(x1, g.c.X+g.rx()), max(y1, g.c.Y+g.ry())
-	}
-	cost := func(c Point) (float64, int) {
-		bw := max(x1, c.X+x.rx()) - min(x0, c.X-x.rx())
-		bh := max(y1, c.Y+x.ry()) - min(y0, c.Y-x.ry())
-		f := float64(bw + paneAspect*bh + max(bw, paneAspect*bh))
-		if linked {
-			sum, total := 0.0, 0
-			for _, j := range anchors {
-				sum += float64(w[j]) * math.Sqrt(float64(screenDist2(c, gs[j].c)))
-				total += w[j]
+		for _, o := range placed {
+			if !apart(b, o.box()) {
+				return false
 			}
-			f += linkPull * sum / float64(total)
-		}
-		return f, screenDist2(c, mid)
-	}
-	around := func(o Point, d float64, s int) Point {
-		a := 2 * math.Pi * float64(s) / placeAngles
-		return Point{o.X + int(math.Round(d*math.Cos(a))), o.Y + int(math.Round(d*math.Sin(a)/cellAspect))}
-	}
-	found, bestW, bestD := false, 0.0, 0
-	try := func(c Point) {
-		if !fits(c) {
-			return
-		}
-		w, d := cost(c)
-		if !found || w < bestW || w == bestW && d < bestD {
-			found, bestW, bestD, x.c = true, w, d, c
 		}
 	}
-	for _, j := range anchors {
-		d := float64(gs[j].rx()+x.rx()+gapFor(w[j])) + 1
-		for s := range placeAngles {
-			try(around(gs[j].c, d, s))
-		}
-	}
-	// Hemmed in everywhere: circle out from the middle until a spot fits.
-	for d := float64(ringStep); !found; d += ringStep {
-		for s := range placeAngles {
-			try(around(mid, d, s))
-		}
-	}
+	return true
 }
 
-// finish builds the layout from placed nodes: index, clusters, size, labels.
-func finish(nodes []Placed, clusters []Cluster) Layout {
+// placeNew puts a new folder's galaxy x on an orbit round the vault's
+// sun, tried in newAngles directions from the smallest orbit where it
+// fits out to orbitSearch columns further: the spot nearest the galaxies
+// it links to (weighted by links), else the smallest orbit, nearest the
+// top. A spot that would push the map past the grid's top-left corner,
+// moving every node, comes last.
+func placeNew(x *galaxy, all []*galaxy, sun Point, links map[[2]int]int) {
+	folders, self := all[1:], slices.Index(all[1:], x)
+	type spot struct {
+		corner bool
+		cost   float64
+		c      Point
+	}
+	var best *spot
+	first := -1
+	for rx := 1; first < 0 || rx <= first+orbitSearch; rx++ {
+		for s := range newAngles {
+			x.c = onOrbit(sun, float64(rx), float64(s)/newAngles)
+			if !fitsAmong(x, all) {
+				continue
+			}
+			if first < 0 {
+				first = rx
+			}
+			b := x.box()
+			sp := spot{corner: b.X < 0 || b.Y < 0, cost: float64(rx), c: x.c}
+			for j, o := range folders {
+				if w := linkCount(links, self, j); w > 0 && o.placed {
+					sp.cost += linkPull * float64(w) * math.Sqrt(float64(screenDist2(x.c, o.c)))
+				}
+			}
+			if best == nil || cmpBool(sp.corner, best.corner) < 0 || sp.corner == best.corner && sp.cost < best.cost {
+				best = &sp
+			}
+		}
+	}
+	x.c, x.placed = best.c, true
+}
+
+// finish builds a layout from nodes placed by hand, with no suns.
+func finish(nodes []Placed, clusters []Cluster) Layout { return build(nodes, clusters, nil) }
+
+// build makes the layout of placed nodes: index, clusters, size, labels.
+// With a sun the map is solar: the vault's sun there, each folder's in
+// its cluster's centre, and no name covers one.
+func build(nodes []Placed, clusters []Cluster, sun *Point) Layout {
 	l := Layout{Nodes: nodes, index: make(map[string]int, len(nodes))}
 	if len(nodes) == 0 {
 		l.Nodes = nil
@@ -587,10 +865,28 @@ func finish(nodes []Placed, clusters []Cluster) Layout {
 		l.Clusters = append(l.Clusters, c)
 		l.W, l.H = max(l.W, c.Rect.X+c.Rect.W), max(l.H, c.Rect.Y+c.Rect.H)
 	}
+	if sun != nil {
+		l.Sun, l.solar = *sun, true
+	}
 	setLabels(nodes)
-	l.Labels[ZoomMedium] = placeLabels(nodes, ZoomMedium, mediumMinDegree(nodes))
-	l.Labels[ZoomClose] = placeLabels(nodes, ZoomClose, 0)
+	suns := l.suns()
+	l.Labels[ZoomMedium] = placeLabels(nodes, suns, ZoomMedium, mediumMinDegree(nodes))
+	l.Labels[ZoomClose] = placeLabels(nodes, suns, ZoomClose, 0)
 	return l
+}
+
+// suns lists the grid cells of the suns: the vault's, then each folder's.
+func (l Layout) suns() []Point {
+	if !l.solar {
+		return nil
+	}
+	ps := []Point{l.Sun}
+	for _, c := range l.Clusters {
+		if c.Key != "" {
+			ps = append(ps, c.Centre)
+		}
+	}
+	return ps
 }
 
 // setLabels names each node by the shortest path suffix, without ".md",
@@ -638,11 +934,14 @@ func mediumMinDegree(nodes []Placed) int {
 }
 
 // placeLabels names nodes with at least minDegree links, busiest first,
-// where the name, the space before it and the space after it cover no dot
-// and no other name.
-func placeLabels(nodes []Placed, z Zoom, minDegree int) []Label {
+// where the name, the space before it and the space after it cover no dot,
+// no sun and no other name.
+func placeLabels(nodes []Placed, suns []Point, z Zoom, minDegree int) []Label {
 	sx, sy := z.fixedScale()
 	taken := make(map[Point]bool, len(nodes)*4)
+	for _, p := range suns {
+		taken[Point{p.X * sx, p.Y * sy}] = true
+	}
 	order := make([]int, 0, len(nodes))
 	for i, n := range nodes {
 		taken[Point{n.P.X * sx, n.P.Y * sy}] = true

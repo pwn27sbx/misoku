@@ -2,10 +2,12 @@ package app_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -73,14 +75,18 @@ func TestGraphAllOpensTheGlobalGraph(t *testing.T) {
 	if tabs := strings.Split(v, "\n")[0]; !strings.Contains(tabs, "Global graph") {
 		t.Fatalf("the global graph should open in its own tab:\n%s", v)
 	}
-	ed := editorPane(v)
-	for _, name := range []string{"Orphan", "Ghost"} {
-		if !strings.Contains(ed, name) {
-			t.Fatalf("every note and unresolved link should be on the map, %s is not:\n%s", name, ed)
-		}
-	}
 	if !strings.Contains(previewPane(v), "go to") {
 		t.Fatalf("the preview should show the note the graph was opened from:\n%s", v)
+	}
+	// Close up the map is wider than the pane: the filter finds each one,
+	// selects it and scrolls its dot and name into view.
+	for _, name := range []string{"Orphan", "Ghost"} {
+		h.keys("/" + name)
+		h.key(tea.KeyEnter)
+		if ed := editorPane(h.view()); !strings.Contains(ed, name) {
+			t.Fatalf("every note and unresolved link should be on the map, %s is not:\n%s", name, ed)
+		}
+		h.key(tea.KeyEsc)
 	}
 }
 
@@ -189,8 +195,10 @@ func TestGlobalGraphSelectionPreviewsAndOpens(t *testing.T) {
 	}
 
 	h = globalWorkspace(t)
-	h.keys("++")
-	h.clickGraph("Orphan")
+	h.clickGraph("•") // at the overview, Orphan is the only plain note dot
+	if !strings.Contains(globalTitle(h), "Orphan") {
+		t.Fatalf("clicking Orphan's dot should select it:\n%s", h.view())
+	}
 	if !strings.Contains(previewPane(h.view()), "alone") {
 		t.Fatalf("clicking Orphan should preview it:\n%s", h.view())
 	}
@@ -489,5 +497,26 @@ func TestGlobalGraphOpenedFromAHiddenNotePreviewsTheSelection(t *testing.T) {
 	title, pv := globalTitle(h), previewPane(h.view())
 	if !strings.Contains(title, "Home") || strings.Contains(pv, "alone") || !strings.Contains(pv, "go to") {
 		t.Fatalf("the hidden Orphan should not be selected nor previewed:\n%s", h.view())
+	}
+}
+
+// S7: the global graph is a solar system whose middle, the vault's sun,
+// carries the name of the vault's folder.
+func TestGlobalGraphNamesTheVaultSun(t *testing.T) {
+	newTestStore(t) // a HOME of the test's own
+	store, err := core.NewStore(filepath.Join(t.TempDir(), "mis-notas"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range [][3]string{{"", "Home", "go to [[work/Plan]]"}, {"work", "Plan", "back [[Home]]"}} {
+		if _, err := store.SaveAs(n[0], n[1], n[2]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := newHarness(t, store)
+	h.openHome()
+	h.ex("graph all")
+	if ed := editorPane(h.view()); !strings.Contains(ed, "◉") || !strings.Contains(ed, " mis-notas ") || !strings.Contains(ed, " work ") {
+		t.Fatalf("the map should show the vault's sun named mis-notas and the work galaxy:\n%s", ed)
 	}
 }
