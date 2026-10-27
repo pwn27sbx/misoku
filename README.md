@@ -447,18 +447,22 @@ It picks up links as you type them in other tabs.
 
 `:graph all` (or `Space G`, or `g` on the start screen) opens a second
 graph tab with every note of the vault, whether it links anywhere or not,
-and the links between them. Each top-level folder is a group of its own;
-notes with more links get a bigger dot (`·` `•` `●`), and a link to a note
-that doesn't exist yet is a hollow `○` named after the link. The note you
-were in is selected; its links are lit and the rest is greyed out. The
-title row counts notes, links, notes without links and missing notes.
+and the links between them. Each top-level folder is a round galaxy in a
+colour of its own, named above it: its busiest note sits in the centre and
+the rest on rings around it, busier notes closer in. Galaxies that link to
+each other sit closer together. Notes with more links get a bigger dot
+(`·` `•` `●`), and a link to a note that doesn't exist yet is a hollow `○`
+named after the link. Links are thin braille lines at every zoom. The note
+you were in is selected; its links are lit and the rest fades without
+losing its galaxy's colour. The title row counts notes, links, notes
+without links and missing notes.
 
 | Key | What it does |
 | --- | --- |
 | `h` `j` `k` `l` / arrows | Select the nearest note on that side |
 | `n` / `N` | Next / previous note the selected one links to or is linked from |
 | `enter` | Open the selected note; on a missing note, start it (nothing is written until you save) |
-| `-` / `+` | Zoom out / in: dots only, then the names of the busiest notes, then every name that fits |
+| `-` / `+` | Zoom out / in: only each galaxy's centre named, then the names of the busiest notes, then every name that fits |
 | `0` | Centre the view on the selected note |
 | `esc` | Clear the filter; without one, back to the previous selection |
 | `/` | Filter: notes whose name or path doesn't hold the text are greyed out, not removed. `enter` selects the best match (a name starting with the text, then a name holding it, then a path; the shortest name first) and keeps the filter; `esc` clears it. While you type, every key is text |

@@ -264,9 +264,10 @@ func TestRenderHighlightsSelectionNeighboursAndOpenNote(t *testing.T) {
 		"work/Tasks.md":   th.Blue,   // link of the selection
 		"work/Meeting.md": th.Purple, // backlink of the selection
 		"study/Go.md":     th.Purple,
-		"work/Notes.md":   th.GreyFg, // two steps away
-		"study/Rust.md":   th.GreyFg,
-		"Ideas":           th.GreyFg,
+		// Two steps away: the galaxy's colour, faded (a missing note too).
+		"work/Notes.md": fade(th.Teal, th.Bg, restFade, th.GreyFg),
+		"study/Rust.md": fade(th.Purple, th.Bg, restFade, th.GreyFg),
+		"Ideas":         fade(th.Blue, th.Bg, restFade, th.GreyFg),
 	}
 	for id, want := range cases {
 		if got := fgAt(id); got != rgb(want) {
@@ -290,7 +291,7 @@ func TestRenderHighlightsSelectionNeighboursAndOpenNote(t *testing.T) {
 }
 
 // With nothing selected each project's dots take a theme accent in turn,
-// by sorted folder name; unresolved targets stay grey.
+// by sorted folder name; unresolved targets take it faded.
 func TestRenderColoursProjectsWhenNothingIsSelected(t *testing.T) {
 	trueColour(t)
 	th := theme.DefaultTheme()
@@ -298,7 +299,7 @@ func TestRenderColoursProjectsWhenNothingIsSelected(t *testing.T) {
 	f := vaultFrame(r, ZoomClose, 160, 40)
 	f.Selected, f.Open = "", ""
 	rows := screen(r.Render(f))
-	for id, want := range map[string]lipgloss.Color{"Home.md": th.Blue, "study/Go.md": th.Purple, "work/Plan.md": th.Teal, "Ideas": th.GreyFg} {
+	for id, want := range map[string]lipgloss.Color{"Home.md": th.Blue, "study/Go.md": th.Purple, "work/Plan.md": th.Teal, "Ideas": fade(th.Blue, th.Bg, restFade, th.GreyFg)} {
 		x, y := dotAt(t, r, f, id)
 		if got := rows[y][x].fg; got != rgb(want) {
 			t.Errorf("%s dot is %s, want %s", id, got, rgb(want))
@@ -306,7 +307,9 @@ func TestRenderColoursProjectsWhenNothingIsSelected(t *testing.T) {
 	}
 }
 
-func TestRenderOverviewLabelsOnlyTheNeighbourhood(t *testing.T) {
+// The overview names the selection, the open note, the neighbours, each
+// galaxy and each galaxy's hub, and nothing else.
+func TestRenderOverviewLabelsTheNeighbourhoodAndTheHubs(t *testing.T) {
 	r := NewRenderer(Build(vault()), vault().Edges)
 	out := ansi.Strip(r.Render(vaultFrame(r, ZoomOverview, 120, 30)))
 	for _, name := range []string{"Plan", "Home"} {
@@ -324,8 +327,12 @@ func TestRenderOverviewLabelsOnlyTheNeighbourhood(t *testing.T) {
 	}
 	f := vaultFrame(r, ZoomOverview, 120, 30)
 	f.Selected, f.Open = "", ""
-	if out := ansi.Strip(r.Render(f)); strings.ContainsAny(out, "abcdefghijklmnopqrstuvwxyz") {
-		t.Errorf("overview with no selection draws names:\n%s", out)
+	out = ansi.Strip(r.Render(f))
+	words := strings.FieldsFunc(out, func(c rune) bool { return c < 'A' || c > 'z' })
+	for _, w := range words {
+		if !slices.Contains([]string{"work", "study", "Plan", "Go", "Home"}, w) {
+			t.Errorf("overview with no selection names %q, neither a galaxy nor a hub:\n%s", w, out)
+		}
 	}
 }
 
@@ -366,17 +373,20 @@ func TestRenderSameCellColourPriority(t *testing.T) {
 	plain := ansi.Strip(r.Render(f))
 	check := func(what string, x, y int, wantR rune, want lipgloss.Color) {
 		t.Helper()
-		if c := rows[y][x]; c.r != wantR || c.fg != rgb(want) {
+		c := rows[y][x]
+		if (wantR == anyBraille && !isBraille(c.r)) || (wantR != anyBraille && c.r != wantR) || c.fg != rgb(want) {
 			t.Errorf("%s at %d,%d is %q %s, want %q %s:\n%s", what, x, y, c.r, c.fg, wantR, rgb(want), plain)
 		}
 	}
-	check("selected open note", 3, 0, glyphSelected, th.Yellow)
-	check("lit link", 11, 0, '─', th.Blue)
-	check("dot under the lit link", 12, 0, glyphLeaf, th.GreyFg)
-	check("lit backlink", 3, 3, '│', th.Purple)
-	check("lit backlink over a faint edge", 3, 2, '│', th.Purple)
-	check("faint edge", 1, 2, '─', th.Line)
-	check("faint edge", 24, 6, '│', th.Line)
+	// Medium zoom: every grid cell is 2×2 screen cells.
+	faded, edge := fade(th.Blue, th.Bg, restFade, th.GreyFg), fade(th.Blue, th.Bg, edgeFade, th.Line)
+	check("selected open note", 2, 0, glyphSelected, th.Yellow)
+	check("lit link", 10, 0, anyBraille, th.Blue)
+	check("dot under the lit link", 8, 0, glyphLeaf, faded)
+	check("lit backlink", 2, 3, anyBraille, th.Purple)
+	check("lit backlink over a faint edge", 2, 2, anyBraille, th.Purple)
+	check("faint edge", 1, 2, anyBraille, edge)
+	check("faint edge", 16, 6, anyBraille, edge)
 
 	// At the overview the neighbour Alpha's name would cover the selected
 	// Gamma: the selection's dot and name win, Alpha's name is left out.
@@ -390,8 +400,9 @@ func TestRenderSameCellColourPriority(t *testing.T) {
 	if strings.Contains(plain, "Alpha") {
 		t.Errorf("the neighbour name overlapping the selection is drawn:\n%s", plain)
 	}
-	if !strings.Contains(plain, "Delta") {
-		t.Errorf("the open note has no name:\n%s", plain)
+	// The open note's name is cut before E's dot: no name covers a dot.
+	if !strings.Contains(plain, "Del… ·") {
+		t.Errorf("the open note's name is not cut before E's dot:\n%s", plain)
 	}
 }
 
@@ -400,7 +411,7 @@ func TestRenderSameCellColourPriority(t *testing.T) {
 func TestRenderNamesAreNeverShownInPieces(t *testing.T) {
 	nodes := []Placed{
 		{Node: Node{ID: "Selection.md"}, P: Point{0, 0}},
-		{Node: Node{ID: "Xenophon.md"}, P: Point{2, 0}},
+		{Node: Node{ID: "Xenophon.md"}, P: Point{3, 0}},
 		{Node: Node{ID: "Y.md"}, P: Point{0, 3}},
 		{Node: Node{ID: "Z.md"}, P: Point{8, 3}},
 	}
@@ -419,9 +430,9 @@ func TestRenderNamesAreNeverShownInPieces(t *testing.T) {
 	}
 }
 
-// Closer in, a neighbour's name is cut before the next dot; at the
-// overview, where dots are packed, it covers the dots of the rest.
-func TestRenderNeighbourNamesAndDots(t *testing.T) {
+// A neighbour's name is cut before the next dot, at the overview too: no
+// name covers a dot.
+func TestRenderNeighbourNamesNeverCoverDots(t *testing.T) {
 	nodes := []Placed{
 		{Node: Node{ID: "Neighbourhood.md"}, P: Point{0, 0}},
 		{Node: Node{ID: "R.md"}, P: Point{3, 0}},
@@ -429,15 +440,13 @@ func TestRenderNeighbourNamesAndDots(t *testing.T) {
 	}
 	edges := []Edge{{"S.md", "Neighbourhood.md"}}
 	r := NewRenderer(placedLayout(nodes, edges), edges)
-	f := Frame{W: 60, H: 10, Zoom: ZoomMedium, Selected: "S.md", Theme: theme.DefaultTheme()}
-	rows := screen(r.Render(f))
-	plain := ansi.Strip(r.Render(f))
-	if rows[0][9].r != glyphLeaf || !strings.Contains(plain, "Neigh…") {
-		t.Errorf("medium: the neighbour's name is not cut before R:\n%s", plain)
-	}
-	f.Zoom = ZoomOverview
-	if plain := ansi.Strip(r.Render(f)); !strings.Contains(plain, "Neighbourhood") {
-		t.Errorf("overview: the neighbour's name does not cover the other dots:\n%s", plain)
+	for _, z := range []Zoom{ZoomOverview, ZoomMedium} {
+		f := Frame{W: 60, H: 10, Zoom: z, Selected: "S.md", Theme: theme.DefaultTheme()}
+		rows := screen(r.Render(f))
+		plain := ansi.Strip(r.Render(f))
+		if x, y := dotAt(t, r, f, "R.md"); rows[y][x].r != glyphLeaf || !strings.Contains(plain, "· Ne… ·") {
+			t.Errorf("zoom %d: the neighbour's name is not cut before R:\n%s", z, plain)
+		}
 	}
 }
 
@@ -461,15 +470,15 @@ func rowText(rows [][]tcell, y, x0, x1 int, dots ...int) string {
 func TestRenderNeighbourNameGoesLeftWhenTheRightIsCut(t *testing.T) {
 	nodes := []Placed{
 		{Node: Node{ID: "Llamas.md"}, P: Point{4, 0}},
-		{Node: Node{ID: "Nube.md"}, P: Point{5, 0}},
+		{Node: Node{ID: "Nube.md"}, P: Point{6, 0}},
 	}
 	edges := []Edge{{"Llamas.md", "Nube.md"}}
 	r := NewRenderer(placedLayout(nodes, edges), edges)
 	f := Frame{W: 60, H: 10, Zoom: ZoomClose, Selected: "Nube.md", Theme: theme.DefaultTheme()}
 	rows := screen(r.Render(f))
 	plain := ansi.Strip(r.Render(f))
-	// Llamas' dot is at 24, Nube's at 30.
-	if got, want := rowText(rows, 0, 16, 36, 24, 30), " Llamas *─────* Nube "; got != want {
+	// Llamas' dot is at 16, Nube's at 24.
+	if got, want := rowText(rows, 0, 8, 30, 16, 24), " Llamas *⠒⠒⠒⠒⠒⠒⠒* Nube "; got != want {
 		t.Errorf("row 0 from 16 is %q, want %q:\n%s", got, want, plain)
 	}
 	if strings.Contains(plain, "…") {
@@ -482,21 +491,21 @@ func TestRenderNeighbourNameGoesLeftWhenTheRightIsCut(t *testing.T) {
 func TestRenderLeftNameStaysInsideThePane(t *testing.T) {
 	nodes := []Placed{
 		{Node: Node{ID: "Llamas.md"}, P: Point{4, 0}},
-		{Node: Node{ID: "Nube.md"}, P: Point{5, 0}},
+		{Node: Node{ID: "Nube.md"}, P: Point{6, 0}},
 	}
 	edges := []Edge{{"Llamas.md", "Nube.md"}}
 	r := NewRenderer(placedLayout(nodes, edges), edges)
-	// Llamas' dot is at map x 24; its left blank, name and blank need 8
-	// cells, so the pane must start at map x 16 or before.
-	f := Frame{W: 60, H: 10, Zoom: ZoomClose, Offset: Point{16, 0}, Selected: "Nube.md", Theme: theme.DefaultTheme()}
+	// Llamas' dot is at map x 16; its left blank, name and blank need 8
+	// cells, so the pane must start at map x 8 or before.
+	f := Frame{W: 60, H: 10, Zoom: ZoomClose, Offset: Point{8, 0}, Selected: "Nube.md", Theme: theme.DefaultTheme()}
 	rows := screen(r.Render(f))
-	if got, want := rowText(rows, 0, 0, 20, 8, 14), " Llamas *─────* Nube "; got != want {
-		t.Errorf("offset 16: row 0 is %q, want %q:\n%s", got, want, ansi.Strip(r.Render(f)))
+	if got, want := rowText(rows, 0, 0, 22, 8, 16), " Llamas *⠒⠒⠒⠒⠒⠒⠒* Nube "; got != want {
+		t.Errorf("offset 8: row 0 is %q, want %q:\n%s", got, want, ansi.Strip(r.Render(f)))
 	}
-	f.Offset.X = 17
+	f.Offset.X = 9
 	rows = screen(r.Render(f))
-	if got, want := rowText(rows, 0, 0, 19, 7, 13), "       * Ll… * Nube "; got != want {
-		t.Errorf("offset 17: row 0 is %q, want %q:\n%s", got, want, ansi.Strip(r.Render(f)))
+	if got, want := rowText(rows, 0, 0, 21, 7, 15), "       * Llam… * Nube "; got != want {
+		t.Errorf("offset 9: row 0 is %q, want %q:\n%s", got, want, ansi.Strip(r.Render(f)))
 	}
 }
 
@@ -521,7 +530,7 @@ func TestRenderLeftNamesNeverOverlap(t *testing.T) {
 	}
 	rows := screen(r.Render(f))
 	plain := ansi.Strip(r.Render(f))
-	if got, want := rowText(rows, 0, 17, 45, 22, 29, 30, 40), "  Ab * 日本 ** S ──────* Cd  "; got != want {
+	if got, want := rowText(rows, 0, 17, 45, 22, 29, 30, 40), "  Ab * 日本 ** S ⠒⠒⠒⠒⠒⠒* Cd  "; got != want {
 		t.Errorf("row 0 from 17 is %q, want %q:\n%s", got, want, plain)
 	}
 	// Two cells further left, 日本's name fits on neither side (Ab's dot
@@ -530,7 +539,7 @@ func TestRenderLeftNamesNeverOverlap(t *testing.T) {
 	r = NewRenderer(placedLayout(nodes, edges), edges)
 	rows = screen(r.Render(f))
 	plain = ansi.Strip(r.Render(f))
-	if got, want := rowText(rows, 0, 17, 45, 22, 27, 30, 40), "     * Ab *──* S ──────* Cd  "; got != want {
+	if got, want := rowText(rows, 0, 17, 45, 22, 27, 30, 40), "     * Ab *⠒⠒* S ⠒⠒⠒⠒⠒⠒* Cd  "; got != want {
 		t.Errorf("crowded row 0 from 17 is %q, want %q:\n%s", got, want, plain)
 	}
 	// Back in place, with another neighbour's dot where Ab's blank before
@@ -542,7 +551,7 @@ func TestRenderLeftNamesNeverOverlap(t *testing.T) {
 	r = NewRenderer(placedLayout(nodes, edges), edges)
 	rows = screen(r.Render(f))
 	plain = ansi.Strip(r.Render(f))
-	if got, want := rowText(rows, 0, 13, 45, 18, 22, 29, 30, 40), "  Ef *───* 日本 ** S ──────* Cd  "; got != want {
+	if got, want := rowText(rows, 0, 13, 45, 18, 22, 29, 30, 40), "  Ef *⠒⠒⠒* 日本 ** S ⠒⠒⠒⠒⠒⠒* Cd  "; got != want {
 		t.Errorf("row 0 from 13 with Ef is %q, want %q:\n%s", got, want, plain)
 	}
 }
@@ -553,21 +562,21 @@ func isDot(c tcell) bool {
 }
 
 // The selection's name, which on the right would cover the dot of Tasks
-// (its right-hand neighbour on the grid at 3×2), goes whole on the left.
+// (its right-hand neighbour on the grid at 2×2), goes whole on the left.
 func TestRenderSelectionNameGoesLeftOfACoveredDot(t *testing.T) {
 	r := NewRenderer(vaultLayout(), vault().Edges)
 	for _, z := range []Zoom{ZoomOverview, ZoomMedium} {
 		f := vaultFrame(r, z, 100, 24)
-		if sx, sy := r.scale(f.Zoom, f.W, f.H); sx != 3 || sy != 2 {
-			t.Fatalf("setup: zoom %d scale %dx%d, want 3x2", z, sx, sy)
+		if sx, sy := r.scale(f.Zoom, f.W, f.H); sx != 2 || sy != 2 {
+			t.Fatalf("setup: zoom %d scale %dx%d, want 2x2", z, sx, sy)
 		}
 		px, py := dotAt(t, r, f, "work/Plan.md")
 		tx, ty := dotAt(t, r, f, "work/Tasks.md")
-		if ty != py || tx != px+3 {
+		if ty != py || tx != px+2 {
 			t.Fatalf("setup: Tasks at (%d,%d), Plan at (%d,%d)", tx, ty, px, py)
 		}
 		rows := screen(r.Render(f))
-		if got, want := rowText(rows, py, px-6, tx, px, tx), " Plan *──*"; got != want || !isDot(rows[ty][tx]) {
+		if got, want := rowText(rows, py, px-6, tx, px, tx), " Plan *⠒*"; got != want || !isDot(rows[ty][tx]) {
 			t.Errorf("zoom %d: row %d is %q (Tasks' cell %q), want %q:\n%s", z, py, got, rows[ty][tx].r, want, ansi.Strip(r.Render(f)))
 		}
 		// A click on the left-side name selects the selection itself.
@@ -583,8 +592,14 @@ func TestRenderSelectionNameGoesLeftOfACoveredDot(t *testing.T) {
 // selection's name depends on the pane, like a neighbour's (see
 // TestRenderLeftNameStaysInsideThePane): one column of panning switches it.
 func TestRenderSelectionNameIsCutBeforeACoveredDot(t *testing.T) {
-	r := NewRenderer(vaultLayout(), vault().Edges)
+	// Two grid cells apart, with no link between them.
+	apart := []Placed{
+		{Node: Node{ID: "work/Meeting.md", Cluster: "work"}, P: Point{1, 0}},
+		{Node: Node{ID: "work/Notes.md", Cluster: "work"}, P: Point{3, 0}},
+		{Node: Node{ID: "Far.md"}, P: Point{20, 10}},
+	}
 	for _, c := range []struct {
+		r         *Renderer
 		zoom      Zoom
 		sel, next string
 		// The row from the pane's first column to the next dot with the
@@ -592,14 +607,17 @@ func TestRenderSelectionNameIsCutBeforeACoveredDot(t *testing.T) {
 		left, right string
 		nextShown   bool // whether the next dot is drawn one column further
 	}{
-		// Close: work/Notes is 6 cells right of Meeting, room for "Me…".
-		{ZoomClose, "work/Meeting.md", "work/Notes.md", " Meeting *     *", "* Me… ", true},
-		// Medium: Tasks is 3 cells right of Plan, too close to cut to 3.
-		{ZoomMedium, "work/Plan.md", "work/Tasks.md", " Plan *──*", "* Plan ", false},
+		// Close: work/Notes is 8 cells right of Meeting, room for "Meet…".
+		{NewRenderer(placedLayout(apart, nil), nil), ZoomClose, "work/Meeting.md", "work/Notes.md", " Meeting *       *", "* Meet… ", true},
+		// Medium: Tasks is 2 cells right of Plan, too close to cut to 3.
+		{NewRenderer(vaultLayout(), vault().Edges), ZoomMedium, "work/Plan.md", "work/Tasks.md", " Plan *⠒*", "* Plan ", false},
 	} {
+		r := c.r
 		f := vaultFrame(r, c.zoom, 100, 24)
 		f.Selected = c.sel
 		x, y := dotAt(t, r, f, c.sel)
+		f.Offset.Y += y - 10 // the selection's row in the pane
+		y = 10
 		w := ansi.StringWidth(r.l.Nodes[r.l.index[c.sel]].Label)
 		f.Offset.X += x - (2 + w) // the left blank at the pane's first column
 		x -= x - (2 + w)
@@ -622,7 +640,7 @@ func TestRenderSelectionNameIsCutBeforeACoveredDot(t *testing.T) {
 // goes left of its dot only inside the pane, so one column of panning at
 // the left edge switches its side (TestRenderLeftNameStaysInsideThePane,
 // TestRenderSelectionNameIsCutBeforeACoveredDot); the panes here leave
-// the left edge clear of those names.
+// the left edge clear of those names (the spots that do not are skipped).
 func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 	trueColour(t)
 	g := fixture(300, 5, 600, 9)
@@ -635,10 +653,8 @@ func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 			// The overview's scale fits the map to the pane: the whole map
 			// is drawn in the biggest pane with the small panes' scale.
 			sx, sy := r.scale(z, 40, 10)
-			if sx < maxFitX {
+			if sx < maxFit {
 				w = min(w, (sx+1)*(r.l.W-1))
-			}
-			if sy < maxFitY {
 				h = min(h, (sy+1)*(r.l.H-1))
 			}
 			if bx, by := r.scale(z, w, h); bx != sx || by != sy || w < 40 || h < 10 {
@@ -647,6 +663,25 @@ func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 		}
 		big := Frame{W: w, H: h, Zoom: z, Offset: r.Centred(z, w, h), Selected: "work/Plan.md", Open: "Home.md", Focused: true, Theme: theme.DefaultTheme()}
 		whole := screen(r.Render(big))
+		// The names drawn left of their dots, as spans of the big pane from
+		// the name's left blank to where it would end on the right: a small
+		// pane whose left edge falls there may draw it on the right.
+		var left [][3]int
+		for i, n := range r.l.Nodes {
+			x, y := dotAt(t, r, big, n.ID)
+			if own, ok := r.nodeAt(big, x-2, y); ok && own == i {
+				w := min(ansi.StringWidth(n.Label), maxLabelWidth)
+				left = append(left, [3]int{x - 3 - w, x + 3 + w, y})
+			}
+		}
+		cutsLeftName := func(at Point) bool {
+			for _, s := range left {
+				if at.X > s[0] && at.X <= s[1] && s[2] >= at.Y && s[2] < at.Y+10 {
+					return true
+				}
+			}
+			return false
+		}
 		clamp := func(x, y int) Point { return Point{min(max(x, 0), w-40), min(max(y, 0), h-10)} }
 		spots := []Point{{0, 0}, clamp(37, 11), clamp(131, 40), clamp(260, 70), clamp(5, 60)}
 		// Panes whose right edge cuts the names of the neighbourhood.
@@ -656,7 +691,12 @@ func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 				spots = append(spots, clamp(x+dx-39, y-5))
 			}
 		}
+		compared := 0
 		for _, at := range spots {
+			if cutsLeftName(at) {
+				continue
+			}
+			compared++
 			f := big
 			f.W, f.H = 40, 10
 			f.Offset = Point{big.Offset.X + at.X, big.Offset.Y + at.Y}
@@ -668,6 +708,9 @@ func TestRenderPanningOnlyMovesThePicture(t *testing.T) {
 					}
 				}
 			}
+		}
+		if compared < len(spots)/2 {
+			t.Fatalf("zoom %d: only %d of %d panes compared", z, compared, len(spots))
 		}
 	}
 }
@@ -691,7 +734,9 @@ func placedLayout(nodes []Placed, edges []Edge) Layout {
 	return finish(norm, []Cluster{{Rect: Rect{0, 0, w, h}}})
 }
 
-func TestRenderEdgesUsePlainLineGlyphs(t *testing.T) {
+// Edges run every way as braille: a straight run keeps to one row (or
+// column) of braille dots; a slope goes down or up across its cells.
+func TestRenderEdgesRunEveryWay(t *testing.T) {
 	nodes := []Placed{
 		{Node: Node{ID: "O.md"}, P: Point{0, 0}},
 		{Node: Node{ID: "R.md"}, P: Point{3, 0}},
@@ -702,31 +747,38 @@ func TestRenderEdgesUsePlainLineGlyphs(t *testing.T) {
 	}
 	edges := []Edge{{"O.md", "R.md"}, {"O.md", "D.md"}, {"O.md", "X.md"}, {"L.md", "U.md"}}
 	r := NewRenderer(placedLayout(nodes, edges), edges)
-	f := Frame{W: 60, H: 14, Zoom: ZoomMedium, Offset: Point{0, 0}, Selected: "O.md", Theme: theme.DefaultTheme()}
+	f := Frame{W: 60, H: 20, Zoom: ZoomClose, Offset: Point{0, 0}, Theme: theme.DefaultTheme()}
 	rows := screen(r.Render(f))
-	if c := rows[0][5].r; c != '─' {
-		t.Errorf("horizontal link drawn with %q", c)
+	plain := ansi.Strip(r.Render(f))
+	if c := rows[0][8].r; c != brailleBlank+0x12 {
+		t.Errorf("horizontal link drawn with %q, want ⠒:\n%s", c, plain)
 	}
-	if c := rows[1][0].r; c != '│' {
-		t.Errorf("vertical link drawn with %q", c)
+	if c := rows[2][0].r; c != brailleBlank+0x47 {
+		t.Errorf("vertical link drawn with %q, want ⡇:\n%s", c, plain)
 	}
-	diag := false
-	for y := 1; y < 4; y++ {
-		for x := 1; x < 6; x++ {
-			diag = diag || rows[y][x].r == '╲'
+	// A slope's braille cells move right going down, or going up.
+	slope := func(x0, x1, y0, y1 int, down bool) bool {
+		top, bottom := Point{-1, -1}, Point{-1, -1}
+		for y := y0; y <= y1; y++ {
+			for x := x0; x <= x1; x++ {
+				if isBraille(rows[y][x].r) {
+					if top.Y < 0 {
+						top = Point{x, y}
+					}
+					bottom = Point{x, y}
+				}
+			}
 		}
-	}
-	if !diag {
-		t.Errorf("down-right link has no ╲:\n%s", ansi.Strip(r.Render(f)))
-	}
-	rising := false
-	for y := 1; y < 8; y++ {
-		for x := 12; x < 18; x++ {
-			rising = rising || rows[y][x].r == '╱'
+		if top.Y < 0 || top.Y == bottom.Y {
+			return false
 		}
+		return (down && bottom.X > top.X) || (!down && top.X > bottom.X)
 	}
-	if !rising {
-		t.Errorf("up-right link has no ╱:\n%s", ansi.Strip(r.Render(f)))
+	if !slope(1, 7, 1, 7, true) {
+		t.Errorf("down-right link O-X has no falling braille:\n%s", plain)
+	}
+	if !slope(17, 23, 1, 15, false) {
+		t.Errorf("up-right link L-U has no rising braille:\n%s", plain)
 	}
 }
 
@@ -819,7 +871,8 @@ func TestRenderWideNamesAreNeverSplit(t *testing.T) {
 		}
 	}
 	// The name is cut to whole characters within the label width.
-	f := Frame{W: 60, H: 8, Zoom: ZoomClose, Offset: Point{n.P.X*6 - 1, n.P.Y*2 - 2}, Selected: n.ID, Theme: theme.DefaultTheme()}
+	k, _ := ZoomClose.fixedScale()
+	f := Frame{W: 60, H: 8, Zoom: ZoomClose, Offset: Point{n.P.X*k - 1, n.P.Y*k - 2}, Selected: n.ID, Theme: theme.DefaultTheme()}
 	rows := screen(r.Render(f))
 	line := ""
 	for _, c := range rows[2] {
@@ -927,10 +980,333 @@ func TestRenderOverviewSpreadsASmallMapOverThePane(t *testing.T) {
 			}
 		}
 	}
-	if x1-x0+1 < w/2 || y1-y0+1 < h/2 {
-		t.Fatalf("the %dx%d grid spans %dx%d cells of a %dx%d pane, want at least half:\n%s", r.l.W, r.l.H, x1-x0+1, y1-y0+1, w, h, ansi.Strip(out))
+	// The scale is the same across and down, so the map fills one way.
+	if x1-x0+1 < w/2 && y1-y0+1 < h/2 {
+		t.Fatalf("the %dx%d grid spans %dx%d cells of a %dx%d pane, want at least half one way:\n%s", r.l.W, r.l.H, x1-x0+1, y1-y0+1, w, h, ansi.Strip(out))
 	}
 	if again, _ := draw(); again != out {
 		t.Fatal("the same layout in the same pane drew differently")
+	}
+}
+
+// isBraille reports whether r is a braille pattern with at least one dot.
+func isBraille(r rune) bool { return r > 0x2800 && r <= 0x28FF }
+
+// anyBraille stands for any braille cell in a wanted rune.
+const anyBraille rune = -1
+
+// The map keeps galaxies round on screen: one grid cell spans as many
+// screen columns as rows at every zoom (the layout's rings already are
+// twice as wide as tall, like a terminal cell is twice as tall as wide).
+func TestRenderScaleIsUniform(t *testing.T) {
+	r := NewRenderer(Build(vault()), vault().Edges)
+	big := NewRenderer(Build(fixture(1500, 10, 3000, 7)), nil)
+	for _, rr := range []*Renderer{r, big} {
+		for z := range zoomLevels {
+			for _, p := range [][2]int{{40, 10}, {100, 24}, {300, 80}, {300, 12}} {
+				if sx, sy := rr.scale(z, p[0], p[1]); sx != sy || sx < 1 {
+					t.Errorf("zoom %d pane %dx%d: scale %dx%d, want the same on both axes", z, p[0], p[1], sx, sy)
+				}
+			}
+		}
+		for _, c := range rr.l.Clusters {
+			if c.RX != 2*c.RY {
+				t.Fatalf("galaxy %q is %dx%d, want twice as wide as tall", c.Key, c.RX, c.RY)
+			}
+		}
+	}
+	for z := ZoomOverview; z < ZoomClose; z++ {
+		a, _ := r.scale(z, 300, 80)
+		b, _ := r.scale(z+1, 300, 80)
+		if b < a {
+			t.Errorf("zooming in from %d draws the map smaller: %d → %d", z, a, b)
+		}
+	}
+}
+
+// Every note takes its galaxy's colour; with a selection, notes outside
+// its neighbourhood keep that hue, faded toward the background, instead
+// of all turning the same grey.
+func TestRenderNodesKeepTheirGalaxyHue(t *testing.T) {
+	trueColour(t)
+	th := theme.DefaultTheme()
+	r := NewRenderer(Build(vault()), vault().Edges)
+	for z := range zoomLevels {
+		f := vaultFrame(r, z, 200, 60)
+		rows := screen(r.Render(f))
+		fg := func(id string) string {
+			x, y := dotAt(t, r, f, id)
+			return rows[y][x].fg
+		}
+		rust, notes := fg("study/Rust.md"), fg("work/Notes.md")
+		if rust == rgb(th.GreyFg) || notes == rgb(th.GreyFg) || rust == notes {
+			t.Errorf("zoom %d: far notes are %s (study) and %s (work), want each its galaxy's faded hue", z, rust, notes)
+		}
+		if want := rgb(fade(th.Purple, th.Bg, restFade, th.GreyFg)); rust != want {
+			t.Errorf("zoom %d: study/Rust is %s, want study's colour faded %s", z, rust, want)
+		}
+		if want := rgb(fade(th.Teal, th.Bg, restFade, th.GreyFg)); notes != want {
+			t.Errorf("zoom %d: work/Notes is %s, want work's colour faded %s", z, notes, want)
+		}
+	}
+}
+
+func TestFadeBlendsHexColours(t *testing.T) {
+	for _, c := range []struct {
+		a, b lipgloss.Color
+		t    float64
+		want lipgloss.Color
+	}{
+		{"#ff0000", "#000000", 0.5, "#800000"},
+		{"#ff8000", "#ffffff", 0, "#ff8000"},
+		{"#102030", "#506070", 1, "#506070"},
+		{"#FFFFFF", "#000000", 0.25, "#bfbfbf"},
+		{"12", "#000000", 0.5, "#777777"}, // not hex: the fallback
+		{"#ff0000", "", 0.5, "#777777"},
+	} {
+		if got := fade(c.a, c.b, c.t, "#777777"); got != c.want {
+			t.Errorf("fade(%s, %s, %v) = %s, want %s", c.a, c.b, c.t, got, c.want)
+		}
+	}
+}
+
+// headingAt finds the galaxy heading of cluster c in rows: its row and
+// first column, or ok false.
+func headingAt(rows [][]tcell, name string) (x, y int, ok bool) {
+	for y, row := range rows {
+		var b strings.Builder
+		for _, c := range row {
+			if c.r != 0 {
+				b.WriteRune(c.r)
+			}
+		}
+		if i := strings.Index(b.String(), " "+name+" "); i >= 0 {
+			return len([]rune(b.String()[:i])) + 1, y, true
+		}
+	}
+	return 0, 0, false
+}
+
+// Each named galaxy shows its folder's name above its notes, in its
+// colour and bold, on no dot; the notes at the vault root have no name.
+func TestRenderGalaxiesAreNamed(t *testing.T) {
+	trueColour(t)
+	th := theme.DefaultTheme()
+	r := NewRenderer(Build(vault()), vault().Edges)
+	colours := map[string]lipgloss.Color{"study": th.Purple, "work": th.Teal}
+	for z := range zoomLevels {
+		for _, sel := range []string{"", "work/Plan.md"} {
+			f := vaultFrame(r, z, 200, 60)
+			f.Selected = sel
+			out := r.Render(f)
+			rows := screen(out)
+			for _, c := range r.l.Clusters {
+				if c.Key == "" {
+					continue
+				}
+				x, y, ok := headingAt(rows, c.Key)
+				if !ok {
+					t.Fatalf("zoom %d sel %q: no heading %q:\n%s", z, sel, c.Key, ansi.Strip(out))
+				}
+				sx, sy := r.scale(z, f.W, f.H)
+				top := c.Rect.Y*sy - f.Offset.Y
+				cx := c.Centre.X*sx - f.Offset.X
+				if y > top || y < top-1 || x > cx || x+len(c.Key) <= cx {
+					t.Errorf("zoom %d: heading %q at %d,%d, want on row %d (or the one above) across column %d", z, c.Key, x, y, top, cx)
+				}
+				for k := range len(c.Key) {
+					if rows[y][x+k].fg != rgb(colours[c.Key]) {
+						t.Errorf("zoom %d: heading %q letter %d in %s, want %s", z, c.Key, k, rows[y][x+k].fg, rgb(colours[c.Key]))
+					}
+				}
+				if !strings.Contains(out, lipgloss.NewStyle().Bold(true).Foreground(colours[c.Key]).Render(c.Key)) {
+					t.Errorf("zoom %d: heading %q is not bold", z, c.Key)
+				}
+			}
+			for _, n := range r.l.Nodes {
+				x, y := dotAt(t, r, f, n.ID)
+				if x >= 0 && y >= 0 && x < f.W && y < f.H && !isDot(rows[y][x]) {
+					t.Errorf("zoom %d sel %q: %s's dot is covered by %q:\n%s", z, sel, n.ID, rows[y][x].r, ansi.Strip(out))
+				}
+			}
+		}
+	}
+}
+
+// Edges are thin braille lines at every zoom, the overview included, from
+// one dot to the other; dots and names are drawn over them.
+func TestRenderEdgesAreBrailleAtEveryZoom(t *testing.T) {
+	r := NewRenderer(Build(vault()), vault().Edges)
+	for z := range zoomLevels {
+		f := vaultFrame(r, z, 200, 60)
+		f.Selected, f.Open = "", ""
+		out := r.Render(f)
+		rows := screen(out)
+		braille := 0
+		for _, row := range rows {
+			for _, c := range row {
+				if isBraille(c.r) {
+					braille++
+				}
+				if strings.ContainsRune("─│╱╲┼╳", c.r) {
+					t.Fatalf("zoom %d: box-drawing edge %q:\n%s", z, c.r, ansi.Strip(out))
+				}
+			}
+		}
+		if braille == 0 {
+			t.Fatalf("zoom %d: no braille edge:\n%s", z, ansi.Strip(out))
+		}
+		for _, n := range r.l.Nodes {
+			x, y := dotAt(t, r, f, n.ID)
+			if !isDot(rows[y][x]) {
+				t.Errorf("zoom %d: %s's dot shows %q", z, n.ID, rows[y][x].r)
+			}
+		}
+	}
+	// Hand-placed: each edge leaves its dot from the very next cell.
+	nodes := []Placed{
+		{Node: Node{ID: "O.md"}, P: Point{0, 0}},
+		{Node: Node{ID: "R.md"}, P: Point{6, 0}},
+		{Node: Node{ID: "D.md"}, P: Point{0, 6}},
+		{Node: Node{ID: "X.md"}, P: Point{6, 6}},
+	}
+	edges := []Edge{{"O.md", "R.md"}, {"O.md", "D.md"}, {"O.md", "X.md"}}
+	r = NewRenderer(placedLayout(nodes, edges), edges)
+	for z := range zoomLevels {
+		f := Frame{W: 60, H: 30, Zoom: z, Theme: theme.DefaultTheme()}
+		rows := screen(r.Render(f))
+		k, _ := r.scale(z, f.W, f.H)
+		plain := ansi.Strip(r.Render(f))
+		for _, c := range []struct {
+			what string
+			x, y int
+		}{
+			{"left of R", 6*k - 1, 0}, // right of O is O's name
+			{"below O", 0, 1}, {"above D", 0, 6*k - 1},
+			{"down-right of O", 1, 1}, {"up-left of X", 6*k - 1, 6*k - 1},
+			{"middle of O-R", 3 * k, 0}, {"middle of O-D", 0, 3 * k}, {"middle of O-X", 3 * k, 3 * k},
+		} {
+			if !isBraille(rows[c.y][c.x].r) {
+				t.Errorf("zoom %d: %s (%d,%d) is %q, want a braille edge:\n%s", z, c.what, c.x, c.y, rows[c.y][c.x].r, plain)
+			}
+		}
+		// A straight line uses one row (or column) of braille dots.
+		h, v := rows[0][3*k].r-0x2800, rows[3*k][0].r-0x2800
+		if h != 0x12 && h != 0x24 && h != 0x09 && h != 0xC0 {
+			t.Errorf("zoom %d: horizontal edge cell is %q, want one row of dots", z, rows[0][3*k].r)
+		}
+		if v != 0x47 && v != 0xB8 {
+			t.Errorf("zoom %d: vertical edge cell is %q, want one column of dots", z, rows[3*k][0].r)
+		}
+	}
+}
+
+// Edges inside a galaxy take its colour, faded; edges between galaxies
+// are grey; the selection's links stay lit over them.
+func TestRenderEdgeColours(t *testing.T) {
+	trueColour(t)
+	th := theme.DefaultTheme()
+	r := NewRenderer(Build(vault()), vault().Edges)
+	f := vaultFrame(r, ZoomClose, 300, 80)
+	f.Selected, f.Open = "", ""
+	rows := screen(r.Render(f))
+	// coloured reports whether a braille cell along the line from a to b
+	// (where no other edge crosses it) is drawn in want.
+	coloured := func(a, b string, want lipgloss.Color) bool {
+		ax, ay := dotAt(t, r, f, a)
+		bx, by := dotAt(t, r, f, b)
+		for i := 1; i < 20; i++ {
+			x, y := ax+(bx-ax)*i/20, ay+(by-ay)*i/20
+			if c := rows[y][x]; isBraille(c.r) && c.fg == rgb(want) {
+				return true
+			}
+		}
+		return false
+	}
+	plain := ansi.Strip(r.Render(f))
+	if !coloured("study/Rust.md", "study/日本語のノート.md", fade(th.Purple, th.Bg, edgeFade, th.Line)) {
+		t.Errorf("the edge inside study is not in study's faded colour:\n%s", plain)
+	}
+	if !coloured("study/Go.md", "work/Plan.md", th.GreyFg) {
+		t.Errorf("the edge between galaxies is not GreyFg:\n%s", plain)
+	}
+	f.Selected = "work/Plan.md"
+	rows = screen(r.Render(f))
+	if !coloured("study/Go.md", "work/Plan.md", th.Purple) {
+		t.Errorf("the selection's backlink is not Purple")
+	}
+	if !coloured("work/Plan.md", "work/Tasks.md", th.Blue) {
+		t.Errorf("the selection's link is not Blue")
+	}
+}
+
+// At the overview each galaxy's hub is named, with or without a
+// selection, and no name ever covers a dot.
+func TestRenderOverviewNamesTheHubs(t *testing.T) {
+	g := fixture(300, 5, 600, 9)
+	r := NewRenderer(Build(g), g.Edges)
+	for _, sel := range []string{"", r.l.Nodes[40].ID} {
+		f := Frame{W: 200, H: 60, Zoom: ZoomOverview, Offset: r.Centred(ZoomOverview, 200, 60), Selected: sel, Theme: theme.DefaultTheme()}
+		out := r.Render(f)
+		rows := screen(out)
+		named := 0
+		for _, c := range r.l.Clusters {
+			i, ok := r.centreOf(c)
+			if !ok {
+				continue
+			}
+			x, y := dotAt(t, r, f, r.l.Nodes[i].ID)
+			if x < 0 || y < 0 || x >= f.W || y >= f.H {
+				continue
+			}
+			if own, ok := r.nodeAt(f, x+2, y); ok && own == i {
+				named++
+			} else if own, ok := r.nodeAt(f, x-2, y); ok && own == i {
+				named++
+			}
+		}
+		if named == 0 {
+			t.Fatalf("sel %q: no hub is named at the overview:\n%s", sel, ansi.Strip(out))
+		}
+		for _, n := range r.l.Nodes {
+			x, y := dotAt(t, r, f, n.ID)
+			if x >= 0 && y >= 0 && x < f.W && y < f.H && !isDot(rows[y][x]) {
+				t.Fatalf("sel %q: %s's dot is covered by %q:\n%s", sel, n.ID, rows[y][x].r, ansi.Strip(out))
+			}
+		}
+	}
+	// The vault: both projects' hubs carry their names.
+	r = NewRenderer(Build(vault()), vault().Edges)
+	f := vaultFrame(r, ZoomOverview, 100, 24)
+	f.Selected, f.Open = "", ""
+	out := ansi.Strip(r.Render(f))
+	for _, name := range []string{"Plan", "Go"} {
+		if !strings.Contains(out, " "+name+" ") {
+			t.Errorf("the hub %q is not named at the overview:\n%s", name, out)
+		}
+	}
+}
+
+// As before the galaxies: with a filter, a match outside the selection's
+// neighbourhood keeps its galaxy's full colour (a missing note the text
+// colour) and the rest turns grey; the highlighted few keep theirs.
+func TestRenderFilterGreysTheRestInsteadOfFading(t *testing.T) {
+	trueColour(t)
+	th := theme.DefaultTheme()
+	r := NewRenderer(Build(vault()), vault().Edges)
+	for filter, want := range map[string]map[string]lipgloss.Color{
+		"Rust": {"study/Rust.md": th.Purple, "work/Notes.md": th.Grey, "work/Tasks.md": th.Grey, "work/Plan.md": th.Yellow},
+		"Idea": {"Ideas": th.Fg, "study/Rust.md": th.Grey, "Home.md": th.Grey},
+		"Home": {"Home.md": th.Green, "Orphan.md": th.Grey, "work/Meeting.md": th.Grey},
+	} {
+		f := vaultFrame(r, ZoomClose, 200, 60)
+		f.Filter = filter
+		rows := screen(r.Render(f))
+		for id, c := range want {
+			x, y := dotAt(t, r, f, id)
+			if got := rows[y][x].fg; got != rgb(c) {
+				t.Errorf("filter %q: %s is %s, want %s", filter, id, got, rgb(c))
+			}
+		}
 	}
 }
