@@ -209,9 +209,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.finder.wiki = true
 			return m, cmd
 		}
+		if msg.Action == "media:paste" {
+			return m, m.content.PasteClipboard()
+		}
 		if kind, ok := strings.CutPrefix(msg.Action, "media:"); ok {
 			return m, m.pickMedia(kind)
 		}
+		return m, nil
+	case core.ClipboardImageMsg:
+		m.attachPastedImage(msg)
 		return m, nil
 	case mediaPickedMsg:
 		switch {

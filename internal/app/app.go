@@ -188,6 +188,12 @@ func WithClipboard(write func(string) error) Option {
 	return func(m *Model) { m.writeClipboard = write }
 }
 
+// WithClipboardImage replaces how a picture is read from the clipboard (used by
+// tests, which never touch a clipboard).
+func WithClipboardImage(read func(context.Context) (core.ClipboardImageMsg, bool, error)) Option {
+	return func(m *Model) { m.content.SetClipboardImage(read) }
+}
+
 // WithOpener replaces the system opener for web links and files (used by
 // tests).
 func WithOpener(open func(string) error) Option {
@@ -387,6 +393,9 @@ func (m *Model) togglePreview() tea.Cmd {
 		return nil
 	}
 	m.previewOpen = !m.previewOpen
+	if !m.previewOpen {
+		preview.ClearImages()
+	}
 	m.updateLayout()
 	if m.previewOpen && m.layout().PreviewW == 0 {
 		m.setStatus("Window too narrow for the preview")

@@ -102,6 +102,9 @@ func (m Model) ScrollStatus() string {
 
 // SetPage updates both the title and content from a domain Page entity.
 func (m *Model) SetPage(p core.Page) {
+	if p.ID != m.pageID {
+		ClearImages()
+	}
 	m.pageID = p.ID
 	m.title = p.Title
 	if m.title == "" {

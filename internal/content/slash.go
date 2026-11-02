@@ -54,6 +54,7 @@ var slashItems = []slashItem{
 	{section: "Views", icon: "\U000f04aa", label: "Flowchart", hint: "-->", aliases: "flow diagram graph mermaid excalidraw chart process", before: "```flow\nstart([Start]) --> ", after: "check{Is it working?}\ncheck -->|yes| done([Ship it])\ncheck -->|no| fix[Fix it]\nfix --> check\n```", block: true},
 	{section: "Media", icon: "\U000f0e7c", label: "Cover", hint: "banner", aliases: "banner header hero", action: "media:cover"},
 	{section: "Media", icon: "\U000f02e9", label: "Image", aliases: "picture photo img upload", action: "media:image"},
+	{section: "Media", icon: "\U000f02e9", label: "Paste image", hint: "clipboard", aliases: "clipboard paste screenshot screen shot", action: "media:paste"},
 	{section: "Media", icon: "\U000f0567", label: "Video", aliases: "movie upload", action: "media:video"},
 	{section: "Media", icon: "\U000f075a", label: "Audio", aliases: "sound music upload", action: "media:audio"},
 	{section: "Media", icon: "\U000f0214", label: "File", aliases: "attachment pdf upload document", action: "media:file"},
@@ -255,5 +256,29 @@ func (m *Model) InsertText(s string) {
 	m.edit(func() {
 		m.textarea.InsertString(s)
 		m.textarea.EnsureVisible()
+	})
+}
+
+// InsertBlock types s on a line of its own, moving whatever shared the cursor's
+// line out of the way. A picture needs this: the preview draws one only when
+// the image is alone on its line.
+func (m *Model) InsertBlock(s string) {
+	m.edit(func() {
+		ta := &m.textarea
+		line := ta.CurrentLine()
+		before := ta.LineBeforeCursor()
+		head := strings.TrimSpace(line[:min(len(before), len(line))])
+		tail := strings.TrimSpace(line[min(len(before), len(line)):])
+		if head != "" {
+			ta.InsertString("\n") // the link starts on a fresh line
+		}
+		if tail != "" {
+			ta.InsertString("\n") // and the rest moves below it
+		}
+		ta.InsertString(s)
+		if tail != "" {
+			ta.InsertString("\n")
+		}
+		ta.EnsureVisible()
 	})
 }

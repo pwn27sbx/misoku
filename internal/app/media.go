@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/clipimage"
 	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -145,9 +146,31 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 
 // attachMedia copies the picked file next to the note and links it.
 func (m *Model) attachMedia(kind, src string) {
+	link := m.attachMediaAs(kind, src, false)
+	if link != "" && kind != "cover" { // the cover sets its own confirmation
+		m.setStatus("Attached " + link)
+	}
+}
+
+// attachPastedImage saves a picture read from the clipboard next to the note and
+// links it on a line of its own, so the preview draws it.
+func (m *Model) attachPastedImage(msg core.ClipboardImageMsg) {
+	defer clipimage.Discard(clipimage.Data{Path: msg.Path})
+	link := m.attachMediaAs("image", msg.Path, true)
+	if link == "" {
+		return // the status line already says why nothing was attached
+	}
+	m.setStatus("Pasted " + link)
+}
+
+// attachMediaAs is attachMedia with the choice of putting the link on a line of
+// its own, which a picture needs for the preview to draw it instead of an icon.
+// It returns the link it inserted, or "" when nothing was inserted.
+func (m *Model) attachMediaAs(kind, src string, ownLine bool) string {
 	b := m.activeBuffer()
 	if b == nil {
-		return
+		m.setStatus("Open a note first")
+		return ""
 	}
 	noteDir := b.dir
 	if !b.draft() {
@@ -159,14 +182,14 @@ func (m *Model) attachMedia(kind, src string) {
 	link, err := m.store.AttachFile(noteDir, src)
 	if err != nil {
 		m.setError("Could not attach file: " + err.Error())
-		return
+		return ""
 	}
 	if kind == "cover" {
 		m.content.SetFrontMatter("cover", link)
 		m.preview.SetContent(m.content.Value())
 		m.refreshModified()
 		m.setStatus("Cover set to " + link)
-		return
+		return link
 	}
 	name := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 	target := link
@@ -184,12 +207,15 @@ func (m *Model) attachMedia(kind, src string) {
 	default:
 		md = "[📎 " + filepath.Base(src) + "](" + target + ")"
 	}
-	m.content.InsertText(md)
+	if ownLine {
+		m.content.InsertBlock(md)
+	} else {
+		m.content.InsertText(md)
+	}
 	m.preview.SetContent(m.content.Value())
 	m.refreshModified()
 	if b.draft() {
-		m.setStatus("Attached " + link + " — saved with the note's folder once you save")
-	} else {
-		m.setStatus("Attached " + link)
+		return link + " — saved with the note's folder once you save"
 	}
+	return link
 }

@@ -1,9 +1,14 @@
 package content
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"time"
 
+	"github.com/pwn27sbx/misoku/internal/clipimage"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/textarea"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
@@ -46,6 +51,13 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			if cmd, handled := m.updateSlash(k); handled {
 				return m, cmd
 			}
+		}
+		// A picture in the clipboard becomes a link to the file; anything else
+		// is the text paste of today. The read happens in a command, never
+		// here. An empty bracketed paste is the shape a terminal would use for
+		// a clipboard that carries no text.
+		if isKey && m.slash == nil && (k.String() == "ctrl+v" || (k.Paste && len(k.Runes) == 0)) {
+			return m, m.pasteCmd()
 		}
 		if isKey && (k.String() == "tab" || k.String() == "shift+tab") {
 			if !m.nextCell(k.String() == "tab") {
@@ -334,3 +346,60 @@ func (m *Model) paste() tea.Cmd {
 
 // readClipboard reads the system clipboard; tests replace it.
 var readClipboard = clipboard.ReadAll
+
+// pasteText is the text half of the paste: the textarea's own command reads the
+// clipboard and returns the message it would have produced before. Tests
+// replace it, so they never touch a real clipboard.
+var pasteText = textarea.Paste
+
+// readClipboardImage reads a picture from the clipboard; tests replace it. It
+// reports ok=false when the clipboard holds something else.
+var readClipboardImage = func(ctx context.Context) (core.ClipboardImageMsg, bool, error) {
+	data, ok, err := clipimage.Read(ctx, nil)
+	if !ok {
+		return core.ClipboardImageMsg{}, false, err
+	}
+	return core.ClipboardImageMsg{Path: data.Path, MIME: data.MIME, Ext: data.Ext, Bytes: data.Bytes}, true, nil
+}
+
+// SetClipboardImage replaces how a picture is read from the clipboard (nil
+// restores the real one); the app uses it so tests never touch a clipboard.
+func (m *Model) SetClipboardImage(f func(context.Context) (core.ClipboardImageMsg, bool, error)) {
+	m.readImage = f
+}
+
+// PasteClipboard is the "paste image" action: the same command ctrl+v runs, for
+// the key the user binds to it.
+func (m Model) PasteClipboard() tea.Cmd { return m.pasteCmd() }
+
+// pasteCmd reads the clipboard away from the Update loop: a picture becomes a
+// ClipboardImageMsg for the app to attach, anything else the text paste Misoku
+// has always done. Nothing here may run inside Update, and nothing is replayed
+// from a key.
+func (m Model) pasteCmd() tea.Cmd {
+	read := m.readImage
+	if read == nil {
+		read = readClipboardImage
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		img, ok, err := read(ctx)
+		if ok {
+			return img
+		}
+		// No picture: paste text exactly as before. The clipboard of the text
+		// path may work through a tool this package does not probe (xsel), so a
+		// missing image tool must never take the text paste away from the user.
+		msg := pasteText()
+		if err != nil && errors.Is(err, clipimage.ErrNoTool) {
+			if _, failed := msg.(error); failed || msg == nil {
+				return core.StatusMsg{Text: "Paste image needs " + pasteHint(), Error: true}
+			}
+		}
+		return msg
+	}
+}
+
+// pasteHint names the clipboard tool to install for this session.
+func pasteHint() string { return clipimage.Hint() }

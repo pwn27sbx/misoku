@@ -189,6 +189,7 @@ misoku --themes-dir <path>    # custom themes folder or single .json file
 misoku --version              # print the version
 misoku --help                 # every command and flag (also -h)
 misoku export note.md         # write note.pdf next to the note (-o to pick the file)
+misoku paste-image            # save the picture in the clipboard under ./assets (--dir, --link)
 misoku sync setup             # sync this folder through a private GitHub repository (see Sync)
 misoku sync init <url>        # sync this folder through any git repository, SSH included
 ```
@@ -206,6 +207,8 @@ never use `notes_dir`.
 - **Modal keyboard editing** with mouse support, plus unsaved tabs and Save As.
 - **`/` block menu** for headings, to-dos, tables, callouts, code, images and more.
 - **Live preview** laid out like a page, with syntax highlighting, images and cover banners drawn in the terminal.
+- **Sharp pictures**: in Ghostty, kitty, WezTerm and inside herdr, a picture is drawn by the terminal itself, pixel for pixel; anywhere else it is drawn with half blocks, as before. See [Images](#images).
+- **Paste a picture from the clipboard**: `ctrl+v` in INSERT mode saves it next to the note and links it, alone on its line, so the preview draws it. Text pastes as it always did.
 - **Drag blocks to reorder them** in the preview by their `⠿` handle, or add one below with `+`, like Notion.
 - **Boards, calendars, timelines, charts and forms**, stored as text and editable from the preview.
 - **Flowcharts** from Mermaid syntax (`graph TD` / `graph LR`), drawn with real shapes: boxes, decisions, circles, databases.
@@ -225,6 +228,41 @@ never use `notes_dir`.
 - **Messages you can read again**: errors stay in red in the status bar until you press `Esc` (which still does what it always does); other messages clear on the next key. `:messages` lists the last 100, with the time of each (results only: progress such as `Syncing…` is not kept).
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it; `:graph all` maps every note of the vault at once.
 - **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `s` on the start screen, or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
+
+## Images
+
+A picture in a note is an ordinary Markdown image on a line of its own,
+`![](assets/photo.png)`, and the file lives next to the note in its `assets/`
+folder: sync carries it like any other file.
+
+- **How it is drawn.** In a terminal that speaks the Kitty graphics protocol
+  (Ghostty, kitty, WezTerm, and inside herdr, which draws them itself) the
+  picture is sent once and the terminal draws it, so it stays sharp while you
+  scroll, fold or resize. Everywhere else, and for anything the terminal
+  cannot take, Misoku draws it with `▀` half blocks as it always has.
+- **Choosing.** `"ui": {"images": "blocks"}` in
+  [config](#shortcuts) forces half blocks, `"kitty"` forces the terminal, and
+  `"auto"` (the default) decides from the terminal. `MISOKU_IMAGES=blocks` or
+  `MISOKU_IMAGES=kitty` wins over the file for one run, which is the quickest
+  way to see whether a picture problem is the terminal's.
+- **Pasting.** `ctrl+v` in INSERT mode, the `/` menu's *Paste image* and the
+  [`paste_image`](#shortcuts) key all do the same: the clipboard's picture is
+  saved as `assets/pasted-YYYY-MM-DD_HH-MM-SS.png` (with `-2`, `-3` … when the
+  name is taken) and the link is written on its own line. With no picture in
+  the clipboard, `ctrl+v` pastes text. Reading the clipboard needs
+  `wl-clipboard` on Wayland, `xclip` on X11, `pngpaste` (or AppleScript) on
+  macOS; the status bar names the one to install when none is there.
+- **Super+V does not paste pictures.** Omarchy's universal paste sends
+  Shift+Insert in terminals and Ghostty turns that into "paste the clipboard's
+  text", so with an image-only clipboard the key is consumed before any
+  application sees it. That is a property of the terminal, not of Misoku: use
+  `ctrl+v`, *Paste image* in the `/` menu, or `space i`. Text keeps pasting
+  with Super+V as always.
+- **`misoku paste-image [--dir <folder>] [--link]`** does the same from a
+  shell, for an editor that wants to paste the way Misoku does: it prints the
+  path to link (or the whole `![](…)` with `--link`).
+
+Remote pictures (`https://…`) are still shown as text, not downloaded.
 
 ## Shortcuts
 
@@ -316,6 +354,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `global_graph` | `space G` (Space, then Shift+G) | Graph of every note (same as `:graph all`, see [Global graph](#global-graph)) |
 | `home` | `space d` | Home screen |
 | `sync_now` | `space s` | Sync the vault with git now (same as `:sync`, see [Sync](#sync)) |
+| `paste_image` | `space i` | Paste the picture in the clipboard next to this note and link it (see [Images](#images)); in INSERT mode `ctrl+v` does it too |
 | `help` | `?`, `space h`, `space ?` | This help: the [command palette](#command-palette) |
 | `quit` | `ctrl+c` | Quit (asks to save) |
 
@@ -668,7 +707,7 @@ A sync that starts on its own only writes to the status line when it made confli
 | What a symbolic link points to outside the vault | Only the link itself syncs |
 | New files with a name Windows cannot use (`:`, `*`, `?` and similar, a name ending in a dot or a space, `CON`, `NUL`…) | They would stop every sync on a Windows computer. They stay out until you rename them; meanwhile, deletions are held back, so a note renamed to such a name keeps syncing under its old one. |
 
-Everything else syncs, including the PDFs `:export` and `misoku export` write into the vault. Each of these files gets one line, saying what to do, in `:sync status` and in the output of `misoku sync init`.
+Everything else syncs, including the PDFs `:export` and `misoku export` write into the vault, and the pictures a paste puts in `assets/`. Each of these files gets one line, saying what to do, in `:sync status` and in the output of `misoku sync init`.
 
 ### Troubleshooting
 

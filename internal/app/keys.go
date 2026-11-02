@@ -83,6 +83,8 @@ func (m *Model) runAction(action string) tea.Cmd {
 		m.goHome()
 	case keymap.SyncNow:
 		return m.requestSync()
+	case keymap.PasteImage:
+		return m.content.PasteClipboard()
 	case keymap.Help:
 		return m.openPalette()
 	}

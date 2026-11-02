@@ -19,6 +19,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/export"
+	"github.com/pwn27sbx/misoku/internal/kitty"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/syncout"
 	"github.com/pwn27sbx/misoku/internal/theme"
@@ -36,6 +37,9 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "sync" {
 		os.Exit(runSync(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "paste-image" {
+		os.Exit(runPasteImage(os.Args[2:]))
 	}
 
 	flag.Usage = func() { usage(flag.CommandLine.Output()) }
@@ -122,8 +126,13 @@ func main() {
 	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI))
 
 	// Each frame is drawn as one synchronized update, so a terminal never
-	// shows it half painted; MISOKU_NO_SYNC=1 turns that off.
-	out := syncout.ForTerminal(os.Stdout, os.Getenv)
+	// shows it half painted; MISOKU_NO_SYNC=1 turns that off. Pictures go to
+	// the terminal through the same output as the frames, so a chunked image
+	// upload can never be cut in half by a repaint; the mode comes from
+	// ui.images, and MISOKU_IMAGES wins over it.
+	preview.ConfigureImages(cfg.UI.Images, isTerminal(os.Stdout))
+	out := kitty.NewWriter(syncout.ForTerminal(os.Stdout, os.Getenv))
+	preview.SetImageSink(out)
 	// Every motion report is needed for the preview's block handles, but
 	// most of it changes nothing: MouseFilter drops that before Update and
 	// View run.
@@ -131,6 +140,9 @@ func main() {
 		tea.WithFilter(app.MouseFilter), tea.WithOutput(out))
 	hup := quitOnHangup(p)
 	final, err := p.Run()
+	// The terminal keeps the pixels of every picture Misoku sent; release them
+	// once the program stops drawing.
+	preview.ClearImages()
 	if code := leave(final, err, hup, os.Stderr, pushOnQuit); code != 0 {
 		os.Exit(code)
 	}

@@ -61,6 +61,15 @@ type SlashActionMsg struct {
 	Action string
 }
 
+// ClipboardImageMsg reports a picture read from the clipboard: it is already in
+// the temporary file Path, for the app to attach to the open note.
+type ClipboardImageMsg struct {
+	Path  string
+	MIME  string
+	Ext   string
+	Bytes int
+}
+
 // CopyMsg asks the app to put Text on the system clipboard and confirm it
 // with a toast.
 type CopyMsg struct {

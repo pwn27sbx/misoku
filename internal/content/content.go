@@ -3,6 +3,7 @@
 package content
 
 import (
+	"context"
 	"regexp"
 	"sync/atomic"
 
@@ -35,10 +36,13 @@ type Model struct {
 	dragging bool
 	dragRow  int
 	dragCol  int
-	width    int
-	height   int
-	focused  bool
-	dimmed   bool // greyed out while another pane has the focus
+	// readImage reads a picture from the clipboard for ctrl+v; nil uses
+	// clipimage. The app installs one so tests never touch a clipboard.
+	readImage func(context.Context) (core.ClipboardImageMsg, bool, error)
+	width     int
+	height    int
+	focused   bool
+	dimmed    bool // greyed out while another pane has the focus
 }
 
 // New constructs a Content Model.

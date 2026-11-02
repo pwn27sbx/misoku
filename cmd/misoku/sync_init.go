@@ -140,6 +140,8 @@ func usage(w io.Writer) {
   misoku [folder] [flags]                  open your notes: the folder given, else $MISOKU_WORKSPACE,
                                            else notes_dir in the config, else the current folder
   misoku export <note.md> [-o out.pdf]     export a note to PDF
+  misoku paste-image [--dir <folder>]      save the picture in the clipboard under <folder>/assets
+                                           and print the path to link it (--link prints the link)
   misoku sync setup [--dir <folder>]       sync a folder through a private GitHub repository (recommended)
   misoku sync init <url> [--dir <folder>]  set up git sync of a folder with any git URL (SSH, other services)
 
