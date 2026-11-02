@@ -426,3 +426,38 @@ func TestArrivedNamesWithControlCharactersAreSafe(t *testing.T) {
 		t.Errorf("the bar must show the placeholder:\n%s", seen["bar"])
 	}
 }
+
+// The access stops keep the key from the app's minimum width up too.
+func TestAccessStopsKeepTheKeyFromTheMinimumWidth(t *testing.T) {
+	for _, c := range []struct {
+		name, origin string
+		long         bool
+		at60         string
+	}{
+		{"sign-in offered", githubOrigin, false, "Sync paused · space s signs in"},
+		{"sign-in offered, long name", githubOrigin, true, "Sync paused · space s"},
+		{"no sign-in", "https://gitlab.example/ana/notes.git", false, "Sync error · space s"},
+		{"no sign-in, long name", "https://gitlab.example/ana/notes.git", true, "Sync error · space s"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := newDeniedVault(t, c.origin, true)
+			if c.long {
+				writeOutside(t, d.vault, "a-note-with-a-name-longer-than-the-bar-shows.md", "long")
+				if err := os.Remove(filepath.Join(d.vault, "doc.md")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := wideWindow(t, d.vault, d.cfg, d.exec)
+			atNote(h)
+			h.finish(h.update(app.SyncNowMsg{}))
+			if got := barAt(h, 60); !strings.Contains(got, c.at60) {
+				t.Errorf("at 60 columns the bar must show %q:\n%s", c.at60, got)
+			}
+			for w := 60; w <= 140; w++ {
+				if got := barAt(h, w); !strings.Contains(got, "· space s") {
+					t.Errorf("at %d columns the bar must keep the key:\n%s", w, got)
+				}
+			}
+		})
+	}
+}

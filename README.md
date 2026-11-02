@@ -586,11 +586,11 @@ Misoku can keep a notes folder (a *vault*) the same on all your computers throug
 - when you type `:sync` or press `space s` (`sync_now`, configurable like any [shortcut](#shortcuts));
 - when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it. Closing the terminal pane or window Misoku runs in also pushes, writing the result to Misoku's log.
 
-**What arrived.** After a sync that brought notes, automatic ones included, the status bar names them, by their path in the vault: `2 new notes from another computer: nota.md, otra.md`, `1 note updated from another computer: a.md`, or `2 new notes, 1 updated from another computer: a.md, b.md, c.md`. A long list is cut after three names (`... +2 more · :sync status`): `:sync status` and `:messages` list the first ten of the last notes that arrived and count the rest. Deleted notes and files that are not notes are not named, and no dialog opens.
+**What arrived.** After a sync that brought notes, automatic ones included, the status bar names them, by their path in the vault: `2 new notes from another computer: nota.md, otra.md`, `1 note updated from another computer: a.md`, or `2 new notes, 1 updated from another computer: a.md, b.md, c.md`. A long list is cut after three names (`... +2 more · :sync status`, or just `... +2 more` on the start screen, where `:` opens nothing): `:sync status` and `:messages` list the first ten of the last notes that arrived and count the rest. Deleted notes and files that are not notes are not named, and no dialog opens.
 
 **With Misoku closed, nothing syncs.** Nothing runs in the background: your notes arrive the next time Misoku opens the vault.
 
-**When sync stops, press `space s`** (the bar names your `sync_now` key, and gives up its right-side parts to fit the message). No dialog ever opens on its own; only the key opens one, so nothing takes the keys of the note you are writing; if you typed before it could open, the bar says to press the key again:
+**When sync stops, press `space s`** (the bar names your `sync_now` key, and gives up its right-side parts to fit the message; at the narrowest it reads `Sync offline · space s`). No dialog ever opens on its own; only the key opens one, so nothing takes the keys of the note you are writing; if you typed before it could open, the bar says to press the key again:
 
 - **Offline:** it tries again.
 - **A leftover git lock:** it opens the dialog to remove the lock, the same as `:sync status`. If the lock is gone by then, it just syncs.
@@ -696,10 +696,10 @@ The status bar shows the state of the last sync:
 | `synced just now`, `synced 5m ago` | All in step with the repository |
 | `· N files to check` | Some files do not sync as they are (see below) |
 | `N conflicts` | Conflict copies to resolve |
-| `offline · N pending` | The repository could not be reached; N commits wait to be pushed |
+| `offline · N pending · space s` | The repository could not be reached; N commits wait to be pushed, and the key retries |
 | `sync will retry` | The sync stopped short; the next one tries again |
-| `sync paused` | Something needs you first; nothing was touched |
-| `sync paused, lock left · :sync status` | A git lock file stopped the sync (see [Troubleshooting](#troubleshooting)) |
+| `sync paused · space s` | Something needs you first; nothing was touched |
+| `sync paused, lock left · space s` | A git lock file stopped the sync (see [Troubleshooting](#troubleshooting)) |
 | `sync error` | The repository refused, or git failed |
 | `other window syncs` | Another Misoku window syncs this vault |
 
@@ -731,7 +731,7 @@ Everything else syncs, including the PDFs `:export` and `misoku export` write in
 | `could not sign in to origin` | For GitHub over HTTPS run `gh auth setup-git` (or `misoku sync setup`, which runs it), or set up your git credentials. If it still fails, run `misoku sync init <url>` in a terminal. |
 | `origin's SSH host key changed` | It can mean an attack or a reinstalled server: check the key with `ssh` in a terminal before syncing again. |
 | `another Misoku window syncs this vault` | Only one window syncs a vault; the others see its changes within seconds. When that window closes, the next sync here takes over. |
-| `Sync paused: …` in plain words, `space s` | Press `space s` to read what happened. `:sync status` shows one of the three lines below, with its git commands. |
+| `Sync paused: …` in plain words, `space s` | Press `space s` to read what happened. `:sync status` shows one of the lines below, with its git commands. |
 | `… is in progress in this vault` | A merge, rebase, cherry-pick or revert you started is waiting: finish it (`git merge --continue`…) or cancel it (`git merge --abort`…). Sync waits and touches nothing. |
 | `HEAD is detached` | Check out your branch, for example `git switch main`. |
 | `a git lock file is in the way (.git/index.lock)` | A git command is running in the vault, or one stopped half-way. If no git is running, press `space s` (or open `:sync status`) and choose **Remove the lock and sync** (with the arrow keys or Tab, then Enter). If you typed before the status appeared, it leaves the choice out: open it again. Misoku removes a lock on its own only when it knows it left it itself. |

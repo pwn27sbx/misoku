@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -89,6 +90,9 @@ type syncState struct {
 	// The line of the bar that takes the parts' room, long and compact
 	// (barNotice): the last arrivals, or a stop the sync key answers.
 	noticeLong, noticeCompact string
+	// A stop's notice also has what the bar must always show of it, the key
+	// included, and the shortest way to say that. Empty for any other notice.
+	noticeStop, noticeStopTight string
 }
 
 // setupSync reads the "sync" section of the config file and decides, once,
@@ -347,7 +351,8 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 		}
 		alone := text == summary // nothing else joined the line
 		text = withArrivals(text, msg.res)
-		if compact := stopCompact(msg, m.syncKey()); compact != "" && alone {
+		if compact, tight := stopCompact(msg, m.syncKey()); compact != "" && alone {
+			m.sync.noticeStop, m.sync.noticeStopTight = compact, tight
 			if len(arrived) > 0 {
 				compact += " · " + arrivalCompact(msg.res)
 			}
@@ -375,8 +380,12 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	s := &m.sync
 	s.copies = msg.copies
 	s.leftover = msg.leftover
-	// A local commit says nothing about origin: a stop it did not hit stays.
-	if stop := stopOf(msg); !msg.local || stop != stopNone {
+	// A local commit says nothing about origin, so an origin-side stop it did not
+	// hit stays. A stop in the vault itself ended if the commit went through.
+	stop := stopOf(msg)
+	ended := msg.local && msg.leftover == nil && msg.res.Outcome == gitsync.Synced &&
+		(s.stop == stopDetached || s.stop == stopInProgress)
+	if !msg.local || stop != stopNone || ended {
 		s.stop, s.signIn = stop, msg.signIn
 	}
 	now := m.clock()
@@ -384,6 +393,7 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 		s.arrivedHead, s.arrived, s.arrivedAt = arrivalHead(msg.res), arrived, now
 		s.noticeLong = arrivalLine(s.arrivedHead, arrived)
 		s.noticeCompact = arrivalCompact(msg.res)
+		s.noticeStop, s.noticeStopTight = "", ""
 	}
 	fail := func(kind syncKind, text string) {
 		s.kind, s.lastErr, s.errAt = kind, oneLine(text), now
@@ -415,9 +425,9 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 		switch {
 		case !msg.local:
 			s.kind, s.lastOK = syncOK, now
-		case s.kind == syncBusy:
-			// This window took the lock over: no other window syncs now,
-			// and nothing is known of origin until the next sync.
+		case s.kind == syncBusy, ended:
+			// This window took the lock over, or the stop ended: nothing holds
+			// the vault now, and nothing is known of origin until the next sync.
 			s.kind = syncUnknown
 		}
 	case gitsync.SyncOffline:
@@ -585,43 +595,67 @@ func plural(n int, one, many string) string {
 // syncIndicator is the sync part of the status bar (S9): empty when the
 // folder does not sync, otherwise the state of its last sync.
 func (m *Model) syncIndicator() (string, bool) {
+	text, answered, alert := m.syncStateText()
+	if answered {
+		text += " · " + m.syncKey()
+	}
+	return text, alert
+}
+
+// syncStateText is the state of the last sync in words, and whether the sync
+// key answers it: a stop the key answers says so on the bar, and any other says
+// only what it is.
+func (m *Model) syncStateText() (text string, answered, alert bool) {
 	if m.syncVault == nil {
-		return "", false
+		return "", false, false
 	}
 	if m.syncing && (m.syncRun == nil || !m.syncRun.local) {
-		return "󰓦 syncing…", false
+		return "󰓦 syncing…", false, false
 	}
 	s := m.sync
 	if s.leftover != nil {
-		return "󰓦 sync paused, lock left · " + m.syncKey(), true
-	}
-	// A stop the sync key answers says so; any other says only what it is.
-	answer := ""
-	if s.stop != stopNone {
-		answer = " · " + m.syncKey()
+		return "󰓦 sync paused, lock left", true, true
 	}
 	switch s.kind {
 	case syncBusy:
-		return "󰓦 other window syncs", false
+		return "󰓦 other window syncs", false, false
 	case syncPaused:
-		return "󰓦 sync paused" + answer, true
+		return "󰓦 sync paused", s.stop != stopNone, true
 	case syncError:
-		return "󰓦 sync error" + answer, true
+		return "󰓦 sync error", s.stop != stopNone, true
 	case syncRetry:
-		return "󰓦 sync will retry", false
+		return "󰓦 sync will retry", false, false
 	case syncOffline:
-		return fmt.Sprintf("󰓦 offline · %d pending · %s", s.pending, m.syncKey()), true
+		return fmt.Sprintf("󰓦 offline · %d pending", s.pending), true, true
 	case syncOK:
 		if n := len(s.copies); n > 0 {
-			return fmt.Sprintf("󰓦 %d %s", n, plural(n, "conflict", "conflicts")), true
+			return fmt.Sprintf("󰓦 %d %s", n, plural(n, "conflict", "conflicts")), false, true
 		}
-		text := "󰓦 synced " + ago(m.clock().Sub(s.lastOK))
+		text = "󰓦 synced " + ago(m.clock().Sub(s.lastOK))
 		if n := len(s.files); n > 0 {
-			return text + fmt.Sprintf(" · %d %s to check", n, plural(n, "file", "files")), true
+			return text + fmt.Sprintf(" · %d %s to check", n, plural(n, "file", "files")), false, true
 		}
-		return text, false
+		return text, false, false
 	}
-	return "", false
+	return "", false, false
+}
+
+var (
+	// homeRestHint is the command after the count of a long list of arrivals.
+	homeRestHint = regexp.MustCompile(`( \.\.\. \+\d+ more) · :sync status`)
+	// homeKeyHint is what syncKey says with no key bound, and what follows it.
+	homeKeyHint = regexp.MustCompile(` · :sync(?: retries| signs in| opens it)?( · |$)`)
+)
+
+// barText is text as the bar draws it. The start screen has no command line and
+// typing `:` there runs letters as shortcuts, so it leaves out the sync lines'
+// commands; `:messages` keeps them, as it is read where they work.
+func (m *Model) barText(text string) string {
+	if m.viewMode != viewModeDashboard {
+		return text
+	}
+	text = homeRestHint.ReplaceAllString(text, "$1")
+	return homeKeyHint.ReplaceAllString(text, "$1")
 }
 
 // every says how often timed sync runs.
@@ -753,22 +787,23 @@ func stopOf(msg syncDoneMsg) syncStop {
 	return stopNone
 }
 
-// stopCompact is a stop's line for a narrow bar, keeping the key; empty for a
-// line that is not a stop the sync key answers, which draws as any message.
-func stopCompact(msg syncDoneMsg, key string) string {
+// stopCompact is a stop's line for a narrow bar, keeping the key, and the
+// shortest line that still names it; empty for a line that is not a stop the
+// sync key answers, which draws as any message.
+func stopCompact(msg syncDoneMsg, key string) (compact, tight string) {
 	stop := stopOf(msg)
 	_, plain := stopWords[stop]
 	switch {
 	case msg.leftover != nil, plain:
-		return "Sync paused · " + key
+		return "Sync paused · " + key, "Sync paused · " + key
 	case stop == stopAccess && msg.signIn != nil:
-		return "Sync paused · " + key + " signs in"
+		return "Sync paused · " + key + " signs in", "Sync paused · " + key
 	case stop == stopAccess:
-		return "Sync error · " + key
+		return "Sync error · " + key, "Sync error · " + key
 	case msg.err == nil && !msg.busy && msg.paused.Status != gitsync.Paused && msg.res.Outcome == gitsync.SyncOffline:
-		return "Sync offline · " + key + " retries"
+		return "Sync offline · " + key + " retries", "Sync offline · " + key
 	}
-	return ""
+	return "", ""
 }
 
 // stopWords says the stops no button fixes in plain words, naming no command.
@@ -958,7 +993,7 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 		return
 	}
 	info, s := msg.info, m.sync
-	state, _ := m.syncIndicator()
+	state, _, _ := m.syncStateText()
 	state = strings.TrimSpace(strings.TrimPrefix(state, "󰓦"))
 	if state == "" {
 		state = "not synced yet in this window"

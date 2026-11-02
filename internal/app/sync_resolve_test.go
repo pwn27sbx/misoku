@@ -392,6 +392,7 @@ func TestStoppedBarNamesTheConfiguredKey(t *testing.T) {
 			}
 			opt := app.WithKeys(map[string][]string{"sync_now": c.keys})
 			h := wideWindow(t, vault, syncConfig(t, vault), opt)
+			atNote(h) // the fallback `:sync` works only with a note open
 			h.finish(h.update(app.SyncNowMsg{}))
 			wantLine(t, h, "pending · "+c.want+" retries")
 			if strings.Contains(bottomRow(h), "space s") {
@@ -399,12 +400,17 @@ func TestStoppedBarNamesTheConfiguredKey(t *testing.T) {
 			}
 
 			detached := historyStops[3]
-			_, _, stopped := stoppedWindow(t, detached, opt)
+			dremote, dvault := syncedVault(t)
+			detached.make(t, dremote, dvault)
+			stopped := wideWindow(t, dvault, syncConfig(t, dvault), opt)
+			atNote(stopped)
+			stopped.finish(stopped.update(app.SyncNowMsg{}))
 			wantLine(t, stopped, detached.bar+" · "+c.want)
 
 			_, locked := syncedVault(t)
 			leftoverLock(t, locked)
 			lh := wideWindow(t, locked, syncConfig(t, locked), opt)
+			atNote(lh)
 			lh.finish(lh.update(app.SyncNowMsg{}))
 			wantLine(t, lh, "lock left · "+c.want)
 		})
@@ -566,6 +572,7 @@ func TestCompactStopKeepsTheArrivals(t *testing.T) {
 	writeOutside(t, vault, "mine.md", "mine")
 	h.finish(h.update(app.SyncNowMsg{}))
 	wantRows(t, h, map[int]string{
+		60:  "Sync offline · space s retries",
 		80:  "Sync offline · space s retries · 1 new",
 		100: "Sync offline · space s retries · 1 new note: nota.md",
 		140: "Sync: offline, 2 pending · space s retries · 1 new note from another computer: nota.md",
@@ -757,4 +764,243 @@ func TestSyncKeyWhileSyncingOpensNothing(t *testing.T) {
 	wantNoDialog(t, h)
 	wantLine(t, h, "Already syncing")
 	h.finish(running)
+}
+
+// longNamedNote moves the vault's only note to a name longer than the bar shows,
+// in a folder, so the left side of the bar is as wide as it gets.
+func longNamedNote(t *testing.T, vault string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(vault, "a-folder-with-a-rather-long-name"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, vault, "mv", "doc.md", "a-folder-with-a-rather-long-name/a-note-with-a-name-longer-than-the-bar-shows.md")
+	gitIn(t, vault, "commit", "-q", "-m", "long name")
+	gitIn(t, vault, "push", "-q", "origin", "main")
+}
+
+// narrowStops is every stop made by the state of the vault alone, with the
+// words its message keeps down to the shortest form.
+var narrowStops = []struct {
+	name    string
+	make    func(t *testing.T, remote, vault string)
+	compact string // %s is the key
+	tight   string
+}{
+	{"offline", func(t *testing.T, remote, _ string) {
+		if err := os.Rename(remote, remote+".gone"); err != nil {
+			t.Fatal(err)
+		}
+	}, "Sync offline · %s retries", "Sync offline · %s"},
+	{"lock", func(t *testing.T, _, vault string) { leftoverLock(t, vault) }, "Sync paused · %s", "Sync paused · %s"},
+	{historyStops[0].name, historyStops[0].make, "Sync paused · %s", "Sync paused · %s"},
+	{historyStops[1].name, historyStops[1].make, "Sync paused · %s", "Sync paused · %s"},
+	{historyStops[2].name, historyStops[2].make, "Sync paused · %s", "Sync paused · %s"},
+	{historyStops[3].name, historyStops[3].make, "Sync paused · %s", "Sync paused · %s"},
+}
+
+// From the app's minimum width up, a stop's message keeps the key: the parts go
+// first, then the folder, then the words, and the note's name last.
+func TestStopKeepsTheKeyFromTheMinimumWidth(t *testing.T) {
+	t.Parallel()
+	const custom = "Ctrl+Alt+Shift+Pgdown"
+	customKey := app.WithKeys(map[string][]string{"sync_now": {"ctrl+alt+shift+pgdown"}})
+	for _, stop := range narrowStops {
+		for _, c := range []struct {
+			name   string
+			long   bool // the note has a long name, in a folder
+			dirty  bool
+			home   bool
+			custom bool
+			at60   string // %s is the key
+		}{
+			{name: "short name", at60: stop.compact},
+			{name: "long name", long: true, at60: stop.tight},
+			{name: "long name with unsaved edits", long: true, dirty: true, at60: stop.tight},
+			{name: "long name and a long custom key", long: true, custom: true, at60: stop.tight},
+			{name: "start screen", home: true, at60: "· %s"},
+		} {
+			t.Run(stop.name+"/"+c.name, func(t *testing.T) {
+				t.Parallel()
+				remote, vault := syncedVault(t)
+				if c.long {
+					longNamedNote(t, vault)
+				}
+				stop.make(t, remote, vault)
+				key, opts := "space s", []app.Option{}
+				if c.custom {
+					key, opts = custom, []app.Option{customKey}
+				}
+				h := wideWindow(t, vault, syncConfig(t, vault), opts...)
+				if !c.home {
+					atNote(h)
+				}
+				if c.dirty {
+					h.keys("Aedit")
+					h.key(tea.KeyEsc)
+				}
+				h.finish(h.update(app.SyncNowMsg{}))
+				if got, want := barAt(h, 60), strings.ReplaceAll(c.at60, "%s", key); !strings.Contains(got, want) {
+					t.Errorf("at 60 columns the bar must show %q:\n%s", want, got)
+				}
+				for w := 60; w <= 140; w++ {
+					got := barAt(h, w)
+					if !strings.Contains(got, "· "+key) {
+						t.Errorf("at %d columns the bar must keep the key %q:\n%s", w, key, got)
+					}
+				}
+			})
+		}
+	}
+}
+
+// What gives way is only what the message needs: with room for the message the
+// position stays, and at the minimum width the note's name is cut, not dropped.
+func TestStopGivesUpOnlyWhatItNeeds(t *testing.T) {
+	t.Parallel()
+	offline := narrowStops[0]
+	remote, vault := syncedVault(t)
+	offline.make(t, remote, vault)
+	h := wideWindow(t, vault, syncConfig(t, vault))
+	atNote(h)
+	h.finish(h.update(app.SyncNowMsg{}))
+	if got := barAt(h, 80); !strings.Contains(got, "Sync offline · space s retries") || !strings.Contains(got, "Ln 1, Col 1") {
+		t.Errorf("at 80 columns the message and the position both fit:\n%s", got)
+	}
+	got := barAt(h, 60)
+	if !strings.Contains(got, "Sync offline · space s retries") || !strings.Contains(got, "doc.md") {
+		t.Errorf("at 60 columns the message and the note's name both fit:\n%s", got)
+	}
+
+	remote, vault = syncedVault(t)
+	longNamedNote(t, vault)
+	offline.make(t, remote, vault)
+	h = wideWindow(t, vault, syncConfig(t, vault))
+	atNote(h)
+	h.finish(h.update(app.SyncNowMsg{}))
+	got = barAt(h, 60)
+	if !strings.Contains(got, "a-note-with") || strings.Contains(got, "a-folder") {
+		t.Errorf("at 60 columns the folder goes first and the name is only cut:\n%s", got)
+	}
+}
+
+// On the start screen `:` opens no command line: with no key to name, the bar
+// says what happened and suggests nothing.
+func TestStartScreenWithNoSyncKeySuggestsNoCommand(t *testing.T) {
+	t.Parallel()
+	unbound := app.WithKeys(map[string][]string{"sync_now": {}})
+	for _, c := range []struct {
+		name string
+		make func(t *testing.T, remote, vault string)
+		want string
+	}{
+		{"offline", narrowStops[0].make, "Sync: offline, 0 pending"},
+		{"lock", narrowStops[1].make, "Sync paused: a git lock file is in the way (.git/index.lock)"},
+		{"detached", historyStops[3].make, "Sync paused: " + historyStops[3].bar},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			remote, vault := syncedVault(t)
+			c.make(t, remote, vault)
+			h := wideWindow(t, vault, syncConfig(t, vault), unbound)
+			h.finish(h.update(app.SyncNowMsg{}))
+			wantLine(t, h, c.want)
+			if got := bottomRow(h); strings.Contains(got, ":sync") {
+				t.Errorf("no command on the start screen:\n%s", got)
+			}
+			if got := barAt(h, 80); strings.Contains(got, ":sync") {
+				t.Errorf("no command on the start screen, in the compact form either:\n%s", got)
+			}
+			h.key(tea.KeyEsc)
+			if got := barAt(h, 200); strings.Contains(got, ":sync") {
+				t.Errorf("no command in the indicator either:\n%s", got)
+			}
+		})
+	}
+}
+
+// stateRow is the State row of the `:sync status` dialog, up to the box's border.
+var stateRow = regexp.MustCompile(`State:[^│]*`)
+
+// The State row says the state; the key belongs to the bar's indicator.
+func TestSyncStatusStateRowNamesNoKey(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name  string
+		make  func(t *testing.T, remote, vault string)
+		state string
+	}{
+		{"offline", narrowStops[0].make, "State: offline · 0 pending"},
+		{"lock", narrowStops[1].make, "State: sync paused, lock left"},
+		{"detached", historyStops[3].make, "State: sync paused"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			remote, vault := syncedVault(t)
+			c.make(t, remote, vault)
+			h := wideWindow(t, vault, syncConfig(t, vault))
+			h.finish(h.update(app.SyncNowMsg{}))
+			if got := bottomRow(h); !strings.Contains(got, "· space s") {
+				t.Fatalf("setup: the bar's indicator names the key:\n%s", got)
+			}
+			h.key(tea.KeyEsc)
+			askSyncStatus(h)
+			row := strings.TrimSpace(stateRow.FindString(h.screen()))
+			if row != c.state {
+				t.Errorf("the State row:\n got %q\nwant %q", row, c.state)
+			}
+		})
+	}
+}
+
+// A successful local commit shows a stop in this vault ended: the indicator
+// stops naming it, the key syncs instead of explaining, and the note goes out.
+func TestLocalCommitClearsAStopItDisproves(t *testing.T) {
+	t.Parallel()
+	for _, c := range []historyStop{historyStops[2], historyStops[3]} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			remote, vault := syncedVault(t)
+			c.make(t, remote, vault)
+			clock := newTestClock()
+			h := wideWindow(t, vault, intervalConfig(t, vault, "0"), app.WithClock(clock.Now))
+			h.finish(h.update(app.SyncNowMsg{}))
+			wantLine(t, h, "sync paused · space s")
+			c.fix(t, remote, vault)
+			openAndSave(h, "more")
+			clock.add(10 * time.Second)
+			if n := poll(h); n != 1 {
+				t.Fatalf("the commit after the save must run (%d commands ran)", n)
+			}
+			if got := bottomRow(h); strings.Contains(got, "sync paused") || strings.Contains(got, "· space s") {
+				t.Errorf("the stop ended, so the bar must stop naming it:\n%s", got)
+			}
+			h.finish(pressSync(h))
+			wantNoDialog(t, h)
+			wantLine(t, h, "Synced")
+			if pushed, head := gitIn(t, remote, "rev-parse", "main"), gitIn(t, vault, "rev-parse", "HEAD"); pushed != head {
+				t.Errorf("the key must sync: origin at %s, vault at %s", pushed, head)
+			}
+		})
+	}
+}
+
+// A local run that did not succeed disproves nothing: the key still explains.
+func TestLocalRunThatFailsKeepsTheStop(t *testing.T) {
+	t.Parallel()
+	c := historyStops[3]
+	remote, vault := syncedVault(t)
+	c.make(t, remote, vault)
+	clock := newTestClock()
+	h := wideWindow(t, vault, intervalConfig(t, vault, "0"), app.WithClock(clock.Now))
+	h.finish(h.update(app.SyncNowMsg{}))
+	c.fix(t, remote, vault)
+	gitIn(t, vault, "remote", "remove", "origin") // now it pauses for another reason
+	openAndSave(h, "more")
+	clock.add(10 * time.Second)
+	if n := poll(h); n != 1 {
+		t.Fatalf("the commit after the save must run (%d commands ran)", n)
+	}
+	if cmd := pressSync(h); cmd != nil || !strings.Contains(h.screen(), "Check again") {
+		t.Fatalf("the key must still explain:\n%s", h.screen())
+	}
 }

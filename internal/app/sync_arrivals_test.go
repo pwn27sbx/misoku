@@ -537,3 +537,20 @@ func TestRightPartsReturnWhenTheNoticeClears(t *testing.T) {
 		}
 	}
 }
+
+// On the start screen `:` opens no command line, so the bar keeps the count of
+// the rest and leaves the command out, whatever the width.
+func TestStartScreenCutsALongListWithoutACommand(t *testing.T) {
+	t.Parallel()
+	remote, vault := syncedVault(t)
+	h := wideWindow(t, vault, syncConfig(t, vault))
+	h.finish(h.update(app.SyncNowMsg{}))
+	pushNotes(t, remote, numberedNotes(13)...)
+	h.finish(h.update(app.SyncNowMsg{}))
+	wantLine(t, h, "13 new notes from another computer: note01.md, note02.md, note03.md ... +10 more")
+	for _, w := range []int{1000, 110, 90} {
+		if got := barAt(h, w); strings.Contains(got, ":sync") || !strings.Contains(got, "... +10 more") {
+			t.Errorf("at %d columns the bar must keep the count and suggest no command:\n%s", w, got)
+		}
+	}
+}
