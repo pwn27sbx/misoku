@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -446,8 +447,10 @@ func TestSyncKeyOpensTheLockDialog(t *testing.T) {
 	}
 }
 
-// S7: the same guard as `:sync status`: keys typed meanwhile keep the offer away.
-func TestSyncKeyOffersNoRemovalWhileTyping(t *testing.T) {
+// S5, S7: keys typed while the status is read are the note's: no dialog of any
+// kind opens under them, the keys keep going to the note, and the bar says how
+// to open it.
+func TestSyncKeyOpensNoDialogWhileTyping(t *testing.T) {
 	t.Parallel()
 	_, vault := syncedVault(t)
 	lock := leftoverLock(t, vault)
@@ -455,13 +458,146 @@ func TestSyncKeyOffersNoRemovalWhileTyping(t *testing.T) {
 	h.finish(h.update(app.SyncNowMsg{}))
 	atNote(h)
 	pending := pressSync(h)
-	h.keys("i- item")
+	h.keys("A typed")
 	h.finish(pending)
-	if strings.Contains(h.screen(), removeButton) {
-		t.Fatalf("the offer must not open under typed keys:\n%s", h.screen())
+	if v := h.screen(); strings.Contains(v, "╭") {
+		t.Fatalf("no dialog may open under typed keys:\n%s", v)
+	}
+	wantLine(t, h, "space s opens it")
+	h.keys(" more")
+	if got := h.editor(); !strings.Contains(got, "base typed more") {
+		t.Fatalf("the keys must reach the note, got %q:\n%s", got, h.screen())
 	}
 	if !lockThere(t, lock) {
 		t.Fatal("typed keys must not remove the lock")
+	}
+	h.key(tea.KeyEsc)
+	h.key(tea.KeyEsc)
+	h.finish(pressSync(h))
+	if !strings.Contains(h.screen(), removeButton) {
+		t.Fatalf("the key opens it once nothing was typed:\n%s", h.screen())
+	}
+}
+
+// With no key pressed meanwhile the read opens the dialog, as `:sync status`
+// does; typing there still gets its status with no offer.
+func TestSyncStatusTypedBeforeTheReadStillShows(t *testing.T) {
+	t.Parallel()
+	_, vault := syncedVault(t)
+	leftoverLock(t, vault)
+	h := wideWindow(t, vault, syncConfig(t, vault))
+	h.finish(h.update(app.SyncNowMsg{}))
+	atNote(h)
+	h.keys(":sync status")
+	h.update(tea.KeyMsg{Type: tea.KeyEnter})
+	pending := h.update(core.SyncStatusMsg{})
+	h.keys("i- item")
+	h.finish(pending)
+	if v := noSpace(dialogText(h.screen())); !strings.Contains(v, ":syncstatusagain") {
+		t.Fatalf(":sync status keeps showing its detail:\n%s", h.screen())
+	}
+}
+
+// stopRows is what a real bar shows with a note open, at each width.
+func wantRows(t *testing.T, h *harness, rows map[int]string) {
+	t.Helper()
+	for w, want := range rows {
+		if got := barAt(h, w); !strings.Contains(got, want) {
+			t.Errorf("at %d columns the bar must show %q:\n%s", w, want, got)
+		}
+	}
+}
+
+// The bar gives a stop's message the room the arrival notice gets: the parts go
+// first, and the compact form keeps the key.
+func TestStopMessagesShowAtNormalWidths(t *testing.T) {
+	t.Parallel()
+	const compact = "Sync paused · space s"
+	long := func(bar string) string { return "Sync paused: " + bar + " · space s" }
+	for _, c := range []struct {
+		name string
+		make func(t *testing.T, remote, vault string)
+		rows map[int]string
+	}{
+		{"offline", func(t *testing.T, remote, _ string) {
+			if err := os.Rename(remote, remote+".gone"); err != nil {
+				t.Fatal(err)
+			}
+		}, map[int]string{
+			80:  "Sync offline · space s retries  Esc",
+			100: "Sync: offline, 0 pending · space s retries",
+			120: "Sync: offline, 0 pending · space s retries",
+			140: "Sync: offline, 0 pending · space s retries",
+		}},
+		{"lock", func(t *testing.T, _, vault string) { leftoverLock(t, vault) }, map[int]string{
+			80:  compact,
+			100: compact,
+			120: "Sync paused: " + "a git lock file is in the way (.git/index.lock) · space s",
+			140: "Sync paused: " + "a git lock file is in the way (.git/index.lock) · space s",
+		}},
+		{historyStops[0].name, historyStops[0].make, map[int]string{80: compact, 100: compact, 120: long(historyStops[0].bar), 140: long(historyStops[0].bar)}},
+		{historyStops[1].name, historyStops[1].make, map[int]string{80: compact, 100: compact, 120: long(historyStops[1].bar), 140: long(historyStops[1].bar)}},
+		{historyStops[2].name, historyStops[2].make, map[int]string{80: compact, 100: compact, 120: long(historyStops[2].bar), 140: long(historyStops[2].bar)}},
+		{historyStops[3].name, historyStops[3].make, map[int]string{80: compact, 100: long(historyStops[3].bar), 120: long(historyStops[3].bar), 140: long(historyStops[3].bar)}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			remote, vault := syncedVault(t)
+			c.make(t, remote, vault)
+			h := wideWindow(t, vault, syncConfig(t, vault))
+			atNote(h)
+			h.finish(h.update(app.SyncNowMsg{}))
+			wantRows(t, h, c.rows)
+			// The parts come back once the message is dismissed.
+			h.key(tea.KeyEsc)
+			if got := barAt(h, 140); !strings.Contains(got, "Ln 1, Col 1") || !strings.Contains(got, "Markdown") {
+				t.Errorf("the parts must come back:\n%s", got)
+			}
+		})
+	}
+}
+
+// A stop with notes that arrived keeps both in the compact form too.
+func TestCompactStopKeepsTheArrivals(t *testing.T) {
+	t.Parallel()
+	remote, vault, h := arrivalWindow(t)
+	pushNotes(t, remote, "nota.md")
+	gitIn(t, vault, "remote", "set-url", "--push", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	writeOutside(t, vault, "mine.md", "mine")
+	h.finish(h.update(app.SyncNowMsg{}))
+	wantRows(t, h, map[int]string{
+		80:  "Sync offline · space s retries · 1 new",
+		100: "Sync offline · space s retries · 1 new note: nota.md",
+		140: "Sync: offline, 2 pending · space s retries · 1 new note from another computer: nota.md",
+	})
+}
+
+// A stop's line that also says something else draws as any other message.
+func TestStopSharingTheLineKeepsTheParts(t *testing.T) {
+	t.Parallel()
+	remote, vault, h := arrivalWindow(t)
+	pushNotes(t, remote, "doc.md")
+	gitIn(t, vault, "remote", "set-url", "--push", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	writeOutside(t, vault, "mine.md", "mine")
+	h.finish(h.update(app.SyncNowMsg{}))
+	got := barAt(h, 120)
+	for _, want := range []string{"Markdown", "Ln 1, Col 1", "Sync: offline"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the bar draws as for any other message (%q):\n%s", want, got)
+		}
+	}
+}
+
+// Any other stop draws as before: the parts stay.
+func TestOtherStopTakesNoRoom(t *testing.T) {
+	t.Parallel()
+	_, vault := syncedVault(t)
+	gitIn(t, vault, "remote", "remove", "origin")
+	h := wideWindow(t, vault, syncConfig(t, vault))
+	atNote(h)
+	h.finish(h.update(app.SyncNowMsg{}))
+	if got := barAt(h, 120); !strings.Contains(got, "Markdown") || !strings.Contains(got, "Ln 1, Col 1") {
+		t.Errorf("this message takes no room from the parts:\n%s", got)
 	}
 }
 

@@ -135,6 +135,7 @@ func TestSyncKeySignsInToGitHubThenSyncs(t *testing.T) {
 	if got := d.calls(t); got != "" || len(d.outside) != 0 {
 		t.Fatalf("nothing runs before the choice: %q %q", got, d.outside)
 	}
+	h.key(tea.KeyLeft)
 	h.finish(h.update(tea.KeyMsg{Type: tea.KeyEnter}))
 	if len(d.outside) != 1 || d.outside[0] != signInLogin {
 		t.Fatalf("the sign-in must run outside the screen, once: %q", d.outside)
@@ -195,6 +196,7 @@ func TestSignInThatDidNotFinishStaysStopped(t *testing.T) {
 			h := d.window(t)
 			atNote(h)
 			pressSync(h)
+			h.key(tea.KeyLeft)
 			h.finish(h.update(tea.KeyMsg{Type: tea.KeyEnter}))
 			wantLine(t, h, c.want)
 			wantNoDialog(t, h)
@@ -331,5 +333,96 @@ func TestGitProblemsKeepTheirTextAndSync(t *testing.T) {
 			h.finish(h.update(app.SyncNowMsg{}))
 			wantNoDialog(t, h)
 		})
+	}
+}
+
+// Enter alone launches nothing: the sign-in starts on Cancel, as the lock's
+// dialog does, and takes an arrow or Tab first.
+func TestEnterAloneDoesNotSignIn(t *testing.T) {
+	d := newDeniedVault(t, githubOrigin, true)
+	h := d.window(t)
+	atNote(h)
+	pressSync(h)
+	if cmd := h.update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		t.Fatal("Enter on Cancel must run nothing")
+	}
+	wantNoDialog(t, h)
+	if len(d.outside) != 0 || d.calls(t) != "" {
+		t.Fatalf("Enter alone must launch nothing: %q %q", d.outside, d.calls(t))
+	}
+	pressSync(h)
+	h.key(tea.KeyTab)
+	h.finish(h.update(tea.KeyMsg{Type: tea.KeyEnter}))
+	if len(d.outside) != 1 {
+		t.Fatalf("Tab, then Enter, chooses Sign in: %q", d.outside)
+	}
+}
+
+// The access stop takes the bar's room as the others do.
+func TestAccessStopsShowAtNormalWidths(t *testing.T) {
+	for _, c := range []struct {
+		name, origin string
+		rows         map[int]string
+	}{
+		{"sign-in offered", githubOrigin, map[int]string{
+			80:  "Sync paused · space s signs in",
+			100: "Sync paused · space s signs in",
+			120: "Sync paused: GitHub did not let this computer in · space s signs in",
+			140: "Sync paused: GitHub did not let this computer in · space s signs in",
+		}},
+		{"no sign-in", "https://gitlab.example/ana/notes.git", map[int]string{
+			80:  "Sync error · space s",
+			100: "Sync error · space s",
+			120: "Sync error · space s",
+			140: "Sync error · space s",
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := newDeniedVault(t, c.origin, true)
+			h := wideWindow(t, d.vault, d.cfg, d.exec)
+			atNote(h)
+			h.finish(h.update(app.SyncNowMsg{}))
+			for w, want := range c.rows {
+				if got := barAt(h, w); !strings.Contains(got, want) {
+					t.Errorf("at %d columns the bar must show %q:\n%s", w, want, got)
+				}
+			}
+		})
+	}
+}
+
+// Fix for names git can carry and a terminal must not obey: a line break, or
+// escape sequences. A placeholder shows wherever arrivals are shown.
+func TestArrivedNamesWithControlCharactersAreSafe(t *testing.T) {
+	remote, _, h := arrivalWindow(t)
+	const clear, clip = "\x1b[2J", "\x1b]52;c;QUJD\x07"
+	names := []string{"two\nlines.md", "wipe" + clear + ".md", "clip" + clip + ".md", "del\x7f.md"}
+	pushNotes(t, remote, names...)
+	h.finish(h.update(app.SyncNowMsg{}))
+	seen := map[string]string{
+		"bar":     barAt(h, 200),
+		"compact": barAt(h, 80),
+	}
+	h.send(tea.WindowSizeMsg{Width: 200, Height: termH})
+	if rows := strings.Count(h.screen(), "\n") + 1; rows != termH {
+		t.Errorf("a name must not add a row: %d rows in a frame of %d", rows, termH)
+	}
+	seen["messages"] = messagesView(h)
+	askSyncStatus(h)
+	seen["sync status"] = h.screen()
+	for where, v := range seen {
+		for _, raw := range []string{clear, clip, "\x1b]52", "two\nlines"} {
+			if strings.Contains(v, raw) {
+				t.Errorf("%s must not carry %q:\n%q", where, raw, v)
+			}
+		}
+	}
+	for _, where := range []string{"messages", "sync status"} {
+		if !strings.Contains(seen[where], "two\uFFFDlines.md") || !strings.Contains(seen[where], "del\uFFFD.md") {
+			t.Errorf("%s must show the placeholder:\n%s", where, seen[where])
+		}
+	}
+	if !strings.Contains(seen["bar"], "\uFFFD") || strings.Contains(seen["bar"], "\x7f") {
+		t.Errorf("the bar must show the placeholder:\n%s", seen["bar"])
 	}
 }

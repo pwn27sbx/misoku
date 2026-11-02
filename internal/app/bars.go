@@ -276,16 +276,17 @@ func (m *Model) statusline() string {
 		right = strings.Join(parts, "")
 	}
 	msg := m.message()
-	if compact, ok := m.arrivalNotice(); ok {
-		// Only this notice takes the parts' room: naming what arrived is its
-		// whole point, and it clears on the next key.
-		fits := func() bool { return lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(msg)+1 <= m.width }
-		for len(parts) > 1 && !fits() {
+	if compact, ok := m.barNotice(); ok {
+		// Only these notices take the parts' room: what arrived, and a stopped
+		// sync with the key that answers it, are their whole point. The text
+		// alone decides the compact form: an error's hint may be cut.
+		fits := func(s string) bool { return lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(s)+1 <= m.width }
+		for len(parts) > 1 && !fits(msg) {
 			parts = parts[1:]
 			right = strings.Join(parts, "")
 		}
-		if !fits() {
-			msg = fill.Foreground(th.Fg).Render("  " + compact)
+		if !fits("  " + m.status) {
+			msg = m.messageOf(compact)
 		}
 	}
 	if msg != "" {
@@ -313,15 +314,22 @@ func (m *Model) bottomBar() string {
 // message is the transient text shown in the middle of the statusline.
 func (m *Model) message() string {
 	th := m.theme
-	fill := lipgloss.NewStyle().Background(th.StatusBg)
 	switch {
-	case m.status != "" && m.statusErr:
-		return fill.Foreground(th.Red).Render("  "+m.status) +
-			fill.Foreground(th.GreyFg).Render("  Esc dismiss · :messages")
 	case m.status != "":
-		return fill.Foreground(th.Fg).Render("  " + m.status)
+		return m.messageOf(m.status)
 	case m.leaderPending:
-		return fill.Foreground(th.Blue).Bold(true).Render("  <Space>")
+		return lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Blue).Bold(true).Render("  <Space>")
 	}
 	return ""
+}
+
+// messageOf draws text as the status: an error in red, with its hint.
+func (m *Model) messageOf(text string) string {
+	th := m.theme
+	fill := lipgloss.NewStyle().Background(th.StatusBg)
+	if m.statusErr {
+		return fill.Foreground(th.Red).Render("  "+text) +
+			fill.Foreground(th.GreyFg).Render("  Esc dismiss · :messages")
+	}
+	return fill.Foreground(th.Fg).Render("  " + text)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -317,31 +318,60 @@ func TestSyncStatusCapsALongListOfArrivals(t *testing.T) {
 	if got, want := arrivalRows(v), numberedNotes(10); !slices.Equal(got, want) {
 		t.Errorf(":sync status lists %q, want %q:\n%s", got, want, v)
 	}
-	if !strings.Contains(v, "… and 2 more") || !strings.Contains(v, ":messages has them all") {
-		t.Errorf("want the rest counted, and where they are:\n%s", v)
+	if !strings.Contains(v, "… and 2 more") {
+		t.Errorf("want the rest counted:\n%s", v)
+	}
+	if strings.Contains(v, "has them all") {
+		t.Errorf("nothing keeps every name of a long list:\n%s", v)
 	}
 }
 
-// S4: `:messages` keeps every name of a list the bar cut.
-func TestMessagesKeepEveryNoteOfALongList(t *testing.T) {
+// messageRows is the rows of `:messages` only: the explorer on screen also shows
+// the names.
+func messageRows(h *harness) string {
+	h.t.Helper()
+	var listed []string
+	for _, row := range strings.Split(messagesView(h), "\n") {
+		if strings.Contains(row, "14:05") {
+			listed = append(listed, row)
+		}
+	}
+	return strings.Join(listed, "\n")
+}
+
+// S4: `:messages` lists the names of a list the bar cut, as many as `:sync
+// status` does, and counts the rest.
+func TestMessagesListTheNamesOfALongList(t *testing.T) {
 	t.Parallel()
 	remote, _, h := arrivalWindow(t)
 	pushNotes(t, remote, numberedNotes(12)...)
 	h.finish(h.update(app.SyncNowMsg{}))
 	wantWideBar(t, h, "+9 more")
-	// Only the rows of the list: the explorer on screen also shows the names.
-	v := messagesView(h)
-	var listed []string
-	for _, row := range strings.Split(v, "\n") {
-		if strings.Contains(row, "14:05") {
-			listed = append(listed, row)
+	rows := messageRows(h)
+	for _, name := range numberedNotes(10) {
+		if !strings.Contains(rows, name) {
+			t.Errorf(":messages must list %s:\n%s", name, rows)
 		}
 	}
-	rows := strings.Join(listed, "\n")
-	for _, name := range numberedNotes(12) {
-		if !strings.Contains(rows, name) {
-			t.Errorf(":messages must keep %s:\n%s", name, rows)
-		}
+	if regexp.MustCompile(`14:05\s+note11`).MatchString(rows) || !strings.Contains(rows, "… and 2 more") {
+		t.Errorf(":messages caps the list and counts the rest:\n%s", rows)
+	}
+}
+
+// A huge list does not flush what `:messages` held.
+func TestAHugeListKeepsEarlierMessages(t *testing.T) {
+	t.Parallel()
+	remote, _, h := arrivalWindow(t)
+	h.send(core.StatusMsg{Text: "an earlier message"})
+	pushNotes(t, remote, numberedNotes(150)...)
+	h.finish(h.update(app.SyncNowMsg{}))
+	h.send(tea.WindowSizeMsg{Width: 140, Height: 200})
+	rows := messageRows(h)
+	if !strings.Contains(rows, "an earlier message") {
+		t.Errorf("earlier messages must stay:\n%s", rows)
+	}
+	if !strings.Contains(rows, "… and 140 more") {
+		t.Errorf("the rest is counted:\n%s", rows)
 	}
 }
 

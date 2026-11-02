@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
@@ -85,7 +86,8 @@ type syncState struct {
 	arrivedHead string
 	arrived     []string
 	arrivedAt   time.Time
-	// The last arrivals as a line of the bar, long and compact (arrivalNotice).
+	// The line of the bar that takes the parts' room, long and compact
+	// (barNotice): the last arrivals, or a stop the sync key answers.
 	noticeLong, noticeCompact string
 }
 
@@ -318,6 +320,7 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	kind, lastErr := m.sync.kind, m.sync.lastErr
 	m.recordSync(msg)
 	text, isErr := syncSummary(msg, m.syncKey())
+	summary := text
 	arrived := arrivedNotes(msg.res)
 	news := isErr && (m.sync.kind != kind || m.sync.lastErr != lastErr)
 	speak := !msg.auto || news || len(msg.res.Conflicts) > 0 || len(arrived) > 0
@@ -342,12 +345,20 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 			text, isErr = text+" · "+m.syncWarn, true
 			m.syncWarn = ""
 		}
+		alone := text == summary // nothing else joined the line
 		text = withArrivals(text, msg.res)
+		if compact := stopCompact(msg, m.syncKey()); compact != "" && alone {
+			if len(arrived) > 0 {
+				compact += " · " + arrivalCompact(msg.res)
+			}
+			m.sync.noticeLong, m.sync.noticeCompact = text, compact
+		}
 		// A row of `:messages` is cut at the dialog's width, so the names the
-		// bar left out go there one per row, just before the line itself.
+		// bar left out go there one per row, just before the line itself; a
+		// huge list counts the rest, so it does not flush what `:messages` held.
 		if len(arrived) > maxBarNames {
-			for _, name := range arrived {
-				m.say("  "+name, false)
+			for _, row := range appendListed(nil, arrived) {
+				m.say(row, false)
 			}
 		}
 		m.say(text, isErr)
@@ -372,7 +383,7 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	if arrived := arrivedNotes(msg.res); len(arrived) > 0 {
 		s.arrivedHead, s.arrived, s.arrivedAt = arrivalHead(msg.res), arrived, now
 		s.noticeLong = arrivalLine(s.arrivedHead, arrived)
-		s.noticeCompact = arrivalLine(strings.TrimSuffix(s.arrivedHead, fromAnotherComputer), arrived)
+		s.noticeCompact = arrivalCompact(msg.res)
 	}
 	fail := func(kind syncKind, text string) {
 		s.kind, s.lastErr, s.errAt = kind, oneLine(text), now
@@ -476,9 +487,25 @@ func syncSummary(msg syncDoneMsg, key string) (string, bool) {
 // maxBarNames is how many notes that arrived the status bar names.
 const maxBarNames = 3
 
-// arrivedNotes is every note a sync brought: new ones first.
+// arrivedNotes is every note a sync brought, new ones first, as it may be shown.
 func arrivedNotes(res gitsync.SyncResult) []string {
-	return slices.Concat(res.NewNotes, res.UpdatedNotes)
+	names := slices.Concat(res.NewNotes, res.UpdatedNotes)
+	for i, name := range names {
+		names[i] = displayName(name)
+	}
+	return names
+}
+
+// displayName shows a file name safely: git carries any name another computer
+// made, and a line break or an escape sequence in one must not reach the
+// terminal. Control characters show as a placeholder.
+func displayName(name string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return unicode.ReplacementChar
+		}
+		return r
+	}, name)
 }
 
 // fromAnotherComputer ends every count of arrivalHead; the compact form of the
@@ -521,11 +548,16 @@ func arrivalLine(head string, names []string) string {
 	return head + ": " + strings.Join(names, ", ")
 }
 
-// arrivalNotice returns the compact form of the notice when the bar's message
-// is that notice and nothing else: a line that also says something else (a
+// arrivalCompact is the notice without "from another computer".
+func arrivalCompact(res gitsync.SyncResult) string {
+	return arrivalLine(strings.TrimSuffix(arrivalHead(res), fromAnotherComputer), arrivedNotes(res))
+}
+
+// barNotice returns the compact form of the notice when the bar's message is
+// that notice and nothing else: a line that also says something else (a
 // conflict copy, a warning, a reload) reads differently, so it draws as any
 // other message.
-func (m *Model) arrivalNotice() (compact string, ok bool) {
+func (m *Model) barNotice() (compact string, ok bool) {
 	return m.sync.noticeCompact, m.status != "" && m.status == m.sync.noticeLong
 }
 
@@ -721,6 +753,24 @@ func stopOf(msg syncDoneMsg) syncStop {
 	return stopNone
 }
 
+// stopCompact is a stop's line for a narrow bar, keeping the key; empty for a
+// line that is not a stop the sync key answers, which draws as any message.
+func stopCompact(msg syncDoneMsg, key string) string {
+	stop := stopOf(msg)
+	_, plain := stopWords[stop]
+	switch {
+	case msg.leftover != nil, plain:
+		return "Sync paused · " + key
+	case stop == stopAccess && msg.signIn != nil:
+		return "Sync paused · " + key + " signs in"
+	case stop == stopAccess:
+		return "Sync error · " + key
+	case msg.err == nil && !msg.busy && msg.paused.Status != gitsync.Paused && msg.res.Outcome == gitsync.SyncOffline:
+		return "Sync offline · " + key + " retries"
+	}
+	return ""
+}
+
 // stopWords says the stops no button fixes in plain words, naming no command.
 // gitsync's messages keep the commands: the terminal and `:sync status` use
 // them. No button joins the histories: after a force-push that could upload
@@ -769,7 +819,9 @@ func (m *Model) askLockRemoval() tea.Cmd {
 		if _, there, err := gitsync.StatLock(path); err == nil && !there {
 			return lockRemovedMsg{}
 		}
-		return read()
+		msg := read().(syncStatusMsg)
+		msg.fromKey = true
+		return msg
 	}
 }
 
@@ -785,7 +837,8 @@ func (m *Model) explainStop() {
 	m.stopDialog(title, lines, []string{"Check again", "Close"}, 1, func(m *Model) tea.Cmd { return m.askSync() })
 }
 
-// offerSignIn offers the setup assistant's sign-in, outside the screen.
+// offerSignIn offers the setup assistant's sign-in, outside the screen. It
+// starts on Cancel: Enter alone launches nothing.
 func (m *Model) offerSignIn() {
 	s := m.sync.signIn
 	lines := []string{
@@ -793,7 +846,7 @@ func (m *Model) offerSignIn() {
 		"Sign in: gh shows a one-time code and opens your browser. gh keeps the access; Misoku never sees it.",
 		"Sync runs once you are back.",
 	}
-	m.stopDialog("Sign in to GitHub", lines, []string{"Sign in", "Cancel"}, 0, func(m *Model) tea.Cmd {
+	m.stopDialog("Sign in to GitHub", lines, []string{"Sign in", "Cancel"}, 1, func(m *Model) tea.Cmd {
 		return m.execProcess(s.SignInCommand(), func(error) tea.Msg {
 			// gh said how it went on the terminal. This runs on the Update
 			// loop, so what asks gh comes back as a command.
@@ -866,7 +919,10 @@ func (m *Model) syncSignedIn(msg syncSignedInMsg) tea.Cmd {
 }
 
 // syncStatusMsg brings what `:sync status` read back to Update.
-type syncStatusMsg struct{ info gitsync.Info }
+type syncStatusMsg struct {
+	info    gitsync.Info
+	fromKey bool // asked for by the sync key, on a leftover lock
+}
 
 // requestSyncStatus reads the vault's sync status in the background
 // (`:sync status`). A folder that does not sync runs no git: it only says
@@ -894,6 +950,12 @@ const maxListed = 10
 func (m *Model) showSyncStatus(msg syncStatusMsg) {
 	if m.status == "Reading the sync status…" {
 		m.clearStatus()
+	}
+	if msg.fromKey && m.keyCount != m.statusKeys {
+		// Keys pressed since the sync key were meant for the note: any dialog
+		// would take them.
+		m.setStatus("Sync paused: " + lockedText + " · " + m.syncKey() + " opens it")
+		return
 	}
 	info, s := msg.info, m.sync
 	state, _ := m.syncIndicator()
@@ -935,9 +997,6 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 	if len(s.arrived) > 0 {
 		lines = append(lines, s.arrivedHead+" ("+ago(m.clock().Sub(s.arrivedAt))+"):")
 		lines = appendListed(lines, s.arrived)
-		if len(s.arrived) > maxListed {
-			lines = append(lines, "  :messages has them all")
-		}
 	}
 	if s.leftover != nil && !m.syncing {
 		lines = append(lines, "Sync stopped: "+lockedText+".")
