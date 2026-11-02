@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,6 +36,26 @@ func clipboardWith(t *testing.T, ok bool, err error) {
 		return clipimage.Data{}, ok, err
 	}
 	t.Cleanup(func() { readClipboardImage = old })
+}
+
+// stderr runs f and returns what it wrote to the error stream.
+func stderr(t *testing.T, f func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	done := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(r)
+		done <- string(data)
+	}()
+	f()
+	os.Stderr = old
+	w.Close()
+	return <-done
 }
 
 // stdout runs f and returns what it printed.
@@ -124,8 +145,26 @@ func TestPasteImageWithNoPictureFails(t *testing.T) {
 
 func TestPasteImageWithoutAToolSaysWhatToInstall(t *testing.T) {
 	clipboardWith(t, false, clipimage.ErrNoTool)
-	if code := runPasteImage([]string{"--dir", t.TempDir()}); code != 1 {
+	var code int
+	msg := stderr(t, func() { code = runPasteImage([]string{"--dir", t.TempDir()}) })
+	if code != 1 {
 		t.Fatalf("exit = %d, want 1", code)
+	}
+	if !strings.Contains(msg, "needs") || !strings.Contains(msg, "wl-clipboard") {
+		t.Fatalf("stderr = %q, want the install hint", msg)
+	}
+}
+
+// A clipboard that cannot be read says why, and does not pretend it was empty.
+func TestPasteImageReportsAReadFailure(t *testing.T) {
+	clipboardWith(t, false, errors.New("wl-paste: exit status 1"))
+	var code int
+	msg := stderr(t, func() { code = runPasteImage([]string{"--dir", t.TempDir()}) })
+	if code != 1 {
+		t.Fatalf("exit = %d, want 1", code)
+	}
+	if !strings.Contains(msg, "wl-paste") {
+		t.Fatalf("stderr = %q, want the tool's reason", msg)
 	}
 }
 

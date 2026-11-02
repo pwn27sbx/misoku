@@ -90,19 +90,23 @@ func savePasted(folder, src string) (string, error) {
 	ext := filepath.Ext(src)
 	stem := src[:len(src)-len(ext)]
 	name := filepath.Base(stem)
-	dst := filepath.Join(assets, name+ext)
-	for n := 2; fileExists(dst); n++ {
-		dst = filepath.Join(assets, fmt.Sprintf("%s-%d%s", name, n, ext))
+	// Try names until one is free: the create itself is exclusive, so two
+	// pastes at the same second cannot take the same name.
+	for n := 1; n < 1000; n++ {
+		file := name + ext
+		if n > 1 {
+			file = fmt.Sprintf("%s-%d%s", name, n, ext)
+		}
+		dst := filepath.Join(assets, file)
+		err := copyPasted(src, dst)
+		if err == nil {
+			return "assets/" + file, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", err
+		}
 	}
-	if err := copyPasted(src, dst); err != nil {
-		return "", err
-	}
-	return "assets/" + filepath.Base(dst), nil
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	return "", fmt.Errorf("could not find a free name for %s", name+ext)
 }
 
 // copyPasted writes src to dst, refusing to overwrite what is already there.
@@ -121,5 +125,9 @@ func copyPasted(src, dst string) error {
 		_ = os.Remove(dst)
 		return fmt.Errorf("could not write %s: %w", filepath.Base(dst), err)
 	}
-	return out.Close()
+	if err := out.Close(); err != nil { // a delayed write error leaves half a picture
+		_ = os.Remove(dst)
+		return fmt.Errorf("could not write %s: %w", filepath.Base(dst), err)
+	}
+	return nil
 }
