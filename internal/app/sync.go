@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -74,6 +75,12 @@ type syncState struct {
 	warnings []string              // skipped sync.vaults entries (config.Sync.Parse)
 	files    []string              // files the last commit left out or warned about (D7, S15)
 	leftover *gitsync.LeftoverLock // the lock the last sync stopped on
+	// What the last sync that brought notes brought, for `:sync status`.
+	arrivedHead string
+	arrived     []string
+	arrivedAt   time.Time
+	// The last arrivals as a line of the bar, long and compact (arrivalNotice).
+	noticeLong, noticeCompact string
 }
 
 // setupSync reads the "sync" section of the config file and decides, once,
@@ -267,9 +274,10 @@ func (m *Model) clock() time.Time {
 // changes, open notes and the explorer are refreshed through the same check
 // the workspace poll runs, which reloads notes without unsaved edits and
 // never touches the ones with edits. A sync that started on its own speaks
-// only when it made conflict copies or hit a new problem: the indicator
-// shows the rest, and the status line stays with what the user was doing.
-// A sync asked for during the commit after a save starts now.
+// only when it brought notes, made conflict copies or hit a new problem: the
+// indicator shows the rest, and the status line stays with what the user was
+// doing. It never opens a dialog, which would take keys meant for the note
+// being written. A sync asked for during the commit after a save starts now.
 func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	m.syncing = false
 	if !msg.local {
@@ -281,8 +289,9 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	kind, lastErr := m.sync.kind, m.sync.lastErr
 	m.recordSync(msg)
 	text, isErr := syncSummary(msg)
+	arrived := arrivedNotes(msg.res)
 	news := isErr && (m.sync.kind != kind || m.sync.lastErr != lastErr)
-	speak := !msg.auto || news || len(msg.res.Conflicts) > 0
+	speak := !msg.auto || news || len(msg.res.Conflicts) > 0 || len(arrived) > 0
 	if msg.res.Updated {
 		status, statusErr := m.status, m.statusErr
 		m.clearStatus()
@@ -304,6 +313,14 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 			text, isErr = text+" · "+m.syncWarn, true
 			m.syncWarn = ""
 		}
+		text = withArrivals(text, msg.res)
+		// A row of `:messages` is cut at the dialog's width, so the names the
+		// bar left out go there one per row, just before the line itself.
+		if len(arrived) > maxBarNames {
+			for _, name := range arrived {
+				m.say("  "+name, false)
+			}
+		}
 		m.say(text, isErr)
 	}
 	if m.syncQueued {
@@ -319,6 +336,11 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	s.copies = msg.copies
 	s.leftover = msg.leftover
 	now := m.clock()
+	if arrived := arrivedNotes(msg.res); len(arrived) > 0 {
+		s.arrivedHead, s.arrived, s.arrivedAt = arrivalHead(msg.res), arrived, now
+		s.noticeLong = arrivalLine(s.arrivedHead, arrived)
+		s.noticeCompact = arrivalLine(strings.TrimSuffix(s.arrivedHead, fromAnotherComputer), arrived)
+	}
 	fail := func(kind syncKind, text string) {
 		s.kind, s.lastErr, s.errAt = kind, oneLine(text), now
 	}
@@ -412,6 +434,62 @@ func syncSummary(msg syncDoneMsg) (string, bool) {
 		return "Sync error: " + why, true
 	}
 	return "Sync failed: " + why, true
+}
+
+// maxBarNames is how many notes that arrived the status bar names.
+const maxBarNames = 3
+
+// arrivedNotes is every note a sync brought: new ones first.
+func arrivedNotes(res gitsync.SyncResult) []string {
+	return slices.Concat(res.NewNotes, res.UpdatedNotes)
+}
+
+// fromAnotherComputer ends every count of arrivalHead; the compact form of the
+// notice leaves it out.
+const fromAnotherComputer = " from another computer"
+
+// arrivalHead counts the notes a sync brought, in words.
+func arrivalHead(res gitsync.SyncResult) string {
+	added, updated := len(res.NewNotes), len(res.UpdatedNotes)
+	switch {
+	case added > 0 && updated > 0:
+		return fmt.Sprintf("%d new %s, %d updated"+fromAnotherComputer, added, plural(added, "note", "notes"), updated)
+	case added > 0:
+		return fmt.Sprintf("%d new %s"+fromAnotherComputer, added, plural(added, "note", "notes"))
+	}
+	return fmt.Sprintf("%d %s updated"+fromAnotherComputer, updated, plural(updated, "note", "notes"))
+}
+
+// withArrivals adds to a sync's line the notes it brought. A plain "Synced"
+// gives way to them; anything else the line says (a conflict copy, a warning,
+// the push that failed after the notes came) stays first, so it is not the
+// part a narrow bar cuts. With no note arrived, the line is unchanged.
+func withArrivals(summary string, res gitsync.SyncResult) string {
+	names := arrivedNotes(res)
+	if len(names) == 0 {
+		return summary
+	}
+	line := arrivalLine(arrivalHead(res), names)
+	if summary == "Synced" {
+		return line
+	}
+	return summary + " · " + line
+}
+
+// arrivalLine is head followed by the names, a long list cut for the bar.
+func arrivalLine(head string, names []string) string {
+	if n := len(names); n > maxBarNames {
+		return head + ": " + strings.Join(names[:maxBarNames], ", ") + fmt.Sprintf(" ... +%d more · :sync status", n-maxBarNames)
+	}
+	return head + ": " + strings.Join(names, ", ")
+}
+
+// arrivalNotice returns the compact form of the notice when the bar's message
+// is that notice and nothing else: a line that also says something else (a
+// conflict copy, a warning, a reload) reads differently, so it draws as any
+// other message.
+func (m *Model) arrivalNotice() (compact string, ok bool) {
+	return m.sync.noticeCompact, m.status != "" && m.status == m.sync.noticeLong
 }
 
 // fileWarnings lists, one line each, the files a commit left out for being
@@ -612,22 +690,17 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 		lines = append(lines, "Conflict copies: none")
 	} else {
 		lines = append(lines, fmt.Sprintf("Conflict copies (%d), delete each once resolved:", n))
-		for i, c := range info.Conflicts {
-			if i == maxListed {
-				lines = append(lines, fmt.Sprintf("  … and %d more", n-maxListed))
-				break
-			}
-			lines = append(lines, "  "+c)
-		}
+		lines = appendListed(lines, info.Conflicts)
 	}
 	if n := len(s.files); n > 0 {
 		lines = append(lines, fmt.Sprintf("Files that do not sync as they are (%d):", n))
-		for i, f := range s.files {
-			if i == maxListed {
-				lines = append(lines, fmt.Sprintf("  … and %d more", n-maxListed))
-				break
-			}
-			lines = append(lines, "  "+f)
+		lines = appendListed(lines, s.files)
+	}
+	if len(s.arrived) > 0 {
+		lines = append(lines, s.arrivedHead+" ("+ago(m.clock().Sub(s.arrivedAt))+"):")
+		lines = appendListed(lines, s.arrived)
+		if len(s.arrived) > maxListed {
+			lines = append(lines, "  :messages has them all")
 		}
 	}
 	if s.leftover != nil && !m.syncing {
@@ -641,6 +714,17 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 		lines = append(lines, "To remove the lock, run :sync status again.")
 	}
 	m.openSyncStatus(lines)
+}
+
+// appendListed adds items to lines one per line, at most maxListed of them.
+func appendListed(lines, items []string) []string {
+	for i, item := range items {
+		if i == maxListed {
+			return append(lines, fmt.Sprintf("  … and %d more", len(items)-maxListed))
+		}
+		lines = append(lines, "  "+item)
+	}
+	return lines
 }
 
 func orNone(s string) string {
