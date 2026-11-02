@@ -213,6 +213,10 @@ type UI struct {
 	// ModifiedMark goes before the tab name of a note with unsaved changes,
 	// like incline's "[+]".
 	ModifiedMark string `json:"modified_mark,omitempty"`
+	// Images chooses how the preview draws pictures: "auto" (default, from
+	// the terminal), "kitty" (Kitty graphics protocol) or "blocks" (half
+	// blocks). MISOKU_IMAGES wins over it.
+	Images string `json:"images,omitempty"`
 	// Accordion keeps one folder open per level in the explorer: opening a
 	// folder closes its open siblings. Unset means on; see AccordionOn.
 	Accordion *bool `json:"accordion,omitempty"`

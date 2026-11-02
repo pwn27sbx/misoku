@@ -27,6 +27,10 @@ const chunkSize = 4096
 // placeholder is the Private Use rune the terminal replaces with the image.
 const placeholder = '\U0010EEEE'
 
+// maxID is the largest image id a placeholder can name: the id travels as a
+// 256-colour foreground (38;5;N), whose palette holds 0…255.
+const maxID = 255
+
 // Detect chooses how pictures are drawn, from the environment only: a query to
 // the terminal would arrive at Bubble Tea's input loop as typed runes, and a
 // reply cannot be told apart from a paste.
@@ -83,7 +87,7 @@ type Sender interface {
 //
 // q=2 keeps the terminal quiet: a reply would land in Bubble Tea's input.
 func Transmit(id, cols, rows int, png []byte) []string {
-	if id <= 0 || len(png) == 0 || cols <= 0 || rows <= 0 {
+	if id <= 0 || id > maxID || len(png) == 0 || cols <= 0 || rows <= 0 {
 		return nil
 	}
 	data := base64.StdEncoding.EncodeToString(png)
@@ -121,7 +125,7 @@ func Delete(id int) string {
 // painted in the image id as a 256-colour foreground. The closing reset keeps
 // the pane's padding out of that colour.
 func Placeholders(id, cols, rows int) []string {
-	if id <= 0 || cols <= 0 || rows <= 0 {
+	if id <= 0 || id > maxID || cols <= 0 || rows <= 0 {
 		return nil
 	}
 	lines := make([]string, rows)

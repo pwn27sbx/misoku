@@ -1,12 +1,13 @@
 package preview
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	_ "image/gif"  // register decoders
 	_ "image/jpeg" //
-	_ "image/png"  //
+	_ "image/png"  // register the decoder; graphics.go encodes
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/pwn27sbx/misoku/internal/kitty"
 	_ "golang.org/x/image/bmp"  //
 	_ "golang.org/x/image/webp" //
 )
@@ -80,12 +82,35 @@ var (
 	imageCache   = map[imageKey][]string{}
 )
 
-// renderImage draws a picture with "▀" half blocks (two pixels per cell),
+// cellBox is the cols x rows box an iw x ih picture fills at width columns. A
+// cell is about twice as tall as it is wide, so both renderers divide by two.
+func cellBox(iw, ih, width int) (cols, rows int) {
+	cols = min(width, iw)
+	rows = (cols*ih/iw + 1) / 2
+	if rows > maxImageRows {
+		rows = maxImageRows
+		cols = max(rows*2*iw/ih, 1)
+	}
+	rows = max(rows, 1)
+	return cols, rows
+}
+
+// renderImage draws a picture: with the Kitty graphics protocol when the
+// terminal can show it, with "▀" half blocks (two pixels per cell) otherwise,
 // scaled to fit width columns and maxImageRows rows.
 func renderImage(path string, width int, bg lipgloss.Color) ([]string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("not found")
+	}
+	if imageMode() == kitty.Graphics {
+		lines, err := renderGraphicsImage(path, info, width)
+		if err == nil {
+			return lines, nil
+		}
+		if !errors.Is(err, errImageFallback) {
+			return nil, err
+		}
 	}
 	profile := lipgloss.ColorProfile()
 	key := imageKey{path, info.ModTime(), width, int(profile), string(bg)}
@@ -111,13 +136,7 @@ func renderImage(path string, width int, bg lipgloss.Color) ([]string, error) {
 	if iw == 0 || ih == 0 {
 		return nil, fmt.Errorf("empty image")
 	}
-	cols := min(width, iw)
-	rows := (cols*ih/iw + 1) / 2
-	if rows > maxImageRows {
-		rows = maxImageRows
-		cols = max(rows*2*iw/ih, 1)
-	}
-	rows = max(rows, 1)
+	cols, rows := cellBox(iw, ih, width)
 
 	back := parseHex(string(bg))
 	sample := func(cx, py int) color.RGBA {

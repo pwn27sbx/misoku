@@ -38,6 +38,11 @@ func dimLine(line, grey string) string {
 	if !strings.ContainsRune(line, 0x1b) && strings.TrimSpace(line) == "" {
 		return line
 	}
+	// A picture drawn by the terminal is a row of placeholders carrying the
+	// image id in their foreground: recolouring them would lose the image.
+	if strings.ContainsRune(line, 0x10EEEE) {
+		return line
+	}
 	var b strings.Builder
 	fg := ""  // the line's own foreground at this point ("" for default)
 	cur := "" // the foreground written so far

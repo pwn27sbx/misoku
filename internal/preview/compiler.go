@@ -280,6 +280,8 @@ func CompileHits(input string, th theme.Theme, contentWidth int, baseDir string,
 // CompileBlocks is CompileHits that also returns the note's draggable
 // blocks, sorted by row (a list item's children follow it).
 func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block) {
+	endImages := beginImageRender()
+	defer endImages()
 	defer func() {
 		if r := recover(); r != nil {
 			out = fmt.Sprintf("Error rendering preview: %v", r)

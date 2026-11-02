@@ -387,6 +387,9 @@ func (m *Model) togglePreview() tea.Cmd {
 		return nil
 	}
 	m.previewOpen = !m.previewOpen
+	if !m.previewOpen {
+		preview.ClearImages()
+	}
 	m.updateLayout()
 	if m.previewOpen && m.layout().PreviewW == 0 {
 		m.setStatus("Window too narrow for the preview")

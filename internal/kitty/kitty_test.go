@@ -6,7 +6,9 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -110,6 +112,7 @@ func TestTransmitRefusesNothingToSend(t *testing.T) {
 		{"no columns", 1, 0, 5, []byte("x")},
 		{"no rows", 1, 10, 0, []byte("x")},
 		{"no id", 0, 10, 5, []byte("x")},
+		{"id past the placeholder colour", 256, 10, 5, []byte("x")},
 	} {
 		if seqs := kitty.Transmit(tc.id, tc.c, tc.r, tc.png); seqs != nil {
 			t.Errorf("%s: expected no sequences, got %v", tc.name, seqs)
@@ -165,7 +168,7 @@ func TestPlaceholdersAreOneCellPerPixelCell(t *testing.T) {
 
 func TestPlaceholdersRefuseAnEmptyBox(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ id, c, r int }{{0, 4, 2}, {1, 0, 2}, {1, 4, 0}} {
+	for _, tc := range []struct{ id, c, r int }{{0, 4, 2}, {256, 4, 2}, {1, 0, 2}, {1, 4, 0}} {
 		if got := kitty.Placeholders(tc.id, tc.c, tc.r); got != nil {
 			t.Errorf("Placeholders(%d,%d,%d) = %v, want nil", tc.id, tc.c, tc.r, got)
 		}
@@ -233,6 +236,48 @@ func TestWriterKeepsAChunkSetTogether(t *testing.T) {
 	}
 }
 
+// guardWriter fails the test if two writes are ever inside at once, which is
+// what the lock exists to prevent.
+type guardWriter struct {
+	t      *testing.T
+	inside atomic.Int32
+}
+
+func (g *guardWriter) Write(p []byte) (int, error) {
+	if g.inside.Add(1) != 1 {
+		g.t.Error("a second write started before the first finished")
+	}
+	time.Sleep(200 * time.Microsecond) // widen the window a broken lock would race through
+	g.inside.Add(-1)
+	return len(p), nil
+}
+
+func TestWriterNeverOverlapsAChunkSetAndAFrame(t *testing.T) {
+	t.Parallel()
+	w := kitty.NewWriter(&guardWriter{t: t})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for range 30 {
+			if err := w.Send("aa", "bb", "cc"); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range 30 {
+			if _, err := w.Write([]byte("frame")); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	wg.Wait()
+}
+
 func TestWriterDiscardsWithoutAnOutput(t *testing.T) {
 	t.Parallel()
 	w := kitty.NewWriter(nil)
@@ -265,3 +310,33 @@ func (f *failingWriter) Write(p []byte) (int, error) {
 type errBoom struct{}
 
 func (errBoom) Error() string { return "boom" }
+
+// tty is a writer that also looks like a terminal file.
+type tty struct {
+	bytes.Buffer
+	fd uintptr
+}
+
+func (t *tty) Fd() uintptr { return t.fd }
+
+// Bubble Tea finds the terminal through the program output and reads the window
+// size from its descriptor: the wrapper must not hide it, or the program never
+// gets a size and stays on its first frame.
+func TestWriterKeepsTheTerminalVisibleToBubbleTea(t *testing.T) {
+	t.Parallel()
+	f := &tty{fd: 7}
+	w := kitty.NewWriter(f)
+	if got := w.Fd(); got != 7 {
+		t.Fatalf("Fd = %d, want 7", got)
+	}
+	if _, err := w.Read(make([]byte, 1)); err == nil {
+		t.Fatal("Read on the program output should report the end of the stream")
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	plain := kitty.NewWriter(&bytes.Buffer{})
+	if got := plain.Fd(); got != ^uintptr(0) {
+		t.Fatalf("a buffer has no descriptor, got %d", got)
+	}
+}
