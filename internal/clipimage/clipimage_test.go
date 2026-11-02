@@ -1,4 +1,4 @@
-package clipimage_test
+package clipimage
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/pwn27sbx/misoku/internal/clipimage"
 )
 
 // fake answers the clipboard programs of one session.
@@ -38,21 +36,30 @@ func (f *fake) run(ctx context.Context, name string, args ...string) ([]byte, er
 	return []byte(f.data), nil
 }
 
+// linux makes the suite read the Wayland and X11 tools on every system.
+func linux(t *testing.T) {
+	t.Helper()
+	old := goos
+	goos = func() string { return "linux" }
+	t.Cleanup(func() { goos = old })
+}
+
 func waylandEnv(kv map[string]string) func(string) string {
 	return func(k string) string { return kv[k] }
 }
 
 func TestWaylandReadsTheFirstAcceptedPictureType(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "text/plain\nimage/webp\nimage/png\n", data: "PNGDATA"}
-	d, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "wayland-0"}), f.run)
+	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "wayland-0"}), f.run)
 	if err != nil || !ok {
 		t.Fatalf("Read = %v, %v", ok, err)
 	}
 	if d.MIME != "image/png" || d.Ext != ".png" {
 		t.Fatalf("picked %s (%s), want image/png first", d.MIME, d.Ext)
 	}
-	t.Cleanup(func() { clipimage.Discard(d) })
+	t.Cleanup(func() { Discard(d) })
 	if !strings.HasPrefix(d.Path, os.TempDir()) || !strings.Contains(d.Path, "pasted-") {
 		t.Fatalf("unexpected temp path %q", d.Path)
 	}
@@ -67,8 +74,9 @@ func TestWaylandReadsTheFirstAcceptedPictureType(t *testing.T) {
 
 func TestWaylandWithoutAPictureIsNotAnError(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "text/plain\n"}
-	_, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "wayland-0"}), f.run)
+	_, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "wayland-0"}), f.run)
 	if ok || err != nil {
 		t.Fatalf("a clipboard holding text only: ok=%v err=%v", ok, err)
 	}
@@ -79,18 +87,20 @@ func TestWaylandWithoutAPictureIsNotAnError(t *testing.T) {
 
 func TestMimeParametersAreIgnored(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "image/png;charset=binary\n", data: "x"}
-	d, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
+	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
 	if err != nil || !ok || d.MIME != "image/png" {
 		t.Fatalf("Read = %+v, %v, %v", d, ok, err)
 	}
-	clipimage.Discard(d)
+	Discard(d)
 }
 
 func TestX11IsUsedWithoutWayland(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "TARGETS\nimage/jpeg\n", data: "JPEG"}
-	d, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(nil), f.run)
+	d, ok, err := ReadWith(context.Background(), waylandEnv(nil), f.run)
 	if err != nil || !ok {
 		t.Fatalf("Read = %v, %v", ok, err)
 	}
@@ -102,56 +112,61 @@ func TestX11IsUsedWithoutWayland(t *testing.T) {
 			t.Fatalf("wl-paste should not run without Wayland: %q", f.calls)
 		}
 	}
-	clipimage.Discard(d)
+	Discard(d)
 }
 
 func TestWaylandFallsBackToX11WhenItsToolIsMissing(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "image/png\n", data: "PNG", missing: map[string]bool{"wl-paste": true}}
-	d, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
+	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
 	if err != nil || !ok {
 		t.Fatalf("Read = %v, %v", ok, err)
 	}
-	clipimage.Discard(d)
+	Discard(d)
 }
 
 func TestNoToolAtAllIsReported(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{missing: map[string]bool{"wl-paste": true, "xclip": true}}
-	_, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
-	if ok || !errors.Is(err, clipimage.ErrNoTool) {
+	_, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
+	if ok || !errors.Is(err, ErrNoTool) {
 		t.Fatalf("ok=%v err=%v, want ErrNoTool", ok, err)
 	}
 }
 
 func TestAFailingToolIsReportedAndIsNotAPicture(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "image/png\n", data: "x", fail: map[string]bool{"wl-paste": true}}
-	_, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
+	_, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
 	if ok || err == nil {
 		t.Fatalf("ok=%v err=%v, want the tool error", ok, err)
 	}
-	if errors.Is(err, clipimage.ErrNoTool) {
+	if errors.Is(err, ErrNoTool) {
 		t.Fatal("a failing tool is not a missing one")
 	}
 }
 
 func TestReadWithoutARunnerSaysNoTool(t *testing.T) {
 	t.Parallel()
-	if _, _, err := clipimage.ReadWith(context.Background(), waylandEnv(nil), nil); !errors.Is(err, clipimage.ErrNoTool) {
+	linux(t)
+	if _, _, err := ReadWith(context.Background(), waylandEnv(nil), nil); !errors.Is(err, ErrNoTool) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestDiscardRemovesTheTemporaryFolder(t *testing.T) {
 	t.Parallel()
+	linux(t)
 	f := &fake{types: "image/png\n", data: "x"}
-	d, ok, err := clipimage.ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
+	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
 	if err != nil || !ok {
 		t.Fatalf("Read = %v, %v", ok, err)
 	}
 	dir := d.Path[:strings.LastIndex(d.Path, string(os.PathSeparator))]
-	clipimage.Discard(d)
+	Discard(d)
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("temporary folder still there: %v", err)
 	}

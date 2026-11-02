@@ -90,9 +90,22 @@ func TestCtrlVReportsAPictureInsteadOfTyping(t *testing.T) {
 	}
 }
 
-// Without a clipboard tool the status line says what to install.
-func TestPastingWithoutAToolSaysWhatToInstall(t *testing.T) {
+// A missing image tool must never take the text paste away: the text clipboard
+// may work through a tool this package does not probe (xsel).
+func TestAMissingImageToolStillPastesText(t *testing.T) {
+	withPaste(t, "hola", nil, clipimage.ErrNoTool)
+	m := editor(t, "note\n")
+
+	_, cmd := m.Update(ctrlV())
+	if _, ok := cmd().(pasteTextMsg); !ok {
+		t.Fatalf("expected the text paste, got %#v", cmd())
+	}
+}
+
+// When the text paste fails too, the status line says what to install.
+func TestPastingWithNoToolAtAllSaysWhatToInstall(t *testing.T) {
 	withPaste(t, "", nil, clipimage.ErrNoTool)
+	pasteText = func() tea.Msg { return pasteErrForTest{} } // the text paste failed too
 	m := editor(t, "note\n")
 
 	_, cmd := m.Update(ctrlV())
@@ -104,6 +117,12 @@ func TestPastingWithoutAToolSaysWhatToInstall(t *testing.T) {
 		t.Fatalf("status = %q", status.Text)
 	}
 }
+
+// pasteErrForTest behaves like the textarea's failure message, which carries
+// its error.
+type pasteErrForTest struct{}
+
+func (pasteErrForTest) Error() string { return "no clipboard" }
 
 // Bracketed paste carries text: it is typed and the clipboard is not consulted.
 func TestBracketedPasteWithTextNeverAsksTheClipboard(t *testing.T) {

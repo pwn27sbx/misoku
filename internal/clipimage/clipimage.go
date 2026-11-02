@@ -43,6 +43,10 @@ func isMissing(err error) bool {
 // answer must never freeze the editor.
 const timeout = 3 * time.Second
 
+// goos is the platform ReadWith selects tools for; tests replace it so the
+// suite runs on the three systems Misoku ships for.
+var goos = func() string { return runtime.GOOS }
+
 // Runner runs one program and returns its standard output. Tests pass a fake.
 type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
@@ -75,7 +79,7 @@ func ReadWith(ctx context.Context, env func(string) string, run Runner) (Data, b
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	switch runtime.GOOS {
+	switch goos() {
 	case "darwin":
 		return readDarwin(ctx, run)
 	case "windows":

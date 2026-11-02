@@ -385,12 +385,20 @@ func (m Model) pasteCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if img, ok, err := read(ctx); ok {
+		img, ok, err := read(ctx)
+		if ok {
 			return img
-		} else if err != nil && errors.Is(err, clipimage.ErrNoTool) {
-			return core.StatusMsg{Text: "Paste image needs " + pasteHint(), Error: true}
 		}
-		return pasteText()
+		// No picture: paste text exactly as before. The clipboard of the text
+		// path may work through a tool this package does not probe (xsel), so a
+		// missing image tool must never take the text paste away from the user.
+		msg := pasteText()
+		if err != nil && errors.Is(err, clipimage.ErrNoTool) {
+			if _, failed := msg.(error); failed || msg == nil {
+				return core.StatusMsg{Text: "Paste image needs " + pasteHint(), Error: true}
+			}
+		}
+		return msg
 	}
 }
 

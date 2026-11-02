@@ -106,7 +106,32 @@ func TestPastingWithoutANoteSaysToOpenOne(t *testing.T) {
 	if v := h.view(); !strings.Contains(v, "Open a note first") {
 		t.Fatalf("expected the status line to ask for a note:\n%s", v)
 	}
-	if _, err := os.Stat(msg.Path); err != nil {
-		t.Fatalf("the temporary file should still exist for a later attempt: %v", err)
+	if _, err := os.Stat(msg.Path); !os.IsNotExist(err) {
+		t.Fatalf("a picture that was not attached must not be left on disk: %v", err)
+	}
+}
+
+// Picking a cover still says "Cover set to …": the paste work must not change
+// the confirmation of a flow that already existed.
+func TestAttachingACoverKeepsItsOwnConfirmation(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "hola\n"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("1")
+	h.key(tea.KeyEsc)
+
+	cover := filepath.Join(t.TempDir(), "cover.png")
+	if err := os.WriteFile(cover, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.send(app.MediaPickedForTest("cover", cover))
+
+	if v := h.view(); !strings.Contains(v, "Cover set to") {
+		t.Fatalf("the cover confirmation changed:\n%s", v)
+	}
+	if v := h.view(); strings.Contains(v, "Attached ") {
+		t.Fatalf("the generic attachment message replaced it:\n%s", v)
 	}
 }

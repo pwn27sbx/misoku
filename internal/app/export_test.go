@@ -75,3 +75,9 @@ func (m Model) ExplorerHideWidth() int { return m.prefs().hideWidth }
 // EditorText is the editor's text, what the active tab holds before it is
 // saved.
 func EditorText(tm tea.Model) string { return tm.(Model).content.Value() }
+
+// MediaPickedForTest is the message the native file dialog produces, so a test
+// can run an attachment without a desktop dialog.
+func MediaPickedForTest(kind, path string) tea.Msg {
+	return mediaPickedMsg{kind: kind, path: path}
+}

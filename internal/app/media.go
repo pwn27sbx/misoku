@@ -146,7 +146,8 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 
 // attachMedia copies the picked file next to the note and links it.
 func (m *Model) attachMedia(kind, src string) {
-	if link := m.attachMediaAs(kind, src, false); link != "" {
+	link := m.attachMediaAs(kind, src, false)
+	if link != "" && kind != "cover" { // the cover sets its own confirmation
 		m.setStatus("Attached " + link)
 	}
 }
@@ -154,13 +155,11 @@ func (m *Model) attachMedia(kind, src string) {
 // attachPastedImage saves a picture read from the clipboard next to the note and
 // links it on a line of its own, so the preview draws it.
 func (m *Model) attachPastedImage(msg core.ClipboardImageMsg) {
+	defer clipimage.Discard(clipimage.Data{Path: msg.Path})
 	link := m.attachMediaAs("image", msg.Path, true)
 	if link == "" {
-		// Nothing was attached (no note open): keep the file, a later paste of
-		// the same picture can still use it.
-		return
+		return // the status line already says why nothing was attached
 	}
-	clipimage.Discard(clipimage.Data{Path: msg.Path})
 	m.setStatus("Pasted " + link)
 }
 
