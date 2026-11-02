@@ -12,6 +12,10 @@ version comes from the tag, so nothing else in the tree carries it.
   names them (`2 new notes from another computer: nota.md, otra.md`). A long list is cut there; `:sync status` lists
   the last ones and `:messages` keeps them all. While that notice shows, the bar gives up its right-side parts to fit
   it, and in a narrow window it reads `2 new notes: nota.md, otra.md`. When no note arrived, nothing changes.
+- **`space s` answers a stopped sync**, and the status bar says so: offline retries; a leftover lock opens the dialog
+  to remove it; expired GitHub access (HTTPS origin, gh installed) offers the sign-in, then syncs; rewritten or
+  unrelated histories, an unfinished merge and a vault not on a branch are explained in plain words, with **Check
+  again** and **Close**, changing nothing. No dialog opens on its own, and `:sync status` keeps the technical detail.
 
 ## [0.15.0] - 2026-11-02
 

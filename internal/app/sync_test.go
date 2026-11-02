@@ -489,7 +489,7 @@ func TestSyncErrorIsListedInMessages(t *testing.T) {
 	h.send(tea.KeyMsg{Type: tea.KeySpace})
 	h.finish(h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}))
 	bar := h.view()
-	if !strings.Contains(bar, "Esc dismiss") {
+	if !strings.Contains(bar, "Sync: offline") {
 		t.Fatalf("setup: a sync without its remote must fail:\n%s", bar)
 	}
 	h.key(tea.KeyEsc)

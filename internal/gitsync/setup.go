@@ -1147,3 +1147,38 @@ func (s *Setup) gh(parent context.Context, args ...string) ([]byte, error) {
 
 // oneLineText joins a multi-line message into one line.
 func oneLineText(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// FindGH looks for gh as the assistant does (on PATH, then next to Misoku's
+// own executable), for a front end that offers the sign-in outside a run of
+// the assistant: SignInCommand then runs the gh it found. It reports whether
+// there is one.
+func (s *Setup) FindGH() bool {
+	path, err := lookGH(s.opts.GH)
+	if err != nil {
+		return false
+	}
+	s.opts.GH = path
+	return true
+}
+
+// FinishSignIn goes on after the front end ran SignInCommand outside a run of
+// the assistant: gh must be signed in now, and then git gets gh's access
+// (`gh auth setup-git`). gh keeps the access; nothing here sees it.
+func (s *Setup) FinishSignIn(ctx context.Context) error {
+	if !s.signedInNow(ctx) {
+		return errors.New("the sign-in did not finish")
+	}
+	return s.setupGit(ctx)
+}
+
+// GitHubHTTPS reports whether origin is GitHub over HTTPS with no credentials
+// of its own in the URL: the only origin gh's sign-in can give access to. The
+// host is compared whole, so a lookalike never passes.
+func GitHubHTTPS(origin string) bool {
+	u, err := url.Parse(strings.TrimSpace(origin))
+	if err != nil || !strings.EqualFold(u.Scheme, "https") || u.User != nil {
+		return false
+	}
+	port := u.Port()
+	return strings.EqualFold(u.Hostname(), githubHost) && (port == "" || port == "443")
+}

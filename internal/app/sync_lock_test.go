@@ -72,7 +72,7 @@ func TestSyncLeftoverLockShowsOnlyInTheStatusBar(t *testing.T) {
 		t.Fatalf("no dialog may open after a sync:\n%s", v)
 	}
 	wantBar(t, h, "sync paused")
-	wantBar(t, h, ":sync status")
+	wantBar(t, h, "lock left")
 	v := openSyncStatus(h)
 	for _, want := range []string{"git lock file", "may belong to a git command still running", "only if no git command is running", removeButton, "Cancel"} {
 		if !strings.Contains(v, want) {

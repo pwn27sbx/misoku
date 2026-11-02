@@ -11,6 +11,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -29,7 +30,7 @@ const (
 )
 
 // SyncNowMsg asks the app to sync the vault now, as the sync_now key and
-// ":sync" (core.SyncMsg) do.
+// ":sync" (core.SyncMsg) do; see requestSync for when sync has stopped.
 // Opening a vault listed in sync.vaults sends one. It is exported so
 // embedders and tests can ask for a sync; in a folder that does not sync it
 // only says why.
@@ -48,6 +49,9 @@ type syncDoneMsg struct {
 	// leftover is git's index.lock the sync stopped on, as it was then
 	// (S13): the user is asked before it is removed.
 	leftover *gitsync.LeftoverLock
+	// signIn is ready to sign in to GitHub when the access to origin was
+	// denied and signing in can fix it; nil otherwise.
+	signIn *gitsync.Setup
 }
 
 // syncKind is what the sync indicator in the status bar shows (S9).
@@ -75,6 +79,8 @@ type syncState struct {
 	warnings []string              // skipped sync.vaults entries (config.Sync.Parse)
 	files    []string              // files the last commit left out or warned about (D7, S15)
 	leftover *gitsync.LeftoverLock // the lock the last sync stopped on
+	stop     syncStop              // why the last sync stopped, when the sync key answers it
+	signIn   *gitsync.Setup        // the sign-in that may fix stopAccess (syncDoneMsg.signIn)
 	// What the last sync that brought notes brought, for `:sync status`.
 	arrivedHead string
 	arrived     []string
@@ -146,10 +152,30 @@ func (m *Model) syncOnOpen() tea.Cmd {
 	return func() tea.Msg { return SyncNowMsg{} }
 }
 
-// requestSync starts the sync the user asked for in the background, one
-// at a time (D6). Asked for while the commit after a save runs, it starts
-// as soon as that commit ends.
+// requestSync is the sync key and `:sync`. While the last sync's stop is one a
+// sync cannot get past, it answers that stop instead; only someone asking on
+// purpose gets here with a stop known, so no dialog opens on its own: the sync
+// on opening has no last sync, and automatic syncs start with startSync.
 func (m *Model) requestSync() tea.Cmd {
+	if !m.syncing {
+		switch {
+		case m.sync.leftover != nil:
+			return m.askLockRemoval()
+		case m.sync.stop == stopAccess && m.sync.signIn != nil:
+			m.offerSignIn()
+			return nil
+		case m.sync.stop != stopNone:
+			m.explainStop()
+			return nil
+		}
+	}
+	return m.askSync()
+}
+
+// askSync starts a sync in the background, one at a time (D6). Asked for while
+// the commit after a save runs, it starts as soon as that commit ends. It opens
+// no dialog.
+func (m *Model) askSync() tea.Cmd {
 	switch {
 	case m.syncVault == nil:
 		m.setStatus(m.syncOff)
@@ -255,6 +281,9 @@ func runSync(dir string, v config.Vault, held *gitsync.Lock, local bool) tea.Cmd
 				done.leftover = &l
 			}
 		}
+		if done.res.Outcome == gitsync.SyncDenied {
+			done.signIn = signInFor(ctx, r, dir)
+		}
 		// The count is for the indicator: a folder that cannot be read
 		// shows as no copies, and the sync's own outcome still shows.
 		done.copies, _ = gitsync.FindConflictCopies(dir)
@@ -288,7 +317,7 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	}
 	kind, lastErr := m.sync.kind, m.sync.lastErr
 	m.recordSync(msg)
-	text, isErr := syncSummary(msg)
+	text, isErr := syncSummary(msg, m.syncKey())
 	arrived := arrivedNotes(msg.res)
 	news := isErr && (m.sync.kind != kind || m.sync.lastErr != lastErr)
 	speak := !msg.auto || news || len(msg.res.Conflicts) > 0 || len(arrived) > 0
@@ -325,7 +354,7 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	}
 	if m.syncQueued {
 		m.syncQueued = false
-		return m.requestSync()
+		return m.askSync()
 	}
 	return nil
 }
@@ -335,6 +364,10 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	s := &m.sync
 	s.copies = msg.copies
 	s.leftover = msg.leftover
+	// A local commit says nothing about origin: a stop it did not hit stays.
+	if stop := stopOf(msg); !msg.local || stop != stopNone {
+		s.stop, s.signIn = stop, msg.signIn
+	}
 	now := m.clock()
 	if arrived := arrivedNotes(msg.res); len(arrived) > 0 {
 		s.arrivedHead, s.arrived, s.arrivedAt = arrivalHead(msg.res), arrived, now
@@ -395,10 +428,13 @@ func errText(err error) string {
 }
 
 // syncSummary is the one-line outcome of a sync for the status bar.
-func syncSummary(msg syncDoneMsg) (string, bool) {
+func syncSummary(msg syncDoneMsg, key string) (string, bool) {
+	if words, ok := stopWords[stopOf(msg)]; ok {
+		return "Sync paused: " + words.bar + " · " + key, true
+	}
 	switch {
 	case msg.leftover != nil:
-		return "Sync paused: " + lockedText + " · :sync status", true
+		return "Sync paused: " + lockedText + " · " + key, true
 	case msg.err != nil:
 		return "Sync failed: " + oneLine(msg.err.Error()), true
 	case msg.busy:
@@ -425,13 +461,14 @@ func syncSummary(msg syncDoneMsg) (string, bool) {
 		}
 		return text, false
 	case gitsync.SyncOffline:
-		return fmt.Sprintf("Sync: offline, %d pending", res.Pending), true
+		return fmt.Sprintf("Sync: offline, %d pending · %s retries", res.Pending, key), true
 	case gitsync.SyncRetry:
 		return "Sync stopped, it tries again next time: " + why, true
-	case gitsync.SyncUnrelated, gitsync.SyncRewritten:
-		return "Sync paused: " + why, true
 	case gitsync.SyncDenied:
-		return "Sync error: " + why, true
+		if msg.signIn != nil {
+			return "Sync paused: GitHub did not let this computer in · " + key + " signs in", true
+		}
+		return "Sync error: " + why + " · " + key, true
 	}
 	return "Sync failed: " + why, true
 }
@@ -524,19 +561,24 @@ func (m *Model) syncIndicator() (string, bool) {
 	}
 	s := m.sync
 	if s.leftover != nil {
-		return "󰓦 sync paused, lock left · :sync status", true
+		return "󰓦 sync paused, lock left · " + m.syncKey(), true
+	}
+	// A stop the sync key answers says so; any other says only what it is.
+	answer := ""
+	if s.stop != stopNone {
+		answer = " · " + m.syncKey()
 	}
 	switch s.kind {
 	case syncBusy:
 		return "󰓦 other window syncs", false
 	case syncPaused:
-		return "󰓦 sync paused", true
+		return "󰓦 sync paused" + answer, true
 	case syncError:
-		return "󰓦 sync error", true
+		return "󰓦 sync error" + answer, true
 	case syncRetry:
 		return "󰓦 sync will retry", false
 	case syncOffline:
-		return fmt.Sprintf("󰓦 offline · %d pending", s.pending), true
+		return fmt.Sprintf("󰓦 offline · %d pending · %s", s.pending, m.syncKey()), true
 	case syncOK:
 		if n := len(s.copies); n > 0 {
 			return fmt.Sprintf("󰓦 %d %s", n, plural(n, "conflict", "conflicts")), true
@@ -582,8 +624,8 @@ const lockedText = "a git lock file is in the way (.git/index.lock)"
 type lockRemovedMsg struct{ err error }
 
 // offerLockRemoval shows the detail of `:sync status` (lines) with the
-// offer to remove the leftover index.lock l and sync (S13). Only
-// `:sync status`, which the user opens on purpose, makes this offer: a
+// offer to remove the leftover index.lock l and sync (S13). Only `:sync
+// status` and the sync key, which the user presses on purpose, make this offer: a
 // dialog that opened by itself after a sync would take keys meant for the
 // note being written. Misoku never removes such a lock on its own: it may
 // belong to a git the user runs in a terminal. Another open dialog (it may
@@ -617,16 +659,210 @@ func (m *Model) offerLockRemoval(l gitsync.LeftoverLock, lines []string) {
 func (m *Model) lockRemoved(msg lockRemovedMsg) tea.Cmd {
 	if msg.err != nil {
 		m.setError("Lock not removed: " + oneLine(msg.err.Error()))
+		if errors.Is(msg.err, gitsync.ErrLockChanged) {
+			// What was shown is no longer there: the sync key syncs next, and
+			// offers the lock as that sync finds it.
+			m.sync.leftover = nil
+		}
 		return nil
 	}
 	m.sync.leftover = nil
+	return m.syncAfterFix()
+}
+
+// syncAfterFix syncs once the user removed what stopped the last sync.
+func (m *Model) syncAfterFix() tea.Cmd {
 	if m.syncing {
 		// A sync started on its own meanwhile: this one follows it.
 		m.syncQueued = true
 		m.showProgress("Syncing…")
 		return nil
 	}
-	return m.requestSync()
+	return m.askSync()
+}
+
+// syncStop is why the last sync stopped, for a stop that syncing again cannot
+// get past and the sync key answers with a dialog. The leftover lock has its
+// own field (syncState.leftover); every other stop is stopNone, and the key
+// syncs.
+type syncStop int
+
+const (
+	stopNone syncStop = iota
+	stopAccess
+	stopRewritten
+	stopUnrelated
+	stopInProgress
+	stopDetached
+)
+
+// stopOf reads the stop from what the sync reported, never from its text.
+func stopOf(msg syncDoneMsg) syncStop {
+	switch {
+	case msg.leftover != nil, msg.err != nil, msg.busy:
+		return stopNone
+	case msg.paused.Status == gitsync.Paused:
+		switch msg.paused.Reason {
+		case gitsync.ReasonInProgress:
+			return stopInProgress
+		case gitsync.ReasonDetachedHead:
+			return stopDetached
+		}
+		return stopNone
+	}
+	switch msg.res.Outcome {
+	case gitsync.SyncDenied:
+		return stopAccess
+	case gitsync.SyncRewritten:
+		return stopRewritten
+	case gitsync.SyncUnrelated:
+		return stopUnrelated
+	}
+	return stopNone
+}
+
+// stopWords says the stops no button fixes in plain words, naming no command.
+// gitsync's messages keep the commands: the terminal and `:sync status` use
+// them. No button joins the histories: after a force-push that could upload
+// again something deleted on purpose.
+var stopWords = map[syncStop]struct {
+	bar string
+	why []string
+}{
+	stopRewritten: {"this vault and origin no longer match", []string{
+		"The history in origin was rewritten, so this vault and origin no longer match.",
+		"Joining them could bring back something deleted on purpose, so Misoku does not offer it.",
+	}},
+	stopUnrelated: {"this vault and origin share no history", []string{
+		"This vault and origin share no history: they look like two separate sets of notes.",
+		"Joining them could bring back something deleted on purpose, so Misoku does not offer it.",
+	}},
+	stopInProgress: {"an unfinished merge or rebase is waiting in this vault", []string{
+		"A merge, rebase or similar operation started in this vault is not finished.",
+		"Misoku does not finish or cancel it: it may hold choices only you can make.",
+	}},
+	stopDetached: {"this vault is not on a branch", []string{
+		"This vault is not on a branch right now, so what you write has nowhere to go in origin.",
+		"Misoku does not switch branches: the notes on your screen would change.",
+	}},
+}
+
+// syncKey names the key that syncs, as the user has it: "space s", "Ctrl+Y".
+func (m *Model) syncKey() string {
+	key := m.keys.Hint(keymap.SyncNow)
+	if key == "" {
+		return ":sync"
+	}
+	if rest, ok := strings.CutPrefix(key, "SPC "); ok {
+		return "space " + rest
+	}
+	return key
+}
+
+// askLockRemoval is the sync key on a leftover lock: the dialog of `:sync
+// status`, with its guard against keys typed meanwhile. A lock gone by now
+// needs no dialog, so the check runs first, off the Update loop.
+func (m *Model) askLockRemoval() tea.Cmd {
+	path := m.sync.leftover.Path
+	read := m.requestSyncStatus()
+	return func() tea.Msg {
+		if _, there, err := gitsync.StatLock(path); err == nil && !there {
+			return lockRemovedMsg{}
+		}
+		return read()
+	}
+}
+
+// explainStop says why sync stopped and changes nothing. Check again is a
+// normal sync, so a problem the user fixed clears.
+func (m *Model) explainStop() {
+	title, why := "Sync is paused", stopWords[m.sync.stop].why
+	if m.sync.stop == stopAccess {
+		title = "Sync cannot get in"
+		why = []string{"Origin did not let this computer in.", m.sync.lastErr}
+	}
+	lines := append(slices.Clone(why), "Nothing was changed, and your notes are safe here.", "Once it is sorted out, choose Check again.")
+	m.stopDialog(title, lines, []string{"Check again", "Close"}, 1, func(m *Model) tea.Cmd { return m.askSync() })
+}
+
+// offerSignIn offers the setup assistant's sign-in, outside the screen.
+func (m *Model) offerSignIn() {
+	s := m.sync.signIn
+	lines := []string{
+		"GitHub did not let this computer in, so sync stopped. Your notes are safe here.",
+		"Sign in: gh shows a one-time code and opens your browser. gh keeps the access; Misoku never sees it.",
+		"Sync runs once you are back.",
+	}
+	m.stopDialog("Sign in to GitHub", lines, []string{"Sign in", "Cancel"}, 0, func(m *Model) tea.Cmd {
+		return m.execProcess(s.SignInCommand(), func(error) tea.Msg {
+			// gh said how it went on the terminal. This runs on the Update
+			// loop, so what asks gh comes back as a command.
+			return syncSignedInMsg{s: s}
+		})
+	})
+}
+
+// stopDialog asks about a stop. No letter chooses: the buttons of one dialog
+// share an initial, and a second press of the sync key is not a choice. Another
+// open dialog (it may be asking about unsaved notes) is left alone.
+func (m *Model) stopDialog(title string, lines, buttons []string, selected int, onGo func(*Model) tea.Cmd) {
+	if m.confirm != nil || m.saveAs != nil || m.promptBox != nil || m.menuBox != nil {
+		m.setStatus(lines[0])
+		return
+	}
+	m.confirm = &confirmDialog{
+		title:      title,
+		message:    m.wrapLines(lines),
+		buttons:    buttons,
+		selected:   selected,
+		deliberate: true,
+		onChoose: func(m *Model, choice int) tea.Cmd {
+			if choice != 0 {
+				return nil
+			}
+			return onGo(m)
+		},
+	}
+}
+
+// signInFor is the sign-in that can fix a denied sync, or nil: only a GitHub
+// HTTPS origin with gh available. The origin is read here and only compared.
+func signInFor(ctx context.Context, r *gitsync.Runner, dir string) *gitsync.Setup {
+	out, err := r.Run(ctx, "remote", "get-url", "origin")
+	if err != nil || !gitsync.GitHubHTTPS(string(out)) {
+		return nil
+	}
+	s := gitsync.NewSetup(gitsync.SetupOptions{Dir: dir, Timeout: setupTimeout})
+	if !s.FindGH() {
+		return nil
+	}
+	return s
+}
+
+// syncSignedInMsg comes twice: when gh's sign-in, run outside the screen,
+// ended, and with checked once gh was asked how it went (FinishSignIn).
+type syncSignedInMsg struct {
+	s       *gitsync.Setup
+	checked bool
+	err     error
+}
+
+// syncSignedIn asks gh, in the background, how the sign-in went, then syncs. If
+// it did not work, everything stays as it was and the key offers it again.
+func (m *Model) syncSignedIn(msg syncSignedInMsg) tea.Cmd {
+	if !msg.checked {
+		m.setStatus("Checking the sign-in…")
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), setupStepLimit)
+			defer cancel()
+			return syncSignedInMsg{checked: true, err: msg.s.FinishSignIn(ctx)}
+		}
+	}
+	if msg.err != nil {
+		m.setError("Sync still paused: " + oneLine(msg.err.Error()) + " · " + m.syncKey())
+		return nil
+	}
+	return m.syncAfterFix()
 }
 
 // syncStatusMsg brings what `:sync status` read back to Update.

@@ -68,6 +68,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.showSetup(msg)
 	case setupSignedInMsg:
 		return m, m.setupNext(msg.s, gitsync.SetupAnswer{OK: true})
+	case syncSignedInMsg:
+		return m, m.syncSignedIn(msg)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.flushPreview()
