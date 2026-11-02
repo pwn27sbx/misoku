@@ -150,8 +150,9 @@ func TestPasteImageWithoutAToolSaysWhatToInstall(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit = %d, want 1", code)
 	}
-	if !strings.Contains(msg, "needs") || !strings.Contains(msg, "wl-clipboard") {
-		t.Fatalf("stderr = %q, want the install hint", msg)
+	// The hint names the tool of this system, so ask the package for it.
+	if !strings.Contains(msg, "needs") || !strings.Contains(msg, clipimage.Hint()) {
+		t.Fatalf("stderr = %q, want the install hint for this system", msg)
 	}
 }
 
