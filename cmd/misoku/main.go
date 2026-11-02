@@ -38,6 +38,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "sync" {
 		os.Exit(runSync(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "paste-image" {
+		os.Exit(runPasteImage(os.Args[2:]))
+	}
 
 	flag.Usage = func() { usage(flag.CommandLine.Output()) }
 	opts, folder, err := parseOpenArgs(flag.CommandLine, os.Args[1:])

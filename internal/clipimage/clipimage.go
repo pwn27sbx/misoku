@@ -250,6 +250,18 @@ func save(data []byte, mime, ext string) (Data, bool, error) {
 	return Data{Path: path, MIME: mime, Ext: ext, Bytes: len(data)}, true, nil
 }
 
+// Hint names the tool to install when none is present, for the status line and
+// the command line.
+func Hint() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "pngpaste (brew install pngpaste)"
+	case "windows":
+		return "PowerShell's clipboard"
+	}
+	return "wl-clipboard (wl-paste) or xclip"
+}
+
 // Discard removes the temporary folder of a picture that was read.
 func Discard(d Data) {
 	if d.Path == "" {

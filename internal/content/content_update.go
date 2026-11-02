@@ -3,7 +3,6 @@ package content
 import (
 	"context"
 	"errors"
-	"runtime"
 	"strings"
 	"time"
 
@@ -403,12 +402,4 @@ func (m Model) pasteCmd() tea.Cmd {
 }
 
 // pasteHint names the clipboard tool to install for this session.
-func pasteHint() string {
-	switch runtime.GOOS {
-	case "darwin":
-		return "pngpaste (brew install pngpaste)"
-	case "windows":
-		return "PowerShell's clipboard"
-	}
-	return "wl-clipboard (wl-paste) or xclip"
-}
+func pasteHint() string { return clipimage.Hint() }
