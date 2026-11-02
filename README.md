@@ -586,6 +586,10 @@ Misoku can keep a notes folder (a *vault*) the same on all your computers throug
 - when you type `:sync` or press `space s` (`sync_now`, configurable like any [shortcut](#shortcuts));
 - when you quit: once the screen closes, Misoku pushes what you saved, printing `Pushing changes…` and the result. It gives up after 10 seconds (or at once with Ctrl+C) and the next sync pushes it. Closing the terminal pane or window Misoku runs in also pushes, writing the result to Misoku's log.
 
+**What arrived.** After a sync that brought notes, automatic ones included, the status bar names them, by their path in the vault: `2 new notes from another computer: nota.md, otra.md`, `1 note updated from another computer: a.md`, or `2 new notes, 1 updated from another computer: a.md, b.md, c.md`. A long list is cut after three names (`... +2 more · :sync status`): `:sync status` lists the last notes that arrived, and `:messages` keeps them all. Deleted notes and files that are not notes are not named, and no dialog opens.
+
+**With Misoku closed, nothing syncs.** Nothing runs in the background: your notes arrive the next time Misoku opens the vault.
+
 **After you save**, Misoku commits your changes locally once you stop saving for a few seconds, so a burst of saves makes one commit. This commit uses no network: the next sync pushes it. Syncs and these commits run in the background one at a time, so you can keep typing; a save made while one runs goes into the next commit, and a sync you ask for while a commit runs starts right after it. Each git command has a time limit, and git never stops to ask for a password or a key (that only happens in `misoku sync setup` and `misoku sync init`).
 
 **You need** git 2.38 or newer and a **private** repository: the assistant below creates one on GitHub for you. For `misoku sync init` you also need a git identity (`git config --global user.name "Your Name"` and `user.email`) and an empty private repository, or the one your other computer already syncs with.
@@ -694,7 +698,7 @@ The status bar shows the state of the last sync:
 
 A sync that starts on its own only writes to the status line when it made conflict copies, reloaded an open note, or hit a new problem; otherwise the indicator says how it went.
 
-`:sync status` shows the detail: state, remote (without credentials), branch, how often timed sync runs, commits waiting to be pushed, when it last synced, the last error, the conflict copies on disk, and the files that do not sync as they are.
+`:sync status` shows the detail: state, remote (without credentials), branch, how often timed sync runs, commits waiting to be pushed, when it last synced, the last error, the conflict copies on disk, the files that do not sync as they are, and the notes the last sync that brought any brought.
 
 ### What does not sync
 

@@ -275,7 +275,20 @@ func (m *Model) statusline() string {
 		parts = parts[1:]
 		right = strings.Join(parts, "")
 	}
-	if msg := m.message(); msg != "" {
+	msg := m.message()
+	if compact, ok := m.arrivalNotice(); ok {
+		// Only this notice takes the parts' room: naming what arrived is its
+		// whole point, and it clears on the next key.
+		fits := func() bool { return lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(msg)+1 <= m.width }
+		for len(parts) > 1 && !fits() {
+			parts = parts[1:]
+			right = strings.Join(parts, "")
+		}
+		if !fits() {
+			msg = fill.Foreground(th.Fg).Render("  " + compact)
+		}
+	}
+	if msg != "" {
 		room := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 1
 		if lipgloss.Width(msg) > room {
 			msg = ui.FitLine(msg, max(room, 0), fill)

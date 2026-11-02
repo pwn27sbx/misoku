@@ -4,6 +4,15 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Added
+
+- **Sync says which notes arrived**: after a sync that brought notes, automatic ones included, the status bar
+  names them (`2 new notes from another computer: nota.md, otra.md`). A long list is cut there; `:sync status` lists
+  the last ones and `:messages` keeps them all. While that notice shows, the bar gives up its right-side parts to fit
+  it, and in a narrow window it reads `2 new notes: nota.md, otra.md`. When no note arrived, nothing changes.
+
 ## [0.15.0] - 2026-11-02
 
 ### Added

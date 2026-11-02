@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -94,6 +95,9 @@ type SyncResult struct {
 	// Conflicts lists the conflict copies this sync created (S6),
 	// slash-separated and relative to the vault.
 	Conflicts []string
+	// NewNotes and UpdatedNotes name the notes this sync brought from origin
+	// (arrivals), slash-separated and relative to the vault.
+	NewNotes, UpdatedNotes []string
 	// Err is the cause when Outcome is not Synced. Credentials in URLs it
 	// quotes are removed (RedactURL).
 	Err error
@@ -168,6 +172,7 @@ func SyncVault(ctx context.Context, r *Runner, held *Lock, opts SyncOptions) Syn
 				return stop(applyFailure(err, res.Commit))
 			}
 			res.Updated = true
+			res.NewNotes, res.UpdatedNotes = arrivals(ctx, r, local, target, res.Conflicts)
 			if local, err = resolve(ctx, r, "HEAD"); err != nil {
 				return stop(SyncFailed, err)
 			}
@@ -366,6 +371,68 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 	}
 	res.Conflicts = copies
 	return commit, nil
+}
+
+// arrivals lists the notes moving the branch from base to target brought:
+// those added, and those changed or renamed. base is the vault before it took
+// origin's changes, so what this computer wrote is not in the list, also when
+// target is a union commit. copies are the sync's conflict copies, which
+// SyncResult.Conflicts already reports. An empty base (a vault with no commit
+// yet) makes every note of target new.
+//
+// The list only informs: when git fails here the notes are already in the
+// vault, so the error is left out on purpose and the sync reports its plain
+// outcome, naming nothing.
+func arrivals(ctx context.Context, r *Runner, base, target string, copies []string) (added, updated []string) {
+	keep := func(list *[]string, p string) {
+		if isNote(p) && !slices.Contains(copies, p) {
+			*list = append(*list, p)
+		}
+	}
+	// -z gives each path as it is, whatever its letters or spaces.
+	if base == "" {
+		out, err := r.Run(ctx, "-c", "core.quotePath=false", "ls-tree", "-r", "-z", "--name-only", target)
+		if err != nil {
+			return nil, nil
+		}
+		for _, p := range strings.Split(string(out), "\x00") {
+			keep(&added, p)
+		}
+		return added, nil
+	}
+	// -M: plumbing ignores the user's diff.renames, so ask for renames here.
+	out, err := r.Run(ctx, "-c", "core.quotePath=false", "diff-tree", "-r", "-z", "-M", "--name-status", base, target)
+	if err != nil {
+		return nil, nil
+	}
+	// Each entry is "<status>\0<path>\0", or for a rename
+	// "R<score>\0<old path>\0<new path>\0".
+	fields := strings.Split(string(out), "\x00")
+	for i := 0; i+1 < len(fields); i += 2 {
+		status := fields[i]
+		switch {
+		case strings.HasPrefix(status, "A"):
+			keep(&added, fields[i+1])
+		case strings.HasPrefix(status, "R") && i+2 < len(fields):
+			i++
+			keep(&updated, fields[i+1])
+		case strings.HasPrefix(status, "M"), strings.HasPrefix(status, "T"):
+			keep(&updated, fields[i+1])
+		}
+	}
+	return added, updated
+}
+
+// isNote reports whether slash-separated path p is a note: the rule of
+// core.Store's walk, which lists ".md" files and skips anything hidden. It
+// is here because that rule is applied to folder entries there, not to paths.
+func isNote(p string) bool {
+	if !strings.HasSuffix(p, ".md") {
+		return false
+	}
+	return !slices.ContainsFunc(strings.Split(p, "/"), func(part string) bool {
+		return strings.HasPrefix(part, ".")
+	})
 }
 
 // originBranch asks origin for its default branch (defaultBranch). When
