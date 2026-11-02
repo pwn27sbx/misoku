@@ -36,6 +36,7 @@ const (
 	GlobalGraph    = "global_graph"
 	Home           = "home"
 	SyncNow        = "sync_now"
+	PasteImage     = "paste_image"
 	Help           = "help"
 
 	ExplorerFind        = "explorer.find"
@@ -126,6 +127,8 @@ var Actions = []Info{
 		Long: "Goes back to the home screen, with recent notes and folders. Open tabs stay open.", defaults: []string{"space d"}},
 	{Action: SyncNow, Section: "general", Group: GroupNote, Help: "Sync the vault with git now",
 		Long: "Syncs the vault with its git remote right away, instead of waiting for the next automatic sync.", defaults: []string{"space s"}},
+	{Action: PasteImage, Section: "general", Group: GroupNote, Help: "Paste an image from the clipboard",
+		Long: "Saves the picture in the clipboard next to this note and links it on a line of its own. In insert mode ctrl+v does the same, and pastes text when the clipboard holds no picture.", defaults: []string{"space i"}},
 	{Action: Help, Section: "general", Group: GroupView, Help: "This help",
 		Long: "Opens this list of every key and command. Type to filter it; Enter runs a command, Esc closes.", defaults: []string{"?", "space h", "space ?"}},
 	{Action: Quit, Section: "general", Group: GroupNote, Help: "Quit (asks to save)",

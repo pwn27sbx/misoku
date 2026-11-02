@@ -188,6 +188,12 @@ func WithClipboard(write func(string) error) Option {
 	return func(m *Model) { m.writeClipboard = write }
 }
 
+// WithClipboardImage replaces how a picture is read from the clipboard (used by
+// tests, which never touch a clipboard).
+func WithClipboardImage(read func(context.Context) (core.ClipboardImageMsg, bool, error)) Option {
+	return func(m *Model) { m.content.SetClipboardImage(read) }
+}
+
 // WithOpener replaces the system opener for web links and files (used by
 // tests).
 func WithOpener(open func(string) error) Option {
