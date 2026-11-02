@@ -29,6 +29,10 @@ func TestMain(m *testing.M) {
 }
 
 func runIsolated(m *testing.M) int {
+	if err := clearRepoLocalGitEnv(); err != nil {
+		fmt.Fprintln(os.Stderr, "TestMain:", err)
+		return 1
+	}
 	if os.Getenv(testIsolationEnv) == "" {
 		dir, err := os.MkdirTemp("", "misoku-gitsync-test-")
 		if err != nil {
@@ -47,6 +51,51 @@ func runIsolated(m *testing.M) int {
 		os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	}
 	return m.Run()
+}
+
+// clearRepoLocalGitEnv unsets every variable git lists as local to a
+// repository. A git hook exports GIT_DIR and GIT_INDEX_FILE; left set, every
+// git command a test runs on its temporary repository would hit the repository
+// being committed to instead.
+func clearRepoLocalGitEnv() error {
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil // no git to misdirect: the tests that need it skip
+	}
+	out, err := exec.Command("git", "rev-parse", "--local-env-vars").Output()
+	if err != nil {
+		return fmt.Errorf("git rev-parse --local-env-vars: %w", err)
+	}
+	for _, name := range strings.Fields(string(out)) {
+		if err := os.Unsetenv(name); err != nil {
+			return fmt.Errorf("unset %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// TestMainClearsRepoLocalGitEnv starts the test binary again with the variables
+// a git hook exports, naming a decoy, and checks none reaches a test.
+func TestMainClearsRepoLocalGitEnv(t *testing.T) {
+	const probeEnv = "MISOKU_TEST_GIT_ENV_PROBE"
+	names := []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"}
+	if os.Getenv(probeEnv) != "" {
+		for _, name := range names {
+			if v, ok := os.LookupEnv(name); ok {
+				t.Errorf("%s=%q reached a test", name, v)
+			}
+		}
+		return
+	}
+	isolate(t)
+	decoy := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestMainClearsRepoLocalGitEnv$")
+	cmd.Env = append(os.Environ(), probeEnv+"=1")
+	for _, name := range names {
+		cmd.Env = append(cmd.Env, name+"="+filepath.Join(decoy, name))
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("%v:\n%s", err, out)
+	}
 }
 
 // isolate skips a test that needs git when git is not installed. The
