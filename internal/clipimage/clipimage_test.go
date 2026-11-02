@@ -49,7 +49,6 @@ func waylandEnv(kv map[string]string) func(string) string {
 }
 
 func TestWaylandReadsTheFirstAcceptedPictureType(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "text/plain\nimage/webp\nimage/png\n", data: "PNGDATA"}
 	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "wayland-0"}), f.run)
@@ -73,7 +72,6 @@ func TestWaylandReadsTheFirstAcceptedPictureType(t *testing.T) {
 }
 
 func TestWaylandWithoutAPictureIsNotAnError(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "text/plain\n"}
 	_, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "wayland-0"}), f.run)
@@ -86,7 +84,6 @@ func TestWaylandWithoutAPictureIsNotAnError(t *testing.T) {
 }
 
 func TestMimeParametersAreIgnored(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "image/png;charset=binary\n", data: "x"}
 	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
@@ -97,7 +94,6 @@ func TestMimeParametersAreIgnored(t *testing.T) {
 }
 
 func TestX11IsUsedWithoutWayland(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "TARGETS\nimage/jpeg\n", data: "JPEG"}
 	d, ok, err := ReadWith(context.Background(), waylandEnv(nil), f.run)
@@ -116,7 +112,6 @@ func TestX11IsUsedWithoutWayland(t *testing.T) {
 }
 
 func TestWaylandFallsBackToX11WhenItsToolIsMissing(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "image/png\n", data: "PNG", missing: map[string]bool{"wl-paste": true}}
 	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
@@ -127,7 +122,6 @@ func TestWaylandFallsBackToX11WhenItsToolIsMissing(t *testing.T) {
 }
 
 func TestNoToolAtAllIsReported(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{missing: map[string]bool{"wl-paste": true, "xclip": true}}
 	_, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
@@ -137,7 +131,6 @@ func TestNoToolAtAllIsReported(t *testing.T) {
 }
 
 func TestAFailingToolIsReportedAndIsNotAPicture(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "image/png\n", data: "x", fail: map[string]bool{"wl-paste": true}}
 	_, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
@@ -150,7 +143,6 @@ func TestAFailingToolIsReportedAndIsNotAPicture(t *testing.T) {
 }
 
 func TestReadWithoutARunnerSaysNoTool(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	if _, _, err := ReadWith(context.Background(), waylandEnv(nil), nil); !errors.Is(err, ErrNoTool) {
 		t.Fatalf("err = %v", err)
@@ -158,7 +150,6 @@ func TestReadWithoutARunnerSaysNoTool(t *testing.T) {
 }
 
 func TestDiscardRemovesTheTemporaryFolder(t *testing.T) {
-	t.Parallel()
 	linux(t)
 	f := &fake{types: "image/png\n", data: "x"}
 	d, ok, err := ReadWith(context.Background(), waylandEnv(map[string]string{"WAYLAND_DISPLAY": "1"}), f.run)
