@@ -224,6 +224,11 @@ type Model struct {
 	// Cursor is the text area cursor.
 	Cursor cursor.Model
 
+	// HideCursor stops the widget drawing its own cursor cell, so the
+	// terminal's cursor is the only one on screen (see internal/cursor). The
+	// placeholder's cursor goes with it; the cell keeps its colours.
+	HideCursor bool
+
 	// CharLimit is the maximum number of characters this input element will
 	// accept. If 0 or less, there's no limit.
 	CharLimit int
@@ -1198,7 +1203,7 @@ func (m Model) View() string {
 				wrappedLine = []rune(strings.TrimSuffix(string(wrappedLine), " "))
 				padding -= m.width - strwidth
 			}
-			if m.row == l && lineInfo.RowOffset == wl {
+			if m.row == l && lineInfo.RowOffset == wl && !m.HideCursor {
 				// misoku: the cursor may sit just past a segment whose
 				// trailing space was trimmed above (wide CJK runes); clamp.
 				co := min(lineInfo.ColumnOffset, len(wrappedLine))
@@ -1355,12 +1360,16 @@ func (m Model) placeholderView() string {
 		switch {
 		// first line
 		case i == 0:
-			// first character of first line as cursor with character
-			m.Cursor.TextStyle = m.style.computedPlaceholder()
-
 			ch, rest, _, _ := uniseg.FirstGraphemeClusterInString(plines[0], 0)
-			m.Cursor.SetChar(ch)
-			s.WriteString(lineStyle.Render(m.Cursor.View()))
+			if m.HideCursor {
+				// The terminal draws the cursor on this cell.
+				s.WriteString(lineStyle.Render(style.Render(ch)))
+			} else {
+				// first character of first line as cursor with character
+				m.Cursor.TextStyle = m.style.computedPlaceholder()
+				m.Cursor.SetChar(ch)
+				s.WriteString(lineStyle.Render(m.Cursor.View()))
+			}
 
 			// the rest of the first line
 			s.WriteString(lineStyle.Render(style.Render(rest)))
