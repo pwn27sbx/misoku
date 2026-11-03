@@ -46,16 +46,21 @@ platform, merge commit, CHANGELOG `[Unreleased]` -> `[0.17.0]`, tag `v0.17.0` on
 ## Tasks
 
 - T1 (spike, option A) — build the cursor writer + app wiring minimally and check frames live in Ghostty and
-  inside herdr; decide A or B and record the reason in the plan. Route: inline.
+  inside herdr; decide A or B and record the reason in the plan. Route: inline. DONE: A ships, no frame
+  corruption; the plan records the spike result.
 - T2 — `internal/cursor`: DECSCUSR/CUP placement writer, frame detection, change-only emission, restore,
   policy from `ui.cursor_shape` / `MISOKU_CURSOR_SHAPE` / TTY / `TERM=dumb`. RED tests first. Route: inline.
+  DONE in 9628ff4.
 - T3 — app: cursor sink, `cursorCell` (mode, focus, overlays, layout offset), called from View; `execOutside`
-  for `tea.ExecProcess`. RED tests through the harness + writer. Route: inline.
+  for `tea.ExecProcess`. RED tests through the harness + writer. Route: inline. DONE in 09350f1.
 - T4 — fake cursor hidden in the textarea when the real cursor is active; steady blink. RED tests first.
-  Route: inline.
-- T5 — main wiring: policy, writer chain order, exit restore. RED tests first. Route: inline.
-- T6 — README (`Look` table + a short paragraph) and CHANGELOG entry. Route: inline.
-- T7 — live check in Ghostty and inside herdr; shell cursor back to default afterwards. Route: inline.
+  Route: inline. DONE in 09350f1.
+- T5 — main wiring: policy, writer chain order, exit restore. RED tests first. Route: inline. DONE in
+  47fa459.
+- T6 — README (`Look` table + a short paragraph) and CHANGELOG entry. Route: inline. DONE in 96c4df0.
+- T7 — live check in Ghostty and inside herdr; shell cursor back to default afterwards. Route: inline. DONE:
+  plain Ghostty and herdr (in Ghostty) showed block, bar, fast typing, scrolling, a pane resize, the finder,
+  a dialog and a Kitty image with clean frames, and the default block cursor in the shell after quitting.
 - T8 — delivery: review, PR, CI, merge, `[0.17.0]`, tag, Release, `CURSOR-DONE`. Route: inline.
 
 ## Log
