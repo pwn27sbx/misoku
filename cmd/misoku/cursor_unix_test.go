@@ -54,7 +54,9 @@ func openCursorTerminalIn(t *testing.T, home, vault string) *cursorTerminal {
 		t.Fatal(err)
 	}
 	tm.cmd = exec.Command(os.Args[0], "-test.run=^$")
-	tm.cmd.Env = append(os.Environ(), mainArgsEnv+"=", "MISOKU_WORKSPACE="+vault,
+	// MISOKU_CURSOR_SHAPE wins over the file: clear it so the runner's
+	// environment cannot decide what the test sees.
+	tm.cmd.Env = append(os.Environ(), mainArgsEnv+"=", "MISOKU_WORKSPACE="+vault, "MISOKU_CURSOR_SHAPE=",
 		"TERM=xterm-256color", "HOME="+home, "XDG_CACHE_HOME="+home, "XDG_CONFIG_HOME="+home)
 	tm.cmd.Stdin, tm.cmd.Stdout, tm.cmd.Stderr = slave, slave, slave
 	tm.cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
@@ -148,7 +150,9 @@ func TestTheRealCursorFollowsTheModeAndIsRestored(t *testing.T) {
 
 	tm.master.Write([]byte{3}) // Ctrl+C: quit
 	tm.waitForExit(t)
-	if got := tm.drawn(); !strings.HasSuffix(got, "\x1b[0 q\x1b[?25h") {
+	// The restore is the last thing written, inside one synchronized update.
+	got := strings.TrimSuffix(tm.drawn(), "\x1b[?2026l")
+	if !strings.HasSuffix(got, "\x1b[0 q\x1b[?25h") {
 		t.Fatalf("the terminal cursor was not restored on the way out: %q", got[max(0, len(got)-80):])
 	}
 }

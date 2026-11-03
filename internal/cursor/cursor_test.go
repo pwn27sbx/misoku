@@ -209,9 +209,26 @@ func TestRestoreResetsTheShapeAndShowsTheCursor(t *testing.T) {
 	}
 }
 
-// After an external program has used the terminal, the next state must be
-// re-applied even though it did not change.
-func TestRestoreForgetsTheState(t *testing.T) {
+// After an external program has used the terminal, the shape is unknown and
+// must be said again; the cursor is visible, so showing it is not repeated.
+func TestRestoreForgetsTheShapeAndKeepsTheCursorVisible(t *testing.T) {
+	r := &recorder{}
+	w := cursor.NewWriter(r)
+	w.Set(3, 4, cursor.Bar, true)
+	if err := w.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	r.writes = nil
+
+	w.Set(3, 4, cursor.Block, true)
+
+	if want := "\x1b[2 q\x1b[5;4H"; r.all() != want {
+		t.Fatalf("re-apply = %q, want %q", r.all(), want)
+	}
+}
+
+// Restore shows the cursor, so hiding it afterwards must still be said.
+func TestHidingAfterRestoreHidesTheCursor(t *testing.T) {
 	r := &recorder{}
 	w := cursor.NewWriter(r)
 	w.Set(3, 4, cursor.Block, true)
@@ -220,12 +237,68 @@ func TestRestoreForgetsTheState(t *testing.T) {
 	}
 	r.writes = nil
 
-	w.Set(3, 4, cursor.Block, true)
+	w.Set(0, 0, cursor.Block, false)
 
-	if want := "\x1b[?25h\x1b[2 q\x1b[5;4H"; r.all() != want {
-		t.Fatalf("re-apply = %q, want %q", r.all(), want)
+	if want := "\x1b[?25l"; r.all() != want {
+		t.Fatalf("hide after restore = %q, want %q", r.all(), want)
 	}
 }
+
+// A placement the terminal did not take must be tried again: the state it
+// would have set is not what the terminal has.
+func TestAFailedPlacementIsTriedAgain(t *testing.T) {
+	out := &flakyWriter{fail: true}
+	w := cursor.NewWriter(out)
+	w.Set(3, 4, cursor.Block, true)
+	out.fail = false
+	out.writes = nil
+
+	w.Set(3, 4, cursor.Block, true)
+
+	if want := "\x1b[?25h\x1b[2 q\x1b[5;4H"; out.all() != want {
+		t.Fatalf("retry = %q, want %q", out.all(), want)
+	}
+}
+
+// A write that stops inside the placement still wrote the whole frame: the
+// caller must not be told to send part of it again.
+func TestShortWriteCountsOnlyTheFramesBytes(t *testing.T) {
+	frame := []byte("\x1b[H" + strings.Repeat("x", 97)) // 100 bytes
+	// 100 frame bytes plus a 6-byte placement: the terminal takes 105 of 106,
+	// which is the whole frame and no whole placement.
+	out := &partialWriter{take: 105}
+	w := cursor.NewWriter(out)
+	w.Set(0, 0, cursor.Block, true)
+
+	n, err := w.Write(frame)
+	if n != len(frame) {
+		t.Fatalf("Write reported %d of %d frame bytes", n, len(frame))
+	}
+	if err != nil {
+		t.Fatalf("a complete frame was reported as failed: %v", err)
+	}
+}
+
+// flakyWriter fails until fail is cleared.
+type flakyWriter struct {
+	writes []string
+	fail   bool
+}
+
+func (f *flakyWriter) Write(p []byte) (int, error) {
+	if f.fail {
+		return 0, io.ErrClosedPipe
+	}
+	f.writes = append(f.writes, string(p))
+	return len(p), nil
+}
+
+func (f *flakyWriter) all() string { return strings.Join(f.writes, "") }
+
+// partialWriter takes at most take bytes of a write.
+type partialWriter struct{ take int }
+
+func (p *partialWriter) Write(b []byte) (int, error) { return min(p.take, len(b)), nil }
 
 // The placement has to sit inside the frame's synchronized update.
 func TestPlacementStaysInsideTheSyncBracket(t *testing.T) {
@@ -311,7 +384,6 @@ func TestEnabled(t *testing.T) {
 		{"an unknown setting means auto", "nonsense", nil, true, true},
 		{"TERM=dumb emits nothing", "auto", map[string]string{"TERM": "dumb"}, true, false},
 		{"TERM=dumb with block", "block", map[string]string{"TERM": "dumb"}, true, false},
-		{"a nil getenv is harmless", "auto", nil, true, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -295,7 +295,8 @@ func TestRunningAProgramOutsideResetsTheShape(t *testing.T) {
 
 	out.buf.Reset()
 	h.m.View()
-	if got := out.all(); !strings.HasPrefix(got, "\x1b[?25h\x1b[2 q") {
+	// The cursor is visible again, so the shape and the cell are what returns.
+	if got := out.all(); !strings.HasPrefix(got, "\x1b[2 q") {
 		t.Fatalf("the shape was not applied again after the program: %q", got)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/textarea"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 )
 
@@ -40,7 +41,7 @@ func TestHideCursorKeepsTheCharacterAndDropsTheReverseCell(t *testing.T) {
 	if reverseVideo(view) {
 		t.Fatalf("the cursor cell is still drawn:\n%q", view)
 	}
-	plain := stripANSI(view)
+	plain := ansi.Strip(view)
 	if !strings.Contains(plain, "hello") || !strings.Contains(plain, "world") {
 		t.Fatalf("the text is gone:\n%q", view)
 	}
@@ -65,7 +66,7 @@ func TestHideCursorAppliesToThePlaceholder(t *testing.T) {
 	if reverseVideo(view) {
 		t.Fatalf("the placeholder cursor is still drawn:\n%q", view)
 	}
-	if !strings.Contains(stripANSI(view), "Start writing") {
+	if !strings.Contains(ansi.Strip(view), "Start writing") {
 		t.Fatalf("the placeholder is gone:\n%q", view)
 	}
 }
@@ -88,26 +89,5 @@ func lineWidth(t *testing.T, view string, i int) int {
 	if i >= len(rows) {
 		t.Fatalf("row %d is outside the %d-row view", i, len(rows))
 	}
-	return len([]rune(stripANSI(rows[i])))
-}
-
-// stripANSI drops CSI sequences, which is all the editor writes.
-func stripANSI(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); {
-		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
-			j := i + 2
-			for j < len(s) && (s[j] < 0x40 || s[j] > 0x7e) {
-				j++
-			}
-			if j < len(s) {
-				j++
-			}
-			i = j
-			continue
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	return b.String()
+	return ansi.StringWidth(rows[i])
 }

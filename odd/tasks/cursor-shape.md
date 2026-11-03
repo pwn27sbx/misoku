@@ -1,7 +1,7 @@
 # cursor-shape — a block cursor in NORMAL and a bar in INSERT
 
-Branch `feat/cursor-shape`. Plan: `~/Documents/MisokuVault/Misoku/2026-11-02-cursor-shape/README.md`
-(its "Verification log" amendments are binding and override the sections above them).
+Branch `feat/cursor-shape`. Plan: `~/Documents/MisokuVault/Misoku/2026-11-02-cursor-shape/README.md`; the
+`## Specs` below are its binding summary, including every "Verification log" amendment.
 Test runner: `go test ./...`; scratch under `TMPDIR=/var/tmp`, never `/tmp` and never the real HOME.
 Delivery: small conventional commits, gentle-ai review offered in the OpenCode pane, PR, CI green on every
 platform, merge commit, CHANGELOG `[Unreleased]` -> `[0.17.0]`, tag `v0.17.0` on main, wait for Release, then

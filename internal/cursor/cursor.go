@@ -64,11 +64,7 @@ func Enabled(setting string, getenv func(string) string, isTTY bool) bool {
 	if mode == "" {
 		mode = strings.ToLower(strings.TrimSpace(setting))
 	}
-	switch mode {
-	case "block", "off", "none":
-		return false
-	}
-	return true
+	return mode != "block"
 }
 
 // Writer is the program output with the real cursor on top: Set says where the
@@ -133,7 +129,11 @@ func (w *Writer) Set(x, y int, s Shape, visible bool) {
 		b.WriteString(hide)
 	}
 	if b.Len() > 0 {
-		_, _ = w.out.Write([]byte(b.String()))
+		if n, err := w.out.Write([]byte(b.String())); err != nil || n < b.Len() {
+			// The terminal did not take it: what it has is unknown, so the
+			// next Set says it again.
+			return
+		}
 	}
 	w.mark(x, y, s, visible)
 }
@@ -163,8 +163,7 @@ func (w *Writer) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, cup(w.x, w.y)...)
 
 	n, err := w.out.Write(w.buf)
-	extra := len(w.buf) - len(p)
-	n = min(max(n-extra, 0), len(p))
+	n = min(n, len(p))
 	if err == nil && n < len(p) {
 		err = io.ErrShortWrite
 	}
@@ -174,15 +173,20 @@ func (w *Writer) Write(p []byte) (int, error) {
 
 // Restore gives the terminal its own cursor back: the default shape, visible.
 // The program calls it when it stops and before handing the terminal to another
-// program; the state is forgotten, so the next Set re-applies it.
+// program. The shape is forgotten and the cell is unknown, so the next Set says
+// both again; the cursor stays visible, so hiding it afterwards is still said.
 func (w *Writer) Restore() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.known, w.lastVisible = false, false
+	// The cursor is visible now, at a cell the program left it on, and its
+	// shape is the terminal's own: nothing is known about either.
+	w.known, w.lastX, w.lastY = false, -1, -1
 	if w.out == nil {
+		w.lastVisible = false
 		return nil
 	}
-	_, err := io.WriteString(w.out, restore+show)
+	n, err := w.out.Write([]byte(restore + show))
+	w.lastVisible = err == nil && n == len(restore+show)
 	return err
 }
 
