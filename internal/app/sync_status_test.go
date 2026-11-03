@@ -103,8 +103,8 @@ func TestSyncAccessErrorShowsItsHint(t *testing.T) {
 	gitIn(t, vault, "remote", "set-url", "origin", "ssh://git@example.invalid/notes.git")
 	h := window(t, vault, syncConfig(t, vault))
 	h.finish(h.update(app.SyncNowMsg{}))
-	wantBar(t, h, "sync error")
-	wantBar(t, h, "misoku sync init")
+	wantWideBar(t, h, "Sync error: origin's SSH host key is not known yet")
+	wantWideBar(t, h, "misoku sync init")
 }
 
 // openSyncStatus types ":sync status" in the editor, checks it asks for

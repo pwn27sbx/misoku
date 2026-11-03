@@ -201,37 +201,12 @@ func (m *Model) statusline() string {
 	fill := lipgloss.NewStyle().Background(th.StatusBg)
 	light := lipgloss.NewStyle().Background(th.LightBg)
 
-	label, color := m.modeBlock()
-	left := lipgloss.NewStyle().Background(color).Foreground(th.Bg).Bold(true).Render(label)
-
 	b := m.activeBuffer()
 	if m.viewMode == viewModeDashboard {
 		b = nil
 	}
-	file := "No file"
-	fileFg := th.GreyFg2
-	if b != nil {
-		file = b.fileName()
-		fileFg = th.Fg
-	}
-	if m.viewMode == viewModeDashboard {
-		left += lipgloss.NewStyle().Background(th.StatusBg).Foreground(color).Render("\ue0b4")
-	} else {
-		left += lipgloss.NewStyle().Background(th.LightBg).Foreground(color).Render("")
-		left += light.Foreground(th.NordBlue).Render(" 󰈙 ") + light.Foreground(fileFg).Render(ui.Truncate(file, 32)+" ")
-		if b != nil && m.isDirty(b) {
-			left += light.Foreground(th.Green).Render("● ")
-		}
-		if b != nil && b.draft() && !b.isGraph() {
-			left += light.Foreground(th.Yellow).Render("unsaved ")
-		}
-		left += lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.LightBg).Render("")
-	}
-	if b != nil && !b.draft() {
-		if dir := filepath.Dir(b.id); dir != "." {
-			left += fill.Foreground(th.GreyFg).Render("  󰉋 " + ui.Truncate(dir, 30))
-		}
-	}
+	shown := b
+	left := m.statusLeft(shown, statusNameMax, true)
 
 	// Right side, dropped piece by piece when the terminal is narrow.
 	var parts []string
@@ -254,7 +229,7 @@ func (m *Model) statusline() string {
 		if alert {
 			fg = th.Red
 		}
-		parts = append(parts, fill.Foreground(fg).Render(text+"  "))
+		parts = append(parts, fill.Foreground(fg).Render(m.barText(text)+"  "))
 	}
 	cwd := lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Red).Render("") +
 		lipgloss.NewStyle().Background(th.Red).Foreground(th.Bg).Render("󰉋 ") +
@@ -276,17 +251,19 @@ func (m *Model) statusline() string {
 		right = strings.Join(parts, "")
 	}
 	msg := m.message()
-	if compact, ok := m.arrivalNotice(); ok {
-		// Only this notice takes the parts' room: naming what arrived is its
-		// whole point, and it clears on the next key.
-		fits := func() bool { return lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(msg)+1 <= m.width }
-		for len(parts) > 1 && !fits() {
+	if compact, ok := m.barNotice(); ok {
+		// Only these notices take the parts' room: what arrived, and a stopped
+		// sync with the key that answers it, are their whole point. The text
+		// alone decides the compact form: an error's hint may be cut.
+		fits := func(s string) bool { return lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(s)+1 <= m.width }
+		for len(parts) > 1 && !fits(msg) {
 			parts = parts[1:]
 			right = strings.Join(parts, "")
 		}
-		if !fits() {
-			msg = fill.Foreground(th.Fg).Render("  " + compact)
+		if !fits("  " + m.barText(m.status)) {
+			msg = m.messageOf(compact)
 		}
+		left, right, msg = m.fitStopNotice(shown, left, right, msg)
 	}
 	if msg != "" {
 		room := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 1
@@ -298,6 +275,72 @@ func (m *Model) statusline() string {
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	line := left + fill.Render(strings.Repeat(" ", max(gap, 0))) + right
 	return ui.FitLine(line, m.width, fill)
+}
+
+// statusNameMax is the most columns the bar gives a note's name.
+const statusNameMax = 32
+
+// statusLeft is the left of the bar: the mode, and with a note open its name and
+// folder. A nameMax of zero leaves the note out.
+func (m *Model) statusLeft(b *buffer, nameMax int, folder bool) string {
+	th := m.theme
+	fill := lipgloss.NewStyle().Background(th.StatusBg)
+	light := lipgloss.NewStyle().Background(th.LightBg)
+
+	label, color := m.modeBlock()
+	left := lipgloss.NewStyle().Background(color).Foreground(th.Bg).Bold(true).Render(label)
+	if m.viewMode == viewModeDashboard || nameMax <= 0 {
+		return left + lipgloss.NewStyle().Background(th.StatusBg).Foreground(color).Render("\ue0b4")
+	}
+	file := "No file"
+	fileFg := th.GreyFg2
+	if b != nil {
+		file = b.fileName()
+		fileFg = th.Fg
+	}
+	left += lipgloss.NewStyle().Background(th.LightBg).Foreground(color).Render("")
+	left += light.Foreground(th.NordBlue).Render(" 󰈙 ") + light.Foreground(fileFg).Render(ui.Truncate(file, nameMax)+" ")
+	if b != nil && m.isDirty(b) {
+		left += light.Foreground(th.Green).Render("● ")
+	}
+	if b != nil && b.draft() && !b.isGraph() {
+		left += light.Foreground(th.Yellow).Render("unsaved ")
+	}
+	left += lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.LightBg).Render("")
+	if folder && b != nil && !b.draft() {
+		if dir := filepath.Dir(b.id); dir != "." {
+			left += fill.Foreground(th.GreyFg).Render("  󰉋 " + ui.Truncate(dir, 30))
+		}
+	}
+	return left
+}
+
+// fitStopNotice keeps a stop's key on the bar from the app's minimum width up,
+// since cutting it leaves a message that does not say what to do. The position,
+// the folder, the words after the key and the note's name give way, in that
+// order and only as far as the message needs. A notice that is no stop keeps
+// the bar as it is.
+func (m *Model) fitStopNotice(b *buffer, left, right, msg string) (string, string, string) {
+	keep, tight := m.sync.noticeStop, m.sync.noticeStopTight
+	if keep == "" {
+		return left, right, msg
+	}
+	over := func() int {
+		return lipgloss.Width(left) + lipgloss.Width(right) + lipgloss.Width("  "+keep) + 1 - m.width
+	}
+	if over() > 0 {
+		right = ""
+	}
+	if over() > 0 {
+		left = m.statusLeft(b, statusNameMax, false)
+	}
+	if over() > 0 {
+		keep, msg = tight, m.messageOf(tight)
+	}
+	if n := over(); n > 0 && b != nil {
+		left = m.statusLeft(b, max(min(lipgloss.Width(b.fileName()), statusNameMax)-n, 0), false)
+	}
+	return left, right, msg
 }
 
 // bottomBar is the single bottom row: the ":" prompt while typing a
@@ -313,15 +356,23 @@ func (m *Model) bottomBar() string {
 // message is the transient text shown in the middle of the statusline.
 func (m *Model) message() string {
 	th := m.theme
-	fill := lipgloss.NewStyle().Background(th.StatusBg)
 	switch {
-	case m.status != "" && m.statusErr:
-		return fill.Foreground(th.Red).Render("  "+m.status) +
-			fill.Foreground(th.GreyFg).Render("  Esc dismiss · :messages")
 	case m.status != "":
-		return fill.Foreground(th.Fg).Render("  " + m.status)
+		return m.messageOf(m.status)
 	case m.leaderPending:
-		return fill.Foreground(th.Blue).Bold(true).Render("  <Space>")
+		return lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Blue).Bold(true).Render("  <Space>")
 	}
 	return ""
+}
+
+// messageOf draws text as the status: an error in red, with its hint.
+func (m *Model) messageOf(text string) string {
+	th := m.theme
+	fill := lipgloss.NewStyle().Background(th.StatusBg)
+	text = m.barText(text)
+	if m.statusErr {
+		return fill.Foreground(th.Red).Render("  "+text) +
+			fill.Foreground(th.GreyFg).Render("  Esc dismiss · :messages")
+	}
+	return fill.Foreground(th.Fg).Render("  " + text)
 }
