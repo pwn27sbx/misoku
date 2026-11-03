@@ -18,6 +18,26 @@ version comes from the tag, so nothing else in the tree carries it.
   again** and **Close**, changing nothing. No dialog opens on its own, and `:sync status` keeps the technical detail. The bar gives up its
   right-side parts to fit these messages, and in a narrow window reads `Sync offline · space s retries`.
 
+## [0.16.0] - 2026-11-02
+
+### Added
+
+- **Notes that arrived from another computer are named**: after a sync that brings notes, automatic ones
+  included, the status bar says so, for example `2 new notes from another computer: nota.md, otra.md`. No dialog
+  opens on its own, so nothing takes the keys of the note being written. `:messages` and `:sync status` list the
+  first ten arrivals and count the rest.
+- **The sync key resolves a stopped sync**, and the bar says what it did: offline, it retries; a leftover lock
+  opens the lock removal dialog; expired GitHub access offers the sign-in (Enter alone cancels); a rewritten or
+  unrelated history, an unfinished merge or a detached HEAD is explained in plain words and nothing is changed,
+  because joining two histories could bring back something deleted on purpose.
+
+### Fixed
+
+- Note names with control characters are shown sanitized in the bar, `:messages` and `:sync status`.
+- The sync key stays visible in the bar, and a stop that a later local commit disproves is cleared.
+- The test suites clear repository-local git variables, so running them from a git hook never touches the
+  repository being committed to.
+
 ## [0.15.0] - 2026-11-02
 
 ### Added
