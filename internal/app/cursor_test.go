@@ -184,18 +184,15 @@ func TestInsertIsABarAndVisualIsABlock(t *testing.T) {
 		t.Fatalf("back to NORMAL emitted the block %d times, want 1: %q", got, out.all())
 	}
 
-	out.buf.Reset()
-	h.keys("v")
-	h.m.View()
-	if got := out.count("\x1b[2 q"); got != 0 {
-		t.Fatalf("VISUAL changed the shape %d times, want none: %q", got, out.all())
-	}
-
-	out.buf.Reset()
-	h.keys("V")
-	h.m.View()
-	if got := out.count("\x1b[2 q"); got != 0 {
-		t.Fatalf("VISUAL-LINE changed the shape %d times, want none: %q", got, out.all())
+	// VISUAL and VISUAL-LINE keep NORMAL's block: no shape sequence at all,
+	// and above all no bar.
+	for _, key := range []string{"v", "V"} {
+		out.buf.Reset()
+		h.keys(key)
+		h.m.View()
+		if got := out.all(); got != "" {
+			t.Fatalf("%q changed the cursor %q, want the block kept", key, got)
+		}
 	}
 }
 
