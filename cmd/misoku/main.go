@@ -18,6 +18,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/cursor"
 	"github.com/pwn27sbx/misoku/internal/export"
 	"github.com/pwn27sbx/misoku/internal/kitty"
 	"github.com/pwn27sbx/misoku/internal/preview"
@@ -123,23 +124,43 @@ func main() {
 
 	log.Printf("Starting Misoku (workspace: %s)\n", store.Root())
 
-	appModel := app.New(store, app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI))
-
 	// Each frame is drawn as one synchronized update, so a terminal never
 	// shows it half painted; MISOKU_NO_SYNC=1 turns that off. Pictures go to
 	// the terminal through the same output as the frames, so a chunked image
 	// upload can never be cut in half by a repaint; the mode comes from
 	// ui.images, and MISOKU_IMAGES wins over it.
 	preview.ConfigureImages(cfg.UI.Images, isTerminal(os.Stdout))
-	out := kitty.NewWriter(syncout.ForTerminal(os.Stdout, os.Getenv))
-	preview.SetImageSink(out)
+	out := io.Writer(syncout.ForTerminal(os.Stdout, os.Getenv))
+	// The terminal's own cursor draws the mode, like LazyVim: a block in
+	// NORMAL and a thin bar in INSERT, placed on the editor cell after every
+	// frame and inside the same synchronized update. ui.cursor_shape and
+	// MISOKU_CURSOR_SHAPE decide; without a terminal nothing is emitted.
+	var cur *cursor.Writer
+	if cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)) {
+		cur = cursor.NewWriter(out)
+		out = cur
+	}
+	appOpts := []app.Option{app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI)}
+	if cur != nil {
+		appOpts = append(appOpts, app.WithCursor(cur))
+	}
+	appModel := app.New(store, appOpts...)
+	images := kitty.NewWriter(out)
+	preview.SetImageSink(images)
 	// Every motion report is needed for the preview's block handles, but
 	// most of it changes nothing: MouseFilter drops that before Update and
 	// View run.
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
-		tea.WithFilter(app.MouseFilter), tea.WithOutput(out))
+		tea.WithFilter(app.MouseFilter), tea.WithOutput(images))
 	hup := quitOnHangup(p)
 	final, err := p.Run()
+	// Give the terminal its own cursor back before anything else, so no bar or
+	// block is left behind in the shell.
+	if cur != nil {
+		if rerr := cur.Restore(); rerr != nil {
+			log.Printf("Restoring the terminal cursor: %v\n", rerr)
+		}
+	}
 	// The terminal keeps the pixels of every picture Misoku sent; release them
 	// once the program stops drawing.
 	preview.ClearImages()
