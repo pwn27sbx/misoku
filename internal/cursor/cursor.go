@@ -162,12 +162,15 @@ func (w *Writer) Write(p []byte) (int, error) {
 	}
 	w.buf = append(w.buf, cup(w.x, w.y)...)
 
-	n, err := w.out.Write(w.buf)
-	n = min(n, len(p))
+	raw, err := w.out.Write(w.buf)
+	n := min(raw, len(p))
 	if err == nil && n < len(p) {
 		err = io.ErrShortWrite
 	}
-	w.mark(w.x, w.y, w.shape, w.visible)
+	if err == nil && raw == len(w.buf) {
+		// Only a write the terminal took whole says the placement happened.
+		w.mark(w.x, w.y, w.shape, w.visible)
+	}
 	return n, err
 }
 

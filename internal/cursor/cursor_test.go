@@ -279,6 +279,27 @@ func TestShortWriteCountsOnlyTheFramesBytes(t *testing.T) {
 	}
 }
 
+// A frame whose combined write failed says nothing about the terminal: the
+// state is unknown, so the next frame must say the shape and the cell again.
+func TestAFailedFrameDoesNotClaimTheShape(t *testing.T) {
+	out := &flakyWriter{fail: true}
+	w := cursor.NewWriter(out)
+	w.Set(3, 4, cursor.Block, true) // fails too: nothing was told
+	if _, err := w.Write([]byte(frame)); err == nil {
+		t.Fatal("the frame write should have failed")
+	}
+	out.fail = false
+	out.writes = nil
+
+	if _, err := w.Write([]byte(frame)); err != nil {
+		t.Fatal(err)
+	}
+
+	if want := frame + "\x1b[?25h\x1b[2 q\x1b[5;4H"; out.all() != want {
+		t.Fatalf("frame after a failed write = %q, want %q", out.all(), want)
+	}
+}
+
 // flakyWriter fails until fail is cleared.
 type flakyWriter struct {
 	writes []string
