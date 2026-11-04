@@ -27,12 +27,25 @@ func saveMore(h *harness, text string) {
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
 }
 
+// quitBudget is what the probes in this file give the sync on quit. They
+// run real git: quitting here costs some forty git runs, and on a loaded
+// Windows runner one git run takes a few hundred milliseconds, so forty of
+// them cross the production cap of QuitSyncLimit (10 s). The cap would then
+// decide the result instead of the behaviour under test, and quitting would
+// say "Not pushed, the next sync tries again" exactly as it should on a
+// machine whose git is that slow (S14). What the cap does, and how long it
+// takes, is measured on its own with a fake git in
+// TestQuitHungGitRespectsTheProductionLimit; the probes here are about what
+// quitting does with the saves, so they give it the same minute runAll
+// gives a command it waits for.
+const quitBudget = time.Minute
+
 // quitPush runs what Misoku runs once its screen closes and returns what
 // it printed.
 func quitPush(h *harness) string {
 	h.t.Helper()
 	var out bytes.Buffer
-	h.m.(app.Model).SyncOnQuit(context.Background(), &out, app.QuitSyncLimit)
+	h.m.(app.Model).SyncOnQuit(context.Background(), &out, quitBudget)
 	return out.String()
 }
 
