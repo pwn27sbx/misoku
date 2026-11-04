@@ -6,6 +6,12 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ## [Unreleased]
 
+### Changed
+
+- **The editor and the preview keep their colours** side by side, whichever of the two has the focus: watching
+  the note take shape while writing no longer greys the other half. The explorer and the graphs still grey the
+  panes they leave, and with the preview hidden the editor still reads as inactive without the focus.
+
 ## [0.17.0] - 2026-11-03
 
 ### Added
