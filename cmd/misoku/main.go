@@ -130,28 +130,23 @@ func main() {
 	// upload can never be cut in half by a repaint; the mode comes from
 	// ui.images, and MISOKU_IMAGES wins over it.
 	preview.ConfigureImages(cfg.UI.Images, isTerminal(os.Stdout))
-	out := io.Writer(syncout.ForTerminal(os.Stdout, os.Getenv))
-	// The terminal's own cursor draws the mode, like LazyVim: a block in
-	// NORMAL and a thin bar in INSERT, placed on the editor cell after every
-	// frame and inside the same synchronized update. ui.cursor_shape and
+	// The terminal's own cursor draws the mode, like LazyVim: a block in NORMAL
+	// and a thin bar in INSERT, placed on the editor cell after every frame and
+	// inside the same synchronized update. ui.cursor_shape and
 	// MISOKU_CURSOR_SHAPE decide; without a terminal nothing is emitted.
-	var cur *cursor.Writer
-	if cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)) {
-		cur = cursor.NewWriter(out)
-		out = cur
-	}
+	out, images, cur := chain(syncout.ForTerminal(os.Stdout, os.Getenv),
+		cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)))
 	appOpts := []app.Option{app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI)}
 	if cur != nil {
 		appOpts = append(appOpts, app.WithCursor(cur))
 	}
 	appModel := app.New(store, appOpts...)
-	images := kitty.NewWriter(out)
 	preview.SetImageSink(images)
 	// Every motion report is needed for the preview's block handles, but
 	// most of it changes nothing: MouseFilter drops that before Update and
 	// View run.
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
-		tea.WithFilter(app.MouseFilter), tea.WithOutput(images))
+		tea.WithFilter(app.MouseFilter), tea.WithOutput(out))
 	hup := quitOnHangup(p)
 	final, err := p.Run()
 	// Give the terminal its own cursor back before anything else, so no bar or
@@ -169,6 +164,19 @@ func main() {
 	}
 
 	log.Println("Misoku exited cleanly.")
+}
+
+// chain builds the program output from the terminal: the pictures go through
+// one writer, and the cursor writer, when there is one, sits above it so its
+// placement takes the same lock a chunked picture upload holds.
+func chain(dst io.Writer, withCursor bool) (out io.Writer, images *kitty.Writer, cur *cursor.Writer) {
+	images = kitty.NewWriter(dst)
+	out = images
+	if withCursor {
+		cur = cursor.NewWriter(images)
+		out = cur
+	}
+	return out, images, cur
 }
 
 // greet shows the welcome, drawn in th, and returns the folder to open,
