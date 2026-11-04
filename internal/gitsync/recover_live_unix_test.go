@@ -48,7 +48,7 @@ func TestSyncStaleMarkerNeverDeletesALiveUsersLock(t *testing.T) {
 	_, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "seed.md", "edited by the user\n")
 	gitDir := git(t, laptop, "rev-parse", "--absolute-git-dir")
-	if err := gitsync.WriteRunMarker(gitDir, deadPid(t), time.Now().Add(-time.Minute)); err != nil {
+	if err := gitsync.WriteRunMarker(gitDir, gonePid, time.Now().Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	lock, _ := usersCommit(t, laptop)

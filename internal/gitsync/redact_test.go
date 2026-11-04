@@ -178,7 +178,7 @@ func TestSyncRefusedRecoveryChangesNothing(t *testing.T) {
 	for name, setup := range map[string]func(t *testing.T, dir string){
 		"older-lock": func(t *testing.T, dir string) {
 			start := time.Now()
-			lock := interrupted(t, dir, deadPid(t), start)
+			lock := interrupted(t, dir, gonePid, start)
 			old := start.Add(-time.Hour)
 			os.Chtimes(lock, old, old)
 		},
