@@ -6,6 +6,8 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-03
+
 ### Added
 
 - **The cursor shows the mode**, like LazyVim: a block in NORMAL, VISUAL and VISUAL-LINE, a thin bar in INSERT,
