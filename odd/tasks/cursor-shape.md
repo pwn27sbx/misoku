@@ -61,7 +61,10 @@ platform, merge commit, CHANGELOG `[Unreleased]` -> `[0.17.0]`, tag `v0.17.0` on
 - T7 — live check in Ghostty and inside herdr; shell cursor back to default afterwards. Route: inline. DONE:
   plain Ghostty and herdr (in Ghostty) showed block, bar, fast typing, scrolling, a pane resize, the finder,
   a dialog and a Kitty image with clean frames, and the default block cursor in the shell after quitting.
-- T8 — delivery: review, PR, CI, merge, `[0.17.0]`, tag, Release, `CURSOR-DONE`. Route: inline.
+- T8 — delivery: review, PR, CI, merge, `[0.17.0]`, tag, Release, `CURSOR-DONE`. Route: inline. DONE:
+  PR #47 merged (merge commit, 15/15 checks green on Linux, macOS and Windows), `docs: add the 0.17.0 changelog`
+  on main, tag `v0.17.0`, Release workflow green:
+  https://github.com/pwn27sbx/misoku/releases/tag/v0.17.0
 
 ## Log
 
@@ -70,4 +73,9 @@ platform, merge commit, CHANGELOG `[Unreleased]` -> `[0.17.0]`, tag `v0.17.0` on
   > como un cursor fino y el gordito como misoku para el otro modo que no me acuerdo como se llama
 
   Approved: "si arma el plan lo verificas un agente con memoria limpia lo verifica y lo hacen".
+- L3 (review rounds, all approved): the four-lens review of the branch found real state bugs in the writer
+  (a hidden start that never sent the shape, a failed placement cached as applied, partial-write accounting,
+  restore leaving the cursor visible, an upload lock the placement bypassed). Each was fixed with a failing test
+  first, and each fix got its own small review round; the last three findings were advisory only (one refuted
+  blocker, the documented panic/SIGKILL limit).
 - L2 (owner instruction, verbatim): "Implement the plan ~/Documents/MisokuVault/Misoku/2026-11-02-cursor-shape/README.md in this repo. Read it to the end: the "Verification log" amendments are binding and override the sections above them. Start with the time-boxed spike for option A (real terminal cursor); if it corrupts frames in ways the plan cannot fix cleanly, ship option B and record why in the plan. Test discipline: RED first per rule through the public render/output path; test scratch under TMPDIR=/var/tmp (never /tmp, never the real HOME); keep scratch small. Live check in Ghostty and inside herdr as the plan says, and afterwards confirm the shell cursor is back to default. Delivery exactly as the plan: branch feat/cursor-shape, small conventional commits, offer the gentle-ai review in this pane (owner grants it), PR, CI green on every platform (if a Windows test flakes, rerun the job once and report it), merge with a merge commit, CHANGELOG [Unreleased] -> [0.17.0], tag v0.17.0 on main, wait for the Release workflow, then write CURSOR-DONE with the PR and release URLs."
