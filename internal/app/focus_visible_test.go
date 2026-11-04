@@ -215,19 +215,48 @@ func TestFocusDividersAroundActivePreview(t *testing.T) {
 	assertDividers(t, h.colourView(), false, true)
 }
 
-func TestFocusDimsInactivePanes(t *testing.T) {
+// The editor and the preview side by side are the note and how it is coming
+// out: both keep their colours whichever of the two has the focus, so the split
+// reads as one thing.
+func TestSplitKeepsBothPanesBright(t *testing.T) {
 	h := focusHarness(t)
 	l := focusLayout
+
 	v := h.colourView()
 	assertLit(t, v, "editor", l.EditorX, l.EditorX+l.EditorW)
+	assertLit(t, v, "preview", l.PreviewX, l.PreviewX+l.PreviewW)
 	assertDimmed(t, v, "explorer", 0, l.SidebarW)
-	assertDimmed(t, v, "preview", l.PreviewX, l.PreviewX+l.PreviewW)
 
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlL})
 	v = h.colourView()
+	assertLit(t, v, "editor", l.EditorX, l.EditorX+l.EditorW)
 	assertLit(t, v, "preview", l.PreviewX, l.PreviewX+l.PreviewW)
-	assertDimmed(t, v, "editor", l.EditorX, l.EditorX+l.EditorW)
 	assertDimmed(t, v, "explorer", 0, l.SidebarW)
+}
+
+// The explorer is not part of the split: taking the focus dims the note, as
+// every other pane does.
+func TestExplorerFocusStillDimsTheSplit(t *testing.T) {
+	h := focusHarness(t)
+	l := focusLayout
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlH})
+	v := h.colourView()
+	assertDimmed(t, v, "editor", l.EditorX, l.EditorX+l.EditorW)
+	assertDimmed(t, v, "preview", l.PreviewX, l.PreviewX+l.PreviewW)
+}
+
+// With the preview hidden the editor is alone, so an unfocused editor still
+// reads as inactive.
+func TestEditorAloneStillDimsWithoutTheFocus(t *testing.T) {
+	h := focusHarness(t)
+	l := focusLayout
+	h.keys(" p") // hide the preview
+	if got := dividers(h.view(), bodyRow); len(got) != 1 {
+		t.Fatalf("setup: hiding the preview should leave one divider, got %v", got)
+	}
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlH})
+	v := h.colourView()
+	assertDimmed(t, v, "editor", l.EditorX, l.EditorX+l.EditorW)
 }
 
 func TestFocusMovesWithTab(t *testing.T) {

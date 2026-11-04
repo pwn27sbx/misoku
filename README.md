@@ -216,7 +216,7 @@ never use `notes_dir`.
 - **Export to PDF** with `:export`: a clean printable document, with boards, charts and flowcharts included.
 - **2, 3 and 4 column layouts** from the `/` menu.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
-- **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey (pictures and block colours in the preview keep theirs). `tab`, `ctrl+h`/`ctrl+l` or a click move the focus.
+- **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` or a click move the focus.
 - **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
 - **Reading mode** (`space r`): hide the editor and read the note in the preview at full width; the statusline says READING.
 - **Fast search** across file names and note contents.

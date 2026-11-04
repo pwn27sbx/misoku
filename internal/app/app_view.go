@@ -32,7 +32,7 @@ func (m Model) View() string {
 		screen = lipgloss.JoinVertical(lipgloss.Left, m.dashboard.View(), m.bottomBar())
 	} else {
 		l = m.layout()
-		m.dimPanes()
+		m.dimPanes(l)
 		div := func(d divider) string {
 			return ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(m.dividerColour(d, l)))
 		}
