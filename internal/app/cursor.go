@@ -14,6 +14,7 @@ import (
 type CursorSink interface {
 	Set(x, y int, shape cursor.Shape, visible bool)
 	Restore() error
+	Forget()
 }
 
 // WithCursor draws the mode with the terminal's cursor instead of a fake cell.
@@ -75,10 +76,16 @@ func (m Model) editorHasTheCursor(l Layout) bool {
 // goes back to the terminal's default first, and the editor's shape returns
 // with the next frame once the program ends.
 func (m *Model) execOutside(cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
-	if m.cursor != nil {
-		// Best effort: the program is about to own the terminal, and a failed
-		// reset only means the shape it starts with is Misoku's.
-		_ = m.cursor.Restore()
+	if m.cursor == nil {
+		return m.execProcess(cmd, cb)
 	}
-	return m.execProcess(cmd, cb)
+	// Best effort: the program is about to own the terminal, and a failed
+	// reset only means the shape it starts with is Misoku's.
+	_ = m.cursor.Restore()
+	return m.execProcess(cmd, func(err error) tea.Msg {
+		// It may have left the cursor hidden or in its own shape: forget it,
+		// so the next frame says Misoku's again.
+		m.cursor.Forget()
+		return cb(err)
+	})
 }

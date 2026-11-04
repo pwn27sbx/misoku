@@ -15,6 +15,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+// execDone is what the stubbed program reports when it ends.
+type execDone struct{}
+
 // reverseVideo reports an SGR sequence that turns reverse video on: how the
 // editor draws its own cursor.
 func reverseVideo(s string) bool {
@@ -274,15 +277,18 @@ func TestTheFakeCursorIsHiddenOnlyWithTheRealCursor(t *testing.T) {
 func TestRunningAProgramOutsideResetsTheShape(t *testing.T) {
 	out, opt := newCursorOut()
 	var ran bool
-	exec := app.WithExec(func(*exec.Cmd, tea.ExecCallback) tea.Cmd {
+	// The stub runs the callback, as tea.ExecProcess does once the program ends.
+	exec := app.WithExec(func(_ *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
 		ran = true
-		return nil
+		return func() tea.Msg { return cb(nil) }
 	})
 	h := openWithCursor(t, "hello", opt, exec)
 	h.m.View()
 
 	out.buf.Reset()
-	app.ExecOutside(h.m, nil, func(error) tea.Msg { return nil })
+	if cmd := app.ExecOutside(h.m, nil, func(error) tea.Msg { return execDone{} }); cmd != nil {
+		h.send(cmd())
+	}
 	if !ran {
 		t.Fatal("the program never ran")
 	}
@@ -292,8 +298,9 @@ func TestRunningAProgramOutsideResetsTheShape(t *testing.T) {
 
 	out.buf.Reset()
 	h.m.View()
-	// The cursor is visible again, so the shape and the cell are what returns.
-	if got := out.all(); !strings.HasPrefix(got, "\x1b[2 q") {
+	// The program may have hidden the cursor or given it a shape: the whole
+	// state is said again.
+	if got := out.all(); !strings.HasPrefix(got, "\x1b[?25h\x1b[2 q") {
 		t.Fatalf("the shape was not applied again after the program: %q", got)
 	}
 }

@@ -203,6 +203,15 @@ func (w *Writer) mark(x, y int, s Shape, visible bool) {
 	}
 }
 
+// Forget drops what the writer believes the terminal has, without writing: the
+// next Set says the shape, the visibility and the cell again. It is for when
+// another program has used the terminal, which may have changed all three.
+func (w *Writer) Forget() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.known, w.lastVisible, w.lastX, w.lastY = false, false, -1, -1
+}
+
 // Fd is the terminal's file descriptor, or -1 when the output is not a file.
 func (w *Writer) Fd() uintptr {
 	if f, ok := w.out.(interface{ Fd() uintptr }); ok {

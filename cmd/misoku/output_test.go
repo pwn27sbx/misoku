@@ -18,6 +18,8 @@ type slowWriter struct {
 	overlap atomic.Bool
 	mu      sync.Mutex
 	writes  []string
+	started chan struct{} // closed on the first write
+	once    sync.Once
 }
 
 func (s *slowWriter) Write(p []byte) (int, error) {
@@ -25,6 +27,9 @@ func (s *slowWriter) Write(p []byte) (int, error) {
 		s.overlap.Store(true)
 	}
 	defer s.busy.Store(false)
+	if s.started != nil {
+		s.once.Do(func() { close(s.started) })
+	}
 	time.Sleep(2 * time.Millisecond)
 	s.mu.Lock()
 	s.writes = append(s.writes, string(p))
@@ -69,7 +74,7 @@ func (s *slowWriter) interleaved() bool {
 // image. The cursor writer must sit above the picture writer, so its write
 // waits for the lock the upload holds.
 func TestCursorWritesWaitForAnImageUpload(t *testing.T) {
-	dst := &slowWriter{}
+	dst := &slowWriter{started: make(chan struct{})}
 	out, images, cur := chain(dst, true)
 	if cur == nil {
 		t.Fatal("no cursor writer")
@@ -91,7 +96,7 @@ func TestCursorWritesWaitForAnImageUpload(t *testing.T) {
 			t.Errorf("Send: %v", err)
 		}
 	}()
-	time.Sleep(3 * time.Millisecond) // inside the upload
+	<-dst.started // the upload holds the output from here on
 	cur.Set(5, 4, cursor.Block, true)
 	<-done
 

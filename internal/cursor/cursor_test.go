@@ -227,6 +227,25 @@ func TestRestoreForgetsTheShapeAndKeepsTheCursorVisible(t *testing.T) {
 	}
 }
 
+// After another program has used the terminal, the next Set says everything
+// again, even when the state did not change.
+func TestForgetSaysEverythingAgain(t *testing.T) {
+	r := &recorder{}
+	w := cursor.NewWriter(r)
+	w.Set(3, 4, cursor.Block, true)
+	if err := w.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	w.Forget()
+	r.writes = nil
+
+	w.Set(3, 4, cursor.Block, true)
+
+	if want := "\x1b[?25h\x1b[2 q\x1b[5;4H"; r.all() != want {
+		t.Fatalf("after Forget = %q, want %q", r.all(), want)
+	}
+}
+
 // Restore shows the cursor, so hiding it afterwards must still be said.
 func TestHidingAfterRestoreHidesTheCursor(t *testing.T) {
 	r := &recorder{}
