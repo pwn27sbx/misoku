@@ -8,6 +8,10 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **The cursor shows the mode**, like LazyVim: a block in NORMAL, VISUAL and VISUAL-LINE, a thin bar in INSERT,
+  drawn by the terminal itself on the editor cell and gone while the `:` command line has its own. The shape is
+  `ui.cursor_shape` (`"auto"`, the default, or `"block"` for the drawn block Misoku always had), and
+  `MISOKU_CURSOR_SHAPE` wins over the file for one run. Misoku gives the terminal its cursor back when it exits.
 - **Sync says which notes arrived**: after a sync that brought notes, automatic ones included, the status bar
   names them (`2 new notes from another computer: nota.md, otra.md`). A long list is cut there; `:sync status` and
   `:messages` list the first ten of them and count the rest. While that notice shows, the bar gives up its right-side parts to fit

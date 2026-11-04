@@ -185,7 +185,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 		return m.askIdentity(s, step)
 	case gitsync.AskSignIn:
 		m.setupDialog(s, step.Title, lines, []string{"Sign in", "Cancel"}, func(m *Model) tea.Cmd {
-			return m.execProcess(s.SignInCommand(), func(error) tea.Msg {
+			return m.execOutside(s.SignInCommand(), func(error) tea.Msg {
 				// gh said how it went on the terminal; Next asks gh
 				// whether it is signed in now.
 				return setupSignedInMsg{s: s}

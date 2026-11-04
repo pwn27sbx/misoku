@@ -412,6 +412,17 @@ with render-markdown:
 | `modified_mark` | Shown before the tab name of a note with unsaved changes, like incline (`"[+]"`) |
 | `accordion` | `true` (default): opening a folder in the explorer closes its open siblings. `false` keeps several open |
 | `explorer_hide_width` | Terminal width, in columns, below which the explorer hides (default `120`) |
+| `cursor_shape` | `"auto"` (default): the cursor itself shows the mode, a block in NORMAL and VISUAL and a thin bar in INSERT, like LazyVim. `"block"` keeps Misoku's drawn block in every mode |
+
+### Cursor
+
+With `"cursor_shape": "auto"` (the default) the mode shows at the cursor itself, as in LazyVim: a block in
+NORMAL, VISUAL and VISUAL-LINE, a thin bar in INSERT, and no cursor while the `:` command line has its own.
+It is the terminal's own cursor, so it looks the way your terminal draws it; Misoku only says where it goes
+and what shape it takes, and a terminal that does not know the shape sequence ignores it and keeps working.
+`"cursor_shape": "block"` keeps the drawn block Misoku always had, and `MISOKU_CURSOR_SHAPE=block` (or `auto`)
+wins over the file for one run. When Misoku exits it gives the terminal its cursor back; a crash it cannot
+catch (a panic or `kill -9`) can leave the shape set until the terminal resets it.
 
 ### Settings menu
 

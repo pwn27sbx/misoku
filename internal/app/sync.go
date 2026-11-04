@@ -882,7 +882,7 @@ func (m *Model) offerSignIn() {
 		"Sync runs once you are back.",
 	}
 	m.stopDialog("Sign in to GitHub", lines, []string{"Sign in", "Cancel"}, 1, func(m *Model) tea.Cmd {
-		return m.execProcess(s.SignInCommand(), func(error) tea.Msg {
+		return m.execOutside(s.SignInCommand(), func(error) tea.Msg {
 			// gh said how it went on the terminal. This runs on the Update
 			// loop, so what asks gh comes back as a command.
 			return syncSignedInMsg{s: s}

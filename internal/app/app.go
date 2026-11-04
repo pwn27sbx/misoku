@@ -153,6 +153,10 @@ type Model struct {
 	// tests replace it.
 	execProcess func(*exec.Cmd, tea.ExecCallback) tea.Cmd
 
+	// cursor is the terminal's own cursor, when main draws the mode with it
+	// (see cursor.go). nil keeps the editor's drawn cursor.
+	cursor CursorSink
+
 	// setupBusy: a step of the sync setup assistant runs in the
 	// background. setupNotes are the checks it passed so far, shown above
 	// each of its questions.

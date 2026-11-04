@@ -38,11 +38,12 @@ type Model struct {
 	dragCol  int
 	// readImage reads a picture from the clipboard for ctrl+v; nil uses
 	// clipimage. The app installs one so tests never touch a clipboard.
-	readImage func(context.Context) (core.ClipboardImageMsg, bool, error)
-	width     int
-	height    int
-	focused   bool
-	dimmed    bool // greyed out while another pane has the focus
+	readImage  func(context.Context) (core.ClipboardImageMsg, bool, error)
+	width      int
+	height     int
+	focused    bool
+	dimmed     bool // greyed out while another pane has the focus
+	realCursor bool // the terminal draws the cursor; see SetRealCursor
 }
 
 // New constructs a Content Model.
@@ -153,10 +154,32 @@ func (m *Model) Focus() tea.Cmd {
 func (m *Model) focusTextarea() tea.Cmd {
 	cmd := m.textarea.Focus()
 	cursorMode := cursor.CursorStatic
-	if m.mode == ModeInsert {
+	if m.mode == ModeInsert && !m.realCursor {
 		cursorMode = cursor.CursorBlink
 	}
 	return tea.Batch(cmd, m.textarea.Cursor.SetMode(cursorMode))
+}
+
+// SetRealCursor tells the editor that the terminal draws the cursor cell, so it
+// stops drawing its own. The blink setting stays steady: a real cursor that
+// blinks would disagree with the drawn one the rest of the program uses.
+func (m *Model) SetRealCursor(on bool) {
+	m.realCursor = on
+	m.textarea.HideCursor = on
+}
+
+// CursorScreen returns the cell the terminal cursor belongs on, relative to the
+// pane's top-left corner, or ok=false when there is none: no note open, the
+// command line in charge, no focus, or the cell off screen.
+func (m Model) CursorScreen() (x, y int, ok bool) {
+	if m.page.ID == "" || !m.focused || m.mode == ModeCommand {
+		return 0, 0, false
+	}
+	x, y, ok = m.textarea.CursorScreen()
+	if !ok || x < 0 || y < 0 || x >= m.width || y >= m.height {
+		return 0, 0, false
+	}
+	return x, y, true
 }
 
 // Blur blurs inputs.

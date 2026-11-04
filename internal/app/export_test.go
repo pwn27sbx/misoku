@@ -22,6 +22,13 @@ func WithExec(exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd) Option {
 	return func(m *Model) { m.execProcess = exec }
 }
 
+// ExecOutside runs a program outside the screen through the app's hook, as the
+// GitHub sign-in does, so a test can see what the terminal is told around it.
+func ExecOutside(tm tea.Model, cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
+	m := tm.(Model)
+	return m.execOutside(cmd, cb)
+}
+
 // IsWorkspaceScan reports whether msg is the result of the workspace scan a
 // CheckWorkspaceMsg starts, so a test counting the git work a tick starts
 // can tell it apart.

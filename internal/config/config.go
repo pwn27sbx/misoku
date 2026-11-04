@@ -217,6 +217,10 @@ type UI struct {
 	// the terminal), "kitty" (Kitty graphics protocol) or "blocks" (half
 	// blocks). MISOKU_IMAGES wins over it.
 	Images string `json:"images,omitempty"`
+	// CursorShape chooses how the cursor draws the mode: "auto" (default: a
+	// block in NORMAL and VISUAL, a thin bar in INSERT) or "block" (always
+	// the drawn block, as before). MISOKU_CURSOR_SHAPE wins over it.
+	CursorShape string `json:"cursor_shape,omitempty"`
 	// Accordion keeps one folder open per level in the explorer: opening a
 	// folder closes its open siblings. Unset means on; see AccordionOn.
 	Accordion *bool `json:"accordion,omitempty"`

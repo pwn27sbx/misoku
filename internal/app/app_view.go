@@ -14,9 +14,11 @@ import (
 // View composes child component views into the complete terminal layout.
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
+		m.syncCursor(Layout{})
 		return "loading…"
 	}
 	if m.width < MinTermWidth || m.height < MinTermHeight {
+		m.syncCursor(Layout{})
 		return lipgloss.NewStyle().
 			Width(m.width).Height(m.height).
 			Align(lipgloss.Center, lipgloss.Center).
@@ -25,10 +27,11 @@ func (m Model) View() string {
 	}
 
 	var screen string
+	var l Layout
 	if m.viewMode == viewModeDashboard {
 		screen = lipgloss.JoinVertical(lipgloss.Left, m.dashboard.View(), m.bottomBar())
 	} else {
-		l := m.layout()
+		l = m.layout()
 		m.dimPanes()
 		div := func(d divider) string {
 			return ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(m.dividerColour(d, l)))
@@ -99,5 +102,7 @@ func (m Model) View() string {
 		screen = m.overlayLeaderGuide(screen)
 	}
 	screen = m.renderToast(screen)
+	// After the overlays: whether one of them owns the cursor is model state.
+	m.syncCursor(l)
 	return ui.Paint(screen, lipgloss.NewStyle().Foreground(m.theme.Fg).Background(m.theme.Bg))
 }
