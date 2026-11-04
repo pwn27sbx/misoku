@@ -3,7 +3,6 @@ package gitsync_test
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -13,15 +12,21 @@ import (
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 )
 
-// deadPid is the id of a process that has already exited.
-func deadPid(t *testing.T) int {
-	t.Helper()
-	cmd := exec.Command("git", "version")
-	if err := cmd.Run(); err != nil {
-		t.Fatal(err)
-	}
-	return cmd.Process.Pid
-}
+// gonePid stands for the pid of a git that has already exited: a pid no
+// live process holds, and none can take while the test runs.
+//
+// It is not the pid of a real process that has exited. Windows gives a pid
+// back as soon as the last handle to the process closes, and hands it out
+// again quickly (Raymond Chen, "When does a process ID become available
+// for reuse?"), so the pid of a `git version` that has exited can belong
+// to another process a moment later. That is what failed
+// TestSyncLeftoverLockAfterMisokuDied on the Windows runner, where this
+// suite starts thousands of processes at once: a real freed pid was taken
+// by another process, and the sync rightly said the marked git still runs
+// and tried again. A billion is past any pid a system hands out: Windows
+// answers OpenProcess with ERROR_INVALID_PARAMETER for it, and Linux and
+// macOS with ESRCH.
+const gonePid = 1_000_000_000
 
 // interrupted leaves dir as a Misoku that died mid-sync leaves it: its
 // marker names git process pid, started at start, and git's index.lock is
@@ -56,7 +61,7 @@ func TestSyncLeftoverLockAfterMisokuDied(t *testing.T) {
 	t.Parallel()
 	remote, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	write(t, laptop, "a.md", "a\n")
-	lock := interrupted(t, laptop, deadPid(t), time.Now().Add(-time.Second))
+	lock := interrupted(t, laptop, gonePid, time.Now().Add(-time.Second))
 
 	if st := detect(t, laptop); st.Status != gitsync.Ready {
 		t.Fatalf("Misoku's own interrupted sync must not pause the vault: %+v", st)
@@ -156,7 +161,7 @@ func TestSyncLeavesAnIndexLockOlderThanItsCommand(t *testing.T) {
 	t.Parallel()
 	_, laptop, _ := pair(t, map[string]string{"seed.md": "s\n"})
 	start := time.Now()
-	lock := interrupted(t, laptop, deadPid(t), start)
+	lock := interrupted(t, laptop, gonePid, start)
 	old := start.Add(-time.Hour)
 	if err := os.Chtimes(lock, old, old); err != nil {
 		t.Fatal(err)
