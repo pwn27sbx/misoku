@@ -162,3 +162,10 @@ Order: T1 → T2 → T3 → T4 (T2 depends on T1 fields; T3 on both). ~350 autho
   Differential with the flag off (onedark, nord, catppuccin × home, editor, cmdline, dd, leader) at a367251 vs
   worktree: byte-identical (288876 bytes). Docs: README `## Look` row + `### Transparent background` note +
   Settings paragraph ("five"), CHANGELOG `[Unreleased]` Added.
+
+### 2026-11-05: change requested after testing (L3, L4)
+- L3 (Sebastián): "antes de probarlo mira como lo hace lazyvim porque lazyvim encaja perfecto y quizas nos sirva mucho mas que estar prueba y prueba"
+- Evidence: `~/.config/nvim/lua/plugins/colorscheme.lua:164-181`. solarized-osaka.nvim uses `transparent = true`, `styles.sidebars = "transparent"` and `styles.floats = "transparent"`, and sets `bg = "NONE"` on LineNr, NormalFloat, FloatBorder, FloatTitle and LspInfoBorder. Floats are set apart only by their border. CursorLine, Visual and search highlights keep a background.
+- Proposal: with `ui.transparent` on, (1) floating boxes are transparent and keep their border; (2) heading bands are dropped and headings keep only their colour; (3) only the cursor line, the selection and the badges keep a background.
+- L4 (Sebastián): "si"
+- This supersedes S4's opaque list for floats (PopupBg) and S6's opaque heading bands, but only while the option is on. With the option off, the output stays byte-identical. New task: T4.
