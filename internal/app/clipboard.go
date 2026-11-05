@@ -55,10 +55,10 @@ func (m *Model) renderToast(screen string) string {
 	box := lipgloss.NewStyle().
 		BorderStyle(ui.Border()).
 		BorderForeground(th.Green).
-		BorderBackground(th.DarkerBg).
-		Background(th.DarkerBg).
-		Render(lipgloss.NewStyle().Background(th.DarkerBg).Foreground(th.Green).Render(" \U000f018f ") +
-			lipgloss.NewStyle().Background(th.DarkerBg).Foreground(th.Fg).Render(m.toast+" "))
+		BorderBackground(th.PopupBg).
+		Background(th.PopupBg).
+		Render(lipgloss.NewStyle().Background(th.PopupBg).Foreground(th.Green).Render(" \U000f018f ") +
+			lipgloss.NewStyle().Background(th.PopupBg).Foreground(th.Fg).Render(m.toast+" "))
 	h := lipgloss.Height(box)
 	return ui.Overlay(screen, box, 1, max(m.height-footerHeight-h, 0))
 }

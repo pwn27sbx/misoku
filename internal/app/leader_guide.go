@@ -78,7 +78,7 @@ func leaderGuideColumns(km keymap.Map) [][]leaderGuideRow {
 // when the terminal is wide enough and stacked otherwise.
 func (m *Model) renderLeaderGuide() string {
 	th := m.theme
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	keyStyle := bg.Foreground(th.Blue).Bold(true)
 	headStyle := bg.Foreground(th.Purple).Bold(true)
 	descStyle := bg.Foreground(th.Fg)

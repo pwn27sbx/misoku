@@ -128,7 +128,7 @@ func (p *datePicker) view(m *Model) (string, int, int) {
 	th := m.theme
 	x, y, w, _ := p.geom(m)
 	inner := w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	rows := []string{
 		bg.Foreground(th.Blue).Render(" \U000f00ed ") + bg.Foreground(th.Fg).Bold(true).Render(ui.Truncate(p.title, inner-4)),
 		bg.Foreground(th.GreyFg2).Render(" " + p.date.Format("Mon, 2 Jan 2006")),
@@ -155,7 +155,7 @@ func (p *datePicker) view(m *Model) (string, int, int) {
 			st := bg.Foreground(th.Fg)
 			switch {
 			case d.Equal(p.date):
-				st = lipgloss.NewStyle().Background(th.Blue).Foreground(th.Bg).Bold(true)
+				st = lipgloss.NewStyle().Background(th.Blue).Foreground(th.DarkFg).Bold(true)
 			case !p.min.IsZero() && d.Before(day(p.min)):
 				st = bg.Foreground(th.Grey)
 			case d.Month() != p.date.Month():

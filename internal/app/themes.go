@@ -203,7 +203,7 @@ func (p *themePicker) view(m *Model) (string, int, int) {
 	th := m.theme
 	g := m.themeLayout()
 	inner := g.w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	field := lipgloss.NewStyle().Background(th.Bg2)
 	p.input.TextStyle = field.Foreground(th.Fg)
 	p.input.PlaceholderStyle = field.Foreground(th.GreyFg)
@@ -228,7 +228,7 @@ func (p *themePicker) view(m *Model) (string, int, int) {
 		}
 		name := p.list[idx]
 		t, _ := theme.Get(name)
-		rowBg := th.DarkerBg
+		rowBg := th.PopupBg
 		if idx == p.sel {
 			rowBg = th.OneBg2
 		}

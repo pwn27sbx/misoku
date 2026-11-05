@@ -16,7 +16,7 @@ func (f *finder) view(m *Model) (string, int, int) {
 	th := m.theme
 	g := finderLayout(m.width, m.height)
 	inner := g.w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	field := lipgloss.NewStyle().Background(th.Bg2)
 
 	rows := make([]string, 0, g.innerHeight)
@@ -74,13 +74,13 @@ func (f *finder) view(m *Model) (string, int, int) {
 }
 
 func (f *finder) resultRow(th theme.Theme, idx, width int) string {
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	if idx >= len(f.matches) {
 		return ui.FitLine("", width, bg)
 	}
 	mt := f.matches[idx]
 	selected := idx == f.sel
-	rowBg := th.DarkerBg
+	rowBg := th.PopupBg
 	if selected {
 		rowBg = th.OneBg2
 	}
@@ -128,7 +128,7 @@ func (f *finder) resultRow(th theme.Theme, idx, width int) string {
 }
 
 func previewLine(th theme.Theme, l string, width int) string {
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	trim := strings.TrimSpace(l)
 	st := bg.Foreground(th.GreyFg2)
 	switch {

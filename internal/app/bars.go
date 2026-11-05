@@ -232,7 +232,7 @@ func (m *Model) statusline() string {
 		parts = append(parts, fill.Foreground(fg).Render(m.barText(text)+"  "))
 	}
 	cwd := lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Red).Render("") +
-		lipgloss.NewStyle().Background(th.Red).Foreground(th.Bg).Render("󰉋 ") +
+		lipgloss.NewStyle().Background(th.Red).Foreground(th.DarkFg).Render("󰉋 ") +
 		light.Foreground(th.Fg).Render(" "+ui.Truncate(filepath.Base(m.store.Root()), 20)+" ")
 	parts = append(parts, cwd)
 	pos := "  "
@@ -242,7 +242,7 @@ func (m *Model) statusline() string {
 	}
 	parts = append(parts,
 		lipgloss.NewStyle().Background(th.LightBg).Foreground(th.Green).Render("")+
-			lipgloss.NewStyle().Background(th.Green).Foreground(th.Bg).Render(" ")+
+			lipgloss.NewStyle().Background(th.Green).Foreground(th.DarkFg).Render(" ")+
 			light.Foreground(th.Green).Render(pos))
 
 	right := strings.Join(parts, "")
@@ -288,7 +288,7 @@ func (m *Model) statusLeft(b *buffer, nameMax int, folder bool) string {
 	light := lipgloss.NewStyle().Background(th.LightBg)
 
 	label, color := m.modeBlock()
-	left := lipgloss.NewStyle().Background(color).Foreground(th.Bg).Bold(true).Render(label)
+	left := lipgloss.NewStyle().Background(color).Foreground(th.DarkFg).Bold(true).Render(label)
 	if m.viewMode == viewModeDashboard || nameMax <= 0 {
 		return left + lipgloss.NewStyle().Background(th.StatusBg).Foreground(color).Render("\ue0b4")
 	}

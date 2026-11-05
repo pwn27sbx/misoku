@@ -128,7 +128,7 @@ func renderTimeline(body []string, th theme.Theme, width int, hs *[]Hit) []strin
 	if todayCol >= 0 {
 		end := todayCol + len(todayLabel)
 		tickLine.WriteString(muted.Render(string(tickRow[:todayCol])))
-		tickLine.WriteString(lipgloss.NewStyle().Background(th.Red).Foreground(th.Bg).Bold(true).Render(string(todayLabel)))
+		tickLine.WriteString(lipgloss.NewStyle().Background(th.Red).Foreground(th.DarkFg).Bold(true).Render(string(todayLabel)))
 		tickLine.WriteString(muted.Render(string(tickRow[end:])))
 	} else {
 		tickLine.WriteString(muted.Render(string(tickRow)))

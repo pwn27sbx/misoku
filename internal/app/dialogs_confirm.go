@@ -12,14 +12,14 @@ import (
 
 // panel wraps pre-painted rows (each exactly inner wide) in a rounded border.
 func panel(th theme.Theme, rows []string, inner int) string {
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	for i, r := range rows {
 		rows[i] = ui.FitLine(r, inner, bg)
 	}
 	return lipgloss.NewStyle().
 		BorderStyle(ui.Border()).
 		BorderForeground(th.Blue).
-		BorderBackground(th.DarkerBg).
+		BorderBackground(th.PopupBg).
 		Render(strings.Join(rows, "\n"))
 }
 
@@ -70,7 +70,7 @@ func (d *confirmDialog) geom(W, H int) confirmGeom {
 
 func (d *confirmDialog) view(th theme.Theme, W, H int) (string, int, int) {
 	g := d.geom(W, H)
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	icon := bg.Foreground(th.Yellow).Render("  ")
 	if d.danger {
 		icon = bg.Foreground(th.Red).Render(" 󰆴 ")
@@ -94,7 +94,7 @@ func (d *confirmDialog) view(th theme.Theme, W, H int) (string, int, int) {
 			if d.danger && i == 0 {
 				accent = th.Red
 			}
-			st = lipgloss.NewStyle().Background(accent).Foreground(th.Bg).Bold(true)
+			st = lipgloss.NewStyle().Background(accent).Foreground(th.DarkFg).Bold(true)
 		}
 		btns.WriteString(st.Render("  " + b + "  "))
 		btns.WriteString(bg.Render("  "))

@@ -6,6 +6,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 )
 
@@ -93,8 +94,18 @@ func (m *Model) drawExplorerOverlay(screen string) string {
 	}
 	l := m.layout()
 	edge := ui.Column("│", l.BodyH, lipgloss.NewStyle().Foreground(m.dividerColour(dividerSidebar, l)))
-	box := lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), edge)
+	sb := m.sidebar
+	sb.SetTheme(floating(m.theme))
+	box := lipgloss.JoinHorizontal(lipgloss.Top, sb.View(), edge)
 	return ui.Overlay(screen, box, 0, l.BodyY)
+}
+
+// floating is th for a pane drawn over the editor: its fill takes the
+// opaque PopupBg, like every other floating box, so the text under it never
+// shows through when the theme is transparent.
+func floating(th theme.Theme) theme.Theme {
+	th.DarkerBg = th.PopupBg
+	return th
 }
 
 // chooseFromOverlay turns a click on a note in the overlay into a choice: a

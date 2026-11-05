@@ -188,7 +188,7 @@ func (c *compiler) header(meta map[string]string) {
 		path, err := resolveImage(strings.Trim(src, "<>"), c.baseDir)
 		var lines []string
 		if err == nil {
-			lines, err = renderCover(path, c.width, c.st.th.Bg)
+			lines, err = renderCover(path, c.width, c.st.th.Base)
 		}
 		if err != nil {
 			c.emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 cover") + c.st.muted.Render(" ("+err.Error()+")"))
@@ -208,7 +208,7 @@ func (c *compiler) image(alt, src string) {
 	path, err := resolveImage(src, c.baseDir)
 	var lines []string
 	if err == nil {
-		lines, err = renderImage(path, c.width, c.st.th.Bg)
+		lines, err = renderImage(path, c.width, c.st.th.Base)
 	}
 	if err != nil {
 		name := orDefault(alt, filepath.Base(src))
