@@ -185,6 +185,18 @@ func trashInfoPath(abs string) string {
 // and Linux) rather than removing for good.
 func HasTrash() bool { return runtime.GOOS == "darwin" || runtime.GOOS == "linux" }
 
+// MoveToTrash deletes path (a file or a folder) the way deleting a note does:
+// it moves it to the user's Trash, where it can be restored, and removes it
+// permanently only on a system with no Trash (see HasTrash). If the move
+// fails, path is left where it was and the error is returned.
+func MoveToTrash(path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	return removePath(abs)
+}
+
 // removePath deletes abs: to the Trash where there is one, permanently
 // otherwise.
 func removePath(abs string) error {

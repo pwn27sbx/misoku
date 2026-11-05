@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/pwn27sbx/misoku/internal/core"
 )
 
 // trashFiles is where the Trash keeps deleted items on this OS, under the
@@ -153,5 +155,29 @@ func TestDeleteReportsSubNotesItCouldNotMove(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(filepath.Join(sidecar, "child.md")); string(got) != "c" {
 		t.Fatalf("the sub-note must still be there, got %q", got)
+	}
+}
+
+func TestMoveToTrashMovesAFolder(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	trash := trashFiles(t)
+	dir := filepath.Join(t.TempDir(), "tutor")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Mi nota.md"), []byte("mía"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := core.MoveToTrash(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatal("the folder should be gone from where it was")
+	}
+	b, err := os.ReadFile(filepath.Join(trash, "tutor", "Mi nota.md"))
+	if err != nil || string(b) != "mía" {
+		t.Fatalf("trashed note = %q, %v", b, err)
 	}
 }
