@@ -241,6 +241,13 @@ type Model struct {
 	// (syntax highlighting). misoku addition.
 	LineColors [][]lipgloss.Color
 
+	// RenderLine, when set, draws every line but the cursor's: it gets the
+	// line's index, its runes and the text width, and returns the line's
+	// already-styled visual rows, none wider than width. The line keeps the
+	// rows its raw text wraps to: extra rows are dropped, missing ones stay
+	// blank. Nil draws every line raw, as before. misoku addition.
+	RenderLine func(line int, runes []rune, width int) []string
+
 	// SelectionStyle paints selected text (misoku addition).
 	SelectionStyle lipgloss.Style
 	selecting      bool
@@ -1171,6 +1178,11 @@ func (m Model) View() string {
 			style = m.style.computedText()
 		}
 
+		var rendered []string // misoku: the hook's rows, one per wrapped row
+		if m.RenderLine != nil && l != m.row {
+			rendered = m.renderedRows(l, len(wrappedLines))
+		}
+
 		segStart := 0 // misoku: rune offset of this wrapped segment in the line
 		for wl, wrappedLine := range wrappedLines {
 			off := segStart
@@ -1188,6 +1200,13 @@ func (m Model) View() string {
 
 			if m.ShowLineNumbers {
 				s.WriteString(m.lineNumberCell(style, l, wl))
+			}
+
+			if rendered != nil {
+				s.WriteString(rendered[wl])
+				s.WriteString(style.Render(strings.Repeat(" ", max(0, m.width-ansi.StringWidth(rendered[wl])))))
+				s.WriteRune('\n')
+				continue
 			}
 
 			strwidth := uniseg.StringWidth(string(wrappedLine))
