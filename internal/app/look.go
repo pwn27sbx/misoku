@@ -9,8 +9,8 @@ import (
 )
 
 // WithUI applies the "ui" section of config.json: the preview's look, the
-// bars' marks, the border of dialogs, accordion folders and the explorer's
-// hide width.
+// bars' marks, the border of dialogs, accordion folders, the explorer's
+// hide width and the transparent background.
 func WithUI(ui config.UI) Option {
 	return func(m *Model) { m.applyUI(ui) }
 }
@@ -18,7 +18,13 @@ func WithUI(ui config.UI) Option {
 // applyUI applies ui and keeps it as the settings in use, for the
 // settings menu.
 func (m *Model) applyUI(ui config.UI) {
+	wasTransparent := m.prefs().ui.Transparent
 	m.prefs().ui = ui
+	if ui.Transparent != wasTransparent {
+		// WithTheme may have run first: draw the theme again under the
+		// new setting, so the first frame already honours it.
+		m.applyTheme(m.baseTheme, false)
+	}
 	m.applyLook()
 	m.modeIcon = ui.ModeIcon
 	m.modifiedMark = ui.ModifiedMark

@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Added
+
+- **Transparent background**: `ui.transparent` (or **Transparent background** in `:settings`, applied at once)
+  leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal
+  with opacity or blur shows through, like Claude Code. Highlights, the cursor line and floating boxes stay
+  painted; the welcome screen honours it too, and a user theme reloaded from disk stays transparent. The
+  terminal's own background colour shows through, so pick a theme that matches it.
+
 ## [0.17.1] - 2026-11-03
 
 ### Changed

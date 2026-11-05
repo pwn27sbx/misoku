@@ -15,7 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// The settings menu (":settings") changes four settings of the "ui"
+// The settings menu (":settings") changes five settings of the "ui"
 // section of config.json. Save model: a value picked with Enter (or a
 // digit, or a click) applies at once and is saved at once; Esc only goes
 // back (from a list or the width prompt to the menu, from the menu out)
@@ -51,6 +51,7 @@ const (
 	settingHideWidth
 	settingLook
 	settingBorder
+	settingTransparent
 )
 
 // lookPreset is a choice of heading icons and bullets. Misoku's own look
@@ -81,17 +82,18 @@ func (m *Model) OpenSettings() tea.Cmd {
 	return nil
 }
 
-// openSettingsAt opens the settings menu with row highlighted.
-func (m *Model) openSettingsAt(row int) {
+// openSettingsAt opens the settings menu with highlight highlighted.
+func (m *Model) openSettingsAt(highlight int) {
 	s := m.prefs()
-	row4 := func(label, value string) string { return fmt.Sprintf("%-20s %s", label, value) }
+	row := func(label, value string) string { return fmt.Sprintf("%-22s %s", label, value) }
 	m.menu("Settings", []string{
-		row4("Accordion folders", onOff(s.ui.AccordionOn())),
-		row4("Explorer hide width", strconv.Itoa(s.hideWidth)),
-		row4("Icons & bullets", m.lookName()),
-		row4("Dialog border", m.borderName()),
+		row("Accordion folders", onOff(s.ui.AccordionOn())),
+		row("Explorer hide width", strconv.Itoa(s.hideWidth)),
+		row("Icons & bullets", m.lookName()),
+		row("Dialog border", m.borderName()),
+		row("Transparent background", onOff(s.ui.Transparent)),
 	}, func(m *Model, i int) tea.Cmd { return m.chooseSetting(i) })
-	m.menuBox.sel = row
+	m.menuBox.sel = highlight
 	m.leaderPending = false
 }
 
@@ -114,6 +116,18 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		m.openSettingsAt(row)
 		m.setStatus("Accordion folders: " + onOff(on))
 		return m.saveUI(map[string]any{config.UIAccordion: on})
+
+	case settingTransparent:
+		on := !s.ui.Transparent
+		s.ui.Transparent = on
+		m.applyTheme(m.baseTheme, false)
+		m.openSettingsAt(row)
+		m.setStatus("Transparent background: " + onOff(on))
+		if !on {
+			// Off is the default: remove the key rather than write false.
+			return m.saveUI(map[string]any{config.UITransparent: nil})
+		}
+		return m.saveUI(map[string]any{config.UITransparent: true})
 
 	case settingHideWidth:
 		cmd := m.prompt("Explorer hide width", strconv.Itoa(s.hideWidth),

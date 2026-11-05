@@ -41,11 +41,13 @@ const (
 
 // Model represents the root App container state.
 type Model struct {
-	store    *core.Store
-	theme    theme.Theme
-	keys     keymap.Map
-	focus    focus
-	viewMode viewMode
+	store *core.Store
+	theme theme.Theme // what is drawn: baseTheme, transparent when ui.transparent is on
+	// baseTheme is the opaque theme in use, see applyTheme.
+	baseTheme theme.Theme
+	keys      keymap.Map
+	focus     focus
+	viewMode  viewMode
 
 	width  int
 	height int
@@ -218,6 +220,7 @@ func New(store *core.Store, opts ...Option) Model {
 	m := Model{
 		store:       store,
 		theme:       th,
+		baseTheme:   th,
 		keys:        defaultKeys(),
 		focus:       focusSidebar,
 		viewMode:    viewModeDashboard,

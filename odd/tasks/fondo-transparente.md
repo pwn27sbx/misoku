@@ -39,7 +39,7 @@ Delivery: small conventional commits, PR, CI green on Linux/macOS/Windows, CHANG
 
 ## Tasks
 
-- **T1** (S4, S5, S6) — theme: two new fields and one method, no caller changes yet. Route: TBD.
+- **T1** (S4, S5, S6) — theme: two new fields and one method, no caller changes yet. Route: TBD. Status: done (47123c4).
   - `internal/theme/theme.go`: add `Base lipgloss.Color` (always the palette's opaque `bg`) and `PopupBg
     lipgloss.Color` (always `darker_bg`) in `Get` (`:272-318`); add `func (t Theme) Transparent() Theme`, a copy
     with `Bg`, `DarkerBg`, `StatusBg` set to `""`, leaving `Base`, `PopupBg`, `DarkFg` and every other shade
@@ -50,7 +50,7 @@ Delivery: small conventional commits, PR, CI green on Linux/macOS/Windows, CHANG
     behaviour of E3).
   - Checks: `go test ./internal/theme/`, `gofmt -l .`, `go vet ./...`. ~60 lines.
 - **T2** (S5, S6) — callers stop using `Bg`/`DarkerBg` for the jobs that must stay opaque. Pure refactor: default
-  output identical. Route: TBD.
+  output identical. Route: TBD. Status: done (a367251).
   - Text-on-accent → `DarkFg`: `internal/app/bars.go:235,245,291`, `internal/app/datepicker.go:158`,
     `internal/app/dialogs_confirm.go:97`, `internal/preview/block_calendar.go:119`,
     `internal/preview/block_board.go:78`, `internal/preview/block_timeline.go:131`.
@@ -67,7 +67,7 @@ Delivery: small conventional commits, PR, CI green on Linux/macOS/Windows, CHANG
     and `internal/textarea/testdata/*.golden` included); differential: render a few frames (home, editor +
     sidebar, palette, a confirm dialog) under TrueColor at the base commit (copy in `mktemp -d`) and on the branch,
     byte-compare. ~80 lines.
-- **T3** (S2, S3, S4, S7) — config, Settings row, live apply. Route: TBD.
+- **T3** (S2, S3, S4, S7) — config, Settings row, live apply. Route: delegated (writer agent, with S8 docs). Status: done, uncommitted.
   - `internal/config/config.go:191-230`: `Transparent bool \`json:"transparent,omitempty"\`` in `UI` with doc.
     `internal/config/settings.go:13-19`: `UITransparent = "transparent"`.
   - `internal/app`: the model remembers the flag (from `app.WithUI`, `cmd/misoku/main.go:139`); `applyTheme`
@@ -150,3 +150,15 @@ Order: T1 → T2 → T3 → T4 (T2 depends on T1 fields; T3 on both). ~350 autho
 - V4 (T1/T3 tests): pin a test theme whose `bg`, `darker_bg` and `status_bg` hexes differ from `Bg2`, `OneBg*` and `LightBg`, so that the "no 48;2 for these" assertions mean something.
 - Notes: `themes.go:241` needs no change, because `t` comes from `theme.Get`, which stays opaque. The `StatusBg` powerline sites (`bars.go:234,293,309,363`) and the active tab (`bars.go:40`) are covered by the field change. With S7 the welcome card (`welcome_screen.go:307`) also turns clear.
 - Decision (orchestrator): the statusline and the tab bar are also transparent (S4), because herdr leaves them unpainted too: "para que se vea tal cual herdr" (L1).
+- **T3 + S8 evidence (writer agent, 2026-11-05).** Model keeps the opaque `baseTheme`; `applyTheme` draws
+  `Transparent()` when `ui.transparent` is on; `applyUI` re-applies when the flag changes (V1); picker `original`,
+  picker Enter and the user-theme reload start from `baseTheme` (V2); Settings row 5 toggles live, saves `true` or
+  removes the key; `welcomeTheme(name, transparent)` (S7). RED observed (compile, then behaviour after stubs).
+  Mutants killed: M1 applyTheme ignores flag and M2 applyUI no re-apply → `TestTransparentOptionClearsTheBaseFills`;
+  M3 picker restores `m.theme` → `TestThemePickerKeepsTransparency`; M4 toggle no re-apply, M5 off writes `false` →
+  `TestSettingsTransparentTogglesLiveAndIsSaved`; M6 reload paints opaque → `TestUserThemeReloadKeepsTransparency`;
+  M7 key renamed → `TestSetUITransparentSavesAndRemovesTheKey`; M8 welcome ignores flag →
+  `TestWelcomeScreenHonoursTransparent`; M9 no menu row → `TestSettingsMenuShowsTransparentBackground`.
+  Differential with the flag off (onedark, nord, catppuccin × home, editor, cmdline, dd, leader) at a367251 vs
+  worktree: byte-identical (288876 bytes). Docs: README `## Look` row + `### Transparent background` note +
+  Settings paragraph ("five"), CHANGELOG `[Unreleased]` Added.

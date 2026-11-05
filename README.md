@@ -413,6 +413,14 @@ with render-markdown:
 | `accordion` | `true` (default): opening a folder in the explorer closes its open siblings. `false` keeps several open |
 | `explorer_hide_width` | Terminal width, in columns, below which the explorer hides (default `120`) |
 | `cursor_shape` | `"auto"` (default): the cursor itself shows the mode, a block in NORMAL and VISUAL and a thin bar in INSERT, like LazyVim. `"block"` keeps Misoku's drawn block in every mode |
+| `transparent` | `true` leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal with opacity or blur shows through. Highlights and floating boxes stay painted. `false` (default) paints the theme's background |
+
+### Transparent background
+
+With `"transparent": true` Misoku stops painting its base background, the way Claude Code draws in a terminal:
+your terminal's own background colour shows through, with its opacity and blur if it has them. Pick a theme
+whose colours match that background (Omarchy sets both); a terminal without opacity just shows its default
+colour. Pictures in the preview keep an opaque rectangle.
 
 ### Cursor
 
@@ -427,9 +435,10 @@ catch (a panic or `kill -9`) can leave the shape set until the terminal resets i
 ### Settings menu
 
 `:settings` (or **Settings**, key `c`, on the home screen) opens a menu for
-four of these keys: accordion folders (on or off), the explorer hide width,
+five of these keys: accordion folders (on or off), the explorer hide width,
 heading icons and bullets (one of the presets Misoku, Numbers, Arrows and
-Plain; Misoku removes both keys), and the dialog border. A value picked with Enter applies at once and is saved at once
+Plain; Misoku removes both keys), the dialog border, and the transparent
+background (on or off; off removes the key). A value picked with Enter applies at once and is saved at once
 in `config.json`: only that key changes, and every other setting stays as you
 wrote it. Esc goes back without saving, and picking the value already in use
 writes nothing. If the file cannot be written, the status bar says why.

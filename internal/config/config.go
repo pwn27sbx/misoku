@@ -227,6 +227,10 @@ type UI struct {
 	// ExplorerHideWidth is the terminal width, in columns, below which the
 	// explorer hides. 0 means DefaultExplorerHideWidth; see HideWidth.
 	ExplorerHideWidth int `json:"explorer_hide_width,omitempty"`
+	// Transparent leaves the base background (editor, preview, explorer,
+	// tab line, statusline) to the terminal, so a terminal with opacity or
+	// blur shows through. Highlights and floating boxes stay painted.
+	Transparent bool `json:"transparent,omitempty"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

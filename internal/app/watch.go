@@ -225,7 +225,7 @@ func (m *Model) applyThemeStamp(stamp string) {
 	}
 	m.themeStamp = stamp
 	theme.ReloadUserThemes()
-	if th, ok := theme.Get(m.theme.Name); ok {
+	if th, ok := theme.Get(m.baseTheme.Name); ok {
 		m.applyTheme(th, false)
 	}
 }

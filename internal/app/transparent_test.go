@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
@@ -230,5 +231,51 @@ func TestStatuslineAccentTextKeepsDarkFg(t *testing.T) {
 		if !strings.Contains(bar, w) {
 			t.Errorf("missing %q in:\n%q", w, bar)
 		}
+	}
+}
+
+// transparentOn is a model on the distinct theme with ui.transparent set.
+func transparentOn(t *testing.T) *Model {
+	t.Helper()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
+	distinctTheme(t)
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(store, WithTheme("distinct"), WithUI(config.UI{Transparent: true}))
+	return &m
+}
+
+// The theme picker previews, keeps and restores themes transparent, and
+// turning the option off afterwards paints the theme's own background:
+// the picker must not leave the transparent copy as the theme to go back to.
+func TestThemePickerKeepsTransparency(t *testing.T) {
+	m := transparentOn(t)
+	opaque, _ := theme.Get("distinct")
+
+	m.openThemePicker()
+	m.themes.move(m, 1)
+	if m.theme.Bg != "" || m.theme.Name == "distinct" {
+		t.Fatalf("the previewed theme %q should be transparent, Bg = %q", m.theme.Name, m.theme.Bg)
+	}
+	m.themes.close(m, false)
+	if m.theme.Name != "distinct" || m.theme.Bg != "" {
+		t.Fatalf("Esc should restore the transparent distinct theme, got %q with Bg %q", m.theme.Name, m.theme.Bg)
+	}
+
+	m.chooseSetting(settingTransparent)
+	if m.theme.Bg != opaque.Bg || m.theme.DarkerBg != opaque.DarkerBg || m.theme.StatusBg != opaque.StatusBg {
+		t.Fatalf("off after the picker should paint the theme's own fills, got %q %q %q",
+			m.theme.Bg, m.theme.DarkerBg, m.theme.StatusBg)
+	}
+
+	m.chooseSetting(settingTransparent)
+	m.openThemePicker()
+	m.themes.move(m, 1)
+	m.themes.close(m, true)
+	if m.theme.Bg != "" {
+		t.Fatalf("Enter should keep the picked theme transparent, Bg = %q", m.theme.Bg)
 	}
 }

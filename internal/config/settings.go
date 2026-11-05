@@ -16,6 +16,7 @@ const (
 	UIHeadingIcons      = "heading_icons"
 	UIBullets           = "bullets"
 	UIBorder            = "border"
+	UITransparent       = "transparent"
 )
 
 // AccordionOn reports whether accordion folders are on (the default).
