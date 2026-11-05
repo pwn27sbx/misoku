@@ -4,6 +4,15 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **Vim insert keys start typing from the explorer**: `i`, `I`, `a`, `A`, `o` and `O` in the tree open the folder
+  editor on the folder holding the selection, with the cursor on it, and act at once, like LazyVim's mini.files:
+  `i`/`a` edit the name, `o`/`O` type a new line below or above. `m` still opens the editor alone. To free them,
+  preview moves from `o` to `p` and new sub-note from `a` to `s`.
+
 ## [0.18.1] - 2026-11-05
 
 ### Changed

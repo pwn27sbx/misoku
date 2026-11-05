@@ -268,3 +268,13 @@ func TestEnterOnAnEmptyNewLineStays(t *testing.T) {
 		t.Fatalf("names = %v", got)
 	}
 }
+
+func TestSelectMovesTheCursorToAnEntry(t *testing.T) {
+	b := New("", []Row{{OrigID: "a.md", Name: "a"}, {OrigID: "b.md", Name: "b"}})
+	if !b.Select("b.md") || b.Cursor() != 1 {
+		t.Fatalf("Select(b.md): cursor = %d, want 1", b.Cursor())
+	}
+	if b.Select("") || b.Select("zz.md") || b.Cursor() != 1 {
+		t.Fatalf("an unknown entry keeps the cursor, got %d", b.Cursor())
+	}
+}

@@ -86,8 +86,8 @@ var openers = []struct {
 	{"key l", keyOpener(runeKey('l'))},
 	{"key enter", keyOpener(tea.KeyMsg{Type: tea.KeyEnter})},
 	{"key z", keyOpener(runeKey('z'))},
-	{"key o", keyOpener(runeKey('o'))},
-	{"key a (new sub-note)", keyOpener(runeKey('a'))},
+	{"key p", keyOpener(runeKey('p'))},
+	{"key s (new sub-note)", keyOpener(runeKey('s'))},
 	{"click", func(t *testing.T, sb sidebar.Model, id string) sidebar.Model {
 		row := rowOf(sb, id)
 		if row < 0 {

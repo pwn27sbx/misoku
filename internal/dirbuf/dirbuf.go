@@ -116,6 +116,19 @@ func (b *Buffer) Dirty() bool {
 // Cursor returns the index of the selected row in the current folder.
 func (b *Buffer) Cursor() int { return b.f().cursor }
 
+// Select moves the cursor to the row that came from entry origID and
+// reports whether the current folder has one.
+func (b *Buffer) Select(origID string) bool {
+	f := b.f()
+	for i, r := range f.rows {
+		if origID != "" && r.OrigID == origID {
+			f.cursor = i
+			return true
+		}
+	}
+	return false
+}
+
 // Current returns the selected row, false when the folder is empty.
 func (b *Buffer) Current() (Row, bool) {
 	f := b.f()

@@ -25,6 +25,9 @@ func TestDefaultsAreTodaysShortcuts(t *testing.T) {
 		keymap.GlobalGraph:         {"space G"},
 		keymap.ExplorerFileManager: {"M"},
 		keymap.ExplorerEditFolder:  {"m"},
+		keymap.ExplorerPreview:     {"p"},
+		keymap.ExplorerNewSubNote:  {"s"},
+		keymap.ExplorerInsert:      {"i", "I", "a", "A", "o", "O"},
 	}
 	for action, want := range cases {
 		if got := m.Keys(action); !reflect.DeepEqual(got, want) {

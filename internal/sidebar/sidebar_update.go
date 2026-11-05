@@ -137,6 +137,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case is(keymap.ExplorerEditFolder):
 		m.StartEditing()
 		return m, nil
+	case is(keymap.ExplorerInsert):
+		return m, m.StartInsert(key)
 	case is(keymap.ExplorerRename):
 		return m, m.StartRenaming()
 	case is(keymap.ExplorerNewNote):

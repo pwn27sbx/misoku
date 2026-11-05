@@ -288,8 +288,21 @@ func (m Model) IsEditing() bool { return m.edit != nil }
 
 // StartEditing opens the folder editor on the context folder
 // (ContextParentID), mini.files style: one folder as editable lines.
-func (m *Model) StartEditing() {
-	id := m.ContextParentID()
+func (m *Model) StartEditing() { m.openEditor(m.ContextParentID()) }
+
+// StartInsert opens the folder editor on the folder holding the selection,
+// with the cursor on it, and passes it key, as mini.files does: i and a edit
+// the selected name, o and O type a new line below or above it.
+func (m *Model) StartInsert(key tea.KeyMsg) tea.Cmd {
+	p, _ := m.SelectedPage()
+	m.openEditor(p.ParentID)
+	m.edit.Select(p.ID)
+	_, cmd := m.edit.Update(key)
+	return cmd
+}
+
+// openEditor opens the folder editor on folder id, with no pending edits.
+func (m *Model) openEditor(id string) {
 	m.edit, m.cmdOn = dirbuf.New(id, m.folderRows(id)), false
 }
 

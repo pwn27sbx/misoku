@@ -223,3 +223,34 @@ func TestExplorerKeysUnchangedOutsideTheEditor(t *testing.T) {
 		}
 	})
 }
+
+// In the tree, o is m then o, as in mini.files: on a folder row it opens a
+// line below it in the folder holding it, and leaving confirms the new line.
+func TestTreeOOpensALineInTheEditor(t *testing.T) {
+	h, store := newEntryHarness(t) // FLM/ selected
+	h.keys("o")
+	h.keys("idea/")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.keys("q")
+	if v := h.view(); !strings.Contains(v, "CONFIRM FILE SYSTEM ACTIONS") {
+		t.Fatalf("leaving must confirm the new line:\n%s", v)
+	}
+	h.keys("y")
+	if fi, err := os.Stat(filepath.Join(store.Root(), "idea")); err != nil || !fi.IsDir() {
+		t.Fatalf("idea/ must be a folder at the root: %v", err)
+	}
+}
+
+// In the tree, i is m then i on the selected entry: typing renames it.
+func TestTreeIRenamesTheSelectedNote(t *testing.T) {
+	h := editHarness(t) // aaa selected
+	h.keys("i")
+	h.keys("x")
+	h.key(tea.KeyEsc)
+	h.keys("q")
+	h.keys("y")
+	if !h.exists("xaaa.md") || h.exists("aaa.md") {
+		t.Fatal("i then x must rename aaa.md to xaaa.md")
+	}
+}

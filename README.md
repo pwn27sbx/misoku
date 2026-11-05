@@ -224,7 +224,7 @@ never use `notes_dir`.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
 - **Use mini.files**: `M` in the explorer hands the screen to Neovim's [mini.files](https://github.com/nvim-mini/mini.files) on the vault folder, with your own Neovim setup (LazyVim's included). Deleting there goes to mini.files' trash, not for good, and dot files stay hidden. Closing it (`q`) returns to Misoku, which re-reads the folder at once. It needs `nvim` on `PATH` and mini.files installed (the plugin, or the LazyVim extra `editor.mini-files`); without them the status bar says what is missing.
-- **Edit a folder like mini.files**: `m` in the explorer shows the selected folder (or the one holding the selected note) as editable lines, without Neovim. Type a line with `o`/`O` to create (`test` a note, `test/` a folder, `ideas/test` both, as with `n`); `Enter` while typing opens the next line below, still typing, and `Esc` returns to normal. Change a name with `cw`/`cc`/`i`/`a` to rename, `dd` to delete, `dd` then `p` in another folder to move; `h`/`l` go to the parent or child folder keeping every folder's edits, `u`/`ctrl+r` undo and redo. `=` or `:w` lists the actions under "CONFIRM FILE SYSTEM ACTIONS", with the links they update, and applies them all after Yes; tabs and links follow. `Esc`, `q` or `:q` leaves: with edits it shows that same confirm, where Yes applies them and closes, No drops them and closes, and Cancel keeps editing.
+- **Edit a folder like mini.files**: `m` in the explorer shows the selected folder (or the one holding the selected note) as editable lines, without Neovim. Type a line with `o`/`O` to create (`test` a note, `test/` a folder, `ideas/test` both, as with `n`); `Enter` while typing opens the next line below, still typing, and `Esc` returns to normal. Change a name with `cw`/`cc`/`i`/`a` to rename, `dd` to delete, `dd` then `p` in another folder to move; `h`/`l` go to the parent or child folder keeping every folder's edits, `u`/`ctrl+r` undo and redo. `=` or `:w` lists the actions under "CONFIRM FILE SYSTEM ACTIONS", with the links they update, and applies them all after Yes; tabs and links follow. `Esc`, `q` or `:q` leaves: with edits it shows that same confirm, where Yes applies them and closes, No drops them and closes, and Cancel keeps editing. In the tree, `i`, `I`, `a`, `A`, `o` and `O` are `m` plus that key in one press: the editor opens on the folder holding the selection, with the cursor on it, so `i`/`a` edit its name and `o`/`O` type a new line below or above it.
 - **Open notes stay in sync with the disk**: a note changed by another program reloads in place (the cursor stays put). If you have unsaved edits it is left alone and you are told; saving then keeps both versions: yours in the note, the one on disk in a conflict copy next to it (`note (conflict 2026-10-16 0905).md`), and the status bar says `Both kept: …` with the copy's name. Nothing is asked and nothing is lost.
 - **Open notes deleted or renamed elsewhere are kept**: the tab stays open with its text and you are warned once; saving asks before recreating the note at its old path, so a rename is never silently duplicated.
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
@@ -392,18 +392,19 @@ The list scrolls when it does not fit, so no row is cut.
 | `explorer.page_down` | `ctrl+d`, `pgdown` | Half page down |
 | `explorer.page_up` | `ctrl+u`, `pgup` | Half page up |
 | `explorer.open` | `enter` | Open note / expand |
-| `explorer.preview` | `o` | Preview note (folder: open) |
+| `explorer.preview` | `p` | Preview note (folder: open) |
 | `explorer.expand` | `l`, `right` | Expand / open |
 | `explorer.collapse` | `h`, `left` | Collapse / go to parent |
 | `explorer.toggle_fold` | `z` | Fold / unfold |
 | `explorer.collapse_all` | `W` | Collapse all |
 | `explorer.new_note` | `n`, `%` | New note or folder (end with / for a folder) |
-| `explorer.new_sub_note` | `a` | New sub-note |
+| `explorer.new_sub_note` | `s` | New sub-note |
 | `explorer.rename` | `r`, `e` | Rename |
 | `explorer.delete` | `d`, `x`, `delete` | Delete (asks first) |
 | `explorer.find` | `\`, `f` | Find note |
 | `explorer.file_manager` | `M` | Open the vault in Neovim's mini.files |
 | `explorer.edit_folder` | `m` | Edit the folder like text (mini.files) |
+| `explorer.insert` | `i`, `I`, `a`, `A`, `o`, `O` | Start typing in the folder editor |
 
 ## Look
 

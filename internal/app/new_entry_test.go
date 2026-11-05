@@ -3,6 +3,7 @@ package app_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -205,13 +206,13 @@ func TestNewEntryEmptyNameStartsAnUntitledDraft(t *testing.T) {
 func TestNewSubNoteStillStartsADraftUnderTheNote(t *testing.T) {
 	h, store := newEntryHarness(t)
 	h.keys("j") // zeta.md
-	h.keys("a")
+	h.keys("s")
 	v := h.view()
 	if !strings.Contains(v, "Untitled-1") || !strings.Contains(v, "INSERT") {
-		t.Fatalf("a should still open an Untitled draft:\n%s", v)
+		t.Fatalf("s should still open an Untitled draft:\n%s", v)
 	}
 	if exists(store, "zeta") || len(store.List()) != 3 {
-		t.Fatalf("a writes nothing before saving, got %v", store.List())
+		t.Fatalf("s writes nothing before saving, got %v", store.List())
 	}
 }
 
@@ -229,5 +230,15 @@ func TestRenameStillRenamesInPlace(t *testing.T) {
 	}
 	if got, err := store.Get("omega-.md"); err != nil || got.Content != "zeta body" {
 		t.Fatalf("rename keeps its old rules (/ becomes -): %+v %v", got, err)
+	}
+}
+
+// p previews the selected note: it opens in a tab.
+func TestPPreviewsTheSelectedNote(t *testing.T) {
+	h, _ := newEntryHarness(t)
+	h.keys("j") // zeta.md
+	h.keys("p")
+	if tabs := app.OpenTabs(h.m); !slices.Contains(tabs, "zeta.md") {
+		t.Fatalf("p must preview zeta.md, tabs = %q", tabs)
 	}
 }

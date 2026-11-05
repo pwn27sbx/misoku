@@ -64,6 +64,7 @@ const (
 	ExplorerDelete      = "explorer.delete"
 	ExplorerFileManager = "explorer.file_manager"
 	ExplorerEditFolder  = "explorer.edit_folder"
+	ExplorerInsert      = "explorer.insert"
 )
 
 // leader starts a sequence of one or two more keys ("space e", "space o c").
@@ -173,7 +174,7 @@ var Actions = []Info{
 	{Action: ExplorerOpen, Section: "explorer", Help: "Open note / expand",
 		Long: "In the explorer, opens the selected note in the editor, or opens and closes the selected folder.", defaults: []string{"enter"}},
 	{Action: ExplorerPreview, Section: "explorer", Help: "Preview note (folder: open)",
-		Long: "In the explorer, shows the selected note without leaving the explorer; on a folder, opens it.", defaults: []string{"o"}},
+		Long: "In the explorer, shows the selected note without leaving the explorer; on a folder, opens it.", defaults: []string{"p"}},
 	{Action: ExplorerExpand, Section: "explorer", Help: "Expand / open",
 		Long: "In the explorer, opens the selected folder, or the selected note.", defaults: []string{"l", "right"}},
 	{Action: ExplorerCollapse, Section: "explorer", Help: "Collapse / go to parent",
@@ -185,7 +186,7 @@ var Actions = []Info{
 	{Action: ExplorerNewNote, Section: "explorer", Help: "New note or folder (end with / for a folder)",
 		Long: "In the explorer, asks for a name in the folder of the selection: test makes a note, test/ a folder and ideas/test both, after confirming. An empty name starts an Untitled note.", defaults: []string{"n", "%"}},
 	{Action: ExplorerNewSubNote, Section: "explorer", Help: "New sub-note",
-		Long: "In the explorer, starts a new note nested under the selected one.", defaults: []string{"a"}},
+		Long: "In the explorer, starts a new note nested under the selected one.", defaults: []string{"s"}},
 	{Action: ExplorerRename, Section: "explorer", Help: "Rename",
 		Long: "In the explorer, renames the selected note or folder; type the new name and press Enter.", defaults: []string{"r", "e"}},
 	{Action: ExplorerDelete, Section: "explorer", Help: "Delete (asks first)",
@@ -196,6 +197,8 @@ var Actions = []Info{
 		Long: "In the explorer, hands the screen to Neovim's mini.files on the vault folder; closing it (q) returns to Misoku, which re-reads the folder at once.", defaults: []string{"M"}},
 	{Action: ExplorerEditFolder, Section: "explorer", Help: "Edit the folder like text (mini.files)",
 		Long: "In the explorer, shows the selected folder as editable lines: type a line to create (Enter opens the next one, a trailing / makes a folder), edit a name to rename, dd to delete, dd then p in another folder (h/l) to move, u to undo; = or :w lists the actions and applies them after Yes. Esc or q leaves; with edits it shows the same confirm: Yes applies and closes, No drops them, Cancel keeps editing.", defaults: []string{"m"}},
+	{Action: ExplorerInsert, Section: "explorer", Help: "Start typing in the folder editor",
+		Long: "In the explorer, opens the folder editor (m) on the folder holding the selection, with the cursor on it, and passes it the key, as mini.files does: i/I and a/A edit the selected name, o/O type a new line below or above it.", defaults: []string{"i", "I", "a", "A", "o", "O"}},
 }
 
 // HelpText returns the help-screen description of action.
