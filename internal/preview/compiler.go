@@ -324,6 +324,10 @@ func (c *compiler) compile(input string) {
 
 	input = htmlCommentRegex.ReplaceAllString(strings.ReplaceAll(input, "\t", "    "), "")
 	lines := strings.Split(input, "\n")
+	var numbers map[int]string // outline numbers by line, when on
+	if c.depth == 0 && c.st.look.HeadingNumbers {
+		numbers = headingNumbers(lines)
+	}
 
 	skipLevel := 0 // >0 while inside a collapsed heading's section
 	skipFence := ""
@@ -339,7 +343,7 @@ func (c *compiler) compile(input string) {
 					skipFence = ""
 				}
 				continue
-			case strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~"):
+			case isFenceOpen(trimmed):
 				skipFence = trimmed[:3]
 				continue
 			case headingRegex.MatchString(trimmed) && len(headingRegex.FindStringSubmatch(trimmed)[1]) <= skipLevel:
@@ -350,15 +354,12 @@ func (c *compiler) compile(input string) {
 		}
 
 		// Fenced code blocks.
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+		if isFenceOpen(trimmed) {
 			c.flushPara()
-			fence := trimmed[:3]
 			lang := strings.TrimSpace(trimmed[3:])
-			var code []string
 			open := i
-			for i++; i < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[i]), fence); i++ {
-				code = append(code, lines[i])
-			}
+			i = fenceEnd(lines, open)
+			code := append([]string(nil), lines[open+1:i]...)
 			c.openBlock(open, min(i+1, len(lines)))
 			c.fence, c.fenceEnd = c.lineOffset+open, c.lineOffset+i
 			c.codeBlock(lang, code)
@@ -371,19 +372,17 @@ func (c *compiler) compile(input string) {
 			open := i
 			rest := strings.TrimSpace(trimmed[2:])
 			var body []string
-			if end := strings.Index(rest, "$$"); end >= 0 {
-				body = []string{rest[:end]}
+			i = mathEnd(lines, open)
+			if i == open {
+				body = []string{rest[:strings.Index(rest, "$$")]}
 			} else {
 				if rest != "" {
 					body = append(body, rest)
 				}
-				for i++; i < len(lines); i++ {
+				body = append(body, lines[open+1:min(i, len(lines))]...)
+				if i < len(lines) {
 					t := strings.TrimSpace(lines[i])
-					if end := strings.Index(t, "$$"); end >= 0 {
-						body = append(body, t[:end])
-						break
-					}
-					body = append(body, lines[i])
+					body = append(body, t[:strings.Index(t, "$$")])
 				}
 			}
 			c.openBlock(open, min(i+1, len(lines)))
@@ -393,13 +392,15 @@ func (c *compiler) compile(input string) {
 		}
 
 		// Tables: a header row followed by a separator row.
-		if strings.Contains(line, "|") && i+1 < len(lines) && tableSepRegex.MatchString(lines[i+1]) {
+		if isTableStart(lines, i) {
 			c.flushPara()
 			start := c.lineOffset + i
 			rows := [][]string{splitRow(line)}
-			for i += 2; i < len(lines) && strings.Contains(lines[i], "|") && strings.TrimSpace(lines[i]) != ""; i++ {
-				rows = append(rows, splitRow(lines[i]))
+			end := tableEnd(lines, i)
+			for _, row := range lines[i+2 : end] {
+				rows = append(rows, splitRow(row))
 			}
+			i = end
 			c.openBlock(start-c.lineOffset, i)
 			i--
 			c.table(rows, start)
@@ -460,7 +461,11 @@ func (c *compiler) compile(input string) {
 			case folded:
 				arrow = "▸ "
 			}
-			prefix := arrow + c.st.look.HeadingIcons[level-1]
+			icon := c.st.look.HeadingIcons[level-1]
+			if n, ok := numbers[i]; ok {
+				icon = n + " "
+			}
+			prefix := arrow + icon
 			if c.st.look.HeadingBackground {
 				st = st.Background(band(st.GetForeground().(lipgloss.Color), c.st.th.Base))
 			}

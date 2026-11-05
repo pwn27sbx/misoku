@@ -17,10 +17,15 @@ const (
 	UIBullets           = "bullets"
 	UIBorder            = "border"
 	UITransparent       = "transparent"
+	UIHeadingNumbers    = "heading_numbers"
 )
 
 // AccordionOn reports whether accordion folders are on (the default).
 func (u UI) AccordionOn() bool { return u.Accordion == nil || *u.Accordion }
+
+// HeadingNumbersOn reports whether the preview numbers headings (the
+// default).
+func (u UI) HeadingNumbersOn() bool { return u.HeadingNumbers == nil || *u.HeadingNumbers }
 
 // HideWidth is the explorer's hide width, DefaultExplorerHideWidth when
 // unset.

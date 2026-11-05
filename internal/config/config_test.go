@@ -421,3 +421,24 @@ func TestSyncParseTooShortIntervalWarnsAndUsesTheDefault(t *testing.T) {
 		t.Fatalf("the minimum itself must be accepted: %+v %q", vs, ws)
 	}
 }
+
+// ui.heading_numbers is on when unset and off only when written false.
+func TestHeadingNumbersOnByDefault(t *testing.T) {
+	for raw, want := range map[string]bool{
+		`{}`:                                 true,
+		`{"ui": {"heading_numbers": true}}`:  true,
+		`{"ui": {"heading_numbers": false}}`: false,
+	} {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := config.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := cfg.UI.HeadingNumbersOn(); got != want {
+			t.Errorf("%s: HeadingNumbersOn() = %v, want %v", raw, got, want)
+		}
+	}
+}

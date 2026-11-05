@@ -47,7 +47,7 @@ var Commands = []Command{
 	{Usage: ":colo [name]", Names: []string{"colo", "colorscheme", "theme"}, Help: "Switch theme", Run: "colo", NoNote: true,
 		Long: "With a name, applies and saves that theme; without one, opens the theme picker."},
 	{Usage: ":settings", Names: []string{"settings"}, Help: "Settings menu", Run: "settings", NoNote: true,
-		Long: "Opens the settings menu: accordion folders, the explorer's hide width, heading icons and bullets, and the dialog border. A change applies and is saved at once."},
+		Long: "Opens the settings menu: accordion folders, the explorer's hide width, heading icons and bullets, the dialog border, the transparent background and heading numbers. A change applies and is saved at once."},
 	{Usage: ":sync", Names: []string{"sync"}, Help: "Sync the vault with git", Run: "sync", NoNote: true,
 		Long: "Syncs the vault with its git remote now, like the sync key."},
 	{Usage: ":sync status", Names: []string{"sync"}, Help: "Sync state, conflict copies", Run: "sync status", NoNote: true,

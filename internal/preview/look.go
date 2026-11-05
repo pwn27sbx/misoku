@@ -16,6 +16,10 @@ type Look struct {
 	// runs the width of the pane (render-markdown's "full" style); the H1
 	// underline is then left out.
 	HeadingBackground bool
+	// HeadingNumbers prefixes each heading of the note with its outline
+	// number ("1", "1.2") instead of its level icon. A lone first "#"
+	// heading is the title and keeps its icon; embedded notes keep theirs.
+	HeadingNumbers bool
 	// Bullets are used by depth, cycling.
 	Bullets []string
 	// Unchecked and Checked mark "- [ ]" and "- [x]".

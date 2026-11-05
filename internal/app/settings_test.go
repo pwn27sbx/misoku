@@ -130,7 +130,7 @@ func TestSettingsMenuListsTheFourOptions(t *testing.T) {
 	h := settingsHarness(t, tempConfig(t, ""))
 	h.openSettings()
 	v := h.view()
-	for _, want := range []string{"Settings", "Accordion folders", "on", "Explorer hide width", "120", "Icons & bullets", "Misoku", "Dialog border", "rounded"} {
+	for _, want := range []string{"Settings", "Accordion folders", "on", "Explorer hide width", "120", "Icons & bullets", "Misoku", "Dialog border", "rounded", "Heading numbers"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("settings menu lacks %q:\n%s", want, v)
 		}
@@ -261,6 +261,29 @@ func TestSettingsIconsAndBulletsApplyLiveAndAreSaved(t *testing.T) {
 	h.openSettings()
 	h.keys("31")
 	assertOnlyUIChanged(t, path, nil)
+}
+
+// Heading numbers are on by default; the sixth row turns them off at once
+// and saves only heading_numbers.
+func TestSettingsHeadingNumbersApplyLiveAndAreSaved(t *testing.T) {
+	path := tempConfig(t, userConfig)
+	// main always passes the ui section; an empty one is every default.
+	h := settingsHarness(t, path, app.WithUI(config.UI{}))
+	h.keys("o## Sub")
+	h.key(tea.KeyEsc)
+	if p := h.preview(); !strings.Contains(p, "1 Sub") || strings.Contains(p, "󰉬 Sub") {
+		t.Fatalf("headings are numbered by default:\n%s", p)
+	}
+	h.openSettings()
+	h.keys("6")
+	if v := h.view(); !strings.Contains(v, "Heading numbers") || !strings.Contains(v, "off") {
+		t.Fatalf("the row should read off:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	if p := h.preview(); !strings.Contains(p, "󰉬 Sub") || strings.Contains(p, "1 Sub") {
+		t.Fatalf("numbers off brings the level icon back:\n%s", p)
+	}
+	assertOnlyUIChanged(t, path, map[string]any{"heading_numbers": false})
 }
 
 func TestSettingsBorderAppliesLiveAndIsSaved(t *testing.T) {

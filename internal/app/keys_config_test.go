@@ -120,7 +120,8 @@ func TestUIConfigReachesThePreview(t *testing.T) {
 	if _, err := store.SaveAs("", "doc", "# Title\n\n- [-] doing\n"); err != nil {
 		t.Fatal(err)
 	}
-	ui := config.UI{HeadingIcons: []string{"① "}}
+	off := false // this test is about icons, not outline numbers
+	ui := config.UI{HeadingIcons: []string{"① "}, HeadingNumbers: &off}
 	ui.Checkbox.Todo = "󰥔"
 	h := newHarness(t, store, app.WithUI(ui))
 	h.keys("1")

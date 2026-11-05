@@ -224,6 +224,10 @@ type UI struct {
 	// Accordion keeps one folder open per level in the explorer: opening a
 	// folder closes its open siblings. Unset means on; see AccordionOn.
 	Accordion *bool `json:"accordion,omitempty"`
+	// HeadingNumbers numbers the preview's headings like an outline (1,
+	// 1.1, 2) in place of their level icons. Unset means on; see
+	// HeadingNumbersOn.
+	HeadingNumbers *bool `json:"heading_numbers,omitempty"`
 	// ExplorerHideWidth is the terminal width, in columns, below which the
 	// explorer hides. 0 means DefaultExplorerHideWidth; see HideWidth.
 	ExplorerHideWidth int `json:"explorer_hide_width,omitempty"`

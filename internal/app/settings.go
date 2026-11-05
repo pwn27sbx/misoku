@@ -15,7 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// The settings menu (":settings") changes five settings of the "ui"
+// The settings menu (":settings") changes six settings of the "ui"
 // section of config.json. Save model: a value picked with Enter (or a
 // digit, or a click) applies at once and is saved at once; Esc only goes
 // back (from a list or the width prompt to the menu, from the menu out)
@@ -52,6 +52,7 @@ const (
 	settingLook
 	settingBorder
 	settingTransparent
+	settingHeadingNumbers
 )
 
 // lookPreset is a choice of heading icons and bullets. Misoku's own look
@@ -92,6 +93,7 @@ func (m *Model) openSettingsAt(highlight int) {
 		row("Icons & bullets", m.lookName()),
 		row("Dialog border", m.borderName()),
 		row("Transparent background", onOff(s.ui.Transparent)),
+		row("Heading numbers", onOff(s.ui.HeadingNumbersOn())),
 	}, func(m *Model, i int) tea.Cmd { return m.chooseSetting(i) })
 	m.menuBox.sel = highlight
 	m.leaderPending = false
@@ -116,6 +118,14 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		m.openSettingsAt(row)
 		m.setStatus("Accordion folders: " + onOff(on))
 		return m.saveUI(map[string]any{config.UIAccordion: on})
+
+	case settingHeadingNumbers:
+		on := !s.ui.HeadingNumbersOn()
+		s.ui.HeadingNumbers = &on
+		m.applyLook()
+		m.openSettingsAt(row)
+		m.setStatus("Heading numbers: " + onOff(on))
+		return m.saveUI(map[string]any{config.UIHeadingNumbers: on})
 
 	case settingTransparent:
 		on := !s.ui.Transparent

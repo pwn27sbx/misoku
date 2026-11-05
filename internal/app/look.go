@@ -8,9 +8,9 @@ import (
 	uikit "github.com/pwn27sbx/misoku/internal/ui"
 )
 
-// WithUI applies the "ui" section of config.json: the preview's look, the
-// bars' marks, the border of dialogs, accordion folders, the explorer's
-// hide width and the transparent background.
+// WithUI applies the "ui" section of config.json: the preview's look and
+// heading numbers, the bars' marks, the border of dialogs, accordion
+// folders, the explorer's hide width and the transparent background.
 func WithUI(ui config.UI) Option {
 	return func(m *Model) { m.applyUI(ui) }
 }
@@ -44,6 +44,7 @@ func (m *Model) applyLook() {
 		// transparent themes do: a band is a tint of a page colour the
 		// terminal no longer shows.
 		HeadingBackground: ui.HeadingBackground && !ui.Transparent,
+		HeadingNumbers:    ui.HeadingNumbersOn(),
 		Bullets:           ui.Bullets,
 		Unchecked:         ui.Checkbox.Unchecked,
 		Checked:           ui.Checkbox.Checked,

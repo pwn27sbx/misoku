@@ -382,7 +382,8 @@ func TestHeadingBandsFollowTheTransparency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := New(store, WithTheme("distinct"), WithUI(config.UI{Transparent: true, HeadingBackground: true}))
+	off := false // the icon is checked below, not the outline number
+	m := New(store, WithTheme("distinct"), WithUI(config.UI{Transparent: true, HeadingBackground: true, HeadingNumbers: &off}))
 	heading := func() string {
 		m.preview.SetSize(40, 6)
 		m.preview.SetPage(core.Page{ID: "a.md", Content: "## Sub\n"})
