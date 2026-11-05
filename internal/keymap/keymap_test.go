@@ -335,3 +335,20 @@ func TestAPrefixOfAnotherSequenceIsReported(t *testing.T) {
 		t.Fatalf("space o against space o c should be reported, got:\n%s", joined)
 	}
 }
+
+// The LazyVim companion's ]o and [o live under space o: Space, o, then ]
+// or [, and the default map reports no clash for them.
+func TestLinkJumpDefaults(t *testing.T) {
+	m, warnings := keymap.New(nil)
+	if len(warnings) != 0 {
+		t.Fatalf("the defaults should not clash, got %v", warnings)
+	}
+	for action, last := range map[string]string{keymap.NextLink: "]", keymap.PrevLink: "["} {
+		if got := m.Keys(action); !reflect.DeepEqual(got, []string{"space o " + last}) {
+			t.Errorf("%s: got %v", action, got)
+		}
+		if !m.LeaderSeq(action, []string{"o", last}) {
+			t.Errorf("o %s should complete %s", last, action)
+		}
+	}
+}

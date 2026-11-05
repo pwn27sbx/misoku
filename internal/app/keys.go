@@ -30,7 +30,7 @@ var generalActions = []string{
 	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
 	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview, keymap.ReadingMode,
 	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.Home, keymap.SyncNow, keymap.Help,
-	keymap.PasteImage, keymap.ToggleCheckbox, keymap.RemoveCheckbox,
+	keymap.PasteImage, keymap.ToggleCheckbox, keymap.RemoveCheckbox, keymap.NextLink, keymap.PrevLink,
 }
 
 // globalActions also fire while typing (INSERT mode, renaming), but only
@@ -90,6 +90,10 @@ func (m *Model) runAction(action string) tea.Cmd {
 		return m.editCheckboxes(m.content.ToggleCheckboxes)
 	case keymap.RemoveCheckbox:
 		return m.editCheckboxes(m.content.RemoveCheckboxes)
+	case keymap.NextLink:
+		m.jumpLink(1)
+	case keymap.PrevLink:
+		m.jumpLink(-1)
 	case keymap.Help:
 		return m.openPalette()
 	}
@@ -105,6 +109,14 @@ func (m *Model) editCheckboxes(edit func() bool) tea.Cmd {
 	}
 	m.refreshModified()
 	return m.editorEdited()
+}
+
+// jumpLink moves the editor to the next (dir > 0) or previous [[link]] of
+// the open note, or says the note has none.
+func (m *Model) jumpLink(dir int) {
+	if m.activeBuffer() != nil && !m.content.JumpLink(dir) {
+		m.setStatus("No links in this note")
+	}
 }
 
 func defaultKeys() keymap.Map {

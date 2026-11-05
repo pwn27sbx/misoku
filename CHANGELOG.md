@@ -14,6 +14,8 @@ version comes from the tag, so nothing else in the tree carries it.
   the selection and undo with one `u`. `space o f` and `space o g` find a note, `space o n` starts one and
   `space o p` pastes a picture. In NORMAL mode `Enter` follows the `[[link]]` under the cursor (not inside code;
   a missing note says "No note found for this link"), toggles a checkbox line, and otherwise moves down as before.
+  `space o ]` (`next_link`) and `space o [` (`prev_link`) jump to the next and previous `[[link]]`, wrapping and
+  skipping code, as the companion's `]o` and `[o`; a note without links says "No links in this note".
   Leader sequences may now take two keys after Space (`"space o c"` in `config.json`); the leader guide lists
   `o +misoku` and shows the group's keys after `space o`, and a sequence that starts another is reported.
 

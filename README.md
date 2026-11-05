@@ -363,6 +363,8 @@ The list scrolls when it does not fit, so no row is cut.
 | `paste_image` | `space i`, `space o p` | Paste the picture in the clipboard next to this note and link it (see [Images](#images)); in INSERT mode `ctrl+v` does it too |
 | `toggle_checkbox` | `space o c` | Toggle the box of this line: `[ ]` becomes `[x]`, `[x]` or `[-]` becomes `[ ]`, and a line without one gets `- [ ] `. On a VISUAL or V-LINE selection it toggles every line and keeps the selection; the whole change is one `u` (after `Esc`) |
 | `remove_checkbox` | `space o C` (Space, `o`, then Shift+C) | Remove the box of this line or of the selection's lines: `- [x] task` becomes `- task` |
+| `next_link` | `space o ]` | Move to the start of the next `[[link]]`, past the last back to the first; links in code are skipped, and a note with none says "No links in this note" |
+| `prev_link` | `space o [` | Move to the start of the previous `[[link]]`, wrapping the same way |
 | `help` | `?`, `space h`, `space ?` | This help: the [command palette](#command-palette) |
 | `quit` | `ctrl+c` | Quit (asks to save) |
 
@@ -463,7 +465,9 @@ Type `[[` to link to another note. Click a link in the preview, or press
 block or inline `` `code` `` is skipped, and a link to a note that doesn't
 exist says "No note found for this link" instead of starting it (use `gd`
 for that). `Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
-the box; anywhere else it moves down a line.
+the box; anywhere else it moves down a line. `space o ]` and `space o [`
+jump to the next and previous `[[link]]` (the companion's `]o` and `[o`,
+whose `]` and `[` switch tabs in Misoku), skipping the same code.
 
 ```md
 [[Docker]]                          open a note

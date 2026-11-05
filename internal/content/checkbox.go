@@ -7,7 +7,9 @@ package content
 
 import (
 	"regexp"
+	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/pwn27sbx/misoku/internal/core"
 
@@ -120,28 +122,33 @@ func fenceRun(text string) (byte, int) {
 }
 
 // inFence reports whether row sits inside a fenced code block, or opens
-// one. A fence closes only on its own character, with a run at least as
-// long as the opening one and nothing after it (CommonMark).
+// one.
 func inFence(rowText func(int) string, row int) bool {
+	return fencedRows(rowText, row+1)[row]
+}
+
+// fencedRows reports, for each of the first n rows, whether it sits inside
+// a fenced code block or opens one. A fence closes only on its own
+// character, with a run at least as long as the opening one and nothing
+// after it (CommonMark).
+func fencedRows(rowText func(int) string, n int) []bool {
+	fenced := make([]bool, n)
 	var open byte
 	openLen := 0
-	for r := range row {
+	for r := range n {
 		t := strings.TrimSpace(rowText(r))
-		c, n := fenceRun(t)
+		c, k := fenceRun(t)
+		fenced[r] = open != 0 || c != 0
 		switch {
 		case open != 0:
-			if c == open && n >= openLen && strings.TrimSpace(t[n:]) == "" {
+			if c == open && k >= openLen && strings.TrimSpace(t[k:]) == "" {
 				open = 0
 			}
 		case c != 0:
-			open, openLen = c, n
+			open, openLen = c, k
 		}
 	}
-	if open != 0 {
-		return true
-	}
-	c, _ := fenceRun(strings.TrimSpace(rowText(row)))
-	return c != 0
+	return fenced
 }
 
 // backtickRun is the start and length of the first run of backticks at or
@@ -186,26 +193,82 @@ func inInlineCode(line string, at int) bool {
 	}
 }
 
-// wikiLinkAt is the [[link]] (or ![[embed]]) under rune column col of
-// line, unless it is inside inline code.
-func wikiLinkAt(line string, col int) (core.WikiLink, bool) {
-	runes := []rune(line)
-	at := len(string(runes[:min(max(col, 0), len(runes))]))
-	if inInlineCode(line, at) {
-		return core.WikiLink{}, false
-	}
+// wikiLinkSpans calls visit with each [[link]] (or ![[embed]]) of line and
+// the byte offset and length of its text, left to right.
+func wikiLinkSpans(line string, visit func(l core.WikiLink, at, n int)) {
 	for i := 0; i < len(line); i++ {
 		if line[i] != '[' && line[i] != '!' {
 			continue
 		}
 		if l, n, ok := core.WikiLinkAt(line[i:]); ok {
-			if at >= i && at < i+n {
-				return l, true
-			}
+			visit(l, i, n)
 			i += n - 1
 		}
 	}
-	return core.WikiLink{}, false
+}
+
+// wikiLinkAt is the [[link]] (or ![[embed]]) under rune column col of
+// line, unless it is inside inline code.
+func wikiLinkAt(line string, col int) (link core.WikiLink, found bool) {
+	runes := []rune(line)
+	at := len(string(runes[:min(max(col, 0), len(runes))]))
+	if inInlineCode(line, at) {
+		return core.WikiLink{}, false
+	}
+	wikiLinkSpans(line, func(l core.WikiLink, i, n int) {
+		if !found && at >= i && at < i+n {
+			link, found = l, true
+		}
+	})
+	return link, found
+}
+
+// linkStarts is the row and rune column of the start of every [[link]] (or
+// ![[embed]]) of the first n rows, in order, leaving out those in fenced or
+// inline code, as the LazyVim companion's link_positions.
+func linkStarts(rowText func(int) string, n int) [][2]int {
+	var starts [][2]int
+	for row, fenced := range fencedRows(rowText, n) {
+		if fenced {
+			continue
+		}
+		line := rowText(row)
+		wikiLinkSpans(line, func(_ core.WikiLink, i, _ int) {
+			if !inInlineCode(line, i) {
+				starts = append(starts, [2]int{row, utf8.RuneCountInString(line[:i])})
+			}
+		})
+	}
+	return starts
+}
+
+// JumpLink moves the cursor to the start of the next (dir > 0) or previous
+// [[link]] outside code, wrapping around the note, as the LazyVim
+// companion's ]o and [o. It reports false, and leaves the cursor, when the
+// note has no such link.
+func (m *Model) JumpLink(dir int) bool {
+	starts := linkStarts(m.textarea.RowText, m.textarea.LineCount())
+	if len(starts) == 0 {
+		return false
+	}
+	row, col := m.textarea.RowCol()
+	after := func(p [2]int) bool { return p[0] > row || (p[0] == row && p[1] > col) }
+	target := starts[0]
+	if dir > 0 {
+		if i := slices.IndexFunc(starts, after); i >= 0 {
+			target = starts[i]
+		}
+	} else {
+		target = starts[len(starts)-1]
+		for i := len(starts) - 1; i >= 0; i-- {
+			if p := starts[i]; p[0] < row || (p[0] == row && p[1] < col) {
+				target = p
+				break
+			}
+		}
+	}
+	m.textarea.SetRowCol(target[0], target[1])
+	return true
 }
 
 // enter is Enter in NORMAL, as the LazyVim companion's: follow the [[link]]

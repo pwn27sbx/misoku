@@ -41,6 +41,8 @@ const (
 	PasteImage     = "paste_image"
 	ToggleCheckbox = "toggle_checkbox"
 	RemoveCheckbox = "remove_checkbox"
+	NextLink       = "next_link"
+	PrevLink       = "prev_link"
 	Help           = "help"
 
 	ExplorerFind        = "explorer.find"
@@ -146,6 +148,10 @@ var Actions = []Info{
 		Long: "Checks or unchecks the box of this line, or of every line of the selection: [ ] becomes [x] and [x] or [-] becomes [ ]; a line without a box gets one.", defaults: []string{"space o c"}},
 	{Action: RemoveCheckbox, Section: "general", Group: GroupNote, Help: "Remove checkbox",
 		Long: "Takes the box off this line, or off every line of the selection, and keeps the list item: - [x] task becomes - task.", defaults: []string{"space o C"}},
+	{Action: NextLink, Section: "general", Group: GroupGo, Help: "Next [[link]]",
+		Long: "Moves the cursor to the start of the next [[link]] of this note, past the last back to the first; links in code are skipped.", defaults: []string{"space o ]"}},
+	{Action: PrevLink, Section: "general", Group: GroupGo, Help: "Previous [[link]]",
+		Long: "Moves the cursor to the start of the previous [[link]] of this note, before the first round to the last; links in code are skipped.", defaults: []string{"space o ["}},
 	{Action: Help, Section: "general", Group: GroupView, Help: "This help",
 		Long: "Opens this list of every key and command. Type to filter it; Enter runs a command, Esc closes.", defaults: []string{"?", "space h", "space ?"}},
 	{Action: Quit, Section: "general", Group: GroupNote, Help: "Quit (asks to save)",

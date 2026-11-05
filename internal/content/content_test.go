@@ -520,3 +520,52 @@ func TestCheckboxEditsAreOneChangeEach(t *testing.T) {
 		t.Fatalf("no change, nothing to undo: %q", msg)
 	}
 }
+
+// S6: JumpLink moves to the start of the next (dir 1) or previous (-1)
+// [[link]], wrapping, and skips links in fenced or inline code.
+func TestJumpLink(t *testing.T) {
+	const text = "a [[One]] b\n```\n[[Fenced]]\n```\n`[[Inline]]` ñ ![[Two]]\n[[Three]]"
+	cases := []struct {
+		name  string
+		moves []int
+		line  int
+		col   int
+	}{
+		{"next from the top", []int{1}, 1, 3},
+		{"next skips fence and inline code, lands on !", []int{1, 1}, 5, 16},
+		{"next after the last wraps to the first", []int{1, 1, 1, 1}, 1, 3},
+		{"previous from the top wraps to the last", []int{-1}, 6, 1},
+		{"previous skips back over code", []int{-1, -1, -1}, 1, 3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := content.New(theme.DefaultTheme())
+			c.SetSize(80, 20)
+			c.SetPage(core.Page{ID: "n.md", Title: "n", Content: text})
+			for _, d := range tc.moves {
+				if !c.JumpLink(d) {
+					t.Fatalf("JumpLink(%d) found no link", d)
+				}
+			}
+			if line, col := c.CursorPosition(); line != tc.line || col != tc.col {
+				t.Fatalf("cursor at %d:%d, want %d:%d", line, col, tc.line, tc.col)
+			}
+		})
+	}
+}
+
+// S6: with no link outside code JumpLink reports false and the cursor stays.
+func TestJumpLinkWithoutLinks(t *testing.T) {
+	c := content.New(theme.DefaultTheme())
+	c.SetSize(80, 20)
+	c.SetPage(core.Page{ID: "n.md", Title: "n", Content: "plain\n```\n[[Fenced]]\n```\n`[[Inline]]`"})
+	c = keys(c, "jl")
+	for _, d := range []int{1, -1} {
+		if c.JumpLink(d) {
+			t.Fatalf("JumpLink(%d) should find no link", d)
+		}
+		if line, col := c.CursorPosition(); line != 2 || col != 2 {
+			t.Fatalf("the cursor moved to %d:%d", line, col)
+		}
+	}
+}

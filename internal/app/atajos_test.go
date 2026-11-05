@@ -227,3 +227,25 @@ func TestEnterOnAMissingNoteSaysSo(t *testing.T) {
 		t.Fatalf("Enter should start no draft:\n%s", v)
 	}
 }
+
+// S6: space o ] and space o [ jump between [[links]], wrapping; with none the
+// status says so.
+func TestSpaceOBracketsJumpBetweenLinks(t *testing.T) {
+	h := openTodo(t, "top [[One]]\nmid [[Two]]")
+	h.keys(" o]x")
+	if got := h.editor(); got != "top [One]]\nmid [[Two]]" {
+		t.Fatalf("space o ] should land on the first link's [, got %q", got)
+	}
+	h.keys("u o[ o[x")
+	if got := h.editor(); got != "top [[One]]\nmid [Two]]" {
+		t.Fatalf("space o [ twice should wrap to the last link, got %q", got)
+	}
+}
+
+func TestSpaceOBracketWithoutLinksSaysSo(t *testing.T) {
+	h := openTodo(t, "no links\n`[[code]]`")
+	h.keys(" o]")
+	if !strings.Contains(h.view(), "No links in this note") {
+		t.Fatalf("the status should say there are no links:\n%s", h.view())
+	}
+}
