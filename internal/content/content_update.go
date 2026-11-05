@@ -181,8 +181,10 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		ta.CharLeft()
 	case "l", "right":
 		ta.CharRight()
-	case "j", "down", "enter":
+	case "j", "down":
 		ta.MoveCursorBy(1)
+	case "enter":
+		return m, m.enter()
 	case "k", "up":
 		ta.MoveCursorBy(-1)
 	case "w":

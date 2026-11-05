@@ -338,3 +338,185 @@ func TestTableEditing(t *testing.T) {
 		t.Fatal("table actions should only show inside a table")
 	}
 }
+
+// enter presses Enter and returns what it asked the app for.
+func enter(c content.Model) (content.Model, []tea.Msg) {
+	c, cmd := c.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	return c, collect(cmd)
+}
+
+// followed returns the link an Enter asked the app to follow, if any.
+func followed(msgs []tea.Msg) (core.WikiLink, bool) {
+	for _, msg := range msgs {
+		if f, ok := msg.(content.FollowWikiLinkMsg); ok {
+			return f.Link, true
+		}
+	}
+	return core.WikiLink{}, false
+}
+
+// S5 (a): Enter on a [[link]] outside code follows it and leaves the text
+// and the cursor's line as they are.
+func TestEnterFollowsWikiLink(t *testing.T) {
+	cases := []struct {
+		text, keys, target string
+	}{
+		{"see [[Other#Sec|alias]] here", "llll", "Other"}, // on the first "["
+		{"see [[Other#Sec|alias]] here", "lllllllllllllllllllll", "Other"},
+		{"`x` [[After]]", "llllll", "After"},     // code before the link
+		{"- [ ] [[Boxed]]", "llllllll", "Boxed"}, // a link beats the box
+		{"```\nx\n```\n[[Closed]]", "jjj", "Closed"},
+		{"![[pic.png]]", "", "pic.png"}, // embeds too, as nvim's link_at
+	}
+	for _, tc := range cases {
+		c := keys(newNote(tc.text), tc.keys)
+		row, _ := c.CursorPosition()
+		c, msgs := enter(c)
+		l, ok := followed(msgs)
+		if !ok || l.Target != tc.target {
+			t.Errorf("%q + %q: followed %v %q, want %q", tc.text, tc.keys, ok, l.Target, tc.target)
+		}
+		if c.Value() != tc.text {
+			t.Errorf("%q: following must not edit, got %q", tc.text, c.Value())
+		}
+		if r, _ := c.CursorPosition(); r != row {
+			t.Errorf("%q: following must not move the cursor, row %d -> %d", tc.text, row, r)
+		}
+	}
+	c, msgs := enter(keys(newNote("see [[Other#Sec]]"), "llll"))
+	if l, _ := followed(msgs); l.Heading != "Sec" {
+		t.Errorf("the heading travels with the link, got %+v (%q)", l, c.Value())
+	}
+}
+
+// S5: a link inside fenced or inline code is text: Enter moves down.
+func TestEnterIgnoresLinksInCode(t *testing.T) {
+	cases := []struct {
+		text, keys string
+	}{
+		{"```\n[[A]]\n```", "j"},
+		{"~~~\n[[A]]\n~~~", "j"},
+		{"````\n```\n[[A]]\n````", "jj"}, // a shorter run does not close
+		{"```go\n[[A]]\n```", "j"},
+		{"```[[A]]\nnext", ""}, // the opening fence line itself
+		{"`[[A]]` x\nnext", "ll"},
+		{"``a ` [[A]]``\nnext", "llllll"},
+		{"see [[A]] x\nnext", "llllllllll"}, // past the link
+	}
+	for _, tc := range cases {
+		c := keys(newNote(tc.text), tc.keys)
+		row, _ := c.CursorPosition()
+		c, msgs := enter(c)
+		if _, ok := followed(msgs); ok {
+			t.Errorf("%q + %q: a link in code was followed", tc.text, tc.keys)
+		}
+		if r, _ := c.CursorPosition(); r != row+1 {
+			t.Errorf("%q + %q: Enter should move down from row %d, got %d", tc.text, tc.keys, row, r)
+		}
+		if c.Value() != tc.text {
+			t.Errorf("%q: got %q", tc.text, c.Value())
+		}
+	}
+}
+
+// S5 (b): Enter on a box line toggles it, inside a fence too, as one change.
+func TestEnterTogglesCheckbox(t *testing.T) {
+	c, msgs := enter(keys(newNote("- [ ] task\nnext"), "ll"))
+	if c.Value() != "- [x] task\nnext" || len(msgs) != 0 {
+		t.Fatalf("Enter on a box: got %q %v", c.Value(), msgs)
+	}
+	if r, col := c.CursorPosition(); r != 1 || col != 3 {
+		t.Fatalf("the cursor stays put, got %d:%d", r, col)
+	}
+	c, _ = undo(c)
+	if c.Value() != "- [ ] task\nnext" {
+		t.Fatalf("u: got %q", c.Value())
+	}
+	c, _ = enter(keys(newNote("```\n- [x] a\n```"), "j"))
+	if c.Value() != "```\n- [ ] a\n```" {
+		t.Fatalf("Enter on a box inside a fence: got %q", c.Value())
+	}
+}
+
+// S5 (c), prior behaviour: Enter anywhere else moves down and edits nothing.
+func TestEnterMovesDownElsewhere(t *testing.T) {
+	for _, text := range []string{"plain\nnext", "- item\nnext", "- [?] a\nnext", "[t](n.md)\nnext", "https://x.y\nnext"} {
+		c, msgs := enter(newNote(text))
+		if r, _ := c.CursorPosition(); r != 2 || c.Value() != text || len(msgs) != 0 {
+			t.Errorf("%q: Enter should only move down, got row %d %q %v", text, r, c.Value(), msgs)
+		}
+	}
+}
+
+// selection returns the text the selection holds, through y.
+func selection(t *testing.T, c content.Model) string {
+	t.Helper()
+	_, cmd := c.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	for _, msg := range collect(cmd) {
+		if cp, ok := msg.(core.CopyMsg); ok {
+			return cp.Text
+		}
+	}
+	return ""
+}
+
+// S3: in VISUAL and V-LINE the toggle reaches every line from the
+// selection's first row to its last, keeps the selection, and is one u.
+func TestToggleCheckboxesRange(t *testing.T) {
+	const text = "a\n- [ ] b\n- [x] c\nd"
+	for _, start := range []string{"V", "lv"} {
+		c := keys(newNote(text), start+"jj")
+		if !c.ToggleCheckboxes() {
+			t.Fatalf("%s: ToggleCheckboxes reported no change", start)
+		}
+		if want := "- [ ] a\n- [x] b\n- [ ] c\nd"; c.Value() != want {
+			t.Fatalf("%s: got %q, want %q", start, c.Value(), want)
+		}
+		if c.Mode() == content.ModeNormal {
+			t.Fatalf("%s: the selection should stay", start)
+		}
+		if got := selection(t, c); start == "V" && got != "- [ ] a\n- [x] b\n- [ ] c" {
+			t.Fatalf("V: the selection should cover the same rows, got %q", got)
+		}
+		c = esc(c) // u does nothing in VISUAL
+		c, _ = undo(c)
+		if c.Value() != text {
+			t.Fatalf("%s: one u should restore every line, got %q", start, c.Value())
+		}
+		if _, msg := undo(c); msg != "Already at oldest change" {
+			t.Fatalf("%s: the range should be one change, got %q", start, msg)
+		}
+	}
+	// Upwards: the cursor above the anchor.
+	c := keys(newNote(text), "jjVk")
+	c.ToggleCheckboxes()
+	if c.Value() != "a\n- [x] b\n- [ ] c\nd" {
+		t.Fatalf("upward range: got %q", c.Value())
+	}
+}
+
+// S2/S4: in NORMAL only the cursor's line; each call is a change of its own,
+// recorded at once.
+func TestCheckboxEditsAreOneChangeEach(t *testing.T) {
+	c := keys(newNote("a\nb"), "j")
+	c.ToggleCheckboxes()
+	c.ToggleCheckboxes()
+	if c.Value() != "a\n- [x] b" {
+		t.Fatalf("got %q", c.Value())
+	}
+	c, _ = undo(c)
+	if c.Value() != "a\n- [ ] b" {
+		t.Fatalf("each toggle is one change, got %q", c.Value())
+	}
+	c = keys(newNote("- [x] a\n- [ ] b"), "Vj")
+	if !c.RemoveCheckboxes() || c.Value() != "- a\n- b" {
+		t.Fatalf("RemoveCheckboxes on a range: got %q", c.Value())
+	}
+	c = newNote("plain")
+	if c.RemoveCheckboxes() {
+		t.Fatal("removing from a line without a box changes nothing")
+	}
+	if _, msg := undo(c); msg != "Already at oldest change" {
+		t.Fatalf("no change, nothing to undo: %q", msg)
+	}
+}

@@ -363,3 +363,43 @@ func TestTransposeAndDeleteKeys(t *testing.T) {
 		t.Errorf("after delete: %q", m.Value())
 	}
 }
+
+func TestSelectedRowsAndRowText(t *testing.T) {
+	m := seeded()
+	m.SetRowCol(2, 3)
+	m.SetAnchor(1, 5)
+	if a, b := m.SelectedRows(); a != 1 || b != 2 {
+		t.Fatalf("SelectedRows = %d,%d, want 1,2", a, b)
+	}
+	if m.RowText(1) != "second line" || m.RowText(99) != "third line" || m.RowText(-1) != "alpha beta gamma" {
+		t.Fatalf("RowText: got %q %q %q", m.RowText(1), m.RowText(99), m.RowText(-1))
+	}
+}
+
+func TestMapLinesKeepsCursorAndSelection(t *testing.T) {
+	m := seeded()
+	m.SetRowCol(2, 9)
+	m.SetAnchor(1, 2)
+	ver := m.Version()
+	if !m.MapLines(1, 2, strings.ToUpper) {
+		t.Fatal("MapLines should report the change")
+	}
+	if m.Value() != "alpha beta gamma\nSECOND LINE\nTHIRD LINE" || m.Version() == ver {
+		t.Fatalf("got %q (version moved: %v)", m.Value(), m.Version() != ver)
+	}
+	if r, c := m.RowCol(); r != 2 || c != 9 || !m.HasSelection() {
+		t.Fatalf("cursor/selection moved: %d:%d sel=%v", r, c, m.HasSelection())
+	}
+	if m.SelectedText() != "COND LINE\nTHIRD LINE" {
+		t.Fatalf("selection: got %q", m.SelectedText())
+	}
+	ver = m.Version()
+	if m.MapLines(0, 0, func(s string) string { return s }) || m.Version() != ver {
+		t.Fatal("an unchanged line is not an edit")
+	}
+	m.SetRowCol(0, 15)
+	m.MapLines(0, 0, func(string) string { return "ab" })
+	if _, c := m.RowCol(); c > 2 {
+		t.Fatalf("the cursor is clamped to the shorter line, col %d", c)
+	}
+}

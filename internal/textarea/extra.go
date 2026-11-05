@@ -419,3 +419,34 @@ func (m *Model) paint(style lipgloss.Style, l, off int, runes []rune) string {
 	}
 	return b.String()
 }
+
+// SelectedRows returns the first and last row the selection touches, in
+// order.
+func (m Model) SelectedRows() (first, last int) {
+	first, _, last, _ = m.selectionRange()
+	return first, last
+}
+
+// RowText returns the text of a 0-based row, clamped to the note.
+func (m Model) RowText(row int) string { return string(m.value[clamp(row, 0, len(m.value)-1)]) }
+
+// MapLines replaces each row from first to last (clamped) with f of its
+// text, which must not add newlines. The cursor and the selection stay on
+// their rows (the cursor clamped to its new line). It reports whether a line changed.
+func (m *Model) MapLines(first, last int, f func(string) string) bool {
+	first = clamp(first, 0, len(m.value)-1)
+	last = clamp(last, first, len(m.value)-1)
+	changed := false
+	for r := first; r <= last; r++ {
+		if s := f(string(m.value[r])); s != string(m.value[r]) {
+			m.value[r] = []rune(s)
+			changed = true
+		}
+	}
+	if !changed {
+		return false
+	}
+	m.touch()
+	m.col = clamp(m.col, 0, len(m.value[m.row]))
+	return true
+}
