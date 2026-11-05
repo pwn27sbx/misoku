@@ -95,7 +95,7 @@ func main() {
 	home, _ := os.UserHomeDir() // without one, only the root and system folders are no place for notes
 	if welcomeDue(welcomeCheck{Choice: choice, ConfigPath: cfgPath, ConfigErr: cfgErr, Config: cfg, Home: home,
 		Terminal: isTerminal(os.Stdin) && isTerminal(os.Stdout)}) {
-		dir, code := greet(cfgPath, cfg, home, choice, welcomeTheme(themeName))
+		dir, code := greet(cfgPath, cfg, home, choice, welcomeTheme(themeName, cfg.UI.Transparent))
 		if dir == "" {
 			os.Exit(code)
 		}
@@ -197,12 +197,17 @@ func greet(cfgPath string, cfg config.Config, home string, choice workspaceChoic
 }
 
 // welcomeTheme is the theme named name (already checked), or the
-// default one when none is named.
-func welcomeTheme(name string) theme.Theme {
-	if th, ok := theme.Get(name); ok {
-		return th
+// default one when none is named, made transparent when ui.transparent
+// is on.
+func welcomeTheme(name string, transparent bool) theme.Theme {
+	th, ok := theme.Get(name)
+	if !ok {
+		th = theme.DefaultTheme()
 	}
-	return theme.DefaultTheme()
+	if transparent {
+		th = th.Transparent()
+	}
+	return th
 }
 
 // options are the flags of `misoku` itself.

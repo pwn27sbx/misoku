@@ -75,7 +75,7 @@ func renderBoard(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 	perCol := make([]colHits, len(cols))
 	for i, c := range cols {
 		color := statusColor(c.name, i, th)
-		pill := lipgloss.NewStyle().Background(color).Foreground(th.Bg).Bold(true).Render(" ● " + ui.Truncate(c.name, colW-8) + " ")
+		pill := lipgloss.NewStyle().Background(color).Foreground(th.DarkFg).Bold(true).Render(" ● " + ui.Truncate(c.name, colW-8) + " ")
 		count := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %d", len(c.cards)))
 		lines := []string{pill + count}
 		perCol[i].hits = append(perCol[i].hits, Hit{Row: 0, H: 1, X1: colW, Kind: "board:col", Line: c.line, Index: i, Arg: c.name})

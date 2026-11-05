@@ -462,7 +462,7 @@ func (c *compiler) compile(input string) {
 			}
 			prefix := arrow + c.st.look.HeadingIcons[level-1]
 			if c.st.look.HeadingBackground {
-				st = st.Background(band(st.GetForeground().(lipgloss.Color), c.st.th.Bg))
+				st = st.Background(band(st.GetForeground().(lipgloss.Color), c.st.th.Base))
 			}
 			c.blank()
 			if c.depth == 0 {

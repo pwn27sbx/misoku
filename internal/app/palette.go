@@ -277,7 +277,7 @@ func (p *palette) view(m *Model) (string, int, int) {
 	l := p.layout(m)
 	p.scroll(l) // the window may have shrunk since the last move
 	inner := l.inner
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	headStyle := bg.Foreground(th.Purple).Bold(true)
 	keyStyle := bg.Foreground(th.Blue).Bold(true)
 	textStyle := bg.Foreground(th.Fg)

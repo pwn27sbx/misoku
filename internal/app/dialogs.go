@@ -210,7 +210,7 @@ func (d *saveAsDialog) geom(W, H int) saveAsGeom {
 func (d *saveAsDialog) view(th theme.Theme, W, H int) (string, int, int) {
 	g := d.geom(W, H)
 	iw := g.w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	field := lipgloss.NewStyle().Background(th.OneBg)
 	label := func(text string, active bool) string {
 		fg := th.GreyFg2

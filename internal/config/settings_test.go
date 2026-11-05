@@ -169,3 +169,25 @@ func TestAccordionOffSurvivesASave(t *testing.T) {
 		t.Fatalf("after Save: %+v", again.UI)
 	}
 }
+
+// ui.transparent is written under its key, read back by Load, and removed
+// by nil (back to the opaque default).
+func TestSetUITransparentSavesAndRemovesTheKey(t *testing.T) {
+	path := writeConfig(t, `{"theme": "nord"}`)
+	if _, err := config.SetUI(path, map[string]any{config.UITransparent: true}); err != nil {
+		t.Fatal(err)
+	}
+	if ui, _ := decode(t, path)["ui"].(map[string]any); ui["transparent"] != true {
+		t.Fatalf("ui after saving transparent: %v", ui)
+	}
+	cfg, err := config.Load(path)
+	if err != nil || !cfg.UI.Transparent {
+		t.Fatalf("Load = %+v, %v", cfg.UI, err)
+	}
+	if _, err := config.SetUI(path, map[string]any{config.UITransparent: nil}); err != nil {
+		t.Fatal(err)
+	}
+	if got := decode(t, path); got["ui"] != nil || got["theme"] != "nord" {
+		t.Fatalf("file after removing transparent: %v", got)
+	}
+}

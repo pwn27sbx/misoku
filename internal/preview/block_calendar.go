@@ -116,7 +116,7 @@ func renderCalendar(body []string, th theme.Theme, width int, cal CalendarView, 
 			}
 			numStr := numStyle.Render(num + " ")
 			if key == todayKey {
-				numStr = lipgloss.NewStyle().Background(th.Red).Foreground(th.Bg).Bold(true).Render(" "+num+" ") + shade.Render(" ")
+				numStr = lipgloss.NewStyle().Background(th.Red).Foreground(th.DarkFg).Bold(true).Render(" "+num+" ") + shade.Render(" ")
 			}
 			rows[0].WriteString(shade.Render(strings.Repeat(" ", max(cw-ansi.StringWidth(numStr), 0))))
 			rows[0].WriteString(numStr)

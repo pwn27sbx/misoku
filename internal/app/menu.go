@@ -315,7 +315,7 @@ func (d *menuDialog) view(m *Model) (string, int, int) {
 	th := m.theme
 	x, y, w, _ := d.geom(m)
 	inner := w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	rows := []string{bg.Foreground(th.Fg).Bold(true).Render(" " + ui.Truncate(d.title, inner-2))}
 	for _, l := range d.noticeLines(m) {
 		rows = append(rows, bg.Foreground(th.Red).Render(" "+l))

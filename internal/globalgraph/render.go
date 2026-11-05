@@ -443,7 +443,7 @@ func (d *drawing) fade(c lipgloss.Color, t float64, fallback lipgloss.Color) lip
 	if d.f.Dimmed {
 		return c
 	}
-	return fade(c, d.th.Bg, t, fallback)
+	return fade(c, d.th.Base, t, fallback)
 }
 
 // fade blends colour a toward b by t (0 is a, 1 is b). Both must be

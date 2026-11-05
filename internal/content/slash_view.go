@@ -79,7 +79,7 @@ func (m Model) SlashView() (string, int, int, bool) {
 		return "", 0, 0, false
 	}
 	inner := w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 
 	var lines []string
 	if len(items) == 0 {
@@ -105,7 +105,7 @@ func (m Model) SlashView() (string, int, int, bool) {
 	box := lipgloss.NewStyle().
 		BorderStyle(ui.Border()).
 		BorderForeground(th.Line).
-		BorderBackground(th.DarkerBg).
+		BorderBackground(th.PopupBg).
 		Render(strings.Join(lines, "\n"))
 	return box, x, y, true
 }

@@ -114,3 +114,24 @@ func TestFitLineEllipsis(t *testing.T) {
 		t.Errorf("FitLine = %q", got)
 	}
 }
+
+// TestOverlayReplacesTheCellsUnderABox: a box with no background (a float
+// on a transparent theme) still hides what is under it, because Overlay
+// swaps the covered cells for the box's own, blanks included, and closes
+// any style the text underneath had opened.
+func TestOverlayReplacesTheCellsUnderABox(t *testing.T) {
+	under := lipgloss.NewStyle().Bold(true).Render("abcdefgh") + "\n" + "abcdefgh\nabcdefgh"
+	box := "┌──┐\n│  │\n└──┘"
+	out := ui.Overlay(under, box, 2, 0)
+	want := "ab┌──┐gh\nab│  │gh\nab└──┘gh"
+	if got := ansi.Strip(out); got != want {
+		t.Fatalf("Overlay left the text under the box:\n got %q\nwant %q", got, want)
+	}
+	if !strings.Contains(strings.Split(out, "\n")[0], "\x1b[0m┌") {
+		t.Errorf("the style of the text under the box runs into it: %q", out)
+	}
+	// A row of nothing but blanks covers the text too.
+	if got := ansi.Strip(ui.Overlay("abcdef", "    ", 1, 0)); got != "a    f" {
+		t.Errorf("a blank row let the text through: %q", got)
+	}
+}

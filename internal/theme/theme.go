@@ -36,6 +36,11 @@ type Theme struct {
 	LightGrey lipgloss.Color
 	Fg        lipgloss.Color
 
+	// Opaque copies of the base surfaces. They keep the palette's hex even
+	// when Transparent clears Bg and DarkerBg.
+	Base    lipgloss.Color // palette bg: text on accents, colour maths
+	PopupBg lipgloss.Color // palette darker_bg: floating boxes (empty when transparent)
+
 	// Accents.
 	Red        lipgloss.Color
 	Pink       lipgloss.Color
@@ -290,6 +295,9 @@ func Get(name string) (Theme, bool) {
 		LightGrey: c(p.LightGrey),
 		Fg:        c(p.Fg),
 
+		Base:    c(p.Bg),
+		PopupBg: c(p.DarkerBg),
+
 		Red:        c(p.Red),
 		Pink:       c(p.Pink),
 		Green:      c(p.Green),
@@ -328,5 +336,16 @@ func (t Theme) Greyed() Theme {
 	} {
 		*c = t.Grey
 	}
+	return t
+}
+
+// Transparent returns t with the large fills (Bg, DarkerBg and StatusBg)
+// and the floating boxes' fill (PopupBg) set to the empty colour, so they
+// emit no background SGR and the terminal's own background shows through.
+// Floats are then set apart only by their border, like a Neovim theme with
+// transparent floats. Base, DarkFg and every other shade keep their opaque
+// hex, so highlights, badges and text drawn on accents stay visible.
+func (t Theme) Transparent() Theme {
+	t.Bg, t.DarkerBg, t.StatusBg, t.PopupBg = "", "", "", ""
 	return t
 }

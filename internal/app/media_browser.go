@@ -227,7 +227,7 @@ func (fb *fileBrowser) view(m *Model) (string, int, int) {
 	th := m.theme
 	x, y, w, _ := m.browserGeom()
 	inner := w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	field := lipgloss.NewStyle().Background(th.Bg2)
 	fb.input.TextStyle = field.Foreground(th.Fg)
 	fb.input.PlaceholderStyle = field.Foreground(th.GreyFg)

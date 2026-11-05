@@ -13,10 +13,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// applyTheme recolours every component. persist also saves the choice;
+// applyTheme recolours every component with th, an opaque theme, made
+// transparent when ui.transparent is on. persist also saves the choice;
 // it reports false, with the error already shown, when that save failed,
 // so the caller does not cover the error with a success status.
 func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
+	// The opaque theme is kept so that turning the option off, or going
+	// back from the theme picker, never starts from the transparent copy.
+	m.baseTheme = th
+	if m.prefs().ui.Transparent {
+		th = th.Transparent()
+	}
 	m.theme = th
 	m.dashboard.SetTheme(th)
 	m.sidebar.SetTheme(th)
@@ -69,7 +76,7 @@ func (m *Model) openThemePicker() tea.Cmd {
 	in.Prompt = ""
 	in.Placeholder = "Filter themes…"
 	in.CharLimit = 40
-	p := &themePicker{input: in, all: theme.Names(), original: th}
+	p := &themePicker{input: in, all: theme.Names(), original: m.baseTheme}
 	p.filter()
 	for i, n := range p.list {
 		if n == th.Name {
@@ -128,7 +135,7 @@ func (p *themePicker) close(m *Model, keep bool) {
 		m.applyTheme(p.original, false)
 		return
 	}
-	if m.applyTheme(m.theme, true) {
+	if m.applyTheme(m.baseTheme, true) {
 		m.setStatus("Theme: " + m.theme.Name)
 	}
 }
@@ -203,7 +210,7 @@ func (p *themePicker) view(m *Model) (string, int, int) {
 	th := m.theme
 	g := m.themeLayout()
 	inner := g.w - 2
-	bg := lipgloss.NewStyle().Background(th.DarkerBg)
+	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	field := lipgloss.NewStyle().Background(th.Bg2)
 	p.input.TextStyle = field.Foreground(th.Fg)
 	p.input.PlaceholderStyle = field.Foreground(th.GreyFg)
@@ -228,7 +235,7 @@ func (p *themePicker) view(m *Model) (string, int, int) {
 		}
 		name := p.list[idx]
 		t, _ := theme.Get(name)
-		rowBg := th.DarkerBg
+		rowBg := th.PopupBg
 		if idx == p.sel {
 			rowBg = th.OneBg2
 		}
