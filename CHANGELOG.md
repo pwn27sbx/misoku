@@ -8,6 +8,15 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **The LazyVim companion's Misoku keys**: `space o c` (`toggle_checkbox`) toggles the box of the line, `[ ]` to
+  `[x]` and `[x]` or `[-]` back to `[ ]`, and gives a line without one a `- [ ] `; `space o C` (`remove_checkbox`)
+  takes the box off (`- [x] task` becomes `- task`). Both work on a VISUAL or V-LINE selection, line by line, keep
+  the selection and undo with one `u`. `space o f` and `space o g` find a note, `space o n` starts one and
+  `space o p` pastes a picture. In NORMAL mode `Enter` follows the `[[link]]` under the cursor (not inside code;
+  a missing note says "No note found for this link"), toggles a checkbox line, and otherwise moves down as before.
+  Leader sequences may now take two keys after Space (`"space o c"` in `config.json`); the leader guide lists
+  `o +misoku` and shows the group's keys after `space o`, and a sequence that starts another is reported.
+
 - **Links follow a rename**: renaming a note or folder in the explorer asks `Update N links in M notes?` and
   rewrites every link that named it (`[[name]]`, `[[name|alias]]`, `[[name#Heading]]`, embeds and Markdown links),
   so they keep pointing at the same note. `n` keeps the rename and leaves the links. Open tabs get the change
@@ -32,6 +41,10 @@ version comes from the tag, so nothing else in the tree carries it.
   keep only their border, and heading bands are off; the cursor line, selections, statusline blocks and badges
   stay painted. The welcome screen honours it too, and a user theme reloaded from disk stays transparent. The
   terminal's own background colour shows through, so pick a theme that matches it.
+
+### Fixed
+
+- `space i` pastes the clipboard picture again: the key was listed but did nothing.
 
 ## [0.17.1] - 2026-11-03
 

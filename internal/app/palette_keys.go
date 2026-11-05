@@ -58,6 +58,7 @@ var editorKeys = []fixedKey{
 	{"/ (insert)", "Block menu: headings, lists, blocks", "Typed in INSERT mode at the start of a line or after a space, / opens the block menu: headings, lists, tables, callouts, media and more."},
 	{"[[ (insert)", "Link to a note", "Typed in INSERT mode, [[ opens the note finder to pick the note to link to."},
 	{"gd / gx", "Follow the link under the cursor", "Opens the note or the web page the link under the cursor points to."},
+	{"Enter", "Follow [[link]] / toggle box", "In NORMAL mode, follows the [[link]] under the cursor (not inside code; a note that does not exist is not started), toggles the box of a checkbox line, and otherwise moves down a line."},
 	{":", "Command line", "Opens the command line at the bottom of the editor for the commands below; Enter runs it, Esc leaves it."},
 }
 

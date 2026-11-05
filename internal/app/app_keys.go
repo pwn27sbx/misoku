@@ -2,8 +2,10 @@ package app
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/content"
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 
@@ -47,20 +49,18 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		}
 	}
 
+	// A VISUAL selection takes the leader too, but only for the keys of
+	// visualLeaderActions; every other key still goes to the selection.
+	if m.visualSelecting() && (m.leaderPending || m.keys.IsLeader(s)) {
+		if !m.leaderPending {
+			return m.startLeader()
+		}
+		return m.editorLeaderKey(s, visualLeaderActions)
+	}
+
 	if !sidebarBusy && !editorBusy {
 		if m.leaderPending {
-			guide := m.leaderGuideOpen()
-			m.leaderPending = false
-			for _, a := range generalActions {
-				if m.keys.Leader(a, s) {
-					m.flushPreview()
-					return m.runAction(a)
-				}
-			}
-			if guide && s != "esc" {
-				m.setStatus(s + ": not a leader key")
-			}
-			return nil
+			return m.editorLeaderKey(s, generalActions)
 		}
 		if m.keys.IsLeader(s) {
 			return m.startLeader()
@@ -114,6 +114,32 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
+// visualSelecting reports whether the editor holds a VISUAL or V-LINE
+// selection.
+func (m *Model) visualSelecting() bool {
+	mode := m.content.Mode()
+	return m.focus == focusEditor && !m.graphActive() && (mode == content.ModeVisual || mode == content.ModeVisualLine)
+}
+
+// editorLeaderKey handles s typed after Space outside the home screen: it
+// runs the action of actions the keys complete, waits when they start a
+// longer sequence, and otherwise ends the sequence, saying so once the guide
+// is open.
+func (m *Model) editorLeaderKey(s string, actions []string) tea.Cmd {
+	guide := m.leaderGuideOpen()
+	keys, a, wait := m.leaderNext(s, actions)
+	switch {
+	case a != "":
+		m.flushPreview()
+		return m.runAction(a)
+	case m.leaderPending:
+		return wait
+	case guide && s != "esc":
+		m.setStatus(strings.Join(keys, " ") + ": not a leader key")
+	}
+	return nil
+}
+
 // homeActions are the general actions the home screen runs from the keymap
 // (leader sequences and Ctrl/Alt shortcuts). The pane, tab, preview, save
 // and export actions need an open note, so they wait for one.
@@ -128,19 +154,18 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	// is also the second key of "space tab".
 	if m.leaderPending {
 		guide := m.leaderGuideOpen()
-		m.leaderPending = false
-		for _, a := range homeActions {
-			if m.keys.Leader(a, s) {
-				return m.runHomeAction(a)
-			}
-		}
+		keys, a, wait := m.leaderNext(s, generalActions)
 		// The guide lists every leader key, also those that need an open
 		// note: those say so instead of doing nothing.
 		switch {
-		case slices.ContainsFunc(generalActions, func(a string) bool { return m.keys.Leader(a, s) }):
-			m.setStatus(s + ": needs an open note")
+		case slices.Contains(homeActions, a):
+			return m.runHomeAction(a)
+		case a != "":
+			m.setStatus(strings.Join(keys, " ") + ": needs an open note")
+		case m.leaderPending:
+			return wait
 		case guide && s != "esc":
-			m.setStatus(s + ": not a leader key")
+			m.setStatus(strings.Join(keys, " ") + ": not a leader key")
 		}
 		return nil
 	}
@@ -245,4 +270,18 @@ func (m *Model) openProject(id string) tea.Cmd {
 	m.sidebar.Expand(id)
 	m.sidebar.SetSelectedID(id)
 	return cmd
+}
+
+// followEnterLink follows the [[link]] Enter was pressed on, as gd does,
+// except that a link naming no note says so instead of starting a draft, as
+// the LazyVim companion's Enter does. A link to a section of this note
+// ([[#Heading]]) jumps there.
+func (m *Model) followEnterLink(l core.WikiLink) tea.Cmd {
+	if l.Target != "" {
+		if _, ok := core.ResolveNote(m.notes, l.Target, m.currentNoteID()); !ok {
+			m.setStatus("No note found for this link")
+			return nil
+		}
+	}
+	return m.followWikiLink(l)
 }

@@ -284,13 +284,17 @@ off:
 ```
 
 Write keys the way the terminal names them (`ctrl+b`, `tab`, `shift+tab`,
-`G`, `\\`), or as a leader sequence: `space e` is Space, then `e`. Ctrl and
+`G`, `\\`), or as a leader sequence: `space e` is Space, then `e`, and
+`space o c` is Space, then `o`, then `c` (use one key, or space plus one or
+two keys; a sequence that is the start of another, such as `space o` next
+to `space o c`, is reported). Ctrl and
 Alt shortcuts of `quit`, `save`, `new_note`, `find_note` and
 `toggle_explorer` also work while typing; every other shortcut only works
 outside INSERT mode, so it never gets in the way of your text. The `?` help
 lists the keys you configured (see [Command palette](#command-palette)). Press Space and pause: after 400 ms a guide
 lists the keys that can follow, in three groups (NOTE, VIEW, GO), with the
-keys you configured. `Esc` closes it; type the next key sooner and it never
+keys you configured; `o +misoku` leads to the keys of the LazyVim companion,
+listed on their own page after `space o`. `Esc` closes it; type the next key sooner and it never
 shows. On the home screen, a key that needs an open note (such as `space p`)
 says so in the status bar. A misspelled action, a malformed key, or a key given to two actions is
 reported in the status bar when Misoku starts (it stays until `Esc`, and
@@ -336,9 +340,9 @@ The list scrolls when it does not fit, so no row is cut.
 
 | Action | Default keys | What it does |
 | --- | --- | --- |
-| `new_note` | `ctrl+n`, `space n` | New note (unsaved tab) |
+| `new_note` | `ctrl+n`, `space n`, `space o n` | New note (unsaved tab) |
 | `save` | `ctrl+s`, `space w` | Save (new notes: pick folder) |
-| `find_note` | `ctrl+p`, `\`, `space f` | Find note (opens in this tab) |
+| `find_note` | `ctrl+p`, `\`, `space f`, `space o f`, `space o g` | Find note (opens in this tab) |
 | `toggle_explorer` | `ctrl+b` | Toggle explorer |
 | `focus_explorer` | `space e` | Focus explorer |
 | `next_pane` | `tab` | Next pane |
@@ -356,7 +360,9 @@ The list scrolls when it does not fit, so no row is cut.
 | `global_graph` | `space G` (Space, then Shift+G) | Graph of every note (same as `:graph all`, see [Global graph](#global-graph)) |
 | `home` | `space d` | Home screen |
 | `sync_now` | `space s` | Sync the vault with git now (same as `:sync`, see [Sync](#sync)) |
-| `paste_image` | `space i` | Paste the picture in the clipboard next to this note and link it (see [Images](#images)); in INSERT mode `ctrl+v` does it too |
+| `paste_image` | `space i`, `space o p` | Paste the picture in the clipboard next to this note and link it (see [Images](#images)); in INSERT mode `ctrl+v` does it too |
+| `toggle_checkbox` | `space o c` | Toggle the box of this line: `[ ]` becomes `[x]`, `[x]` or `[-]` becomes `[ ]`, and a line without one gets `- [ ] `. On a VISUAL or V-LINE selection it toggles every line and keeps the selection; the whole change is one `u` (after `Esc`) |
+| `remove_checkbox` | `space o C` (Space, `o`, then Shift+C) | Remove the box of this line or of the selection's lines: `- [x] task` becomes `- task` |
 | `help` | `?`, `space h`, `space ?` | This help: the [command palette](#command-palette) |
 | `quit` | `ctrl+c` | Quit (asks to save) |
 
@@ -452,7 +458,12 @@ writes nothing. If the file cannot be written, the status bar says why.
 ## Links
 
 Type `[[` to link to another note. Click a link in the preview, or press
-`gd` on it in the editor, to follow it.
+`gd` on it in the editor, to follow it. In NORMAL mode `Enter` on a
+`[[link]]` follows it too, as in the LazyVim companion: a link inside a code
+block or inline `` `code` `` is skipped, and a link to a note that doesn't
+exist says "No note found for this link" instead of starting it (use `gd`
+for that). `Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
+the box; anywhere else it moves down a line.
 
 ```md
 [[Docker]]                          open a note

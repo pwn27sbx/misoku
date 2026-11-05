@@ -93,7 +93,7 @@ func TestLabelsForTheHelpScreen(t *testing.T) {
 	if got := m.Label(keymap.ToggleExplorer); got != "SPC e / Ctrl+E" {
 		t.Fatalf("label = %q", got)
 	}
-	if got := m.Label(keymap.FindNote); got != "Ctrl+P / \\ / SPC f" {
+	if got := m.Label(keymap.FindNote); got != "Ctrl+P / \\ / SPC f / SPC o f / SPC o g" {
 		t.Fatalf("label = %q", got)
 	}
 }
@@ -250,5 +250,88 @@ func TestEveryActionHasALongExplanation(t *testing.T) {
 	}
 	if got := keymap.LongText("nope"); got != "" {
 		t.Errorf("an unknown action has no explanation, got %q", got)
+	}
+}
+
+// A leader sequence may take two keys after Space ("space o c"), like the
+// LazyVim companion's <leader>oc; the two-key ones work as before.
+func TestThreeKeyLeaderSequences(t *testing.T) {
+	m, warnings := keymap.New(map[string][]string{"toggle_checkbox": {"Space o c"}})
+	if len(warnings) != 0 {
+		t.Fatalf("a three-key sequence must be accepted, got %v", warnings)
+	}
+	if got := m.Keys(keymap.ToggleCheckbox); !reflect.DeepEqual(got, []string{"space o c"}) {
+		t.Fatalf("toggle_checkbox: got %v", got)
+	}
+	if !m.LeaderSeq(keymap.ToggleCheckbox, []string{"o", "c"}) {
+		t.Error("o c should complete space o c")
+	}
+	if m.LeaderSeq(keymap.ToggleCheckbox, []string{"o"}) {
+		t.Error("o alone does not complete space o c")
+	}
+	if !m.LeaderPrefix([]string{keymap.ToggleCheckbox}, []string{"o"}) {
+		t.Error("o starts space o c")
+	}
+	if m.LeaderPrefix([]string{keymap.ToggleCheckbox}, []string{"o", "c"}) {
+		t.Error("o c is complete, not the start of a longer sequence")
+	}
+	if m.LeaderPrefix([]string{keymap.Graph}, []string{"o"}) {
+		t.Error("only the listed actions count")
+	}
+	if !m.Leader(keymap.Graph, "g") || !m.LeaderSeq(keymap.Graph, []string{"g"}) {
+		t.Error("the two-key space g still matches")
+	}
+	if got := m.Label(keymap.RemoveCheckbox); got != "SPC o Shift+C" {
+		t.Errorf("Label(RemoveCheckbox) = %q", got)
+	}
+	_, warnings = keymap.New(map[string][]string{"save": {"space a b c"}})
+	if joined := strings.Join(warnings, "\n"); !strings.Contains(joined, `"space a b c"`) {
+		t.Errorf("four keys are still rejected:\n%s", joined)
+	}
+}
+
+func TestTheMisokuGroupDefaults(t *testing.T) {
+	m, warnings := keymap.New(nil)
+	if len(warnings) != 0 {
+		t.Fatalf("defaults must not warn: %v", warnings)
+	}
+	cases := map[string][]string{
+		keymap.ToggleCheckbox: {"space o c"},
+		keymap.RemoveCheckbox: {"space o C"},
+		keymap.FindNote:       {"ctrl+p", "\\", "space f", "space o f", "space o g"},
+		keymap.NewNote:        {"ctrl+n", "space n", "space o n"},
+		keymap.PasteImage:     {"space i", "space o p"},
+	}
+	for action, want := range cases {
+		if got := m.Keys(action); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: got %v, want %v", action, got, want)
+		}
+	}
+	// The guide's first page shows only what follows Space directly, and o
+	// as the misoku group; after o, the group's own keys.
+	if got := m.LeaderLabel(keymap.FindNote); got != "f" {
+		t.Errorf("LeaderLabel(FindNote) = %q, want f", got)
+	}
+	if got := m.LeaderLabelAfter(keymap.FindNote, []string{"o"}); got != "f / g" {
+		t.Errorf("LeaderLabelAfter(FindNote, o) = %q", got)
+	}
+	if got := m.LeaderLabelAfter(keymap.RemoveCheckbox, []string{"o"}); got != "Shift+C" {
+		t.Errorf("LeaderLabelAfter(RemoveCheckbox, o) = %q", got)
+	}
+	all := []string{keymap.NewNote, keymap.FindNote, keymap.ToggleCheckbox, keymap.Graph}
+	if got := m.LeaderSubgroups(all, nil); !reflect.DeepEqual(got, []keymap.Subgroup{{Key: "o", Name: "misoku"}}) {
+		t.Errorf("LeaderSubgroups = %v, want one o misoku", got)
+	}
+	if got := m.LeaderSubgroups(all, []string{"o"}); len(got) != 0 {
+		t.Errorf("nothing nests under o, got %v", got)
+	}
+}
+
+// A sequence that is the start of another can never wait for the rest.
+func TestAPrefixOfAnotherSequenceIsReported(t *testing.T) {
+	_, warnings := keymap.New(map[string][]string{"graph": {"space o"}})
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, `"space o"`) || !strings.Contains(joined, "graph") || !strings.Contains(joined, "toggle_checkbox") {
+		t.Fatalf("space o against space o c should be reported, got:\n%s", joined)
 	}
 }

@@ -16,16 +16,16 @@ func finderOpen(v string) bool { return strings.Contains(v, "Enter open here") }
 func themePickerOpen(v string) bool { return strings.Contains(v, "onedark") }
 
 func TestHomeLeaderKeysFollowTheKeymap(t *testing.T) {
-	// "o" means nothing on the home screen: only the leader binding can open
+	// "y" means nothing on the home screen: only the leader binding can open
 	// the finder.
-	h := newHarness(t, newTestStore(t), app.WithKeys(map[string][]string{"find_note": {"space o"}}))
+	h := newHarness(t, newTestStore(t), app.WithKeys(map[string][]string{"find_note": {"space y"}}))
 	h.keys(" ")
 	if v := h.view(); !strings.Contains(v, "<Space>") {
 		t.Fatalf("space on the home screen should wait for the next key:\n%s", v)
 	}
-	h.keys("o")
+	h.keys("y")
 	if v := h.view(); !finderOpen(v) || !strings.Contains(v, "HOME") {
-		t.Fatalf("space o is find_note in the config and should open the finder over home:\n%s", v)
+		t.Fatalf("space y is find_note in the config and should open the finder over home:\n%s", v)
 	}
 }
 

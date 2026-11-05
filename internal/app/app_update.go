@@ -157,7 +157,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// What reads the preview's last compile (its hits and blocks), or the
 	// note as a whole, sees the latest edit.
 	switch msg.(type) {
-	case preview.HitMsg, preview.MoveBlockMsg, preview.AddBlockMsg, core.FollowLinkMsg,
+	case preview.HitMsg, preview.MoveBlockMsg, preview.AddBlockMsg, core.FollowLinkMsg, content.FollowWikiLinkMsg,
 		core.ThemeMsg, core.VimSaveMsg, core.VimQuitMsg, core.ExportMsg:
 		m.flushPreview()
 	}
@@ -190,6 +190,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleViewHit(msg.Hit)
 	case core.FollowLinkMsg:
 		return m, m.followEditorLink(msg)
+	case content.FollowWikiLinkMsg:
+		return m, m.followEnterLink(msg.Link)
 	case preview.MoveBlockMsg:
 		if m.activeBuffer() != nil {
 			m.setDocLines(moveBlock(m.docLines(), msg.Line, msg.End, msg.To))

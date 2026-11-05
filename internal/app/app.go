@@ -59,6 +59,9 @@ type Model struct {
 	leaderPending bool
 	leaderSeq     int  // bumps on every Space press, see leaderGuideMsg
 	leaderGuide   bool // the leader guide shows while leaderPending
+	// leaderKeys are the keys typed after Space so far while a longer
+	// sequence waits for its next key: ["o"] after "space o".
+	leaderKeys []string
 
 	// The explorer on narrow windows, see narrow.go.
 	explorerHideWidth int

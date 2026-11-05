@@ -3,11 +3,13 @@
 // section of config.json.
 //
 // A key is written the way Bubble Tea names it ("ctrl+b", "tab", "G", "\\")
-// or as a leader sequence: "space e" means Space, then e.
+// or as a leader sequence: "space e" means Space, then e, and "space o c"
+// Space, then o, then c.
 package keymap
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -37,6 +39,8 @@ const (
 	Home           = "home"
 	SyncNow        = "sync_now"
 	PasteImage     = "paste_image"
+	ToggleCheckbox = "toggle_checkbox"
+	RemoveCheckbox = "remove_checkbox"
 	Help           = "help"
 
 	ExplorerFind        = "explorer.find"
@@ -59,8 +63,16 @@ const (
 	ExplorerFileManager = "explorer.file_manager"
 )
 
-// leader starts a two-key sequence ("space e").
+// leader starts a sequence of one or two more keys ("space e", "space o c").
 const leader = "space"
+
+// PrefixGroup is the leader guide column that lists a key starting a longer
+// sequence, such as o for the "space o …" keys.
+const PrefixGroup = GroupNote
+
+// prefixNames names the leader groups whose keys take one more key, as
+// which-key names a group; the guide shows "+misoku" for o.
+var prefixNames = map[string]string{"o": "misoku"}
 
 // Leader guide groups: the columns of the panel that lists the keys
 // following Space.
@@ -89,11 +101,11 @@ type Info struct {
 // defaults.
 var Actions = []Info{
 	{Action: NewNote, Section: "general", Group: GroupNote, Help: "New note (unsaved tab)",
-		Long: "Opens an empty tab for a new note. It is written to disk on the first save, which asks for its folder.", defaults: []string{"ctrl+n", "space n"}},
+		Long: "Opens an empty tab for a new note. It is written to disk on the first save, which asks for its folder.", defaults: []string{"ctrl+n", "space n", "space o n"}},
 	{Action: Save, Section: "general", Group: GroupNote, Help: "Save (new notes: pick folder)",
 		Long: "Writes the note in this tab to disk. A note that was never saved asks which folder it goes in.", defaults: []string{"ctrl+s", "space w"}},
 	{Action: FindNote, Section: "general", Group: GroupGo, Help: "Find note (opens in this tab)",
-		Long: "Searches the names and the text of every note in the vault; the note you pick opens in this tab.", defaults: []string{"ctrl+p", "\\", "space f"}},
+		Long: "Searches the names and the text of every note in the vault; the note you pick opens in this tab.", defaults: []string{"ctrl+p", "\\", "space f", "space o f", "space o g"}},
 	{Action: ToggleExplorer, Section: "general", Group: GroupView, Help: "Toggle explorer",
 		Long: "Shows or hides the explorer, the tree of folders and notes on the left. On a narrow window it opens over the editor.", defaults: []string{"ctrl+b"}},
 	{Action: FocusExplorer, Section: "general", Group: GroupGo, Help: "Focus explorer",
@@ -129,7 +141,11 @@ var Actions = []Info{
 	{Action: SyncNow, Section: "general", Group: GroupNote, Help: "Sync the vault with git now",
 		Long: "Syncs the vault with its git remote right away, instead of waiting for the next automatic sync.", defaults: []string{"space s"}},
 	{Action: PasteImage, Section: "general", Group: GroupNote, Help: "Paste an image from the clipboard",
-		Long: "Saves the picture in the clipboard next to this note and links it on a line of its own. In insert mode ctrl+v does the same, and pastes text when the clipboard holds no picture.", defaults: []string{"space i"}},
+		Long: "Saves the picture in the clipboard next to this note and links it on a line of its own. In insert mode ctrl+v does the same, and pastes text when the clipboard holds no picture.", defaults: []string{"space i", "space o p"}},
+	{Action: ToggleCheckbox, Section: "general", Group: GroupNote, Help: "Toggle checkbox",
+		Long: "Checks or unchecks the box of this line, or of every line of the selection: [ ] becomes [x] and [x] or [-] becomes [ ]; a line without a box gets one.", defaults: []string{"space o c"}},
+	{Action: RemoveCheckbox, Section: "general", Group: GroupNote, Help: "Remove checkbox",
+		Long: "Takes the box off this line, or off every line of the selection, and keeps the list item: - [x] task becomes - task.", defaults: []string{"space o C"}},
 	{Action: Help, Section: "general", Group: GroupView, Help: "This help",
 		Long: "Opens this list of every key and command. Type to filter it; Enter runs a command, Esc closes.", defaults: []string{"?", "space h", "space ?"}},
 	{Action: Quit, Section: "general", Group: GroupNote, Help: "Quit (asks to save)",
@@ -261,7 +277,29 @@ func (m Map) clashes() []string {
 			owner[id] = a.Action
 		}
 	}
-	return append(out, m.shadowed()...)
+	return append(append(out, m.prefixClashes()...), m.shadowed()...)
+}
+
+// prefixClashes reports a leader sequence that is the start of another one
+// of the same section ("space o" and "space o c"): the shorter one runs at
+// once, so the longer one can never be typed.
+func (m Map) prefixClashes() []string {
+	var out []string
+	for _, a := range Actions {
+		for _, short := range m.keys[a.Action] {
+			for _, b := range Actions {
+				if b.Section != a.Section {
+					continue
+				}
+				for _, long := range m.keys[b.Action] {
+					if strings.HasPrefix(long, short+" ") {
+						out = append(out, fmt.Sprintf("keys: %q on %s is the start of %q on %s, so %s can never be typed; unbind one of them", short, a.Action, long, b.Action, b.Action))
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 // shadowed reports explorer keys that the app consumes before the explorer
@@ -305,13 +343,16 @@ func normalize(k string) (string, error) {
 	switch len(fields) {
 	case 1:
 		return token(fields[0]), nil
-	case 2:
+	case 2, 3:
 		if token(fields[0]) != leader {
-			return "", fmt.Errorf("%q: a two-key shortcut must start with space", k)
+			return "", fmt.Errorf("%q: a shortcut of several keys must start with space", k)
 		}
-		return leader + " " + token(fields[1]), nil
+		for i := range fields {
+			fields[i] = token(fields[i])
+		}
+		return strings.Join(fields, " "), nil
 	}
-	return "", fmt.Errorf("%q: use one key or space plus one key", k)
+	return "", fmt.Errorf("%q: use one key, or space plus one or two keys", k)
 }
 
 // token normalizes one key: named keys and modifier combos are lower case
@@ -359,14 +400,57 @@ func (m Map) DirectModified(action, s string) bool {
 func (m Map) IsLeader(s string) bool { return fromMsg(s) == leader }
 
 // Leader reports whether s, pressed right after the leader, triggers action.
-func (m Map) Leader(action, s string) bool {
-	want := leader + " " + fromMsg(s)
+func (m Map) Leader(action, s string) bool { return m.LeaderSeq(action, []string{s}) }
+
+// LeaderSeq reports whether keys, pressed in order after the leader, trigger
+// action: ["o", "c"] for "space o c".
+func (m Map) LeaderSeq(action string, keys []string) bool {
+	want := sequence(keys)
 	for _, k := range m.keys[action] {
 		if k == want {
 			return true
 		}
 	}
 	return false
+}
+
+// LeaderPrefix reports whether keys, pressed after the leader, are the start
+// of a longer leader sequence of one of actions, so the sequence waits for
+// the next key.
+func (m Map) LeaderPrefix(actions []string, keys []string) bool {
+	start := sequence(keys) + " "
+	for _, a := range actions {
+		for _, k := range m.keys[a] {
+			if strings.HasPrefix(k, start) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// sequence spells keys, pressed after the leader, as a configured key.
+func sequence(keys []string) string {
+	parts := []string{leader}
+	for _, k := range keys {
+		parts = append(parts, fromMsg(k))
+	}
+	return strings.Join(parts, " ")
+}
+
+// after returns the keys of k that follow the leader and prefix, or false
+// when k does not start with them.
+func after(k string, prefix []string) ([]string, bool) {
+	fields := strings.Fields(k)
+	if len(fields) <= len(prefix)+1 || fields[0] != leader {
+		return nil, false
+	}
+	for i, p := range prefix {
+		if fields[i+1] != fromMsg(p) {
+			return nil, false
+		}
+	}
+	return fields[len(prefix)+1:], true
 }
 
 // Label renders the keys of action for the help screen: "SPC e / Ctrl+E".
@@ -389,16 +473,60 @@ func (m Map) Hint(action string) string {
 
 // LeaderLabel renders only the keys that follow the leader for action, for
 // the leader guide: "h / ?" for "space h" and "space ?". It is "" when
-// action has no leader key.
-func (m Map) LeaderLabel(action string) string {
+// action has no key of Space and one more key.
+func (m Map) LeaderLabel(action string) string { return m.LeaderLabelAfter(action, nil) }
+
+// LeaderLabelAfter is LeaderLabel for the guide's page of a group: the last
+// keys of action's sequences that start with Space and prefix, "f / g" for
+// "space o f" and "space o g" after ["o"].
+func (m Map) LeaderLabelAfter(action string, prefix []string) string {
 	var parts []string
 	for _, k := range m.keys[action] {
-		if next, ok := strings.CutPrefix(k, leader+" "); ok {
-			parts = append(parts, tokenLabel(next, true))
+		if rest, ok := after(k, prefix); ok && len(rest) == 1 {
+			parts = append(parts, tokenLabel(rest[0], true))
 		}
 	}
 	return strings.Join(parts, " / ")
 }
+
+// Subgroup is a key of the leader guide that leads to more keys: Key is its
+// label and Name what the group holds ("o", "misoku").
+type Subgroup struct{ Key, Name string }
+
+// LeaderSubgroups lists, once each and in Actions order, the keys after
+// Space and prefix that start a longer sequence of one of actions.
+func (m Map) LeaderSubgroups(actions []string, prefix []string) []Subgroup {
+	var out []Subgroup
+	seen := map[string]bool{}
+	for _, a := range actions {
+		for _, k := range m.keys[a] {
+			rest, ok := after(k, prefix)
+			if !ok || len(rest) < 2 || seen[rest[0]] {
+				continue
+			}
+			seen[rest[0]] = true
+			name := GroupTitle(slices.Concat(prefix, rest[:1]))
+			if name == "" {
+				name = "more"
+			}
+			out = append(out, Subgroup{Key: tokenLabel(rest[0], true), Name: name})
+		}
+	}
+	return out
+}
+
+// GroupTitle names the leader group keys lead to, for the guide's title:
+// "misoku" for ["o"], "" for none.
+func GroupTitle(keys []string) string {
+	if len(keys) == 1 {
+		return prefixNames[keys[0]]
+	}
+	return ""
+}
+
+// SequenceLabel renders keys typed after the leader as the guide's title
+// shows them: "SPC o".
+func SequenceLabel(keys []string) string { return keyLabel(sequence(keys)) }
 
 // keyLabel renders one key or leader sequence: "SPC Shift+P", "Ctrl+E".
 func keyLabel(k string) string {

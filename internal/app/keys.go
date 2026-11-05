@@ -30,6 +30,7 @@ var generalActions = []string{
 	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
 	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview, keymap.ReadingMode,
 	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.Home, keymap.SyncNow, keymap.Help,
+	keymap.PasteImage, keymap.ToggleCheckbox, keymap.RemoveCheckbox,
 }
 
 // globalActions also fire while typing (INSERT mode, renaming), but only
@@ -85,10 +86,25 @@ func (m *Model) runAction(action string) tea.Cmd {
 		return m.requestSync()
 	case keymap.PasteImage:
 		return m.content.PasteClipboard()
+	case keymap.ToggleCheckbox:
+		return m.editCheckboxes(m.content.ToggleCheckboxes)
+	case keymap.RemoveCheckbox:
+		return m.editCheckboxes(m.content.RemoveCheckboxes)
 	case keymap.Help:
 		return m.openPalette()
 	}
 	return nil
+}
+
+// editCheckboxes runs a checkbox edit of the editor on the open note and,
+// when it changed the text, brings the modified mark and the preview up to
+// date, as typing does.
+func (m *Model) editCheckboxes(edit func() bool) tea.Cmd {
+	if m.activeBuffer() == nil || !edit() {
+		return nil
+	}
+	m.refreshModified()
+	return m.editorEdited()
 }
 
 func defaultKeys() keymap.Map {
