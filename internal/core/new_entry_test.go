@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pwn27sbx/misoku/internal/core"
 )
 
 func TestParseNewEntryPaths(t *testing.T) {
@@ -114,5 +116,29 @@ func TestCreateEntryNeverOverwrites(t *testing.T) {
 	}
 	if e, _ := store.ParseNewEntry("", "ideas/"); !e.Exists {
 		t.Fatal("folder ideas exists")
+	}
+}
+
+func TestSplitEntryPathIsTheParserOfN(t *testing.T) {
+	cases := []struct {
+		input  string
+		segs   string
+		folder bool
+	}{
+		{"test", "test", false},
+		{"test.md", "test", false},
+		{"test/", "test", true},
+		{" ideas / what? ", "ideas,what-", false},
+		{"a/b/", "a,b", true},
+		{"CON", "CON-note", false},
+	}
+	for _, c := range cases {
+		segs, folder, err := core.SplitEntryPath(c.input)
+		if err != nil || strings.Join(segs, ",") != c.segs || folder != c.folder {
+			t.Errorf("%q: got %v %v %v, want %q %v", c.input, segs, folder, err, c.segs, c.folder)
+		}
+	}
+	if _, _, err := core.SplitEntryPath("a/../x"); err == nil {
+		t.Error(`"a/../x" must be refused`)
 	}
 }

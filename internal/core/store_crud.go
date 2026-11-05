@@ -162,21 +162,9 @@ type NewEntry struct {
 // Empty, ".", ".." and hidden names and absolute paths are refused, so the
 // entry can never land outside the workspace. Nothing is written.
 func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
-	input = strings.TrimSpace(input)
-	if err := checkRelative(input, "folder"); err != nil {
+	segs, folder, err := SplitEntryPath(input)
+	if err != nil {
 		return NewEntry{}, err
-	}
-	folder := strings.HasSuffix(input, "/")
-	segs := strings.Split(strings.TrimSuffix(input, "/"), "/")
-	for i, seg := range segs {
-		seg = strings.TrimSpace(seg)
-		if err := checkPathSegment(seg); err != nil {
-			return NewEntry{}, err
-		}
-		if i == len(segs)-1 && !folder && strings.HasSuffix(strings.ToLower(seg), mdExt) {
-			seg = seg[:len(seg)-len(mdExt)]
-		}
-		segs[i] = sanitizeTitle(seg)
 	}
 
 	s.mu.RLock()
@@ -211,6 +199,30 @@ func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
 	e.Path = e.Note.ID
 	e.Exists = fileExists(s.idToAbs(e.Note.ID))
 	return e, nil
+}
+
+// SplitEntryPath is the path parser of ParseNewEntry, without the store:
+// input is split on "/" into cleaned names (the same cleaning as a title,
+// ".md" dropped from a note's name), and folder reports a trailing "/".
+// Empty, ".", ".." and hidden names and absolute paths are refused.
+func SplitEntryPath(input string) (segs []string, folder bool, err error) {
+	input = strings.TrimSpace(input)
+	if err := checkRelative(input, "folder"); err != nil {
+		return nil, false, err
+	}
+	folder = strings.HasSuffix(input, "/")
+	segs = strings.Split(strings.TrimSuffix(input, "/"), "/")
+	for i, seg := range segs {
+		seg = strings.TrimSpace(seg)
+		if err := checkPathSegment(seg); err != nil {
+			return nil, false, err
+		}
+		if i == len(segs)-1 && !folder && strings.HasSuffix(strings.ToLower(seg), mdExt) {
+			seg = seg[:len(seg)-len(mdExt)]
+		}
+		segs[i] = sanitizeTitle(seg)
+	}
+	return segs, folder, nil
 }
 
 // checkRelative refuses an absolute path (leading "/" or "\", or a Windows
