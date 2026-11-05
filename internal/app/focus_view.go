@@ -21,7 +21,7 @@ func (m *Model) dimPanes(l Layout) {
 
 // splitHasFocus reports whether the note's split is what the keys go to: the
 // editor and the preview both on screen with one of them focused. A graph takes
-// the editor's place and reading mode leaves no editor, so neither counts.
+// the editor's place and reading mode leaves no preview, so neither counts.
 func (m *Model) splitHasFocus(l Layout) bool {
 	if m.focus != focusEditor && m.focus != focusPreview {
 		return false
@@ -29,8 +29,8 @@ func (m *Model) splitHasFocus(l Layout) bool {
 	return l.EditorW > 0 && l.PreviewW > 0 && !m.graphActive()
 }
 
-// dividerFocused reports whether divider d touches the focused pane. In
-// reading mode the explorer's divider borders the preview.
+// dividerFocused reports whether divider d touches the focused pane. With
+// no editor column the explorer's divider borders the preview.
 func (m *Model) dividerFocused(d divider, l Layout) bool {
 	switch d {
 	case dividerSidebar:

@@ -178,8 +178,6 @@ func (m *Model) modeLabel() (string, lipgloss.Color) {
 		return "  HOME ", th.Blue
 	case m.focus == focusSidebar:
 		return " 󰙅 EXPLORER ", th.Teal
-	case m.focus == focusPreview && m.reading:
-		return " 󰈈 READING ", th.Yellow
 	case m.focus == focusPreview:
 		return " 󰈈 PREVIEW ", th.Yellow
 	}
@@ -192,6 +190,10 @@ func (m *Model) modeLabel() (string, lipgloss.Color) {
 		return " \U000f0489 V-LINE ", th.Orange
 	case content.ModeCommand:
 		return "  COMMAND ", th.Green
+	}
+	if m.reading {
+		// Reading mode's editor in Normal: Insert and Visual badges win.
+		return " 󰈈 READING ", th.Yellow
 	}
 	return "  NORMAL ", th.Blue
 }

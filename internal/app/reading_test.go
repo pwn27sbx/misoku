@@ -34,36 +34,49 @@ func reading(t *testing.T, opts ...app.Option) *harness {
 	return h
 }
 
+// openNoteWith opens a note holding body, the cursor on its first line.
+func openNoteWith(t *testing.T, body string) *harness {
+	t.Helper()
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", body); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	return h
+}
+
 func TestCalculateLayoutReadingMode(t *testing.T) {
 	cases := []struct {
-		name          string
-		width         int
-		sidebar       bool
-		previewX, prW int
+		name         string
+		width        int
+		sidebar      bool
+		editorX, edW int
 	}{
 		{"with explorer", 140, true, app.SidebarWidth + 1, 140 - app.SidebarWidth - 1},
 		{"without explorer", 140, false, 0, 140},
 		{"narrow window", app.MinTermWidth, true, app.SidebarWidth + 1, app.MinTermWidth - app.SidebarWidth - 1},
 	}
 	for _, c := range cases {
-		// Reading mode shows the preview even when it was hidden.
-		l := app.CalculateLayout(c.width, 40, c.sidebar, false, true, app.Split{EditorFrac: 0.3})
-		if l.EditorW != 0 || l.PreviewX != c.previewX || l.PreviewW != c.prW {
-			t.Errorf("%s: %+v, want no editor and the preview at %d, %d wide", c.name, l, c.previewX, c.prW)
+		// Reading mode hides the preview even when it was open.
+		l := app.CalculateLayout(c.width, 40, c.sidebar, true, true, app.Split{EditorFrac: 0.3})
+		if l.PreviewW != 0 || l.EditorX != c.editorX || l.EditorW != c.edW {
+			t.Errorf("%s: %+v, want no preview and the editor at %d, %d wide", c.name, l, c.editorX, c.edW)
 		}
 	}
 }
 
-func TestReadingModeShowsOnlyThePreviewAndRestoresTheSplit(t *testing.T) {
-	h := openNote(t)
-	before := dividers(h.view(), bodyRow)
-	div := before[len(before)-1]
+func TestReadingModeShowsOnlyTheEditorAndRestoresTheSplit(t *testing.T) {
+	h := openNoteWith(t, "intro\n# Heading")
+	div := dividers(h.view(), bodyRow)
+	div0 := div[len(div)-1]
 	h.send(
-		tea.MouseMsg{X: div, Y: bodyRow, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
-		tea.MouseMsg{X: div - 12, Y: bodyRow, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion},
-		tea.MouseMsg{X: div - 12, Y: bodyRow, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease},
+		tea.MouseMsg{X: div0, Y: bodyRow, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+		tea.MouseMsg{X: div0 - 12, Y: bodyRow, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion},
+		tea.MouseMsg{X: div0 - 12, Y: bodyRow, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease},
 	)
-	dragged := dividers(h.view(), bodyRow)
+	before := h.view()
 
 	h.keys(" r")
 	v := h.view()
@@ -75,16 +88,40 @@ func TestReadingModeShowsOnlyThePreviewAndRestoresTheSplit(t *testing.T) {
 	}
 
 	h.keys(" r")
-	v = h.view()
-	if mode(v) == "READING" {
-		t.Fatalf("space r again should leave reading mode:\n%s", v)
-	}
-	if got := dividers(v, bodyRow); len(got) != len(dragged) || got[len(got)-1] != dragged[len(dragged)-1] {
-		t.Fatalf("dividers at %v after reading mode, want %v as dragged", got, dragged)
+	if after := h.view(); after != before {
+		t.Fatalf("space r again should restore the frame exactly.\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
 
-func TestReadingModeTabAndCtrlHLSkipTheEditor(t *testing.T) {
+func TestReadingModeEditsTheNote(t *testing.T) {
+	h := reading(t)
+	h.keys("A!")
+	if v := h.view(); mode(v) != "INSERT" {
+		t.Fatalf("i/A in reading mode should edit the note:\n%s", v)
+	}
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if got, _ := h.store.Get("doc.md"); got.Content != "hello!" {
+		t.Fatalf("typing in reading mode should change and save the note, got %q", got.Content)
+	}
+	h.key(tea.KeyEsc)
+	if v := h.view(); mode(v) != "READING" {
+		t.Fatalf("back in Normal the statusline should say READING:\n%s", v)
+	}
+}
+
+func TestReadingModeRendersTheMarkdown(t *testing.T) {
+	h := openNoteWith(t, "intro\n# Heading")
+	if v := h.view(); !strings.Contains(v, "# Heading") {
+		t.Fatalf("setup: the split editor shows the raw heading:\n%s", v)
+	}
+	h.keys(" r")
+	v := h.view()
+	if strings.Contains(v, "# Heading") || !strings.Contains(v, "Heading") {
+		t.Fatalf("reading mode should hide the heading's # off the cursor line:\n%s", v)
+	}
+}
+
+func TestReadingModeTabAndCtrlHLMoveBetweenExplorerAndEditor(t *testing.T) {
 	h := reading(t)
 	steps := []struct {
 		key  tea.KeyMsg
@@ -105,16 +142,17 @@ func TestReadingModeTabAndCtrlHLSkipTheEditor(t *testing.T) {
 	}
 }
 
-func TestReadingModeEscGoesToThePreview(t *testing.T) {
+func TestReadingModeEscGoesToTheEditor(t *testing.T) {
 	h := reading(t)
 	h.keys(" e")
 	h.key(tea.KeyEsc)
-	if v := h.view(); mode(v) != "READING" {
-		t.Fatalf("Esc must not focus the hidden editor:\n%s", v)
+	h.keys("A!")
+	if v := h.view(); mode(v) != "INSERT" {
+		t.Fatalf("Esc from the explorer should focus the editor:\n%s", v)
 	}
 }
 
-func TestReadingModeFinderOpensNoteInThePreview(t *testing.T) {
+func TestReadingModeFinderOpensNoteInTheEditor(t *testing.T) {
 	h := reading(t)
 	if _, err := h.store.SaveAs("", "other", "second note"); err != nil {
 		t.Fatal(err)
@@ -145,7 +183,7 @@ func TestReadingModeGraphLeavesIt(t *testing.T) {
 		t.Fatalf("space g should leave reading mode and show the graph:\n%s", v)
 	}
 	if got := dividers(v, bodyRow); len(got) != 2 {
-		t.Fatalf("the graph needs the editor column, dividers %v:\n%s", got, v)
+		t.Fatalf("the graph brings the split back, dividers %v:\n%s", got, v)
 	}
 }
 
@@ -180,8 +218,8 @@ func TestReadingModeColonOpensTheCommandLine(t *testing.T) {
 	h.keys(":")
 	v := h.view()
 	rows := strings.Split(v, "\n")
-	if !strings.HasPrefix(rows[len(rows)-1], ":") || len(dividers(v, bodyRow)) != 2 {
-		t.Fatalf("':' should leave reading mode and open the command line:\n%s", v)
+	if !strings.HasPrefix(rows[len(rows)-1], ":") {
+		t.Fatalf("':' should open the command line:\n%s", v)
 	}
 }
 

@@ -312,13 +312,10 @@ func (m *Model) setStatus(s string) { m.say(s, false) }
 func (m *Model) setError(s string) { m.say(s, true) }
 
 // focusPane moves keyboard focus, opening the target pane if it was hidden.
-// In reading mode the editor is hidden, so focusing it focuses the preview;
-// whatever really needs the editor calls leaveReading first.
+// A hidden preview (reading mode, or too narrow a window) hands the focus to
+// the editor.
 func (m *Model) focusPane(f focus) tea.Cmd {
 	m.viewMode = viewModeWorkspace
-	if f == focusEditor && m.reading {
-		f = focusPreview
-	}
 	if f == focusSidebar && !m.sidebarOpen {
 		m.sidebarOpen = true
 		m.updateLayout()
@@ -351,9 +348,7 @@ func (m *Model) panes() []focus {
 	if l.SidebarW > 0 || m.explorerOverlay() {
 		out = append(out, focusSidebar)
 	}
-	if !m.reading {
-		out = append(out, focusEditor)
-	}
+	out = append(out, focusEditor)
 	if l.PreviewW > 0 {
 		out = append(out, focusPreview)
 	}
@@ -418,7 +413,8 @@ func (m *Model) togglePreview() tea.Cmd {
 	return nil
 }
 
-// toggleReading is Space r: show only the preview at full width, or go
+// toggleReading is Space r: show only the editor at full width, drawn live
+// (Markdown rendered except on the cursor line) and still editable, or go
 // back to the split as it was (the divider positions are never touched).
 func (m *Model) toggleReading() tea.Cmd {
 	if m.reading {
@@ -426,17 +422,21 @@ func (m *Model) toggleReading() tea.Cmd {
 		return nil
 	}
 	m.reading = true
-	m.updateLayout()
-	return m.focusPane(focusPreview)
+	m.content.SetLive(true)
+	preview.ClearImages() // the preview is hidden: drop its terminal images
+	m.updateLayout()      // after SetLive: SetSize recomputes the text width
+	return m.focusPane(focusEditor)
 }
 
-// leaveReading brings the editor back, for Space r and Space p and before
-// anything that needs the editor (the graph, the block menu, ":" commands).
+// leaveReading brings the preview back and the editor's raw look, for
+// Space r and Space p and before anything that needs the split (the graph,
+// the block menu).
 func (m *Model) leaveReading() {
 	if !m.reading {
 		return
 	}
 	m.reading = false
+	m.content.SetLive(false)
 	m.updateLayout()
 }
 

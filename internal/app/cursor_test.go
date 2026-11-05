@@ -324,13 +324,14 @@ func TestTheStartScreenKeepsTheRealCursorHidden(t *testing.T) {
 	}
 }
 
-func TestReaderModeHidesTheRealCursor(t *testing.T) {
+// Reading mode is the editor at full width, focused, so the real cursor shows.
+func TestReadingModeShowsTheRealCursor(t *testing.T) {
 	out, opt := newCursorOut()
 	h := openWithCursor(t, "hello", opt)
 	h.keys(" r")
 	out.buf.Reset()
 	h.m.View()
-	if got := cupPattern.FindAllString(out.all(), -1); len(got) != 0 {
-		t.Fatalf("reading mode placed the real cursor: %q", out.all())
+	if got := cupPattern.FindAllString(out.all(), -1); len(got) == 0 {
+		t.Fatalf("reading mode did not place the real cursor: %q", out.all())
 	}
 }
