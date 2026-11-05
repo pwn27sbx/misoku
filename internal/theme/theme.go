@@ -39,7 +39,7 @@ type Theme struct {
 	// Opaque copies of the base surfaces. They keep the palette's hex even
 	// when Transparent clears Bg and DarkerBg.
 	Base    lipgloss.Color // palette bg: text on accents, colour maths
-	PopupBg lipgloss.Color // palette darker_bg: floating boxes
+	PopupBg lipgloss.Color // palette darker_bg: floating boxes (empty when transparent)
 
 	// Accents.
 	Red        lipgloss.Color
@@ -340,11 +340,12 @@ func (t Theme) Greyed() Theme {
 }
 
 // Transparent returns t with the large fills (Bg, DarkerBg and StatusBg)
-// set to the empty colour, so they emit no background SGR and the
-// terminal's own background shows through. Base, PopupBg, DarkFg and every
-// other shade keep their opaque hex, so highlights, floating boxes and text
-// drawn on accents stay visible.
+// and the floating boxes' fill (PopupBg) set to the empty colour, so they
+// emit no background SGR and the terminal's own background shows through.
+// Floats are then set apart only by their border, like a Neovim theme with
+// transparent floats. Base, DarkFg and every other shade keep their opaque
+// hex, so highlights, badges and text drawn on accents stay visible.
 func (t Theme) Transparent() Theme {
-	t.Bg, t.DarkerBg, t.StatusBg = "", "", ""
+	t.Bg, t.DarkerBg, t.StatusBg, t.PopupBg = "", "", "", ""
 	return t
 }

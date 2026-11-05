@@ -413,14 +413,17 @@ with render-markdown:
 | `accordion` | `true` (default): opening a folder in the explorer closes its open siblings. `false` keeps several open |
 | `explorer_hide_width` | Terminal width, in columns, below which the explorer hides (default `120`) |
 | `cursor_shape` | `"auto"` (default): the cursor itself shows the mode, a block in NORMAL and VISUAL and a thin bar in INSERT, like LazyVim. `"block"` keeps Misoku's drawn block in every mode |
-| `transparent` | `true` leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal with opacity or blur shows through. Highlights and floating boxes stay painted. `false` (default) paints the theme's background |
+| `transparent` | `true` leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal with opacity or blur shows through. Popups go clear too, set apart by their border, and heading bands are off; highlights stay painted. `false` (default) paints the theme's background |
 
 ### Transparent background
 
 With `"transparent": true` Misoku stops painting its base background, the way Claude Code draws in a terminal:
 your terminal's own background colour shows through, with its opacity and blur if it has them. Pick a theme
 whose colours match that background (Omarchy sets both); a terminal without opacity just shows its default
-colour. Pictures in the preview keep an opaque rectangle.
+colour. Like Neovim's transparent themes, popups (dialogs, menus, the finder, the palette, toasts) are
+transparent and set apart only by their border, and heading bands are off: headings keep their colour, bold
+and icon. The cursor line, selections, statusline blocks and badges keep their background. Pictures in the
+preview keep an opaque rectangle.
 
 ### Cursor
 

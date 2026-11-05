@@ -121,6 +121,7 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		on := !s.ui.Transparent
 		s.ui.Transparent = on
 		m.applyTheme(m.baseTheme, false)
+		m.applyLook() // heading bands follow the option
 		m.openSettingsAt(row)
 		m.setStatus("Transparent background: " + onOff(on))
 		if !on {

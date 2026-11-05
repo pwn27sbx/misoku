@@ -10,8 +10,9 @@ version comes from the tag, so nothing else in the tree carries it.
 
 - **Transparent background**: `ui.transparent` (or **Transparent background** in `:settings`, applied at once)
   leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal
-  with opacity or blur shows through, like Claude Code. Highlights, the cursor line and floating boxes stay
-  painted; the welcome screen honours it too, and a user theme reloaded from disk stays transparent. The
+  with opacity or blur shows through, like Claude Code. Like Neovim's transparent themes, popups go clear and
+  keep only their border, and heading bands are off; the cursor line, selections, statusline blocks and badges
+  stay painted. The welcome screen honours it too, and a user theme reloaded from disk stays transparent. The
   terminal's own background colour shows through, so pick a theme that matches it.
 
 ## [0.17.1] - 2026-11-03

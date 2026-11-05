@@ -40,7 +40,10 @@ func (m *Model) applyUI(ui config.UI) {
 func (m *Model) applyLook() {
 	ui := m.prefs().ui
 	look := preview.Look{
-		HeadingBackground: ui.HeadingBackground,
+		// A transparent background drops the heading bands, as Neovim's
+		// transparent themes do: a band is a tint of a page colour the
+		// terminal no longer shows.
+		HeadingBackground: ui.HeadingBackground && !ui.Transparent,
 		Bullets:           ui.Bullets,
 		Unchecked:         ui.Checkbox.Unchecked,
 		Checked:           ui.Checkbox.Checked,

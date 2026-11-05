@@ -88,7 +88,7 @@ Delivery: small conventional commits, PR, CI green on Linux/macOS/Windows, CHANG
     file rewrite (`theme_reload_test.go` style) transparency survives; (f) the mode badge text keeps the `DarkFg`
     hex (`38;2;…`). Previous behaviour pinned: accordion and border rows unchanged.
   - Checks: `go test ./...`, `gofmt -l .`, `go vet ./...`. ~180 lines with tests.
-- **T4** (S8) — docs. Route: TBD. `README.md` `## Look` example + table (`:383-415`), `### Settings menu`
+- ~~**T4** (S8) — docs.~~ Done inside T3 (f3cad7d); the ID T4 now names the LazyVim change below. Route: TBD. `README.md` `## Look` example + table (`:383-415`), `### Settings menu`
   paragraph (`:427-435`), the short "your terminal shows through" note; `CHANGELOG.md` `[Unreleased]` Added.
   No help-text/cheatsheet change: no new key binding (`internal/app/modal.go` untouched). No dotfiles template
   change needed (S2): Sebastián sets `"ui": {"transparent": true}` once in his `config.json`. Checks: read back;
@@ -96,6 +96,13 @@ Delivery: small conventional commits, PR, CI green on Linux/macOS/Windows, CHANG
 - **T5** — manual check, not a commit: `go run ./cmd/misoku --dir <scratch>` in Ghostty (opacity 0.8 + blur)
   inside herdr, toggle with `c` → Settings; compare side by side with a Claude Code pane; repeat in herdr-app and,
   when available, Omarchy/Hyprland. Record result in Log.
+
+- **T4** (L3, L4; supersedes S4's opaque floats and S6's opaque heading bands, only while `ui.transparent` is on)
+  — floats transparent with their border, heading bands off, like solarized-osaka.nvim `floats = "transparent"`.
+  Route: delegated (writer agent, context backstop). Status: done, uncommitted.
+  - `internal/theme/theme.go`: `Transparent()` also empties `PopupBg`. `internal/app/narrow.go`: `floating()`
+    removed (it became the identity). `internal/app/look.go`: `HeadingBackground && !Transparent`;
+    `internal/app/settings.go`: the toggle re-applies the look. README `## Look` + CHANGELOG.
 
 Order: T1 → T2 → T3 → T4 (T2 depends on T1 fields; T3 on both). ~350 authored lines total, one PR.
 
@@ -169,3 +176,17 @@ Order: T1 → T2 → T3 → T4 (T2 depends on T1 fields; T3 on both). ~350 autho
 - Proposal: with `ui.transparent` on, (1) floating boxes are transparent and keep their border; (2) heading bands are dropped and headings keep only their colour; (3) only the cursor line, the selection and the badges keep a background.
 - L4 (Sebastián): "si"
 - This supersedes S4's opaque list for floats (PopupBg) and S6's opaque heading bands, but only while the option is on. With the option off, the output stays byte-identical. New task: T4.
+- **T4 evidence (writer agent, 2026-11-05).** RED observed: `TestFloatingBoxesFollowTheTransparency` (every
+  `/transparent` subtest painted `48;2;10;11;12`), `TestNarrowExplorerOverlayFollowsTheTransparency`,
+  `TestHeadingBandsFollowTheTransparency` (band `48;2;42;20;55` painted). The table runs each box opaque too
+  (PopupBg kept) and checks every box is a bordered rectangle, so `ui.Overlay` covers each cell.
+  `TestOverlayReplacesTheCellsUnderABox` (ui) pins the cell replacement; it passed before the change (Overlay
+  already replaced cells), so it is proved by mutants. Mutants killed: PopupBg kept → theme, app and
+  `TestSlashMenuFollowsTheTransparency`; look ignores the flag and toggle without `applyLook` → heading test;
+  narrow explorer filled with Base → narrow test; Overlay not skipping covered cells, no reset before the box,
+  blank rows skipped → overlay tests. Differential with the flag off (onedark, nord, catppuccin × heading_background
+  on/off × home, editor+preview, palette, finder, confirm, narrow explorer, toast) at 0e23fab vs worktree:
+  byte-identical (1234174 bytes; base run twice, stable). `go test ./...` green (`cmd/misoku`
+  `cursor_unix_test.go:156` failed once under the full parallel run and passed alone; that package is
+  untouched), `gofmt -l .` empty, `go vet ./...` clean, binary rebuilt. Note: with bands off the H1 gets its
+  `━` underline back, as with `heading_background` off.

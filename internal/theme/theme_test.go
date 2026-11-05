@@ -339,11 +339,11 @@ func TestGetSetsBaseAndPopupBg(t *testing.T) {
 	}
 }
 
-func TestTransparentClearsOnlyTheLargeFills(t *testing.T) {
+func TestTransparentClearsTheFillsAndFloats(t *testing.T) {
 	th := loadDistinct(t)
 	tr := th.Transparent()
 	for name, got := range map[string]lipgloss.Color{
-		"Bg": tr.Bg, "DarkerBg": tr.DarkerBg, "StatusBg": tr.StatusBg,
+		"Bg": tr.Bg, "DarkerBg": tr.DarkerBg, "StatusBg": tr.StatusBg, "PopupBg": tr.PopupBg,
 	} {
 		if got != "" {
 			t.Errorf("Transparent().%s = %q, want empty", name, got)
@@ -351,7 +351,6 @@ func TestTransparentClearsOnlyTheLargeFills(t *testing.T) {
 	}
 	for name, pair := range map[string][2]lipgloss.Color{
 		"Base":       {tr.Base, "#101112"},
-		"PopupBg":    {tr.PopupBg, "#0a0b0c"},
 		"DarkFg":     {tr.DarkFg, "#101112"},
 		"Bg2":        {tr.Bg2, "#1b1c1d"},
 		"OneBg":      {tr.OneBg, "#232425"},
@@ -366,25 +365,25 @@ func TestTransparentClearsOnlyTheLargeFills(t *testing.T) {
 			t.Errorf("Transparent().%s = %q, want %q", name, pair[0], pair[1])
 		}
 	}
-	// Everything except the three cleared fields is unchanged.
+	// Everything except the four cleared fields is unchanged.
 	want := th
-	want.Bg, want.DarkerBg, want.StatusBg = "", "", ""
+	want.Bg, want.DarkerBg, want.StatusBg, want.PopupBg = "", "", "", ""
 	if tr != want {
-		t.Errorf("Transparent() changed more than Bg, DarkerBg and StatusBg:\n got %+v\nwant %+v", tr, want)
+		t.Errorf("Transparent() changed more than Bg, DarkerBg, StatusBg and PopupBg:\n got %+v\nwant %+v", tr, want)
 	}
 	// The receiver is a value: the original stays opaque.
-	if th.Bg != "#101112" || th.DarkerBg != "#0a0b0c" || th.StatusBg != "#131415" {
+	if th.Bg != "#101112" || th.DarkerBg != "#0a0b0c" || th.StatusBg != "#131415" || th.PopupBg != "#0a0b0c" {
 		t.Errorf("Transparent() mutated its receiver: %+v", th)
 	}
 }
 
 func TestGreyedKeepsTransparency(t *testing.T) {
 	g := loadDistinct(t).Transparent().Greyed()
-	if g.Bg != "" || g.DarkerBg != "" || g.StatusBg != "" {
-		t.Errorf("Greyed() of a transparent theme repainted a fill: %q %q %q", g.Bg, g.DarkerBg, g.StatusBg)
+	if g.Bg != "" || g.DarkerBg != "" || g.StatusBg != "" || g.PopupBg != "" {
+		t.Errorf("Greyed() of a transparent theme repainted a fill: %q %q %q %q", g.Bg, g.DarkerBg, g.StatusBg, g.PopupBg)
 	}
-	if g.Base != "#101112" || g.PopupBg != "#0a0b0c" {
-		t.Errorf("Greyed() lost Base/PopupBg: %q %q", g.Base, g.PopupBg)
+	if g.Base != "#101112" {
+		t.Errorf("Greyed() lost Base: %q", g.Base)
 	}
 }
 
