@@ -41,17 +41,19 @@ type previewSync struct {
 }
 
 // editorEdited brings the preview up to date after the editor changed the
-// text: at once on a short note, after a pause on a long one.
+// text: at once on a short note, after a pause on a long one. In the
+// tutorial it also re-checks the lesson's level (see tutorEdited).
 func (m *Model) editorEdited() tea.Cmd {
+	tutorCmd := m.tutorEdited()
 	if m.content.LineCount() < previewDebounceLines {
 		m.pv.pending = false
 		m.syncPreview()
-		return nil
+		return tutorCmd
 	}
 	m.pv.pending, m.pv.buf = true, m.active
 	m.pv.gen++
 	gen := m.pv.gen
-	return tea.Tick(previewDebounce, func(time.Time) tea.Msg { return PreviewRefreshMsg{gen: gen} })
+	return tea.Batch(tutorCmd, tea.Tick(previewDebounce, func(time.Time) tea.Msg { return PreviewRefreshMsg{gen: gen} }))
 }
 
 // refreshPreview handles a PreviewRefreshMsg: a timer that a later edit

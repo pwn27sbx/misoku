@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/syncout"
 	"github.com/pwn27sbx/misoku/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -43,8 +45,23 @@ func main() {
 		os.Exit(runPasteImage(os.Args[2:]))
 	}
 
+	args := os.Args[1:]
+	tutorDir := "" // the tutorial vault, when misoku tutor is played
+	if len(args) > 0 && args[0] == "tutor" {
+		d, err := tutorWorkspace(args[1:])
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Println(tutorUsage)
+			return
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "misoku tutor: %v\n%s\n", err, tutorUsage)
+			os.Exit(2)
+		}
+		tutorDir, args = d, nil
+	}
+
 	flag.Usage = func() { usage(flag.CommandLine.Output()) }
-	opts, folder, err := parseOpenArgs(flag.CommandLine, os.Args[1:])
+	opts, folder, err := parseOpenArgs(flag.CommandLine, args)
 	if err != nil { // a bad flag has already exited (flag.ExitOnError)
 		usage(os.Stderr)
 		os.Exit(2)
@@ -89,6 +106,10 @@ func main() {
 	}
 
 	choice := pickWorkspace(workspaceInput{Flag: dir, Arg: folder, Env: os.Getenv("MISOKU_WORKSPACE"), Config: cfg, Getwd: os.Getwd})
+	if tutorDir != "" {
+		// Opened as --dir would be: no welcome, no notes_dir.
+		choice = workspaceChoice{Dir: tutorDir, Source: fromFlag}
+	}
 	if choice.Warning != "" {
 		fmt.Fprintln(os.Stderr, choice.Warning)
 	}
@@ -139,6 +160,9 @@ func main() {
 	appOpts := []app.Option{app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI)}
 	if cur != nil {
 		appOpts = append(appOpts, app.WithCursor(cur))
+	}
+	if tutorDir != "" {
+		appOpts = append(appOpts, app.WithTutor(tutor.Scan(tutorDir)))
 	}
 	appModel := app.New(store, appOpts...)
 	preview.SetImageSink(images)

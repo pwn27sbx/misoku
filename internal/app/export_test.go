@@ -106,3 +106,10 @@ func ExplorerView(tm tea.Model) string {
 // CommitDue reports whether a save is waiting for the local commit that
 // follows it (see noteSaved).
 func CommitDue(tm tea.Model) bool { return tm.(Model).commitDue }
+
+// ExpireToast hides the toast showing now, as its timer would.
+func ExpireToast(tm tea.Model) tea.Model {
+	m := tm.(Model)
+	next, _ := m.Update(toastExpiredMsg{id: m.toastSeq})
+	return next
+}

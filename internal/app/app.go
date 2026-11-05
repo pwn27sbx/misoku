@@ -106,7 +106,8 @@ type Model struct {
 
 	toast    string
 	toastSeq int
-	dragging bool // a mouse drag started in the editor
+	tutor    *tutorGame // misoku tutor's levels, nil outside the tutorial, see tutor.go
+	dragging bool       // a mouse drag started in the editor
 
 	split    Split   // dragged divider positions
 	resizing divider // the divider being dragged, if any

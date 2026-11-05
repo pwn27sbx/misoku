@@ -210,6 +210,9 @@ func (m *Model) statusline() string {
 
 	// Right side, dropped piece by piece when the terminal is narrow.
 	var parts []string
+	if badge := m.tutorBadge(); badge != "" {
+		parts = append(parts, fill.Foreground(th.Green).Render(badge+"  "))
+	}
 	if b != nil && b.isGraph() {
 		b = nil // no text: no word count or file type
 	}
