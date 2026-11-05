@@ -163,20 +163,15 @@ type NewEntry struct {
 // entry can never land outside the workspace. Nothing is written.
 func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
 	input = strings.TrimSpace(input)
-	if strings.HasPrefix(input, "/") || strings.HasPrefix(input, `\`) || hasDriveLetter(input) {
-		return NewEntry{}, errors.New("the path must be relative to the folder")
+	if err := checkRelative(input, "folder"); err != nil {
+		return NewEntry{}, err
 	}
 	folder := strings.HasSuffix(input, "/")
 	segs := strings.Split(strings.TrimSuffix(input, "/"), "/")
 	for i, seg := range segs {
 		seg = strings.TrimSpace(seg)
-		switch {
-		case seg == "":
-			return NewEntry{}, errors.New("the path has an empty name")
-		case seg == "." || seg == "..":
-			return NewEntry{}, errors.New(`"." and ".." are not allowed`)
-		case strings.HasPrefix(seg, "."):
-			return NewEntry{}, errors.New("hidden files and folders are not allowed")
+		if err := checkPathSegment(seg); err != nil {
+			return NewEntry{}, err
 		}
 		if i == len(segs)-1 && !folder && strings.HasSuffix(strings.ToLower(seg), mdExt) {
 			seg = seg[:len(seg)-len(mdExt)]
@@ -216,6 +211,29 @@ func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
 	e.Path = e.Note.ID
 	e.Exists = fileExists(s.idToAbs(e.Note.ID))
 	return e, nil
+}
+
+// checkRelative refuses an absolute path (leading "/" or "\", or a Windows
+// drive); where names what the path must be relative to.
+func checkRelative(p, where string) error {
+	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) || hasDriveLetter(p) {
+		return errors.New("the path must be relative to the " + where)
+	}
+	return nil
+}
+
+// checkPathSegment refuses an empty, ".", ".." or hidden path segment, so a
+// path can never leave the workspace or name a hidden entry.
+func checkPathSegment(seg string) error {
+	switch {
+	case seg == "":
+		return errors.New("the path has an empty name")
+	case seg == "." || seg == "..":
+		return errors.New(`"." and ".." are not allowed`)
+	case strings.HasPrefix(seg, "."):
+		return errors.New("hidden files and folders are not allowed")
+	}
+	return nil
 }
 
 // hasDriveLetter reports a Windows drive path such as "C:/notes".
