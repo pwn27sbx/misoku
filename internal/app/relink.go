@@ -16,6 +16,9 @@ type relinkJob struct {
 	renamed string // the status the rename left: "Renamed to X"
 	before  []core.Page
 	moves   []core.Move
+	// batch is set for a Stage A batch (dirplan_apply.go): its confirm asks
+	// for the ops and the links together.
+	batch *dirBatch
 }
 
 // relinksPlannedMsg carries the rewrites a rename calls for, worked out by
@@ -64,8 +67,13 @@ func planRelinksIn(store *core.Store, job relinkJob) relinksPlannedMsg {
 }
 
 // askRelinks asks before rewriting links in other notes (Q1); a rename no
-// link names asks nothing. No keeps the rename and leaves the links.
+// link names asks nothing. No keeps the rename and leaves the links. A
+// Stage A batch asks for its actions and links together (confirmDirPlan).
 func (m *Model) askRelinks(msg relinksPlannedMsg) {
+	if msg.job.batch != nil {
+		m.confirmDirPlan(msg)
+		return
+	}
 	if len(msg.relinks) == 0 {
 		return
 	}
@@ -97,8 +105,12 @@ func countLinks(rs []core.Relink) string {
 }
 
 // finishRelinks brings the open tabs of the rewritten notes up to date
-// (S4), counts the rewrite as a save for sync and reports it.
+// (S4), counts the rewrite as a save for sync and reports it. After a Stage
+// A batch the tabs first follow its moves and deletes (finishDirPlan).
 func (m *Model) finishRelinks(msg relinksAppliedMsg) {
+	if msg.job.batch != nil {
+		m.finishDirPlan(msg.job)
+	}
 	oldID := map[string]string{}
 	for _, mv := range core.ExpandMoves(msg.job.before, msg.job.moves) {
 		oldID[mv.To] = mv.From
@@ -116,14 +128,25 @@ func (m *Model) finishRelinks(msg relinksAppliedMsg) {
 		m.refreshModified()
 	}
 	status := msg.job.renamed + " · updated " + countLinks(msg.done)
-	switch {
-	case msg.err != nil:
-		m.setError(status + " · " + msg.err.Error())
-	case len(msg.skipped) > 0:
-		m.setError(status + " · " + strings.Join(msg.skipped, ", ") + " changed meanwhile, its links were left as written")
-	default:
-		m.setStatus(status)
+	if len(msg.done) == 0 && msg.job.batch != nil {
+		status = msg.job.renamed // a batch that rewrote no link says only what it did
 	}
+	// A batch that stopped halfway is an error, and still says what the
+	// link rewrite failed on or skipped.
+	isErr := msg.job.batch != nil && msg.job.batch.failed != nil
+	if msg.err != nil {
+		status += " · " + msg.err.Error()
+		isErr = true
+	}
+	if len(msg.skipped) > 0 {
+		status += " · " + strings.Join(msg.skipped, ", ") + " changed meanwhile, its links were left as written"
+		isErr = true
+	}
+	if isErr {
+		m.setError(status)
+		return
+	}
+	m.setStatus(status)
 }
 
 // relinkTab applies r to the open tab of its note, if any. The tab's saved

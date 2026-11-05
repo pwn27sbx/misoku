@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/dirplan"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -112,4 +114,46 @@ func ExpireToast(tm tea.Model) tea.Model {
 	m := tm.(Model)
 	next, _ := m.Update(toastExpiredMsg{id: m.toastSeq})
 	return next
+}
+
+// RequestDirPlan hands the edited folders of the explorer's folder editor
+// to the app, as the editor's = does, and returns the planning command.
+func RequestDirPlan(tm tea.Model, folders []dirplan.Folder) (tea.Model, tea.Cmd) {
+	m := tm.(Model)
+	cmd := m.requestDirPlan(folders)
+	return m, cmd
+}
+
+// OpenFile opens id in a tab of its own, as picking it in the explorer does.
+func OpenFile(tm tea.Model, id string) (tea.Model, tea.Cmd) {
+	m := tm.(Model)
+	cmd := m.openFile(id)
+	return m, cmd
+}
+
+// OpenTabs lists the IDs of the open tabs, in tab order.
+func OpenTabs(tm tea.Model) []string {
+	var ids []string
+	for _, b := range tm.(Model).buffers {
+		ids = append(ids, b.id)
+	}
+	return ids
+}
+
+// StatusText is the message the status bar shows, whole.
+func StatusText(tm tea.Model) string { return tm.(Model).status }
+
+// SetHasTrash makes the app see a system with or without a Trash and
+// returns the function that puts the real check back.
+func SetHasTrash(has bool) (restore func()) {
+	prev := hasTrash
+	hasTrash = func() bool { return has }
+	return func() { hasTrash = prev }
+}
+
+// DirPlanStoppedMsg is the result of a Stage A batch that stopped at failed
+// and whose link rewrite then skipped the notes skipped and failed with err.
+func DirPlanStoppedMsg(failed error, skipped []string, err error) tea.Msg {
+	b := &dirBatch{failed: failed}
+	return relinksAppliedMsg{job: relinkJob{renamed: b.summary(), batch: b}, skipped: skipped, err: err}
 }

@@ -162,3 +162,23 @@ func TestBuildRefuses(t *testing.T) {
 		})
 	}
 }
+
+// A folder listed twice deletes its missing entries once.
+func TestBuildDeletesOnceForAFolderListedTwice(t *testing.T) {
+	p, err := dirplan.Build(vault, []dirplan.Folder{{ID: "", Rows: root()}, {ID: "Docs"}, {ID: "Docs"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := show(p), "delete Docs/In>/; delete Docs/x.md>"; got != want {
+		t.Fatalf("plan = %q, want %q", got, want)
+	}
+}
+
+// String names every kind, and an unknown one without panicking.
+func TestOpKindString(t *testing.T) {
+	for k, want := range map[dirplan.OpKind]string{dirplan.OpMkdir: "mkdir", dirplan.OpDelete: "delete", dirplan.OpKind(9): "OpKind(9)", dirplan.OpKind(-1): "OpKind(-1)"} {
+		if got := k.String(); got != want {
+			t.Errorf("OpKind(%d).String() = %q, want %q", int(k), got, want)
+		}
+	}
+}

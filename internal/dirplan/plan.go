@@ -43,8 +43,13 @@ const (
 )
 
 // String names the kind for the confirm dialog: "mkdir", "rename", ….
+// A value outside the kinds reads "OpKind(n)".
 func (k OpKind) String() string {
-	return [...]string{"mkdir", "rename", "move", "create", "delete"}[k]
+	names := [...]string{"mkdir", "rename", "move", "create", "delete"}
+	if k < 0 || int(k) >= len(names) {
+		return fmt.Sprintf("OpKind(%d)", int(k))
+	}
+	return names[k]
 }
 
 // Op is one file operation. From and To are IDs as they stand when the op
@@ -87,7 +92,12 @@ func Build(before []core.Page, folders []Folder) (Plan, error) {
 	}
 
 	var deletes []core.Page
+	listed := map[string]bool{}
 	for _, f := range folders {
+		if listed[f.ID] {
+			continue // a folder listed twice deletes its entries once
+		}
+		listed[f.ID] = true
 		for _, p := range before {
 			if p.ParentID == f.ID && !b.seen[p.ID] {
 				deletes = append(deletes, p)
