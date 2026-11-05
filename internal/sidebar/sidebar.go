@@ -2,6 +2,8 @@
 package sidebar
 
 import (
+	"strings"
+
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
@@ -40,7 +42,9 @@ type Model struct {
 	focused     bool
 	dimmed      bool // greyed out while another pane has the focus
 	renaming    bool
-	renameInput textinput.Model
+	creating    bool            // the name line of a new note or folder is open
+	newParent   string          // where the new entry goes, see StartCreating
+	renameInput textinput.Model // also the new entry's name line
 	workspace   string
 	activeID    string
 	modified    map[string]bool
@@ -250,6 +254,7 @@ func (m *Model) SetFocused(focused bool) {
 	m.focused = focused
 	if !focused {
 		m.renaming = false
+		m.creating = false
 		m.renameInput.Blur()
 	}
 }
@@ -257,8 +262,9 @@ func (m *Model) SetFocused(focused bool) {
 // IsRenaming returns whether inline renaming is active.
 func (m Model) IsRenaming() bool { return m.renaming }
 
-// IsBusy reports whether the explorer is capturing typed text (renaming).
-func (m Model) IsBusy() bool { return m.renaming }
+// IsBusy reports whether the explorer is capturing typed text (renaming, or
+// naming a new entry).
+func (m Model) IsBusy() bool { return m.renaming || m.creating }
 
 // SelectedPage returns the currently selected page item safely.
 func (m Model) SelectedPage() (core.Page, bool) {
@@ -292,6 +298,41 @@ func (m *Model) StartRenaming() tea.Cmd {
 	m.renameInput.SetValue(p.Title)
 	m.renameInput.CursorEnd()
 	return m.renameInput.Focus()
+}
+
+// CreateRequestMsg asks to create the note or folder Name names, a path
+// relative to ParentID's folder ("ideas/test", "test/"). The explorer sends
+// it when Enter is pressed on a non-empty new-entry line.
+type CreateRequestMsg struct {
+	ParentID string
+	Name     string
+}
+
+// StartCreating opens an empty name line for a new note or folder under the
+// context folder (ContextParentID), drawn where the entry will appear. It
+// uses the rename input, so it looks the same.
+func (m *Model) StartCreating() tea.Cmd {
+	m.newParent = m.ContextParentID()
+	if m.newParent != "" {
+		m.expand(m.newParent)
+	}
+	m.creating = true
+	m.renameInput.SetValue("")
+	m.ensureVisible()
+	return m.renameInput.Focus()
+}
+
+// finishCreating closes the name line. An empty name starts an Untitled
+// draft, exactly what n did before it asked for a name.
+func (m *Model) finishCreating() tea.Cmd {
+	name := strings.TrimSpace(m.renameInput.Value())
+	parent := m.newParent
+	m.creating = false
+	m.renameInput.Blur()
+	if name == "" {
+		return func() tea.Msg { return core.PageCreatedMsg{Page: core.Page{ParentID: parent}} }
+	}
+	return func() tea.Msg { return CreateRequestMsg{ParentID: parent, Name: name} }
 }
 
 func selectCmd(id string) tea.Cmd {

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -138,6 +139,109 @@ func (s *Store) Create(title, parentID string) (Page, error) {
 
 	id := path.Join(relDir, finalTitle+mdExt)
 	return Page{ID: id, Title: finalTitle, ParentID: parentID, UpdatedAt: modTime(absFile)}, nil
+}
+
+// NewEntry is a path typed in the explorer's new-entry line ("ideas/test",
+// "test/"), parsed against the folder it was typed in. See ParseNewEntry.
+type NewEntry struct {
+	// Folders are the folders on the path, outermost first, as tree pages.
+	Folders []Page
+	// Note is the note to create; its ID is empty when the path names a
+	// folder (it ends with "/").
+	Note Page
+	// Path is the entry relative to the workspace root, a folder ending
+	// with "/": "ideas/test.md" or "ideas/test/".
+	Path string
+	// Exists reports that the note or folder is already on disk.
+	Exists bool
+}
+
+// ParseNewEntry reads input as a path relative to parentID's folder: "/"
+// separates folders, a trailing "/" names a folder, anything else a note
+// (".md" is added). Every name goes through the same cleaning as a title.
+// Empty, ".", ".." and hidden names and absolute paths are refused, so the
+// entry can never land outside the workspace. Nothing is written.
+func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
+	input = strings.TrimSpace(input)
+	if strings.HasPrefix(input, "/") || strings.HasPrefix(input, `\`) || hasDriveLetter(input) {
+		return NewEntry{}, errors.New("the path must be relative to the folder")
+	}
+	folder := strings.HasSuffix(input, "/")
+	segs := strings.Split(strings.TrimSuffix(input, "/"), "/")
+	for i, seg := range segs {
+		seg = strings.TrimSpace(seg)
+		switch {
+		case seg == "":
+			return NewEntry{}, errors.New("the path has an empty name")
+		case seg == "." || seg == "..":
+			return NewEntry{}, errors.New(`"." and ".." are not allowed`)
+		case strings.HasPrefix(seg, "."):
+			return NewEntry{}, errors.New("hidden files and folders are not allowed")
+		}
+		if i == len(segs)-1 && !folder && strings.HasSuffix(strings.ToLower(seg), mdExt) {
+			seg = seg[:len(seg)-len(mdExt)]
+		}
+		segs[i] = sanitizeTitle(seg)
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	dir, err := s.childDirFor(parentID)
+	if err != nil {
+		return NewEntry{}, err
+	}
+	var e NewEntry
+	parent := parentID
+	dirSegs := segs
+	if !folder {
+		dirSegs = segs[:len(segs)-1]
+	}
+	for _, seg := range dirSegs {
+		dir = path.Join(dir, seg)
+		id := dir
+		if fileExists(s.idToAbs(dir + mdExt)) {
+			id = dir + mdExt // the folder holds that note's sub-notes
+		}
+		e.Folders = append(e.Folders, Page{ID: id, Title: seg, ParentID: parent, IsFolder: id == dir})
+		parent = id
+	}
+	if folder {
+		e.Path = dir + "/"
+		info, err := os.Stat(s.idToAbs(dir))
+		e.Exists = err == nil && info.IsDir()
+		return e, nil
+	}
+	title := segs[len(segs)-1]
+	e.Note = Page{ID: path.Join(dir, title+mdExt), Title: title, ParentID: parent}
+	e.Path = e.Note.ID
+	e.Exists = fileExists(s.idToAbs(e.Note.ID))
+	return e, nil
+}
+
+// hasDriveLetter reports a Windows drive path such as "C:/notes".
+func hasDriveLetter(p string) bool {
+	return len(p) >= 2 && p[1] == ':' && (p[0]|0x20 >= 'a' && p[0]|0x20 <= 'z')
+}
+
+// CreateEntry creates what ParseNewEntry parsed: the missing folders and,
+// for a note, an empty note through Create. It never overwrites: an
+// existing note is an error. It returns the note, or the last folder.
+func (s *Store) CreateEntry(e NewEntry) (Page, error) {
+	if len(e.Folders) > 0 {
+		last := e.Folders[len(e.Folders)-1]
+		abs := s.idToAbs(strings.TrimSuffix(last.ID, mdExt))
+		if err := os.MkdirAll(abs, 0755); err != nil {
+			return Page{}, fmt.Errorf("failed to create folder: %w", err)
+		}
+		if e.Note.ID == "" {
+			last.UpdatedAt = modTime(abs)
+			return last, nil
+		}
+	}
+	if fileExists(s.idToAbs(e.Note.ID)) {
+		return Page{}, fmt.Errorf("%s already exists", e.Note.ID)
+	}
+	return s.Create(e.Note.Title, e.Note.ParentID)
 }
 
 // Update persists p.Content to disk and, if p.Title no longer matches the

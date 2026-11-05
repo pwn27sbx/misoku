@@ -11,6 +11,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Tree icons (Nerd Font).
+const (
+	chevronRight = " "
+	chevronDown  = " "
+	folderClosed = " "
+	folderOpen   = " "
+	folderEmpty  = " "
+	markdownIcon = " "
+)
+
 // displayName shows real filenames, like nvim-tree.
 func displayName(p core.Page) string {
 	if p.IsFolder {
@@ -52,16 +62,44 @@ func (m Model) View() string {
 	// 3. Tree.
 	items := m.VisibleItems()
 	h := m.treeHeight()
-	if len(items) == 0 {
+	at, level := m.newEntryRow(items)
+	if len(items) == 0 && !m.creating {
 		msg := "Empty workspace — press n"
 		rows = append(rows, bg.Foreground(th.GreyFg).Italic(true).Render("  "+ui.Truncate(msg, w-3)))
 	}
 	end := min(m.offset+h, len(items))
-	for i := m.offset; i < end; i++ {
-		rows = append(rows, m.renderItem(items[i], i == m.cursor))
+	for i := m.offset; i <= end; i++ {
+		if m.creating && i == max(at, m.offset) {
+			rows = append(rows, m.renderNewEntry(level))
+		}
+		if i < end {
+			rows = append(rows, m.renderItem(items[i], i == m.cursor))
+		}
 	}
 
 	return ui.Fit(strings.Join(rows, "\n"), w, m.height, bg)
+}
+
+// newEntryRow is where the new entry's name line goes: just below its
+// folder, one level in, or at the top of the tree for the workspace root.
+func (m Model) newEntryRow(items []TreeItem) (at, level int) {
+	for i, it := range items {
+		if it.Page.ID == m.newParent {
+			return i + 1, it.Level + 1
+		}
+	}
+	return 0, 0
+}
+
+// renderNewEntry draws the name line of a new note or folder, with the
+// rename input and the look of a selected row.
+func (m Model) renderNewEntry(level int) string {
+	th := m.theme
+	base := lipgloss.NewStyle().Background(th.OneBg2)
+	prefix := base.Render(" "+strings.Repeat("  ", level)+"  ") + base.Foreground(th.NordBlue).Render(markdownIcon)
+	m.renameInput.Width = max(m.width-lipgloss.Width(prefix)-2, 1)
+	m.renameInput.TextStyle = base.Foreground(th.Fg)
+	return ui.FitLine(prefix+m.renameInput.View(), m.width, base)
 }
 
 func (m Model) renderItem(item TreeItem, selected bool) string {
@@ -100,14 +138,6 @@ func (m Model) renderItem(item TreeItem, selected bool) string {
 	var arrow, icon string
 	iconStyle := base.Foreground(th.NordBlue)
 	nameStyle := base.Foreground(th.Fg)
-	const (
-		chevronRight = " "
-		chevronDown  = " "
-		folderClosed = " "
-		folderOpen   = " "
-		folderEmpty  = " "
-		markdownIcon = " "
-	)
 	switch {
 	case item.Page.IsFolder:
 		icon = folderClosed

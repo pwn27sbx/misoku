@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // WithClock makes the app read the time from now, so a test can say how
@@ -87,4 +88,17 @@ func EditorText(tm tea.Model) string { return tm.(Model).content.Value() }
 // can run an attachment without a desktop dialog.
 func MediaPickedForTest(kind, path string) tea.Msg {
 	return mediaPickedMsg{kind: kind, path: path}
+}
+
+// ExplorerSelected is the ID of the row selected in the explorer.
+func ExplorerSelected(tm tea.Model) string {
+	m := tm.(Model)
+	p, _ := m.sidebar.SelectedPage()
+	return p.ID
+}
+
+// ExplorerView is the explorer pane as drawn, without colours.
+func ExplorerView(tm tea.Model) string {
+	m := tm.(Model)
+	return ansi.Strip(m.sidebar.View())
 }

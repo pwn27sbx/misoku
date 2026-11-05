@@ -374,7 +374,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `explorer.collapse` | `h`, `left` | Collapse / go to parent |
 | `explorer.toggle_fold` | `z` | Fold / unfold |
 | `explorer.collapse_all` | `W` | Collapse all |
-| `explorer.new_note` | `n`, `%` | New note in this folder |
+| `explorer.new_note` | `n`, `%` | New note or folder (end with / for a folder) |
 | `explorer.new_sub_note` | `a` | New sub-note |
 | `explorer.rename` | `r`, `e` | Rename |
 | `explorer.delete` | `d`, `x`, `delete` | Delete (asks first) |

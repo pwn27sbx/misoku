@@ -41,6 +41,20 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.renameInput, cmd = m.renameInput.Update(msg)
 		return m, cmd
 	}
+	if m.creating {
+		if isKey {
+			switch key.String() {
+			case "enter":
+				return m, m.finishCreating()
+			case "esc":
+				m.creating = false
+				m.renameInput.Blur()
+				return m, nil
+			}
+		}
+		m.renameInput, cmd = m.renameInput.Update(msg)
+		return m, cmd
+	}
 
 	if !isKey {
 		return m, nil
@@ -115,8 +129,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case is(keymap.ExplorerRename):
 		return m, m.StartRenaming()
 	case is(keymap.ExplorerNewNote):
-		parent := m.ContextParentID()
-		return m, func() tea.Msg { return core.PageCreatedMsg{Page: core.Page{ParentID: parent}} }
+		return m, m.StartCreating()
 	case is(keymap.ExplorerNewSubNote):
 		if hasCurr {
 			parentID := curr.Page.ID
@@ -152,8 +165,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	if msg.Y < treeTop {
 		return m, nil
 	}
-	if m.renaming {
+	if m.renaming || m.creating {
 		m.renaming = false
+		m.creating = false
 		m.renameInput.Blur()
 	}
 	idx := m.offset + msg.Y - treeTop

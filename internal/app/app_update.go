@@ -12,6 +12,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/globalgraph"
 	"github.com/pwn27sbx/misoku/internal/graph"
 	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/sidebar"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -243,6 +244,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.OpenSettings()
 	case core.PageCreatedMsg:
 		return m, m.newDraft(msg.Page.ParentID)
+	case sidebar.CreateRequestMsg:
+		return m, m.requestCreate(msg.ParentID, msg.Name)
 	case core.PageUpdatedMsg:
 		m.renamePage(msg.Page.ID, msg.Page.Title)
 		return m, nil

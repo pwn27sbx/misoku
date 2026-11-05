@@ -51,7 +51,7 @@ func treeSignature(pages []core.Page) string {
 func (m *Model) checkWorkspace() {
 	m.syncUserTheme()
 	m.syncOpenBuffers()
-	m.applyScannedTree(m.store.List())
+	m.applyScannedTree(listTree(m.store, m.newFolders))
 }
 
 // applyScannedTree refreshes the explorer when pages differ from the tree
@@ -104,6 +104,7 @@ func (m *Model) startWorkspaceScan() tea.Cmd {
 	}
 	m.scanning = true
 	store, gen := m.store, m.treeGen
+	kept := append([]core.Page(nil), m.newFolders...)
 	var notes []scannedNote
 	for _, b := range m.buffers {
 		if b.draft() || b.isGraph() {
@@ -123,7 +124,7 @@ func (m *Model) startWorkspaceScan() tea.Cmd {
 			}
 		}
 		msg.notes = notes
-		msg.pages = store.List()
+		msg.pages = listTree(store, kept)
 		return msg
 	}
 }

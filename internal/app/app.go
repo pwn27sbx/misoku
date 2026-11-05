@@ -99,6 +99,7 @@ type Model struct {
 	themeStamp     string             // user theme files as last seen, see syncUserTheme
 	treeGen        uint64             // bumps on every applyTree, see workspaceScannedMsg
 	scanning       bool               // a workspace scan is in flight, see CheckWorkspaceMsg
+	newFolders     []core.Page        // folders made with n, shown while still empty, see listTree
 
 	toast    string
 	toastSeq int
@@ -280,7 +281,7 @@ func (m *Model) updateLayout() {
 }
 
 func (m *Model) reloadTree() {
-	m.applyTree(m.store.List())
+	m.applyTree(listTree(m.store, m.newFolders))
 }
 
 func (m *Model) applyTree(pages []core.Page) {

@@ -8,6 +8,13 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **New notes and folders by name** in the explorer, like LazyVim's mini.files: `n` opens a name line under the
+  selected folder. `test` makes a note, `test/` a folder and `ideas/test` both, after a `CREATE ideas/test.md`
+  confirmation (`y` or Enter creates, `n` or Esc cancels). The folders on the path open in the explorer, a new note
+  opens in the editor and a new folder is selected. A name that already exists is never overwritten: the note is
+  opened, or the folder selected. Names that would leave the workspace (`..`, absolute paths, empty or hidden
+  names) are refused. An empty name still starts an Untitled note, as `n` did before.
+
 - **Transparent background**: `ui.transparent` (or **Transparent background** in `:settings`, applied at once)
   leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal
   with opacity or blur shows through, like Claude Code. Like Neovim's transparent themes, popups go clear and
