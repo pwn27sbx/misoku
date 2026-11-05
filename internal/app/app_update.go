@@ -257,8 +257,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sidebar.CreateRequestMsg:
 		return m, m.requestCreate(msg.ParentID, msg.Name)
 	case sidebar.EditApplyMsg:
+		if msg.Leave {
+			return m, m.requestLeavePlan(msg.Folders)
+		}
 		return m, m.requestDirPlan(msg.Folders)
-	case sidebar.EditLeaveMsg:
+	case leavePlannedMsg:
 		m.confirmLeaveEditor(msg)
 		return m, nil
 	case core.PageUpdatedMsg:

@@ -1,7 +1,9 @@
 package app_test
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -22,11 +24,11 @@ func editHarness(t *testing.T) *harness {
 	return h
 }
 
-// retype replaces the selected line's name with name (cc, type, Enter).
+// retype replaces the selected line's name with name (cc, type, Esc).
 func (h *harness) retype(name string) {
 	h.t.Helper()
 	h.keys("cc" + name)
-	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
 }
 
 // S8: m opens the folder editor; a renamed line is applied only after =
@@ -75,35 +77,76 @@ func TestEditFolderColonWAsksToo(t *testing.T) {
 	}
 }
 
-// S8: leaving with pending edits asks; No keeps them, Yes drops them and
-// writes nothing. Leaving without edits asks nothing.
-func TestEditFolderLeavingWithEditsAsks(t *testing.T) {
+// Leaving with pending edits (Esc or q) shows the same confirm as =, as
+// mini.files does: cancel keeps editing, No drops the edits and closes,
+// Yes applies them and closes. Leaving without edits asks nothing.
+func TestEditFolderLeavingWithEditsConfirmsTheActions(t *testing.T) {
 	h := editHarness(t)
 	h.keys("m")
 	h.key(tea.KeyEsc)
-	if v := h.view(); strings.Contains(v, "EDIT /") || strings.Contains(v, "Discard") {
+	if v := h.view(); strings.Contains(v, "EDIT /") || strings.Contains(v, "CONFIRM") {
 		t.Fatalf("no edits: Esc leaves at once:\n%s", v)
 	}
 
 	h.keys("m")
 	h.retype("bbb")
 	h.key(tea.KeyEsc)
-	if v := h.view(); !strings.Contains(v, "Discard 1 change?") {
-		t.Fatalf("Esc with edits must ask:\n%s", v)
+	v := h.view()
+	for _, want := range []string{"CONFIRM FILE SYSTEM ACTIONS", "rename aaa.md → bbb.md", "Cancel"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("Esc with edits must show %q:\n%s", want, v)
+		}
 	}
-	h.keys("n")
-	h.keys("=")
-	if v := h.view(); !strings.Contains(v, "rename aaa.md → bbb.md") {
-		t.Fatalf("No keeps the edits:\n%s", v)
+	if strings.Contains(v, "Discard") {
+		t.Fatalf("the old discard question is gone:\n%s", v)
 	}
+	h.key(tea.KeyEsc) // cancel
+	if v := h.view(); !strings.Contains(v, "EDIT /") || strings.Contains(v, "CONFIRM") {
+		t.Fatalf("cancel returns to the editor:\n%s", v)
+	}
+	h.keys("q")
 	h.keys("n")
-	h.key(tea.KeyEsc)
-	h.keys("y")
 	if v := h.view(); strings.Contains(v, "EDIT /") {
-		t.Fatalf("Yes leaves the editor:\n%s", v)
+		t.Fatalf("No closes the editor:\n%s", v)
 	}
 	if !h.exists("aaa.md") || h.exists("bbb.md") {
-		t.Fatal("discarding writes nothing")
+		t.Fatal("No writes nothing")
+	}
+
+	h.keys("m")
+	h.retype("bbb")
+	h.keys("q")
+	h.keys("y")
+	if !h.exists("bbb.md") || h.exists("aaa.md") {
+		t.Fatal("Yes must apply the rename")
+	}
+	if v := h.view(); strings.Contains(v, "EDIT /") {
+		t.Fatalf("Yes closes the editor:\n%s", v)
+	}
+}
+
+// Typing names one per line with Enter, as in mini.files: a name ending in
+// / is a folder, a/b is the nested path, exactly as n reads them.
+func TestEditFolderTypedLinesCreateFoldersAndPaths(t *testing.T) {
+	h := editHarness(t)
+	h.keys("m")
+	h.keys("Go")
+	h.keys("ideas/")
+	h.key(tea.KeyEnter)
+	h.keys("diario/hoy")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.keys("q")
+	v := h.view()
+	if !strings.Contains(v, "CONFIRM FILE SYSTEM ACTIONS") {
+		t.Fatalf("leaving must confirm the new lines:\n%s", v)
+	}
+	h.keys("y")
+	if fi, err := os.Stat(filepath.Join(h.store.Root(), "ideas")); err != nil || !fi.IsDir() {
+		t.Fatalf("ideas/ must be a folder: %v", err)
+	}
+	if !h.exists("diario/hoy.md") {
+		t.Fatal("diario/hoy must create the note hoy.md inside diario")
 	}
 }
 

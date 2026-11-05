@@ -159,7 +159,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // updateEdit handles a key of the folder editor: = and :w ask to apply,
-// Esc and :q leave, h and l walk folders and the rest edits the lines.
+// Esc, q and :q leave, h and l walk folders and the rest edits the lines.
 // While a name is typed every key is text.
 func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	k := key.String()
@@ -169,7 +169,7 @@ func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 			m.cmdOn = false
 			switch m.cmdLine {
 			case "w":
-				return m, m.applyEdits()
+				return m, m.applyEdits(false)
 			case "q":
 				return m, m.leaveEditing()
 			}
@@ -185,11 +185,11 @@ func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	if !m.edit.Editing() {
 		switch k {
 		case "=":
-			return m, m.applyEdits()
+			return m, m.applyEdits(false)
 		case ":":
 			m.cmdOn, m.cmdLine = true, ""
 			return m, nil
-		case "esc":
+		case "esc", "q":
 			return m, m.leaveEditing()
 		}
 	}
@@ -208,8 +208,9 @@ func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-// applyEdits asks the app to plan every visited folder's edited lines.
-func (m Model) applyEdits() tea.Cmd {
+// applyEdits asks the app to plan every visited folder's edited lines;
+// leave says the request comes from leaving the editor.
+func (m Model) applyEdits(leave bool) tea.Cmd {
 	var folders []dirplan.Folder
 	for _, id := range m.edit.Folders() {
 		f := dirplan.Folder{ID: id}
@@ -218,18 +219,17 @@ func (m Model) applyEdits() tea.Cmd {
 		}
 		folders = append(folders, f)
 	}
-	return func() tea.Msg { return EditApplyMsg{Folders: folders} }
+	return func() tea.Msg { return EditApplyMsg{Folders: folders, Leave: leave} }
 }
 
-// leaveEditing closes an editor without edits, and asks the app to
-// confirm when closing would drop some.
+// leaveEditing closes an editor without edits; with some it asks the app
+// for the same confirm as =, as mini.files does when it closes.
 func (m *Model) leaveEditing() tea.Cmd {
-	n := m.pendingChanges()
-	if n == 0 {
+	if m.pendingChanges() == 0 {
 		m.StopEditing()
 		return nil
 	}
-	return func() tea.Msg { return EditLeaveMsg{Changes: n} }
+	return m.applyEdits(true)
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {

@@ -182,14 +182,7 @@ func (b *Buffer) Update(msg tea.Msg) (Nav, tea.Cmd) {
 	case "l":
 		return NavChild, nil
 	case "o", "O":
-		b.before = slices.Clone(f.rows)
-		at := f.cursor
-		if key == "o" && len(f.rows) > 0 {
-			at++
-		}
-		f.rows = slices.Insert(f.rows, at, Row{})
-		f.cursor = at
-		return NavNone, b.start("", true)
+		return NavNone, b.openLine(key == "o")
 	case "i", "I":
 		return NavNone, b.edit(b.name(), true)
 	case "a", "A":
@@ -228,26 +221,58 @@ func (b *Buffer) start(value string, atStart bool) tea.Cmd {
 	return b.input.Focus()
 }
 
+// openLine inserts an empty line below the cursor (o) or above it (O) and
+// starts typing its name.
+func (b *Buffer) openLine(below bool) tea.Cmd {
+	f := b.f()
+	b.before = slices.Clone(f.rows)
+	at := f.cursor
+	if below && len(f.rows) > 0 {
+		at++
+	}
+	f.rows = slices.Insert(f.rows, at, Row{})
+	f.cursor = at
+	return b.start("", true)
+}
+
+// updateInput handles a key while a name is typed. Esc commits the line and
+// returns to normal; Enter commits it and opens a new line below, still
+// typing, as Vim and mini.files do. Enter on an empty new line keeps typing
+// on it, so no blank lines pile up.
 func (b *Buffer) updateInput(k tea.KeyMsg) tea.Cmd {
 	switch k.Type {
-	case tea.KeyEsc, tea.KeyEnter:
-		f := b.f()
-		b.editing = false
-		b.input.Blur()
-		f.rows[f.cursor].Name = b.input.Value()
-		if f.rows[f.cursor].Name == "" && f.rows[f.cursor].OrigID == "" {
-			f.rows = slices.Delete(f.rows, f.cursor, f.cursor+1)
-			b.clamp()
+	case tea.KeyEnter:
+		if b.input.Value() == "" && b.f().rows[b.f().cursor].OrigID == "" {
+			return nil
 		}
-		if !slices.Equal(b.before, f.rows) {
-			f.undo, f.redo = append(f.undo, b.before), nil
-		}
-		b.before = nil
+		b.commit()
+		return b.openLine(true)
+	case tea.KeyEsc:
+		b.commit()
 		return nil
 	}
 	var cmd tea.Cmd
 	b.input, cmd = b.input.Update(k)
 	return cmd
+}
+
+// commit ends typing: the line takes the typed name, an empty new line is
+// dropped (the cursor goes back to the line above it) and a change becomes
+// one undo step.
+func (b *Buffer) commit() {
+	f := b.f()
+	b.editing = false
+	b.input.Blur()
+	f.rows[f.cursor].Name = b.input.Value()
+	if f.rows[f.cursor].Name == "" && f.rows[f.cursor].OrigID == "" {
+		f.rows = slices.Delete(f.rows, f.cursor, f.cursor+1)
+		f.cursor--
+		b.clamp()
+	}
+	if !slices.Equal(b.before, f.rows) {
+		f.undo, f.redo = append(f.undo, b.before), nil
+	}
+	b.before = nil
 }
 
 func (b *Buffer) paste(above bool) {

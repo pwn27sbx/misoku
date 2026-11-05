@@ -276,11 +276,12 @@ func (m Model) IsBusy() bool { return m.renaming || m.creating || m.edit != nil 
 // EditApplyMsg asks to plan and apply the folder editor's edits: every
 // visited folder with its edited lines. The editor stays open until the
 // app calls StopEditing, so a refused plan or a No keeps the edits.
-type EditApplyMsg struct{ Folders []dirplan.Folder }
-
-// EditLeaveMsg asks to confirm leaving the folder editor, which would
-// drop Changes pending edits.
-type EditLeaveMsg struct{ Changes int }
+// Leave marks the request of leaving with edits (Esc or q), whose confirm
+// also closes the editor on No and offers a cancel that keeps editing.
+type EditApplyMsg struct {
+	Folders []dirplan.Folder
+	Leave   bool
+}
 
 // IsEditing reports whether the folder editor is open.
 func (m Model) IsEditing() bool { return m.edit != nil }

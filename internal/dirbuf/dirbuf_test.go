@@ -232,3 +232,39 @@ func TestRowsIsACopy(t *testing.T) {
 		t.Fatal("Rows() exposes internal state")
 	}
 }
+
+// Enter in insert commits the line and opens an empty one below, still in
+// insert, as Vim and mini.files do; Esc then drops the empty last line.
+func TestEnterOpensANewLineBelow(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "o")
+	keys(t, b, typed("x/")...)
+	keys(t, b, "enter")
+	if !b.Editing() {
+		t.Fatal("Enter must keep insert on a new line")
+	}
+	keys(t, b, typed("y")...)
+	keys(t, b, "enter", "esc")
+	if b.Editing() {
+		t.Fatal("Esc must return to normal")
+	}
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "x/", "y", "b", "c/"}) {
+		t.Fatalf("names = %v", got)
+	}
+	if r, _ := b.Current(); r.Name != "y" {
+		t.Fatalf("cursor on %q, want the last typed line y", r.Name)
+	}
+}
+
+// Enter on an empty new line keeps typing on it: no blank lines pile up.
+func TestEnterOnAnEmptyNewLineStays(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "o", "enter", "enter")
+	if !b.Editing() {
+		t.Fatal("Enter must keep insert")
+	}
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
+		t.Fatalf("names = %v", got)
+	}
+}
