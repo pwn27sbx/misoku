@@ -36,8 +36,12 @@ func (m Model) View() string {
 	}
 
 	m.textarea.LineColors = nil
+	m.textarea.RenderLine = nil
 	if !m.dimmed {
 		m.textarea.LineColors = m.hl.colors(m)
+		if m.live {
+			m.textarea.RenderLine = m.lv.renderLine(m, m.textarea.LineColors)
+		}
 	}
 	return ui.Fit(m.textarea.View(), m.width, m.height, plain)
 }

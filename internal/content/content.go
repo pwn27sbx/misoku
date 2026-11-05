@@ -30,8 +30,10 @@ type Model struct {
 	mode     VimMode
 	pending  string // first key of a two-key Vim command ("g", "d")
 	slash    *slashMenu
-	hl       *hlCache // shared across copies so View can memoise
-	hist     *History // the shown tab's undo history (SetHistory)
+	hl       *hlCache   // shared across copies so View can memoise
+	lv       *liveCache // the live view's memo, shared like hl
+	live     bool       // the live view is on; see SetLive
+	hist     *History   // the shown tab's undo history (SetHistory)
 	copies   *atomic.Int64
 	dragging bool
 	dragRow  int
@@ -66,6 +68,7 @@ func New(th theme.Theme) Model {
 		cmdInput: createCommandInput(th),
 		mode:     ModeNormal,
 		hl:       &hlCache{},
+		lv:       &liveCache{},
 		hist:     NewHistory(),
 		copies:   &atomic.Int64{},
 	}
