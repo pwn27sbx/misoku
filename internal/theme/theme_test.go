@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
@@ -284,5 +288,123 @@ func TestUserThemesPathExpandsTilde(t *testing.T) {
 	}
 	if _, ok := theme.Get("tilde"); !ok {
 		t.Error("expected theme to load from a ~-prefixed path")
+	}
+}
+
+// distinctPalette gives bg, darker_bg and status_bg hexes that no other
+// shade shares, so assertions on the transparent fields cannot pass by
+// accident through Bg2, OneBg*, LightBg or DarkFg.
+func distinctPalette() map[string]any {
+	p := dict(validPalette)
+	p["darker_bg"] = "#0a0b0c"
+	p["bg"] = "#101112"
+	p["status_bg"] = "#131415"
+	p["bg2"] = "#1b1c1d"
+	p["one_bg"] = "#232425"
+	p["one_bg2"] = "#2b2c2d"
+	p["one_bg3"] = "#333435"
+	p["light_bg"] = "#3b3c3d"
+	return p
+}
+
+// loadDistinct installs distinctPalette as the user theme "distinct" and
+// returns it.
+func loadDistinct(t *testing.T) theme.Theme {
+	t.Helper()
+	dir := t.TempDir()
+	t.Cleanup(theme.SetUserThemesDirForTest(func() string { return dir }))
+	writePalette(t, dir, "distinct.json", distinctPalette())
+	th, ok := theme.Get("distinct")
+	if !ok {
+		t.Fatal("distinct theme not loaded")
+	}
+	return th
+}
+
+func TestGetSetsBaseAndPopupBg(t *testing.T) {
+	th := loadDistinct(t)
+	if th.Base != "#101112" {
+		t.Errorf("Base = %q, want the palette bg #101112", th.Base)
+	}
+	if th.PopupBg != "#0a0b0c" {
+		t.Errorf("PopupBg = %q, want the palette darker_bg #0a0b0c", th.PopupBg)
+	}
+	if th.Bg != th.Base || th.DarkerBg != th.PopupBg {
+		t.Errorf("opaque theme: Bg/DarkerBg must equal Base/PopupBg, got %q/%q vs %q/%q",
+			th.Bg, th.DarkerBg, th.Base, th.PopupBg)
+	}
+	def := theme.DefaultTheme()
+	if def.Base == "" || def.Base != def.Bg || def.PopupBg != def.DarkerBg {
+		t.Errorf("bundled default: Base/PopupBg must mirror Bg/DarkerBg, got %+v", def)
+	}
+}
+
+func TestTransparentClearsOnlyTheLargeFills(t *testing.T) {
+	th := loadDistinct(t)
+	tr := th.Transparent()
+	for name, got := range map[string]lipgloss.Color{
+		"Bg": tr.Bg, "DarkerBg": tr.DarkerBg, "StatusBg": tr.StatusBg,
+	} {
+		if got != "" {
+			t.Errorf("Transparent().%s = %q, want empty", name, got)
+		}
+	}
+	for name, pair := range map[string][2]lipgloss.Color{
+		"Base":       {tr.Base, "#101112"},
+		"PopupBg":    {tr.PopupBg, "#0a0b0c"},
+		"DarkFg":     {tr.DarkFg, "#101112"},
+		"Bg2":        {tr.Bg2, "#1b1c1d"},
+		"OneBg":      {tr.OneBg, "#232425"},
+		"OneBg2":     {tr.OneBg2, "#2b2c2d"},
+		"OneBg3":     {tr.OneBg3, "#333435"},
+		"LightBg":    {tr.LightBg, "#3b3c3d"},
+		"Fg":         {tr.Fg, "#ffffff"},
+		"Blue":       {tr.Blue, "#0088ff"},
+		"SelectedBg": {tr.SelectedBg, "#232425"},
+	} {
+		if pair[0] != pair[1] {
+			t.Errorf("Transparent().%s = %q, want %q", name, pair[0], pair[1])
+		}
+	}
+	// Everything except the three cleared fields is unchanged.
+	want := th
+	want.Bg, want.DarkerBg, want.StatusBg = "", "", ""
+	if tr != want {
+		t.Errorf("Transparent() changed more than Bg, DarkerBg and StatusBg:\n got %+v\nwant %+v", tr, want)
+	}
+	// The receiver is a value: the original stays opaque.
+	if th.Bg != "#101112" || th.DarkerBg != "#0a0b0c" || th.StatusBg != "#131415" {
+		t.Errorf("Transparent() mutated its receiver: %+v", th)
+	}
+}
+
+func TestGreyedKeepsTransparency(t *testing.T) {
+	g := loadDistinct(t).Transparent().Greyed()
+	if g.Bg != "" || g.DarkerBg != "" || g.StatusBg != "" {
+		t.Errorf("Greyed() of a transparent theme repainted a fill: %q %q %q", g.Bg, g.DarkerBg, g.StatusBg)
+	}
+	if g.Base != "#101112" || g.PopupBg != "#0a0b0c" {
+		t.Errorf("Greyed() lost Base/PopupBg: %q %q", g.Base, g.PopupBg)
+	}
+}
+
+// TestEmptyColorEmitsNoBackground pins the lipgloss/termenv behaviour that
+// Transparent relies on: an empty Color adds no background SGR at all.
+func TestEmptyColorEmitsNoBackground(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+
+	tr := loadDistinct(t).Transparent()
+	out := lipgloss.NewStyle().Foreground(tr.Fg).Background(tr.Bg).Render("x")
+	if strings.Contains(out, "48;") {
+		t.Errorf("empty background emitted a bg SGR: %q", out)
+	}
+	if !strings.Contains(out, "38;2;255;255;255") {
+		t.Errorf("foreground SGR missing, so the check above proves nothing: %q", out)
+	}
+	opaque := lipgloss.NewStyle().Background(tr.Base).Render("x")
+	if !strings.Contains(opaque, "48;2;16;17;18") {
+		t.Errorf("Base must still paint its background: %q", opaque)
 	}
 }
