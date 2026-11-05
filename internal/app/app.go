@@ -276,6 +276,7 @@ func (m *Model) updateLayout() {
 	m.dashboard.SetSize(m.width, max(m.height-footerHeight, 1))
 	m.sidebar.SetSize(m.explorerW(l), l.BodyH)
 	m.content.SetSize(l.EditorW, l.BodyH)
+	m.content.SetMargin(m.editorMargin(l))
 	m.preview.SetSize(l.PreviewW, l.BodyH)
 	m.graph.SetSize(l.EditorW, l.BodyH)
 	m.globalGraph.SetSize(l.EditorW, l.BodyH)
@@ -411,6 +412,16 @@ func (m *Model) togglePreview() tea.Cmd {
 		return m.focusPane(focusEditor)
 	}
 	return nil
+}
+
+// editorMargin is the editor's blank columns each side of the text: the
+// preview's page margins in reading mode, where the editor stands in for
+// the preview, and none in the split.
+func (m *Model) editorMargin(l Layout) int {
+	if !m.reading {
+		return 0
+	}
+	return preview.PageMargin(l.EditorW)
 }
 
 // toggleReading is Space r: show only the editor at full width, drawn live

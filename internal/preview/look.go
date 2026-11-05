@@ -84,3 +84,8 @@ func isHex(s string) bool {
 	_, err := strconv.ParseUint(s[1:], 16, 32)
 	return err == nil
 }
+
+// PageMargin is the blank column count each side of the preview's text in a
+// pane w columns wide. Other panes that draw a note as a page (the editor in
+// reading mode) use it to match the preview's margins and centring.
+func PageMargin(w int) int { return pageMargin(w) }

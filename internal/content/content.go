@@ -5,6 +5,7 @@ package content
 import (
 	"context"
 	"regexp"
+	"strings"
 	"sync/atomic"
 
 	"github.com/pwn27sbx/misoku/internal/core"
@@ -43,6 +44,7 @@ type Model struct {
 	readImage  func(context.Context) (core.ClipboardImageMsg, bool, error)
 	width      int
 	height     int
+	margin     int // blank columns each side of the text; see SetMargin
 	focused    bool
 	dimmed     bool // greyed out while another pane has the focus
 	realCursor bool // the terminal draws the cursor; see SetRealCursor
@@ -107,8 +109,30 @@ func (m Model) Init() tea.Cmd {
 func (m *Model) SetSize(w, h int) {
 	m.width = max(w, 0)
 	m.height = max(h, 0)
-	m.textarea.SetWidth(max(w-1, 10))
+	m.fitText()
 	m.textarea.SetHeight(max(h, 1))
+}
+
+// SetMargin leaves n blank columns each side of the text, as the preview
+// does around its page; 0, the default, lets the text fill the pane. The
+// left margin is the textarea's prompt, so clicks and the cursor keep
+// lining up with the text.
+func (m *Model) SetMargin(n int) {
+	m.margin = max(n, 0)
+	m.textarea.Prompt = strings.Repeat(" ", m.margin)
+	m.fitText()
+}
+
+// fitText sizes the textarea to the pane: the full width less one column
+// for the cursor past the line's end, or less the right margin, which
+// leaves room for it already. Call it after changing the prompt or the
+// line numbers, which the textarea's width depends on.
+func (m *Model) fitText() {
+	w := m.width - 1
+	if m.margin > 0 {
+		w = m.width - m.margin
+	}
+	m.textarea.SetWidth(max(w, 10))
 }
 
 // SetPage loads a document into the editor. draft marks an unsaved buffer

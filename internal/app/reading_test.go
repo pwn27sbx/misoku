@@ -269,3 +269,74 @@ func TestHelpListsReadingMode(t *testing.T) {
 		t.Fatalf("the help should list reading mode:\n%s", v)
 	}
 }
+
+// textAt returns the screen cell of the leftmost text on screen, and the
+// first column of the pane holding it (just past the explorer's divider).
+func textAt(t *testing.T, v, text string) (x, y, paneX int) {
+	t.Helper()
+	for y, row := range strings.Split(v, "\n") {
+		r := []rune(row)
+		i := strings.Index(row, text)
+		if i < 0 {
+			continue
+		}
+		x = len([]rune(row[:i]))
+		for c := x - 1; c >= 0; c-- {
+			if r[c] == '│' {
+				return x, y, c + 1
+			}
+		}
+		return x, y, 0
+	}
+	t.Fatalf("%q not on screen:\n%s", text, v)
+	return 0, 0, 0
+}
+
+// clickInsert clicks the fourth cell of the on-screen "intro" and types X
+// there, returning the note's text.
+func clickInsert(t *testing.T, h *harness) string {
+	t.Helper()
+	x, y, _ := textAt(t, h.view(), "intro")
+	h.click(x+3, y)
+	h.keys("iX")
+	h.key(tea.KeyEsc)
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+	got, _ := h.store.Get("doc.md")
+	return got.Content
+}
+
+func TestReadingModeHasThePreviewMargins(t *testing.T) {
+	long := strings.Repeat("word ", 60)
+	h := openNoteWith(t, "intro\n"+long)
+	h.keys(" r")
+	v := h.view()
+	x, _, paneX := textAt(t, v, "intro")
+	paneW := termW - paneX
+	margin := preview.PageMargin(paneW)
+	if margin == 0 || x != paneX+margin {
+		t.Fatalf("reading text starts at column %d, want %d (pane at %d, margin %d):\n%s", x, paneX+margin, paneX, margin, v)
+	}
+	for _, row := range strings.Split(v, "\n") {
+		if !strings.Contains(row, "word word") { // not the statusline's word count
+			continue
+		}
+		r := []rune(strings.TrimRight(row, " "))
+		if end := len(r); end > termW-margin {
+			t.Fatalf("reading text runs to column %d, past the right margin at %d:\n%s", end, termW-margin, v)
+		}
+	}
+	if got := clickInsert(t, h); !strings.HasPrefix(got, "intXro\n") {
+		t.Fatalf("a click in reading mode should land on the text under it, got %q", got)
+	}
+}
+
+func TestSplitEditorKeepsItsColumns(t *testing.T) {
+	h := openNoteWith(t, "intro\n# Heading")
+	x, _, paneX := textAt(t, h.view(), "intro")
+	if x != paneX+6 { // the line-number gutter, no margin
+		t.Fatalf("split editor text at column %d, want %d", x, paneX+6)
+	}
+	if got := clickInsert(t, h); !strings.HasPrefix(got, "intXro\n") {
+		t.Fatalf("a click in the split editor should land on the text under it, got %q", got)
+	}
+}

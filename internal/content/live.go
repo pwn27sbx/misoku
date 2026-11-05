@@ -34,7 +34,7 @@ func (m *Model) SetLive(on bool) {
 	m.live = on
 	m.textarea.ShowLineNumbers = !on
 	// The text width depends on the line-number column: recompute it.
-	m.textarea.SetWidth(max(m.width-1, 10))
+	m.fitText()
 }
 
 // Live reports whether the live view is on.
