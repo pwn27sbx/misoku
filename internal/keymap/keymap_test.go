@@ -15,14 +15,15 @@ func TestDefaultsAreTodaysShortcuts(t *testing.T) {
 		t.Fatalf("defaults must not warn: %v", warnings)
 	}
 	cases := map[string][]string{
-		keymap.ToggleExplorer: {"ctrl+b"},
-		keymap.Save:           {"ctrl+s", "space w"},
-		keymap.CloseTab:       {"space x"},
-		keymap.ExplorerDelete: {"d", "x", "delete"},
-		keymap.ExportPDF:      {"space P"},
-		keymap.ReadingMode:    {"space r"},
-		keymap.Graph:          {"space g"},
-		keymap.GlobalGraph:    {"space G"},
+		keymap.ToggleExplorer:      {"ctrl+b"},
+		keymap.Save:                {"ctrl+s", "space w"},
+		keymap.CloseTab:            {"space x"},
+		keymap.ExplorerDelete:      {"d", "x", "delete"},
+		keymap.ExportPDF:           {"space P"},
+		keymap.ReadingMode:         {"space r"},
+		keymap.Graph:               {"space g"},
+		keymap.GlobalGraph:         {"space G"},
+		keymap.ExplorerFileManager: {"M"},
 	}
 	for action, want := range cases {
 		if got := m.Keys(action); !reflect.DeepEqual(got, want) {

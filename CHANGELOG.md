@@ -8,6 +8,11 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **mini.files from the explorer**: `M` (`explorer.file_manager`) opens Neovim's mini.files on the vault folder,
+  with your Neovim configuration (LazyVim's options too), deletes to mini.files' trash and dot files hidden. Closing
+  it (`q`) quits Neovim and Misoku re-reads the folder at once, so what you created, renamed or moved there shows
+  right away. Without `nvim` on `PATH`, or without mini.files in Neovim, nothing runs and the status bar says why.
+
 - **New notes and folders by name** in the explorer, like LazyVim's mini.files: `n` opens a name line under the
   selected folder. `test` makes a note, `test/` a folder and `ideas/test` both, after a `CREATE ideas/test.md`
   confirmation (`y` or Enter creates, `n` or Esc cancels). The folders on the path open in the explorer, a new note

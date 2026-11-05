@@ -221,6 +221,7 @@ never use `notes_dir`.
 - **Reading mode** (`space r`): hide the editor and read the note in the preview at full width; the statusline says READING.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
+- **Use mini.files**: `M` in the explorer hands the screen to Neovim's [mini.files](https://github.com/nvim-mini/mini.files) on the vault folder, with your own Neovim setup (LazyVim's included). Deleting there goes to mini.files' trash, not for good, and dot files stay hidden. Closing it (`q`) returns to Misoku, which re-reads the folder at once. It needs `nvim` on `PATH` and mini.files installed (the plugin, or the LazyVim extra `editor.mini-files`); without them the status bar says what is missing.
 - **Open notes stay in sync with the disk**: a note changed by another program reloads in place (the cursor stays put). If you have unsaved edits it is left alone and you are told; saving then keeps both versions: yours in the note, the one on disk in a conflict copy next to it (`note (conflict 2026-10-16 0905).md`), and the status bar says `Both kept: …` with the copy's name. Nothing is asked and nothing is lost.
 - **Open notes deleted or renamed elsewhere are kept**: the tab stays open with its text and you are warned once; saving asks before recreating the note at its old path, so a rename is never silently duplicated.
 - **Safe by default**: notes are saved atomically (a crash mid-save never leaves half a file), and deleting moves them to the Trash on macOS and Linux (Windows still deletes for good).
@@ -379,6 +380,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `explorer.rename` | `r`, `e` | Rename |
 | `explorer.delete` | `d`, `x`, `delete` | Delete (asks first) |
 | `explorer.find` | `\`, `f` | Find note |
+| `explorer.file_manager` | `M` | Open the vault in Neovim's mini.files |
 
 ## Look
 

@@ -11,6 +11,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/globalgraph"
 	"github.com/pwn27sbx/misoku/internal/graph"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 
@@ -264,7 +265,16 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.newDraft(m.sidebar.ContextParentID())
 	case tea.MouseMsg:
 		return m, m.handleMouse(msg)
+	case fileManagerDoneMsg:
+		m.fileManagerDone(msg)
+		return m, nil
 	case tea.KeyMsg:
+		// M in the explorer hands the screen to Neovim's mini.files; the
+		// sidebar has no say in it, so it is caught here.
+		if m.focus == focusSidebar && m.viewMode != viewModeDashboard && !m.leaderPending &&
+			!m.sidebar.IsBusy() && m.keys.Direct(keymap.ExplorerFileManager, msg.String()) {
+			return m, m.openFileManager()
+		}
 		return m, m.handleKey(msg)
 	}
 

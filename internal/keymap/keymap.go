@@ -56,6 +56,7 @@ const (
 	ExplorerNewNote     = "explorer.new_note"
 	ExplorerNewSubNote  = "explorer.new_sub_note"
 	ExplorerDelete      = "explorer.delete"
+	ExplorerFileManager = "explorer.file_manager"
 )
 
 // leader starts a two-key sequence ("space e").
@@ -168,6 +169,8 @@ var Actions = []Info{
 		Long: "In the explorer, deletes the selected note or folder after asking to confirm.", defaults: []string{"d", "x", "delete"}},
 	{Action: ExplorerFind, Section: "explorer", Help: "Find note",
 		Long: "In the explorer, opens the note finder, the same one as Find note.", defaults: []string{"\\", "f"}},
+	{Action: ExplorerFileManager, Section: "explorer", Help: "Open the vault in Neovim's mini.files",
+		Long: "In the explorer, hands the screen to Neovim's mini.files on the vault folder; closing it (q) returns to Misoku, which re-reads the folder at once.", defaults: []string{"M"}},
 }
 
 // HelpText returns the help-screen description of action.
