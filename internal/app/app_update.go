@@ -57,6 +57,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.askRelinks(msg)
 		return m, nil
 	case relinksAppliedMsg:
+		m.closeEditorAfter(msg)
 		m.finishRelinks(msg)
 		return m, nil
 	case SyncNowMsg, core.SyncMsg:
@@ -255,6 +256,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.newDraft(msg.Page.ParentID)
 	case sidebar.CreateRequestMsg:
 		return m, m.requestCreate(msg.ParentID, msg.Name)
+	case sidebar.EditApplyMsg:
+		return m, m.requestDirPlan(msg.Folders)
+	case sidebar.EditLeaveMsg:
+		m.confirmLeaveEditor(msg)
+		return m, nil
 	case core.PageUpdatedMsg:
 		return m, m.renamePage(msg.Page.ID, msg.Page.Title)
 	case core.PageDeletedMsg:

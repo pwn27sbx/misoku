@@ -1,10 +1,12 @@
 package sidebar
 
 import (
-	"github.com/pwn27sbx/misoku/internal/keymap"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/dirbuf"
+	"github.com/pwn27sbx/misoku/internal/dirplan"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -19,6 +21,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	key, isKey := msg.(tea.KeyMsg)
 
+	if m.edit != nil {
+		if isKey {
+			return m.updateEdit(key)
+		}
+		return m, nil
+	}
 	if m.renaming {
 		if isKey {
 			switch key.String() {
@@ -126,6 +134,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case is(keymap.ExplorerCollapseAll):
 		m.expanded = map[string]bool{}
 
+	case is(keymap.ExplorerEditFolder):
+		m.StartEditing()
+		return m, nil
 	case is(keymap.ExplorerRename):
 		return m, m.StartRenaming()
 	case is(keymap.ExplorerNewNote):
@@ -147,6 +158,80 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateEdit handles a key of the folder editor: = and :w ask to apply,
+// Esc and :q leave, h and l walk folders and the rest edits the lines.
+// While a name is typed every key is text.
+func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
+	k := key.String()
+	if m.cmdOn {
+		switch {
+		case k == "enter":
+			m.cmdOn = false
+			switch m.cmdLine {
+			case "w":
+				return m, m.applyEdits()
+			case "q":
+				return m, m.leaveEditing()
+			}
+		case k == "esc" || k == "backspace" && m.cmdLine == "":
+			m.cmdOn = false
+		case k == "backspace":
+			m.cmdLine = m.cmdLine[:len(m.cmdLine)-1]
+		case key.Type == tea.KeyRunes:
+			m.cmdLine += string(key.Runes)
+		}
+		return m, nil
+	}
+	if !m.edit.Editing() {
+		switch k {
+		case "=":
+			return m, m.applyEdits()
+		case ":":
+			m.cmdOn, m.cmdLine = true, ""
+			return m, nil
+		case "esc":
+			return m, m.leaveEditing()
+		}
+	}
+	nav, cmd := m.edit.Update(key)
+	switch nav {
+	case dirbuf.NavParent:
+		if p, ok := m.byID[m.edit.Folder()]; ok {
+			m.edit.Open(p.ParentID, m.folderRows(p.ParentID))
+		}
+	case dirbuf.NavChild:
+		r, _ := m.edit.Current()
+		if p, ok := m.byID[r.OrigID]; ok && (p.IsFolder || len(m.folderRows(p.ID)) > 0) {
+			m.edit.Open(p.ID, m.folderRows(p.ID))
+		}
+	}
+	return m, cmd
+}
+
+// applyEdits asks the app to plan every visited folder's edited lines.
+func (m Model) applyEdits() tea.Cmd {
+	var folders []dirplan.Folder
+	for _, id := range m.edit.Folders() {
+		f := dirplan.Folder{ID: id}
+		for _, r := range m.edit.Edited(id) {
+			f.Rows = append(f.Rows, dirplan.Row{OrigID: r.OrigID, Name: r.Name})
+		}
+		folders = append(folders, f)
+	}
+	return func() tea.Msg { return EditApplyMsg{Folders: folders} }
+}
+
+// leaveEditing closes an editor without edits, and asks the app to
+// confirm when closing would drop some.
+func (m *Model) leaveEditing() tea.Cmd {
+	n := m.pendingChanges()
+	if n == 0 {
+		m.StopEditing()
+		return nil
+	}
+	return func() tea.Msg { return EditLeaveMsg{Changes: n} }
+}
+
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
@@ -158,6 +243,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil
+	}
+	if m.edit != nil {
+		return m, nil // the folder editor's rows are not the tree's
 	}
 	if msg.Y == findRow {
 		return m, findCmd

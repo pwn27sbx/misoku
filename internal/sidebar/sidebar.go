@@ -2,9 +2,13 @@
 package sidebar
 
 import (
+	"path"
+	"slices"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/dirbuf"
+	"github.com/pwn27sbx/misoku/internal/dirplan"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
@@ -45,6 +49,9 @@ type Model struct {
 	creating    bool            // the name line of a new note or folder is open
 	newParent   string          // where the new entry goes, see StartCreating
 	renameInput textinput.Model // also the new entry's name line
+	edit        *dirbuf.Buffer  // the folder editor (m), nil when closed
+	cmdOn       bool            // the editor's : command line is open
+	cmdLine     string          // what was typed after :
 	workspace   string
 	activeID    string
 	modified    map[string]bool
@@ -262,9 +269,70 @@ func (m *Model) SetFocused(focused bool) {
 // IsRenaming returns whether inline renaming is active.
 func (m Model) IsRenaming() bool { return m.renaming }
 
-// IsBusy reports whether the explorer is capturing typed text (renaming, or
-// naming a new entry).
-func (m Model) IsBusy() bool { return m.renaming || m.creating }
+// IsBusy reports whether the explorer is capturing typed text (renaming,
+// naming a new entry, or the folder editor).
+func (m Model) IsBusy() bool { return m.renaming || m.creating || m.edit != nil }
+
+// EditApplyMsg asks to plan and apply the folder editor's edits: every
+// visited folder with its edited lines. The editor stays open until the
+// app calls StopEditing, so a refused plan or a No keeps the edits.
+type EditApplyMsg struct{ Folders []dirplan.Folder }
+
+// EditLeaveMsg asks to confirm leaving the folder editor, which would
+// drop Changes pending edits.
+type EditLeaveMsg struct{ Changes int }
+
+// IsEditing reports whether the folder editor is open.
+func (m Model) IsEditing() bool { return m.edit != nil }
+
+// StartEditing opens the folder editor on the context folder
+// (ContextParentID), mini.files style: one folder as editable lines.
+func (m *Model) StartEditing() {
+	id := m.ContextParentID()
+	m.edit, m.cmdOn = dirbuf.New(id, m.folderRows(id)), false
+}
+
+// StopEditing closes the folder editor, dropping its pending edits.
+func (m *Model) StopEditing() { m.edit, m.cmdOn = nil, false }
+
+// folderRows are the lines the editor shows for folder id: each entry's
+// file name, without .md for a note and with a trailing / for a folder.
+func (m Model) folderRows(id string) []dirbuf.Row {
+	var rows []dirbuf.Row
+	for _, p := range m.pages {
+		if p.ParentID != id {
+			continue
+		}
+		name := strings.TrimSuffix(path.Base(p.ID), ".md")
+		if p.IsFolder {
+			name += "/"
+		}
+		rows = append(rows, dirbuf.Row{OrigID: p.ID, Name: name})
+	}
+	return rows
+}
+
+// pendingChanges counts the editor's edits: lines new or changed in a
+// folder, plus entries gone from the folder they were in.
+func (m Model) pendingChanges() int {
+	n := 0
+	for _, id := range m.edit.Folders() {
+		orig, rows := m.edit.Original(id), m.edit.Edited(id)
+		kept := map[string]bool{}
+		for _, r := range rows {
+			kept[r.OrigID] = true
+			if !slices.Contains(orig, r) {
+				n++
+			}
+		}
+		for _, r := range orig {
+			if !kept[r.OrigID] {
+				n++
+			}
+		}
+	}
+	return n
+}
 
 // SelectedPage returns the currently selected page item safely.
 func (m Model) SelectedPage() (core.Page, bool) {

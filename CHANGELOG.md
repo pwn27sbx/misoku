@@ -8,6 +8,12 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **Edit a folder like mini.files, natively**: `m` in the explorer opens the selected folder as editable lines.
+  New lines create notes and folders, edited names rename, `dd` deletes, `dd` then `p` in another folder (`h`/`l`)
+  moves, `u`/`ctrl+r` undo and redo. `=` or `:w` shows "CONFIRM FILE SYSTEM ACTIONS" with every action and the
+  links it updates, and applies them in one batch after Yes; tabs and links follow. Leaving with edits asks
+  "Discard N changes?". `M` still opens Neovim's mini.files.
+
 - **`misoku tutor`**, a game to learn Markdown and Misoku: a tutorial vault of its own, next to `config.json`,
   with an index and seven levels in Spanish (headings, checkboxes, the `/` block menu, links, links to headings,
   block references and the explorer). Each level is checked live as you edit its note, ignoring code: a passed

@@ -63,6 +63,7 @@ const (
 	ExplorerNewSubNote  = "explorer.new_sub_note"
 	ExplorerDelete      = "explorer.delete"
 	ExplorerFileManager = "explorer.file_manager"
+	ExplorerEditFolder  = "explorer.edit_folder"
 )
 
 // leader starts a sequence of one or two more keys ("space e", "space o c").
@@ -193,6 +194,8 @@ var Actions = []Info{
 		Long: "In the explorer, opens the note finder, the same one as Find note.", defaults: []string{"\\", "f"}},
 	{Action: ExplorerFileManager, Section: "explorer", Help: "Open the vault in Neovim's mini.files",
 		Long: "In the explorer, hands the screen to Neovim's mini.files on the vault folder; closing it (q) returns to Misoku, which re-reads the folder at once.", defaults: []string{"M"}},
+	{Action: ExplorerEditFolder, Section: "explorer", Help: "Edit the folder like text (mini.files)",
+		Long: "In the explorer, shows the selected folder as editable lines: type a line to create, edit a name to rename, dd to delete, dd then p in another folder (h/l) to move, u to undo; = or :w lists the actions and applies them after Yes. Esc leaves, asking first when there are edits.", defaults: []string{"m"}},
 }
 
 // HelpText returns the help-screen description of action.

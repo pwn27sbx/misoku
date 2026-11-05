@@ -41,6 +41,10 @@ func (m Model) View() string {
 	bg := lipgloss.NewStyle().Background(th.DarkerBg)
 	w := m.width
 
+	if m.edit != nil {
+		return m.editView(bg)
+	}
+
 	var rows []string
 
 	// 1. Workspace title.
@@ -78,6 +82,46 @@ func (m Model) View() string {
 	}
 
 	return ui.Fit(strings.Join(rows, "\n"), w, m.height, bg)
+}
+
+// editView draws the folder editor: the folder's path, how to apply or
+// leave, its lines with the selected one (or the name being typed)
+// highlighted, and the : command line while it is open.
+func (m Model) editView(bg lipgloss.Style) string {
+	th, w := m.theme, m.width
+	folder := "/"
+	if id := m.edit.Folder(); id != "" {
+		folder = strings.TrimSuffix(id, ".md") + "/"
+	}
+	title := bg.Foreground(th.Blue).Bold(true).Render(" 󰉖 EDIT " + ui.Truncate(folder, w-9))
+	hint := bg.Foreground(th.GreyFg).Render(" " + ui.Truncate("= apply · esc leave", w-2))
+	out := []string{ui.FitLine(title, w, bg), ui.FitLine(hint, w, bg), ""}
+
+	h := max(m.height-len(out)-1, 1)
+	lines, cur := m.edit.Rows(), m.edit.Cursor()
+	if len(lines) == 0 && !m.edit.Editing() {
+		out = append(out, bg.Foreground(th.GreyFg).Italic(true).Render("  "+ui.Truncate("Empty — o adds a line", w-3)))
+	}
+	for i := max(0, cur-h+1); i < len(lines) && len(out) < h+3; i++ {
+		base := bg
+		if i == cur {
+			base = lipgloss.NewStyle().Background(th.OneBg2)
+		}
+		icon, style := markdownIcon, base.Foreground(th.NordBlue)
+		if strings.HasSuffix(lines[i].Name, "/") {
+			icon, style = folderClosed, base.Foreground(th.Folder)
+		}
+		text := base.Foreground(th.Fg).Render(ui.Truncate(lines[i].Name, max(w-5, 1)))
+		if i == cur && m.edit.Editing() {
+			text = m.edit.InputView()
+		}
+		out = append(out, ui.FitLine(base.Render("  ")+style.Render(icon)+text, w, base))
+	}
+	body := strings.Join(out, "\n")
+	if m.cmdOn {
+		body = ui.Fit(body, w, m.height-1, bg) + "\n" + ui.FitLine(bg.Foreground(th.Fg).Render(":"+m.cmdLine), w, bg)
+	}
+	return ui.Fit(body, w, m.height, bg)
 }
 
 // newEntryRow is where the new entry's name line goes: just below its
