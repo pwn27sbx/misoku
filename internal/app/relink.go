@@ -39,23 +39,28 @@ type relinksAppliedMsg struct {
 // moves put them.
 func (m *Model) planRelinks(job relinkJob) tea.Cmd {
 	store := m.store
-	return func() tea.Msg {
-		newID := map[string]string{}
-		for _, mv := range core.ExpandMoves(job.before, job.moves) {
-			newID[mv.From] = mv.To
-		}
-		content := map[string]string{}
-		for _, p := range job.before {
-			id := p.ID
-			if to, ok := newID[id]; ok {
-				id = to
-			}
-			if got, err := store.Get(id); err == nil && !got.IsFolder {
-				content[p.ID] = got.Content
-			}
-		}
-		return relinksPlannedMsg{job: job, relinks: core.PlanRelinks(job.before, job.moves, content)}
+	return func() tea.Msg { return planRelinksIn(store, job) }
+}
+
+// planRelinksIn is planRelinks' work, for a caller already off the update
+// loop (the mini.files callback): it reads the notes where the moves put
+// them.
+func planRelinksIn(store *core.Store, job relinkJob) relinksPlannedMsg {
+	newID := map[string]string{}
+	for _, mv := range core.ExpandMoves(job.before, job.moves) {
+		newID[mv.From] = mv.To
 	}
+	content := map[string]string{}
+	for _, p := range job.before {
+		id := p.ID
+		if to, ok := newID[id]; ok {
+			id = to
+		}
+		if got, err := store.Get(id); err == nil && !got.IsFolder {
+			content[p.ID] = got.Content
+		}
+	}
+	return relinksPlannedMsg{job: job, relinks: core.PlanRelinks(job.before, job.moves, content)}
 }
 
 // askRelinks asks before rewriting links in other notes (Q1); a rename no

@@ -627,6 +627,26 @@ func (m *Model) remapBuffers(oldID, newID string) {
 	}
 }
 
+// followMoves renames the tabs of notes moved on disk outside Misoku's own
+// rename (mini.files) and, when the active tab moved, shows it under its
+// new ID with its unsaved text, as renamePage does around its own remap.
+func (m *Model) followMoves(moves []core.Move) {
+	if len(moves) == 0 {
+		return
+	}
+	m.stashActive() // the editor's unsaved text goes with the tab
+	activeBefore := m.active
+	for _, mv := range moves {
+		m.remapBuffers(mv.From, mv.To)
+	}
+	if b := m.activeBuffer(); b != nil && m.active != activeBefore {
+		m.content.SetBuffer(b.page(), false)
+		m.preview.SetBaseDir(m.noteDir(b))
+		m.preview.SetPage(b.page())
+		m.sidebar.SetActiveID(b.id)
+	}
+}
+
 // dropBuffersUnder closes (without prompting) tabs for a deleted file or folder.
 func (m *Model) dropBuffersUnder(id string) {
 	prefix := strings.TrimSuffix(id, ".md") + "/"

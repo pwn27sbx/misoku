@@ -18,13 +18,19 @@ import (
 // With LazyVim, mini.files is a lazy-loaded plugin while mini.nvim's own copy
 // is already on the runtime path: lazy.load runs first so require returns
 // the copy LazyVim configured. Without mini.files at all Neovim exits with
-// code 3. The options given to open apply to this session only.
+// code 3. The options given to open apply to this session only. Every
+// MiniFilesAction* event is appended to $MISOKU_ACTIONS as one JSON line
+// ({action, from, to}), read back by readFileManagerMoves.
 const miniFilesLua = "lua " +
 	"pcall(function() require('lazy').load({ plugins = { 'mini.files' } }) end); " +
 	"local ok, MF = pcall(require, 'mini.files'); " +
 	"if not ok then vim.cmd('cquit 3') return end; " +
 	"vim.api.nvim_create_autocmd('User', { pattern = 'MiniFilesExplorerClose', " +
 	"callback = function() vim.schedule(function() vim.cmd('qa') end) end }); " +
+	"local log = vim.env.MISOKU_ACTIONS; " +
+	"vim.api.nvim_create_autocmd('User', { pattern = { 'MiniFilesActionCreate', 'MiniFilesActionDelete', " +
+	"'MiniFilesActionRename', 'MiniFilesActionMove', 'MiniFilesActionCopy' }, callback = function(ev) " +
+	"local f = io.open(log, 'a'); if f then f:write(vim.json.encode(ev.data), '\\n'); f:close() end end }); " +
 	"MF.open(vim.env.MISOKU_DIR, false, { options = { permanent_delete = false }, " +
 	"content = { filter = function(e) return not vim.startswith(e.name, '.') end } })"
 
@@ -37,6 +43,10 @@ const miniFilesMissingExit = 3
 type fileManagerDoneMsg struct {
 	err   error
 	pages []core.Page
+	// moves are the notes mini.files renamed or moved, per note of the
+	// list taken before launching; relinks is the rewrite they call for.
+	moves   []core.Move
+	relinks relinksPlannedMsg
 }
 
 // openFileManager hands the screen to Neovim's mini.files on the vault
@@ -58,22 +68,38 @@ func (m *Model) openFileManager() tea.Cmd {
 	cmd.Env = append(os.Environ(), "MISOKU_DIR="+m.store.Root(), "MISOKU_ACTIONS="+log.Name())
 	// The callback runs once Neovim ends, outside Update: the folder is read
 	// there, so Update never waits on the disk.
+	// The log and the notes are read there too, before the tree, so the
+	// tree read includes the sub-note folders that followed their notes.
 	store, kept := m.store, append([]core.Page(nil), m.newFolders...)
+	before := append([]core.Page(nil), m.notes...)
 	return m.execOutside(cmd, func(err error) tea.Msg {
+		moves := readFileManagerMoves(store, log.Name(), before)
 		_ = os.Remove(log.Name())
-		return fileManagerDoneMsg{err: err, pages: listTree(store, kept)}
+		done := fileManagerDoneMsg{err: err, moves: moves}
+		if len(moves) > 0 {
+			done.relinks = planRelinksIn(store, relinkJob{renamed: fileManagerStatus(moves), before: before, moves: moves})
+		}
+		done.pages = listTree(store, kept)
+		return done
 	})
 }
 
 // fileManagerDone shows the tree read when Neovim ended, so what changed in
 // mini.files shows without waiting for the poll, and counts a changed tree
-// as a save for the commit that follows one. Open notes catch up with the
-// next workspace check.
+// as a save for the commit that follows one. Tabs of renamed and moved
+// notes follow them before anything checks the disk (S7), and the links
+// that named them are offered for rewriting as after a rename in Misoku.
+// Other open notes catch up with the next workspace check.
 func (m *Model) fileManagerDone(msg fileManagerDoneMsg) {
+	m.followMoves(msg.moves)
 	if treeSignature(msg.pages) != m.treeSig {
 		m.noteSaved()
 	}
 	m.applyScannedTree(msg.pages)
+	if len(msg.moves) > 0 {
+		m.setStatus(msg.relinks.job.renamed)
+		m.askRelinks(msg.relinks)
+	}
 	var code interface{ ExitCode() int }
 	switch {
 	case msg.err == nil:

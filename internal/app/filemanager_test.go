@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -102,7 +103,7 @@ func TestMOpensMiniFilesInNeovimWithTheVaultInTheEnvironment(t *testing.T) {
 		t.Fatalf("expected nvim -c <lua>, got %q", c.Args)
 	}
 	lua := c.Args[i+1]
-	for _, want := range []string{"require('lazy').load", "mini.files", "cquit 3", "MiniFilesExplorerClose", "permanent_delete = false", "MISOKU_DIR"} {
+	for _, want := range []string{"require('lazy').load", "mini.files", "cquit 3", "MiniFilesExplorerClose", "permanent_delete = false", "MISOKU_DIR", "MISOKU_ACTIONS", "MiniFilesActionRename", "MiniFilesActionMove", "vim.json.encode(ev.data)"} {
 		if !strings.Contains(lua, want) {
 			t.Errorf("the Lua should contain %q:\n%s", want, lua)
 		}
@@ -189,5 +190,168 @@ func TestMReadsTheTreeWhenNeovimEndsNotInUpdate(t *testing.T) {
 	h.send(done)
 	if v := app.ExplorerView(h.m); !strings.Contains(v, "fromnvim") {
 		t.Fatalf("the explorer should show the tree read when Neovim ended:\n%s", v)
+	}
+}
+
+// miniFilesRun is a vault with zeta.md linking to doc.md, doc.md open in
+// a tab (with " mine" typed and unsaved when edit is set), and a fake
+// mini.files that runs during on the vault and appends its action events
+// to the log the way the Lua does.
+func miniFilesRun(t *testing.T, edit bool, during func(root string, log func(action, from, to string))) *harness {
+	t.Helper()
+	fakeNvimOnPath(t)
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "zeta", "see [[doc]]"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("", "doc", "base"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store, app.WithExec(func(c *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
+		actions, _ := envValue(c, "MISOKU_ACTIONS")
+		root, _ := envValue(c, "MISOKU_DIR")
+		during(root, func(action, from, to string) {
+			line := fmt.Sprintf("{\"action\":%q,\"from\":%q,\"to\":%q}\n", action, from, to)
+			f, err := os.OpenFile(actions, os.O_APPEND|os.O_WRONLY, 0o644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			if _, err := f.WriteString(line); err != nil {
+				t.Fatal(err)
+			}
+		})
+		return func() tea.Msg { return cb(nil) }
+	}))
+	h.keys("1")
+	if edit {
+		h.keys("A mine")
+	}
+	h.key(tea.KeyEsc)
+	h.keys(" e") // the explorer
+	return h
+}
+
+func moveOnDisk(t *testing.T, root, from, to string) (string, string) {
+	t.Helper()
+	src, dst := filepath.Join(root, filepath.FromSlash(from)), filepath.Join(root, filepath.FromSlash(to))
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	return src, dst
+}
+
+// A rename or a move made in mini.files is read from its action log: the
+// open tab follows the note instead of going "gone", and the links that
+// named it are rewritten after the same question as a rename in Misoku. A
+// move keeps the name, so [[doc]] still finds it and nothing is asked.
+func TestMiniFilesRenameAndMoveKeepTheTabAndRewriteTheLinks(t *testing.T) {
+	for _, tc := range []struct{ action, to, link string }{
+		{"rename", "moved.md", "[[moved]]"},
+		{"move", "sub/doc.md", "[[doc]]"},
+	} {
+		for _, edit := range []bool{false, true} {
+			h := miniFilesRun(t, edit, func(root string, log func(action, from, to string)) {
+				from, to := moveOnDisk(t, root, "doc.md", tc.to)
+				log(tc.action, from, to)
+			})
+			h.keys("M")
+			if asked := strings.Contains(h.view(), "Update 1 link in 1 note?"); asked != (tc.action == "rename") {
+				t.Fatalf("%s edit=%v: relink question shown=%v:\n%s", tc.action, edit, asked, h.view())
+			}
+			if tc.action == "rename" {
+				h.key(tea.KeyEnter) // Yes
+			}
+			if got := readNote(t, h.store.Root(), "zeta.md"); got != "see "+tc.link {
+				t.Fatalf("%s edit=%v: the backlink should follow, got %q", tc.action, edit, got)
+			}
+			if edit { // saved at once, before any check: no "Recreate" question
+				h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+				if v := h.view(); strings.Contains(v, "Recreate") {
+					t.Fatalf("%s edit=%v: the moved tab must save in place:\n%s", tc.action, edit, v)
+				}
+				if got := readNote(t, h.store.Root(), tc.to); got != "base mine" {
+					t.Fatalf("%s edit=%v: the save should land at %s, got %q", tc.action, edit, tc.to, got)
+				}
+			}
+			h.send(app.CheckWorkspaceMsg{})
+			v := h.view()
+			if strings.Contains(v, goneWarning) {
+				t.Fatalf("%s edit=%v: the tab must follow the note, not go gone:\n%s", tc.action, edit, v)
+			}
+			if !strings.Contains(strings.Split(v, "\n")[0], path.Base(tc.to)) {
+				t.Fatalf("%s edit=%v: the tab should be named after the note's new place:\n%s", tc.action, edit, v)
+			}
+			h.send(tea.KeyMsg{Type: tea.KeyCtrlL}) // back to the tab, then not even a warning that went by
+			h.ex("messages")
+			if v := h.view(); !strings.Contains(v, "Messages") || strings.Contains(v, goneWarning) {
+				t.Fatalf("%s edit=%v: the tab must never have been gone:\n%s", tc.action, edit, v)
+			}
+		}
+	}
+}
+
+// A delete in mini.files goes to its trash, outside the vault: that is no
+// move, and the tab warns that its note is gone, as before.
+func TestMiniFilesDeleteLeavesTheGoneWarning(t *testing.T) {
+	h := miniFilesRun(t, false, func(root string, log func(action, from, to string)) {
+		trash := filepath.Join(t.TempDir(), "doc.md")
+		if err := os.Rename(filepath.Join(root, "doc.md"), trash); err != nil {
+			t.Fatal(err)
+		}
+		log("delete", filepath.Join(root, "doc.md"), trash)
+	})
+	h.keys("M")
+	h.send(app.CheckWorkspaceMsg{})
+	if v := h.view(); !strings.Contains(v, goneWarning) || strings.Contains(v, "Update ") {
+		t.Fatalf("a deleted note's tab should warn, with no relink question:\n%s", v)
+	}
+	if got := readNote(t, h.store.Root(), "zeta.md"); got != "see [[doc]]" {
+		t.Fatalf("a delete must not touch links, got %q", got)
+	}
+}
+
+// With no events in the log (another file manager, a crash) the tree is
+// read again and nothing else happens.
+func TestMiniFilesWithoutALogOnlyRereadsTheTree(t *testing.T) {
+	h := miniFilesRun(t, false, func(root string, _ func(action, from, to string)) {
+		moveOnDisk(t, root, "doc.md", "moved.md")
+	})
+	h.keys("M")
+	if v := app.ExplorerView(h.m); !strings.Contains(v, "moved") {
+		t.Fatalf("the explorer should show the renamed note:\n%s", v)
+	}
+	if v := h.view(); strings.Contains(v, "Update ") {
+		t.Fatalf("no log, no relink question:\n%s", v)
+	}
+}
+
+// A note renamed in mini.files takes its sub-note folder along (Q2), even
+// when the log names the vault by another path (a symlink, /var against
+// /private/var on macOS).
+func TestMiniFilesRenameMovesTheSubNoteFolderAlong(t *testing.T) {
+	h := miniFilesRun(t, false, func(root string, log func(action, from, to string)) {
+		if err := os.MkdirAll(filepath.Join(root, "doc"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "doc", "child.md"), []byte("kid"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		real, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		moveOnDisk(t, root, "doc.md", "moved.md")
+		log("rename", filepath.Join(real, "doc.md"), filepath.Join(real, "moved.md"))
+	})
+	h.keys("M")
+	if got := readNote(t, h.store.Root(), "moved/child.md"); got != "kid" {
+		t.Fatalf("the sub-note should follow its note, got %q", got)
+	}
+	if noteExists(t, h.store.Root(), "doc") {
+		t.Fatal("the old sub-note folder should be gone")
 	}
 }
