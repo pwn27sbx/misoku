@@ -44,6 +44,12 @@ type buffer struct {
 	// so each tab keeps its own and showBuffer hands it to the editor. nil
 	// until the tab is first shown, or after a reload from disk (D7).
 	hist *content.History
+	// relinkedFrom is the text of a tab that was not shown when a link
+	// rewrite changed it (S5); showBuffer replays the rewrite from it in
+	// the editor, so u undoes it as one step. relinkedHist is the history
+	// it belongs to: a reload that drops the history drops the replay.
+	relinkedFrom string
+	relinkedHist *content.History
 }
 
 // history returns b's undo history, starting an empty one if it has none.
@@ -77,8 +83,27 @@ type statsKey struct {
 
 // setSaved records content as what is on disk and in the tab.
 func (b *buffer) setSaved(content string) {
-	b.saved, b.text = content, content
+	b.markSaved(content)
+	b.text = content
+}
+
+// markSaved records content as what is on disk, leaving the tab's text
+// (and its unsaved edits) as it is.
+func (b *buffer) markSaved(content string) {
+	b.saved = content
 	b.saves++
+}
+
+// rewriteText changes the text of a tab that is not shown, keeping what
+// it held before for showBuffer to replay as one undo step.
+func (b *buffer) rewriteText(text string) {
+	if text == b.text {
+		return
+	}
+	if b.relinkedHist == nil || b.relinkedHist != b.hist {
+		b.relinkedFrom, b.relinkedHist = b.text, b.history()
+	}
+	b.text, b.textVer = text, 0
 }
 
 func (b *buffer) draft() bool { return isDraftID(b.id) }
@@ -212,7 +237,16 @@ func (m *Model) showBuffer(b *buffer) {
 	m.stashActive()
 	m.active = b.id
 	m.content.SetHistory(b.history()) // before SetBuffer, which checks it
-	m.content.SetBuffer(b.page(), b.draft())
+	p, replay := b.page(), b.relinkedHist != nil && b.relinkedHist == b.hist
+	if replay {
+		p.Content = b.relinkedFrom
+	}
+	m.content.SetBuffer(p, b.draft())
+	if replay {
+		m.content.ReplaceText(b.text)
+		m.content.CommitChange()
+	}
+	b.relinkedFrom, b.relinkedHist = "", nil
 	m.preview.SetBaseDir(m.noteDir(b))
 	m.preview.SetPage(b.page())
 	m.refreshLinks()

@@ -8,6 +8,12 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **Links follow a rename**: renaming a note or folder in the explorer asks `Update N links in M notes?` and
+  rewrites every link that named it (`[[name]]`, `[[name|alias]]`, `[[name#Heading]]`, embeds and Markdown links),
+  so they keep pointing at the same note. `n` keeps the rename and leaves the links. Open tabs get the change
+  without losing unsaved edits, and `u` undoes it; a note changed on disk meanwhile is skipped and reported. The
+  rewrite counts as a save for sync. A rename with no links asks nothing, as before.
+
 - **mini.files from the explorer**: `M` (`explorer.file_manager`) opens Neovim's mini.files on the vault folder,
   with your Neovim configuration (LazyVim's options too), deletes to mini.files' trash and dot files hidden. Closing
   it (`q`) quits Neovim and Misoku re-reads the folder at once, so what you created, renamed or moved there shows

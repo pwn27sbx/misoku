@@ -102,3 +102,7 @@ func ExplorerView(tm tea.Model) string {
 	m := tm.(Model)
 	return ansi.Strip(m.sidebar.View())
 }
+
+// CommitDue reports whether a save is waiting for the local commit that
+// follows it (see noteSaved).
+func CommitDue(tm tea.Model) bool { return tm.(Model).commitDue }

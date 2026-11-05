@@ -53,6 +53,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case globalMapMsg:
 		m.applyGlobalMap(msg)
 		return m, nil
+	case relinksPlannedMsg:
+		m.askRelinks(msg)
+		return m, nil
+	case relinksAppliedMsg:
+		m.finishRelinks(msg)
+		return m, nil
 	case SyncNowMsg, core.SyncMsg:
 		return m, m.requestSync()
 	case syncDoneMsg:
@@ -248,8 +254,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sidebar.CreateRequestMsg:
 		return m, m.requestCreate(msg.ParentID, msg.Name)
 	case core.PageUpdatedMsg:
-		m.renamePage(msg.Page.ID, msg.Page.Title)
-		return m, nil
+		return m, m.renamePage(msg.Page.ID, msg.Page.Title)
 	case core.PageDeletedMsg:
 		m.confirmDelete(msg.ID)
 		return m, nil
@@ -310,12 +315,16 @@ func (m *Model) handleQuit(msg core.VimQuitMsg) tea.Cmd {
 	return m.requestQuit(msg.Force)
 }
 
-func (m *Model) renamePage(id, title string) {
+// renamePage renames a note or folder from the explorer; its tabs follow it.
+// The command plans the rewrite of the links that named it (S1, S3) from
+// the note list as it was before the rename.
+func (m *Model) renamePage(id, title string) tea.Cmd {
 	m.stashActive()
+	before := append([]core.Page(nil), m.notes...)
 	updated, err := m.store.Rename(id, title)
 	if err != nil {
 		m.setError("Rename failed: " + err.Error())
-		return
+		return nil
 	}
 	activeBefore := m.active
 	m.remapBuffers(id, updated.ID)
@@ -327,7 +336,9 @@ func (m *Model) renamePage(id, title string) {
 		m.preview.SetPage(b.page())
 		m.sidebar.SetActiveID(b.id)
 	}
-	m.setStatus("Renamed to " + updated.ID)
+	renamed := "Renamed to " + updated.ID
+	m.setStatus(renamed)
+	return m.planRelinks(relinkJob{renamed: renamed, before: before, moves: []core.Move{{From: id, To: updated.ID}}})
 }
 
 func (m *Model) confirmDelete(id string) {

@@ -129,6 +129,29 @@ func (s *Store) Rename(id, newTitle string) (Page, error) {
 	return s.Update(p)
 }
 
+// ApplyRelinks writes the rewrites PlanRelinks planned, each through the
+// store's atomic write and only if the note's file still holds r.From (read
+// as Get reads it, CRLF as LF). A note changed or removed since it was
+// planned is left as it is and listed in skipped; done lists the notes
+// written, in order. A write that fails stops the batch with its error.
+func (s *Store) ApplyRelinks(rs []Relink) (done []Relink, skipped []string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range rs {
+		abs := s.idToAbs(r.ID)
+		data, readErr := os.ReadFile(abs)
+		if readErr != nil || strings.ReplaceAll(string(data), "\r\n", "\n") != r.From {
+			skipped = append(skipped, r.ID)
+			continue
+		}
+		if err := writeText(abs, r.To); err != nil {
+			return done, skipped, fmt.Errorf("failed to update links in %s: %w", r.ID, err)
+		}
+		done = append(done, r)
+	}
+	return done, skipped, nil
+}
+
 // AttachFile makes src available to a note living in noteDir (relative to
 // the root) and returns the link target to write in the note, relative to
 // noteDir. Files already inside the workspace are linked in place; anything
