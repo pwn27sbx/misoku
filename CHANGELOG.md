@@ -8,6 +8,18 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **`misoku tutor`**, a game to learn Markdown and Misoku: a tutorial vault of its own, next to `config.json`,
+  with an index and seven levels in Spanish (headings, checkboxes, the `/` block menu, links, links to headings,
+  block references and the explorer). Each level is checked live as you edit its note, ignoring code: a passed
+  level toasts `✓ Nivel N superado (k/7)`, all of them `🏆 Tutorial completo (7/7)`, and the statusline shows
+  `Tutor k/7`. Progress comes from the notes themselves. `misoku tutor --reset` moves the tutorial to the Trash
+  and starts over. Without `misoku tutor` nothing changes.
+
+- **Numbered headings in the preview**: headings show their outline number, `1`, `1.1`, `2`, in place of the
+  level icon, with skipped levels never giving a `0`. A lone `#` that is the first heading stays the title,
+  unnumbered. Folding keeps the numbers; the note's text never changes. On by default: `ui.heading_numbers`, or
+  **Heading numbers**, the sixth row of `:settings`, turns it off.
+
 - **The LazyVim companion's Misoku keys**: `space o c` (`toggle_checkbox`) toggles the box of the line, `[ ]` to
   `[x]` and `[x]` or `[-]` back to `[ ]`, and gives a line without one a `- [ ] `; `space o C` (`remove_checkbox`)
   takes the box off (`- [x] task` becomes `- task`). Both work on a VISUAL or V-LINE selection, line by line, keep
@@ -43,6 +55,13 @@ version comes from the tag, so nothing else in the tree carries it.
   keep only their border, and heading bands are off; the cursor line, selections, statusline blocks and badges
   stay painted. The welcome screen honours it too, and a user theme reloaded from disk stays transparent. The
   terminal's own background colour shows through, so pick a theme that matches it.
+
+### Changed
+
+- **`space r` edits the note**: reading mode is now the editor at full width, drawn like render-markdown.nvim.
+  Line numbers hide and every line but the cursor's shows rendered, its Markdown markers hidden (`#`s, bold,
+  italic and code delimiters, link targets, boxes as icons, `•` bullets, `▎` quotes); the cursor line stays raw,
+  with every Vim key. Code blocks, front matter and tables stay raw. The side preview (`space p`) is unchanged.
 
 ### Fixed
 

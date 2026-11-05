@@ -192,6 +192,8 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 misoku paste-image            # save the picture in the clipboard under ./assets (--dir, --link)
 misoku sync setup             # sync this folder through a private GitHub repository (see Sync)
 misoku sync init <url>        # sync this folder through any git repository, SSH included
+misoku tutor                  # learn Misoku and Markdown level by level (see Learn Misoku)
+misoku tutor --reset          # start the tutorial over
 ```
 
 `misoku sync setup` and `misoku sync init` set up the folder they are
@@ -218,7 +220,7 @@ never use `notes_dir`.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` or a click move the focus.
 - **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
-- **Reading mode** (`space r`): hide the editor and read the note in the preview at full width; the statusline says READING.
+- **Reading mode** (`space r`): edit the note at full width, like render-markdown.nvim: line numbers hide, and every line but the cursor's is drawn rendered (headings without `#`, bold, italic and code without delimiters, links as their text, boxes, `•` bullets and `▎` quotes), while the cursor line shows its Markdown and edits as usual. Code blocks, front matter and tables stay raw. The side preview (`space p`) stays a read-only view; the statusline says READING.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
 - **Use mini.files**: `M` in the explorer hands the screen to Neovim's [mini.files](https://github.com/nvim-mini/mini.files) on the vault folder, with your own Neovim setup (LazyVim's included). Deleting there goes to mini.files' trash, not for good, and dot files stay hidden. Closing it (`q`) returns to Misoku, which re-reads the folder at once. It needs `nvim` on `PATH` and mini.files installed (the plugin, or the LazyVim extra `editor.mini-files`); without them the status bar says what is missing.
@@ -230,6 +232,16 @@ never use `notes_dir`.
 - **Messages you can read again**: errors stay in red in the status bar until you press `Esc` (which still does what it always does); other messages clear on the next key. `:messages` lists the last 100, with the time of each (results only: progress such as `Syncing…` is not kept).
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it; `:graph all` maps every note of the vault at once.
 - **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `s` on the start screen, or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
+
+## Learn Misoku
+
+`misoku tutor` opens a tutorial vault of its own, in the normal app: seven levels in Spanish, one note each,
+plus an index (`00 Empieza aquí`). They teach headings, checkboxes, the `/` block menu, `[[links]]`, links to
+headings, block references and the explorer. Each level asks for one thing, and Misoku checks the note's text
+as you type (code is ignored, so the lesson's own examples never count): a passed level shows
+`✓ Nivel N superado (k/7)`, and the statusline shows `Tutor k/7`. Progress is the lesson notes themselves, so
+it survives a restart. The vault lives next to `config.json`, in a `tutor` folder;
+`misoku tutor --reset` moves it to the Trash and starts over from the bundled lessons.
 
 ## Images
 
@@ -353,7 +365,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `prev_tab` | `[`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
 | `toggle_preview` | `space p` | Toggle preview |
-| `reading_mode` | `space r` | Reading mode: only the preview, full width (`space r` or `space p` brings the split back) |
+| `reading_mode` | `space r` | Reading mode: only the editor, full width, Markdown markers hidden off the cursor line (`space r` or `space p` brings the split back) |
 | `export_pdf` | `space P` (Space, then Shift+P) | Export note as PDF (same as `:export`) |
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |
@@ -414,6 +426,7 @@ with render-markdown:
 | Key | What it does |
 | --- | --- |
 | `heading_icons` | Icon before headings of level 1 to 6; missing levels keep the default |
+| `heading_numbers` | `true` (default): the preview numbers headings `1`, `1.1`, `2` in place of their level icon. A single `#` that is the note's first heading is its title and keeps its icon. Only the preview changes, never the note. `false` shows the icons |
 | `heading_background` | Paints each heading on a full-width band of its color (the H1 underline is then left out) |
 | `bullets` | List bullets by depth, cycling |
 | `checkbox.unchecked`, `checkbox.checked` | Marks for `- [ ]` and `- [x]` |
@@ -449,10 +462,10 @@ catch (a panic or `kill -9`) can leave the shape set until the terminal resets i
 ### Settings menu
 
 `:settings` (or **Settings**, key `c`, on the home screen) opens a menu for
-five of these keys: accordion folders (on or off), the explorer hide width,
+six of these keys: accordion folders (on or off), the explorer hide width,
 heading icons and bullets (one of the presets Misoku, Numbers, Arrows and
-Plain; Misoku removes both keys), the dialog border, and the transparent
-background (on or off; off removes the key). A value picked with Enter applies at once and is saved at once
+Plain; Misoku removes both keys), the dialog border, the transparent
+background (on or off; off removes the key), and heading numbers (on or off). A value picked with Enter applies at once and is saved at once
 in `config.json`: only that key changes, and every other setting stays as you
 wrote it. Esc goes back without saving, and picking the value already in use
 writes nothing. If the file cannot be written, the status bar says why.
