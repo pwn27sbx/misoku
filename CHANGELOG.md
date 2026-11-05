@@ -4,7 +4,7 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
-## [Unreleased]
+## [0.18.1] - 2026-11-05
 
 ### Changed
 
@@ -13,6 +13,11 @@ version comes from the tag, so nothing else in the tree carries it.
   and `a/b` the nested path, as with `n`. Leaving with edits (`Esc`, `q` or `:q`) shows the same
   "CONFIRM FILE SYSTEM ACTIONS" as `=`: Yes applies and closes, No drops the edits and closes, Cancel keeps
   editing. It replaces "Discard N changes?".
+
+### Fixed
+
+- **`space r` keeps the page margins**: the full-width live editor now uses the same left and right margins as
+  the preview, instead of running edge to edge.
 
 ## [0.18.0] - 2026-11-05
 
