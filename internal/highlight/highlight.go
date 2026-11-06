@@ -137,8 +137,9 @@ func headingColor(level int, th theme.Theme) lipgloss.Color {
 func Markdown(text string, th theme.Theme) Colors {
 	lines := strings.Split(text, "\n")
 	out := make(Colors, len(lines))
+	inComment := false
 	for i := colorFrontMatter(lines, core.FrontMatterEnd(lines), out, th); i < len(lines); {
-		i = segment(lines, i, out, th)
+		i, inComment = segment(lines, i, inComment, out, th)
 	}
 	return out
 }
@@ -153,16 +154,20 @@ func colorFrontMatter(lines []string, end int, out Colors, th theme.Theme) int {
 }
 
 // segment colours the segment that starts on line i, outside front matter
-// and code, and returns the line after it. A segment is one Markdown line,
-// or a whole fenced block up to its closing fence (or the end of the text):
-// chroma tokenises the block as a unit, so its lines only change together.
-func segment(lines []string, i int, out Colors, th theme.Theme) int {
+// and code, and returns the line after it and whether an HTML comment is
+// open there. A segment is one Markdown line, or a whole fenced block up to
+// its closing fence (or the end of the text): chroma tokenises the block as
+// a unit, so its lines only change together. inComment tells whether line i
+// starts inside an HTML comment, whose text holds no tags; a fence inside
+// one still opens a code block, as it did before tags were coloured, and
+// leaves the comment open.
+func segment(lines []string, i int, inComment bool, out Colors, th theme.Theme) (int, bool) {
 	line := lines[i]
-	cols := make([]lipgloss.Color, len([]rune(line)))
-	out[i] = cols
 	trimmed := strings.TrimSpace(line)
 
-	if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+	if isFence(trimmed) {
+		cols := make([]lipgloss.Color, len([]rune(line)))
+		out[i] = cols
 		fence := trimmed[:3]
 		lang := strings.TrimSpace(trimmed[3:])
 		fill(cols, 0, len(cols), th.GreyFg2)
@@ -180,17 +185,31 @@ func segment(lines []string, i int, out Colors, th theme.Theme) int {
 			fill(closing, 0, len(closing), th.GreyFg2)
 			out[end] = closing
 		}
-		return end + 1
+		return end + 1, inComment
 	}
 
+	out[i] = markdownLine(line, th)
+	tags, open := commentTags(line, inComment)
+	colorTags(line, tags, out[i], th)
+	return i + 1, open
+}
+
+// isFence reports whether a trimmed line opens or closes fenced code.
+func isFence(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
+}
+
+// markdownLine colours one Markdown line outside code, tags aside.
+func markdownLine(line string, th theme.Theme) []lipgloss.Color {
+	cols := make([]lipgloss.Color, len([]rune(line)))
 	switch {
 	case headingRe.MatchString(line):
 		level := len(headingRe.FindStringSubmatch(line)[1])
 		fill(cols, 0, len(cols), headingColor(level, th))
-		return i + 1
+		return cols
 	case ruleRe.MatchString(line):
 		fill(cols, 0, len(cols), th.GreyFg)
-		return i + 1
+		return cols
 	case quoteRe.MatchString(line):
 		idx := len([]rune(line[:strings.Index(line, ">")]))
 		fill(cols, idx, idx+1, th.Purple)
@@ -205,8 +224,65 @@ func segment(lines []string, i int, out Colors, th theme.Theme) int {
 			fill(cols, runeIdx(line, m[8]), runeIdx(line, m[9]), box)
 		}
 	}
-	inline(line, cols, th)
-	return i + 1
+	inlineSyntax(line, cols, th)
+	return cols
+}
+
+// commentTags returns the tag ranges of line (by core.TagSpans, which knows
+// the comments that open on the line) and whether an HTML comment is still
+// open at its end. inComment tells whether the line starts inside one: its
+// text up to "-->" holds no tags.
+func commentTags(line string, inComment bool) ([][2]int, bool) {
+	off := 0
+	if inComment {
+		end := strings.Index(line, "-->")
+		if end < 0 {
+			return nil, true
+		}
+		off = end + len("-->")
+	}
+	rest := line[off:]
+	tags := core.TagSpans(rest)
+	for k := range tags {
+		tags[k][0] += off
+		tags[k][1] += off
+	}
+	return tags, opensComment(rest)
+}
+
+// opensComment reports whether s, outside code spans, opens an HTML comment
+// it doesn't close.
+func opensComment(s string) bool {
+	s = codeSpan.ReplaceAllStringFunc(s, func(m string) string { return strings.Repeat(" ", len(m)) })
+	for {
+		open := strings.Index(s, "<!--")
+		if open < 0 {
+			return false
+		}
+		end := strings.Index(s[open+4:], "-->")
+		if end < 0 {
+			return true
+		}
+		s = s[open+4+end+3:]
+	}
+}
+
+// colorTags paints the tag byte ranges of line with the tag accent. A tag
+// only takes runes no other rule coloured (an HTML tag or emphasis marker
+// keeps its colour), or a heading's text, so "# Title #go" shows the tag.
+// Colours only: the number of cells never changes.
+func colorTags(line string, tags [][2]int, cols []lipgloss.Color, th theme.Theme) {
+	under := lipgloss.Color("")
+	if len(cols) > 0 && headingRe.MatchString(line) {
+		under = cols[0]
+	}
+	for _, t := range tags {
+		for j := runeIdx(line, t[0]); j < runeIdx(line, t[1]) && j < len(cols); j++ {
+			if cols[j] == under {
+				cols[j] = th.Cyan
+			}
+		}
+	}
 }
 
 func frontMatterColors(line string, delimiter bool, th theme.Theme) []lipgloss.Color {
@@ -224,7 +300,15 @@ func frontMatterColors(line string, delimiter bool, th theme.Theme) []lipgloss.C
 	return cols
 }
 
+// inline colours the inline syntax of one Markdown line, its tags (by
+// core.TagSpans) included.
 func inline(line string, cols []lipgloss.Color, th theme.Theme) {
+	inlineSyntax(line, cols, th)
+	colorTags(line, core.TagSpans(line), cols, th)
+}
+
+// inlineSyntax colours the inline syntax of one Markdown line, tags aside.
+func inlineSyntax(line string, cols []lipgloss.Color, th theme.Theme) {
 	for _, m := range tagRe.FindAllStringIndex(line, -1) {
 		fill(cols, runeIdx(line, m[0]), runeIdx(line, m[1]), th.Red)
 	}

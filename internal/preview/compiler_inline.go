@@ -8,10 +8,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// inline renders inline Markdown (code, bold, italic, strike, links, images
-// and a little inline HTML) by scanning the text once, so styling is never
-// applied to text that already contains escape sequences.
+// inline renders inline Markdown (code, bold, italic, strike, links, images,
+// tags and a little inline HTML) by scanning the text once, so styling is
+// never applied to text that already contains escape sequences.
 func (c *compiler) inline(s string, base lipgloss.Style) string {
+	return c.inlineText(s, base, true)
+}
+
+// inlineText is inline; withTags tells whether "#tags" are coloured, which
+// they aren't inside a link's text (core.TagSpans masks links). A tag keeps
+// its "#" and its width: only its colour changes.
+func (c *compiler) inlineText(s string, base lipgloss.Style, withTags bool) string {
+	var tags [][2]int
+	if withTags {
+		tags = core.TagSpans(s)
+	}
 	var out strings.Builder
 	var plain strings.Builder
 	flush := func() {
@@ -47,21 +58,21 @@ func (c *compiler) inline(s string, base lipgloss.Style) string {
 
 		case strings.HasPrefix(rest, "**") || strings.HasPrefix(rest, "__"):
 			if end := strings.Index(rest[2:], rest[:2]); end > 0 {
-				emit(c.inline(rest[2:2+end], base.Bold(true)))
+				emit(c.inlineText(rest[2:2+end], base.Bold(true), withTags))
 				i += 2 + end + 2
 				continue
 			}
 
 		case strings.HasPrefix(rest, "~~"):
 			if end := strings.Index(rest[2:], "~~"); end > 0 {
-				emit(c.inline(rest[2:2+end], base.Strikethrough(true).Foreground(c.st.th.GreyFg2)))
+				emit(c.inlineText(rest[2:2+end], base.Strikethrough(true).Foreground(c.st.th.GreyFg2), withTags))
 				i += 2 + end + 2
 				continue
 			}
 
 		case rest[0] == '*' || (rest[0] == '_' && (i == 0 || s[i-1] == ' ')):
 			if end := strings.IndexByte(rest[1:], rest[0]); end > 0 && rest[1] != ' ' {
-				emit(c.inline(rest[1:1+end], base.Italic(true)))
+				emit(c.inlineText(rest[1:1+end], base.Italic(true), withTags))
 				i += 1 + end + 1
 				continue
 			}
@@ -82,8 +93,19 @@ func (c *compiler) inline(s string, base lipgloss.Style) string {
 
 		case rest[0] == '[':
 			if text, url, n, ok := linkAt(rest); ok {
-				emit(markLink("url", strings.Trim(url, "<>"), c.inline(text, c.st.link)))
+				emit(markLink("url", strings.Trim(url, "<>"), c.inlineText(text, c.st.link, false)))
 				i += n
+				continue
+			}
+
+		case rest[0] == '#':
+			for len(tags) > 0 && tags[0][0] < i {
+				tags = tags[1:]
+			}
+			if len(tags) > 0 && tags[0][0] == i {
+				end := tags[0][1]
+				emit(base.Foreground(c.st.th.Cyan).Render(s[i:end]))
+				i = end
 				continue
 			}
 
@@ -102,7 +124,7 @@ func (c *compiler) inline(s string, base lipgloss.Style) string {
 			case strings.HasPrefix(lower, "<a "):
 				closeIdx := strings.Index(strings.ToLower(rest), "</a>")
 				if closeIdx > end {
-					emit(c.inline(rest[end+1:closeIdx], c.st.link))
+					emit(c.inlineText(rest[end+1:closeIdx], c.st.link, false))
 					i += closeIdx + len("</a>")
 					continue
 				}

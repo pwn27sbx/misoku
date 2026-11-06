@@ -13,11 +13,12 @@ import (
 //
 // Beside the colours it keeps, per line, the state the scanner was in when
 // the line began: whether a segment (one Markdown line, or a whole fenced
-// block) starts there outside front matter and code. After an edit it
-// rescans from the segment holding the first changed line and stops at the
-// first line, past the last changed one, where both the new scan and the
-// saved state agree that a segment starts: from there on the text and the
-// state are the same as before, so are the colours. Opening or closing a
+// block) starts there outside front matter and code, and whether an HTML
+// comment, whose tags don't count, is open there. After an edit it rescans
+// from the segment holding the first changed line and stops at the first
+// line, past the last changed one, where both the new scan and the saved
+// state agree that a segment starts with the same comment state: from there
+// on the text and the state are the same as before, so are the colours. Opening or closing a
 // fence can therefore recolour to the end of the note, which is correct.
 //
 // The zero value is ready to use. A Highlighter is not safe for concurrent
@@ -29,6 +30,7 @@ type Highlighter struct {
 	lines     []string
 	cols      Colors
 	starts    []bool // starts[i]: a segment starts on line i
+	comment   []bool // comment[i]: an HTML comment is open where line i starts
 	fm        int    // core.FrontMatterEnd of lines
 	recolored int
 }
@@ -38,7 +40,7 @@ func (h *Highlighter) Markdown(text string, th theme.Theme) Colors {
 	lines := strings.Split(text, "\n")
 	fm := core.FrontMatterEnd(lines)
 	if !h.valid || h.th != th {
-		return h.save(lines, fm, th, 0, nil, nil, len(lines), 0)
+		return h.save(lines, fm, th, 0, nil, nil, nil, len(lines), 0)
 	}
 	old := h.lines
 	p := 0 // first changed line
@@ -65,32 +67,37 @@ func (h *Highlighter) Markdown(text string, th theme.Theme) Colors {
 		for s = min(p, len(old)-1); s > 0 && !h.starts[s]; s-- {
 		}
 	}
-	return h.save(lines, fm, th, s, h.cols[:s], h.starts[:s], newEnd, delta)
+	return h.save(lines, fm, th, s, h.cols[:s], h.starts[:s], h.comment[:s+1], newEnd, delta)
 }
 
-// save rescans lines from s (keeping the colours and states before it) until
-// it reaches a segment start at or past newEnd that the previous scan also
-// started a segment on (that line moved by delta), then reuses the rest.
-func (h *Highlighter) save(lines []string, fm int, th theme.Theme, s int, keepCols Colors, keepStarts []bool, newEnd, delta int) Colors {
+// save rescans lines from s (keeping the colours and states before it, and
+// the comment state at s) until it reaches a segment start at or past newEnd
+// that the previous scan also started a segment on with the same comment
+// state (that line moved by delta), then reuses the rest.
+func (h *Highlighter) save(lines []string, fm int, th theme.Theme, s int, keepCols Colors, keepStarts, keepComment []bool, newEnd, delta int) Colors {
 	cols := make(Colors, len(lines))
 	starts := make([]bool, len(lines))
+	comment := make([]bool, len(lines))
 	copy(cols, keepCols)
 	copy(starts, keepStarts)
+	copy(comment, keepComment)
 	i := s
 	if i <= fm {
 		i = colorFrontMatter(lines, fm, cols, th)
 	}
+	inComment := i == s && i < len(comment) && comment[i]
 	for i < len(lines) {
-		if i >= newEnd && h.starts[i-delta] {
+		if i >= newEnd && h.starts[i-delta] && h.comment[i-delta] == inComment {
 			copy(cols[i:], h.cols[i-delta:])
 			copy(starts[i:], h.starts[i-delta:])
+			copy(comment[i:], h.comment[i-delta:])
 			break
 		}
-		starts[i] = true
-		i = segment(lines, i, cols, th)
+		starts[i], comment[i] = true, inComment
+		i, inComment = segment(lines, i, inComment, cols, th)
 	}
 	h.recolored = min(i, len(lines)) - s
-	h.valid, h.th, h.lines, h.cols, h.starts, h.fm = true, th, lines, cols, starts, fm
+	h.valid, h.th, h.lines, h.cols, h.starts, h.comment, h.fm = true, th, lines, cols, starts, comment, fm
 	return cols
 }
 
