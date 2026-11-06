@@ -191,8 +191,8 @@ func (m *Model) modeLabel() (string, lipgloss.Color) {
 	case content.ModeCommand:
 		return "  COMMAND ", th.Green
 	}
-	if m.reading {
-		// Reading mode's editor in Normal: Insert and Visual badges win.
+	if m.noteView == viewReading {
+		// The reading view in Normal: Command and Visual badges win.
 		return " 󰈈 READING ", th.Yellow
 	}
 	return "  NORMAL ", th.Blue

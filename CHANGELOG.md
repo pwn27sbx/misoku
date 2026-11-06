@@ -8,7 +8,14 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Changed
 
-- **A blank row above and below the note** in the editor, the preview and reading mode (`Space r`), so the text no
+- **`space p` and `space r` swap roles.** `space p` is now the reading view: the rendered note alone at full width,
+  every Markdown marker hidden (the cursor's line too) and read-only, so keys that edit only say how to edit, while
+  moving, searching, copying and following links still work. `space r` is now the editor view: the Markdown editor
+  alone at full width, with line numbers. Each key goes back to the split, and either switches straight from the
+  other view. There is no longer a key that only hides the side preview. The actions are renamed `reading_view` and
+  `editor_view`; in config.json the old names keep working: `reading_mode` binds the reading view and
+  `toggle_preview` the editor view (the new name wins when both are given).
+- **A blank row above and below the note** in the editor, the preview and the full-width views (`Space p`, `Space r`), so the text no
   longer touches the tab bar or the statusline. It is one row, narrower than the side margins, takes the pane's
   background (none with `ui.transparent`), and a body shorter than eight rows gives it back to the text. Clicks,
   scrolling and the terminal cursor follow the shifted rows.

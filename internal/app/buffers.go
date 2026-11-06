@@ -307,6 +307,7 @@ func (m *Model) newDraft(parentID string) tea.Cmd {
 	}
 	m.insertBuffer(b)
 	m.showBuffer(b)
+	m.leaveReading() // a new note is typed
 	cmd := m.focusPane(focusEditor)
 	return tea.Batch(cmd, m.content.EnterInsert())
 }

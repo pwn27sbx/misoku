@@ -20,7 +20,8 @@ func TestDefaultsAreTodaysShortcuts(t *testing.T) {
 		keymap.CloseTab:            {"space x"},
 		keymap.ExplorerDelete:      {"d", "x", "delete"},
 		keymap.ExportPDF:           {"space P"},
-		keymap.ReadingMode:         {"space r"},
+		keymap.ReadingView:         {"space p"},
+		keymap.EditorView:          {"space r"},
 		keymap.Graph:               {"space g"},
 		keymap.GlobalGraph:         {"space G"},
 		keymap.ExplorerFileManager: {"M"},
@@ -178,7 +179,7 @@ func TestEveryGeneralActionHasALeaderGuideGroup(t *testing.T) {
 	}
 	want := map[string]string{
 		keymap.NewNote:       keymap.GroupNote,
-		keymap.TogglePreview: keymap.GroupView,
+		keymap.ReadingView:   keymap.GroupView,
 		keymap.FocusExplorer: keymap.GroupGo,
 	}
 	for _, a := range keymap.Actions {
@@ -354,5 +355,25 @@ func TestLinkJumpDefaults(t *testing.T) {
 		if !m.LeaderSeq(action, []string{"o", last}) {
 			t.Errorf("o %s should complete %s", last, action)
 		}
+	}
+}
+
+// S4: config files written before the views were swapped keep working:
+// reading_mode binds the reading view and toggle_preview the editor view,
+// without a warning; the new name wins when both are given.
+func TestOldViewActionNamesMapToTheViews(t *testing.T) {
+	km, warnings := keymap.New(map[string][]string{"reading_mode": {"space v"}, "toggle_preview": {"space z"}})
+	if len(warnings) != 0 {
+		t.Fatalf("old names must not warn: %v", warnings)
+	}
+	if got := km.Keys(keymap.ReadingView); !reflect.DeepEqual(got, []string{"space v"}) {
+		t.Errorf("reading_mode should bind reading_view, got %v", got)
+	}
+	if got := km.Keys(keymap.EditorView); !reflect.DeepEqual(got, []string{"space z"}) {
+		t.Errorf("toggle_preview should bind editor_view, got %v", got)
+	}
+	km, _ = keymap.New(map[string][]string{"reading_mode": {"space v"}, "reading_view": {"space y"}})
+	if got := km.Keys(keymap.ReadingView); !reflect.DeepEqual(got, []string{"space y"}) {
+		t.Errorf("reading_view should win over reading_mode, got %v", got)
 	}
 }

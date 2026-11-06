@@ -23,13 +23,13 @@ func mode(v string) string {
 	return f[1]
 }
 
-// reading opens doc and switches to reading mode.
+// reading opens doc and switches to the reading view (space p).
 func reading(t *testing.T, opts ...app.Option) *harness {
 	t.Helper()
 	h := openNote(t, opts...)
-	h.keys(" r")
+	h.keys(" p")
 	if v := h.view(); mode(v) != "READING" {
-		t.Fatalf("setup: space r should enter reading mode:\n%s", v)
+		t.Fatalf("setup: space p should open the reading view:\n%s", v)
 	}
 	return h
 }
@@ -67,8 +67,33 @@ func TestCalculateLayoutReadingMode(t *testing.T) {
 	}
 }
 
-func TestReadingModeShowsOnlyTheEditorAndRestoresTheSplit(t *testing.T) {
-	h := openNoteWith(t, "intro\n# Heading")
+// editorView opens doc and switches to the editor view (space r).
+func editorView(t *testing.T, body string) *harness {
+	t.Helper()
+	h := openNoteWith(t, body)
+	h.keys(" r")
+	if v := h.view(); mode(v) != "NORMAL" {
+		t.Fatalf("setup: space r should keep the vim mode on the statusline:\n%s", v)
+	}
+	return h
+}
+
+// saved saves the open note and returns doc.md's text on disk.
+func saved(t *testing.T, h *harness) string {
+	t.Helper()
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+	got, err := h.store.Get("doc.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got.Content
+}
+
+// S1: space p shows the note alone, full width, without line numbers and
+// with every marker hidden, the cursor's line included; space p again
+// restores the split exactly.
+func TestReadingViewShowsOnlyTheRenderedNoteAndRestoresTheSplit(t *testing.T) {
+	h := openNoteWith(t, "# Heading\nintro")
 	div := dividers(h.view(), bodyRow)
 	div0 := div[len(div)-1]
 	h.send(
@@ -78,7 +103,7 @@ func TestReadingModeShowsOnlyTheEditorAndRestoresTheSplit(t *testing.T) {
 	)
 	before := h.view()
 
-	h.keys(" r")
+	h.keys(" p")
 	v := h.view()
 	if mode(v) != "READING" {
 		t.Fatalf("the statusline should say READING:\n%s", v)
@@ -86,38 +111,132 @@ func TestReadingModeShowsOnlyTheEditorAndRestoresTheSplit(t *testing.T) {
 	if got := dividers(v, bodyRow); len(got) != 1 || got[0] != app.SidebarWidth {
 		t.Fatalf("only the explorer divider should remain, got %v:\n%s", got, v)
 	}
+	if strings.Contains(v, "# Heading") || !strings.Contains(v, "Heading") {
+		t.Fatalf("the reading view hides the # even on the cursor's line:\n%s", v)
+	}
+	if x, _, paneX := textAt(t, v, "intro"); x == paneX+6 {
+		t.Fatalf("the reading view should have no line-number gutter:\n%s", v)
+	}
 
-	h.keys(" r")
+	h.keys(" p")
 	if after := h.view(); after != before {
-		t.Fatalf("space r again should restore the frame exactly.\nbefore:\n%s\nafter:\n%s", before, after)
+		t.Fatalf("space p again should restore the frame exactly.\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
 
-func TestReadingModeEditsTheNote(t *testing.T) {
-	h := reading(t)
-	h.keys("A!")
-	if v := h.view(); mode(v) != "INSERT" {
-		t.Fatalf("i/A in reading mode should edit the note:\n%s", v)
+// S1: no key edits the note in the reading view; the status says how to edit.
+func TestReadingViewIsReadOnly(t *testing.T) {
+	h := openNoteWith(t, "hello\n- [ ] task")
+	h.keys(" p")
+	for _, k := range []string{"i", "x", "A!", "a", "I", "o", "O", "dd", "p", "u", "vd", "Vx", "j"} {
+		h.keys(k)
+		if k[0] == 'v' || k[0] == 'V' {
+			h.key(tea.KeyEsc) // a selection may start; d and x must not cut it
+		}
+		if v := h.view(); mode(v) != "READING" {
+			t.Fatalf("%q in the reading view should stay READING:\n%s", k, v)
+		}
 	}
-	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if got, _ := h.store.Get("doc.md"); got.Content != "hello!" {
-		t.Fatalf("typing in reading mode should change and save the note, got %q", got.Content)
+	h.key(tea.KeyEnter) // on the box line: Enter must not tick it
+	h.key(tea.KeyDelete)
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlR})
+	if v := h.view(); !strings.Contains(v, "Read-only") || !strings.Contains(v, "SPC r") {
+		t.Fatalf("an edit key should say the view is read-only and how to edit:\n%s", v)
 	}
-	h.key(tea.KeyEsc)
-	if v := h.view(); mode(v) != "READING" {
-		t.Fatalf("back in Normal the statusline should say READING:\n%s", v)
+	if got := saved(t, h); got != "hello\n- [ ] task" {
+		t.Fatalf("the reading view must not change the note, got %q", got)
 	}
 }
 
-func TestReadingModeRendersTheMarkdown(t *testing.T) {
-	h := openNoteWith(t, "intro\n# Heading")
-	if v := h.view(); !strings.Contains(v, "# Heading") {
-		t.Fatalf("setup: the split editor shows the raw heading:\n%s", v)
+// S1: space o c and space o C (checkbox actions) do nothing
+// in the reading view.
+func TestReadingViewIgnoresCheckboxActions(t *testing.T) {
+	h := openNoteWith(t, "- [ ] task")
+	h.keys(" p")
+	h.keys(" oc")
+	h.keys(" oC")
+	if got := saved(t, h); got != "- [ ] task" {
+		t.Fatalf("checkbox actions must not edit in the reading view, got %q", got)
 	}
+}
+
+// S1: Enter and gd still follow a [[link]] in the reading view.
+func TestReadingViewFollowsLinks(t *testing.T) {
+	for _, follow := range []string{"enter", "gd"} {
+		h := openStart(t, linkedNotes(t))
+		h.key(tea.KeyEsc)
+		h.keys(" p")
+		h.keys("gg0" + strings.Repeat("l", 16)) // onto "[[Docker]]"
+		if follow == "enter" {
+			h.key(tea.KeyEnter)
+		} else {
+			h.keys("gd")
+		}
+		if v := h.view(); !strings.Contains(v, "containers") || mode(v) != "READING" {
+			t.Fatalf("%s should open Docker.md in the reading view:\n%s", follow, v)
+		}
+	}
+}
+
+// S2: space r shows the Markdown editor alone at full width, with line
+// numbers and raw markers, editable; space r again restores the split.
+func TestEditorViewShowsOnlyTheEditableMarkdown(t *testing.T) {
+	h := openNoteWith(t, "# Heading\nintro")
+	before := h.view()
 	h.keys(" r")
 	v := h.view()
-	if strings.Contains(v, "# Heading") || !strings.Contains(v, "Heading") {
-		t.Fatalf("reading mode should hide the heading's # off the cursor line:\n%s", v)
+	if mode(v) != "NORMAL" {
+		t.Fatalf("the editor view keeps the vim mode label:\n%s", v)
+	}
+	if got := dividers(v, bodyRow); len(got) != 1 || got[0] != app.SidebarWidth {
+		t.Fatalf("only the explorer divider should remain, got %v:\n%s", got, v)
+	}
+	if !strings.Contains(v, "# Heading") {
+		t.Fatalf("the editor view shows the raw Markdown:\n%s", v)
+	}
+	if x, _, paneX := textAt(t, v, "intro"); x != paneX+6 {
+		t.Fatalf("editor view text at column %d, want %d (line numbers, no margin):\n%s", x, paneX+6, v)
+	}
+	h.keys("A!")
+	if v := h.view(); mode(v) != "INSERT" {
+		t.Fatalf("A in the editor view should edit:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	if got := saved(t, h); got != "# Heading!\nintro" {
+		t.Fatalf("typing in the editor view should change the note, got %q", got)
+	}
+	h.keys(" r")
+	if got := dividers(h.view(), bodyRow); len(got) != len(dividers(before, bodyRow)) {
+		t.Fatalf("space r again should restore the split, dividers %v", got)
+	}
+}
+
+// S3: space p and space r switch straight between the two views.
+func TestReadingAndEditorViewsSwitchDirectly(t *testing.T) {
+	h := openNoteWith(t, "# Heading\nintro")
+	h.keys(" p")
+	h.keys(" r")
+	v := h.view()
+	if mode(v) != "NORMAL" || !strings.Contains(v, "# Heading") || len(dividers(v, bodyRow)) != 1 {
+		t.Fatalf("space r from the reading view should open the editor view:\n%s", v)
+	}
+	h.keys(" p")
+	v = h.view()
+	if mode(v) != "READING" || strings.Contains(v, "# Heading") || len(dividers(v, bodyRow)) != 1 {
+		t.Fatalf("space p from the editor view should open the reading view:\n%s", v)
+	}
+}
+
+// S4: there is no key left that only hides the preview: both views go back
+// to the split, and the split is where the app starts.
+func TestBothViewsReturnToTheSplit(t *testing.T) {
+	for _, k := range []string{" p", " r"} {
+		h := openNote(t)
+		h.keys(k)
+		h.keys(k)
+		if got := dividers(h.view(), bodyRow); len(got) != 2 {
+			t.Fatalf("%q twice should end in the split, dividers %v", k, got)
+		}
 	}
 }
 
@@ -142,13 +261,55 @@ func TestReadingModeTabAndCtrlHLMoveBetweenExplorerAndEditor(t *testing.T) {
 	}
 }
 
+// S3: in the editor view the pane keys move between explorer and editor.
+func TestEditorViewTabAndCtrlHLMoveBetweenExplorerAndEditor(t *testing.T) {
+	h := editorView(t, "hello")
+	steps := []struct {
+		key  tea.KeyMsg
+		want string
+	}{
+		{tea.KeyMsg{Type: tea.KeyTab}, "EXPLORER"},
+		{tea.KeyMsg{Type: tea.KeyTab}, "NORMAL"},
+		{tea.KeyMsg{Type: tea.KeyCtrlH}, "EXPLORER"},
+		{tea.KeyMsg{Type: tea.KeyCtrlL}, "NORMAL"},
+		{tea.KeyMsg{Type: tea.KeyCtrlL}, "NORMAL"},
+		{tea.KeyMsg{Type: tea.KeyCtrlLeft}, "EXPLORER"},
+		{tea.KeyMsg{Type: tea.KeyCtrlRight}, "NORMAL"},
+	}
+	for i, s := range steps {
+		h.send(s.key)
+		if got := mode(h.view()); got != s.want {
+			t.Fatalf("step %d (%s): mode %q, want %q", i, s.key, got, s.want)
+		}
+	}
+}
+
+// S3: the explorer toggle works in both views and leaves the view as it was.
+func TestExplorerToggleKeepsTheView(t *testing.T) {
+	for _, c := range []struct{ key, mode string }{{" p", "READING"}, {" r", "NORMAL"}} {
+		h := openNote(t)
+		h.keys(c.key)
+		h.send(tea.KeyMsg{Type: tea.KeyCtrlB})
+		if v := h.view(); mode(v) != c.mode || len(dividers(v, bodyRow)) != 0 {
+			t.Fatalf("%q: ctrl+b should hide the explorer and keep the view %s:\n%s", c.key, c.mode, v)
+		}
+		h.send(tea.KeyMsg{Type: tea.KeyCtrlB})
+		if v := h.view(); mode(v) != "EXPLORER" || len(dividers(v, bodyRow)) != 1 {
+			t.Fatalf("%q: ctrl+b should bring the explorer back beside the full-width note:\n%s", c.key, v)
+		}
+		h.send(tea.KeyMsg{Type: tea.KeyCtrlL})
+		if v := h.view(); mode(v) != c.mode {
+			t.Fatalf("%q: ctrl+l should go back to the view %s:\n%s", c.key, c.mode, v)
+		}
+	}
+}
+
 func TestReadingModeEscGoesToTheEditor(t *testing.T) {
 	h := reading(t)
 	h.keys(" e")
 	h.key(tea.KeyEsc)
-	h.keys("A!")
-	if v := h.view(); mode(v) != "INSERT" {
-		t.Fatalf("Esc from the explorer should focus the editor:\n%s", v)
+	if v := h.view(); mode(v) != "READING" {
+		t.Fatalf("Esc from the explorer should focus the reading view:\n%s", v)
 	}
 }
 
@@ -187,29 +348,13 @@ func TestReadingModeGraphLeavesIt(t *testing.T) {
 	}
 }
 
-func TestReadingModeSpacePRestoresTheSplit(t *testing.T) {
-	h := openNote(t)
-	before := dividers(h.view(), bodyRow)
-	h.keys(" r")
-	h.keys(" p")
-	v := h.view()
-	if mode(v) == "READING" {
-		t.Fatalf("space p should leave reading mode:\n%s", v)
-	}
-	if got := dividers(v, bodyRow); len(got) != len(before) || got[len(got)-1] != before[len(before)-1] {
-		t.Fatalf("space p should restore the split %v, got %v:\n%s", before, got, v)
-	}
-}
-
-func TestSpacePOutsideReadingModeStillTogglesThePreview(t *testing.T) {
-	h := openNote(t)
-	h.keys(" p")
-	if got := dividers(h.view(), bodyRow); len(got) != 1 {
-		t.Fatalf("space p should hide the preview, dividers %v", got)
-	}
-	h.keys(" p")
-	if got := dividers(h.view(), bodyRow); len(got) != 2 {
-		t.Fatalf("space p should show the preview again, dividers %v", got)
+// A new note needs typing: from the reading view it opens in the split.
+func TestReadingViewNewNoteIsEditable(t *testing.T) {
+	h := reading(t)
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlN})
+	h.keys("abc")
+	if v := h.view(); mode(v) != "INSERT" || !strings.Contains(v, "abc") || len(dividers(v, bodyRow)) != 2 {
+		t.Fatalf("a new note from the reading view should be typed in the split:\n%s", v)
 	}
 }
 
@@ -244,29 +389,56 @@ func TestReadingModeExplorerDividerStillDrags(t *testing.T) {
 	}
 }
 
-func TestReadingModeKeyIsConfigurable(t *testing.T) {
-	h := openNote(t, app.WithKeys(map[string][]string{"reading_mode": {}}))
-	h.keys(" r")
+func TestReadingViewKeyIsConfigurable(t *testing.T) {
+	h := openNote(t, app.WithKeys(map[string][]string{"reading_view": {}}))
+	h.keys(" p")
 	if v := h.view(); mode(v) == "READING" {
-		t.Fatalf("reading_mode: [] should unbind space r:\n%s", v)
+		t.Fatalf("reading_view: [] should unbind space p:\n%s", v)
 	}
 
-	h = openNote(t, app.WithKeys(map[string][]string{"reading_mode": {"space v"}}))
-	h.keys(" r")
+	h = openNote(t, app.WithKeys(map[string][]string{"reading_view": {"space v"}}))
+	h.keys(" p")
 	if mode(h.view()) == "READING" {
-		t.Fatal("space r was replaced and must do nothing now")
+		t.Fatal("space p was replaced and must do nothing now")
 	}
 	h.keys(" v")
 	if v := h.view(); mode(v) != "READING" {
-		t.Fatalf("space v should now enter reading mode:\n%s", v)
+		t.Fatalf("space v should now open the reading view:\n%s", v)
 	}
 }
 
-func TestHelpListsReadingMode(t *testing.T) {
+// S4: the old action names still work. reading_mode was the full-width
+// rendered view, so it names the reading view; toggle_preview left the
+// editor alone, so it names the editor view. The new name wins over the old.
+func TestOldViewActionNamesStillWork(t *testing.T) {
+	h := openNote(t, app.WithKeys(map[string][]string{"reading_mode": {"space v"}}))
+	h.keys(" v")
+	if v := h.view(); mode(v) != "READING" || strings.Contains(v, "unknown action") {
+		t.Fatalf("reading_mode should bind the reading view without a warning:\n%s", v)
+	}
+
+	h = openNote(t, app.WithKeys(map[string][]string{"toggle_preview": {"space v"}}))
+	h.keys(" v")
+	if v := h.view(); mode(v) != "NORMAL" || len(dividers(v, bodyRow)) != 1 || strings.Contains(v, "unknown action") {
+		t.Fatalf("toggle_preview should bind the editor view without a warning:\n%s", v)
+	}
+
+	h = openNote(t, app.WithKeys(map[string][]string{"reading_mode": {"space v"}, "reading_view": {"space z"}}))
+	h.keys(" z")
+	if v := h.view(); mode(v) != "READING" {
+		t.Fatalf("reading_view should win over reading_mode:\n%s", v)
+	}
+}
+
+func TestHelpListsBothViews(t *testing.T) {
 	h := openNote(t)
 	h.keys("?")
-	if v := h.view(); !strings.Contains(v, "SPC r") || !strings.Contains(v, "Reading mode") {
-		t.Fatalf("the help should list reading mode:\n%s", v)
+	v := h.view()
+	if !strings.Contains(v, "SPC p") || !strings.Contains(v, "Reading view") {
+		t.Fatalf("the help should list the reading view:\n%s", v)
+	}
+	if !strings.Contains(v, "SPC r") || !strings.Contains(v, "Editor view") {
+		t.Fatalf("the help should list the editor view:\n%s", v)
 	}
 }
 
@@ -308,7 +480,7 @@ func clickInsert(t *testing.T, h *harness) string {
 func TestReadingModeHasThePreviewMargins(t *testing.T) {
 	long := strings.Repeat("word ", 60)
 	h := openNoteWith(t, "intro\n"+long)
-	h.keys(" r")
+	h.keys(" p")
 	v := h.view()
 	x, _, paneX := textAt(t, v, "intro")
 	paneW := termW - paneX
@@ -325,8 +497,13 @@ func TestReadingModeHasThePreviewMargins(t *testing.T) {
 			t.Fatalf("reading text runs to column %d, past the right margin at %d:\n%s", end, termW-margin, v)
 		}
 	}
-	if got := clickInsert(t, h); !strings.HasPrefix(got, "intXro\n") {
-		t.Fatalf("a click in reading mode should land on the text under it, got %q", got)
+	cx, cy, _ := textAt(t, v, "intro")
+	h.click(cx+3, cy)
+	h.keys(" r") // the cursor stays where the click put it
+	h.keys("iX")
+	h.key(tea.KeyEsc)
+	if got := saved(t, h); !strings.HasPrefix(got, "intXro\n") {
+		t.Fatalf("a click in the reading view should land on the text under it, got %q", got)
 	}
 }
 

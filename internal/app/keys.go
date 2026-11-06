@@ -28,7 +28,7 @@ var generalActions = []string{
 	keymap.Quit, keymap.Save, keymap.NewNote, keymap.FindNote,
 	keymap.ToggleExplorer, keymap.FocusExplorer,
 	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
-	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.TogglePreview, keymap.ReadingMode,
+	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.ReadingView, keymap.EditorView,
 	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.Home, keymap.SyncNow, keymap.Help,
 	keymap.PasteImage, keymap.ToggleCheckbox, keymap.RemoveCheckbox, keymap.NextLink, keymap.PrevLink,
 }
@@ -68,10 +68,10 @@ func (m *Model) runAction(action string) tea.Cmd {
 		return m.cycleBuffer(-1)
 	case keymap.CloseTab:
 		return m.closeBuffer(m.active, false)
-	case keymap.TogglePreview:
-		return m.togglePreview()
-	case keymap.ReadingMode:
-		return m.toggleReading()
+	case keymap.ReadingView:
+		return m.toggleView(viewReading)
+	case keymap.EditorView:
+		return m.toggleView(viewEditor)
 	case keymap.ExportPDF:
 		return m.exportPDF("")
 	case keymap.Themes:
@@ -85,6 +85,9 @@ func (m *Model) runAction(action string) tea.Cmd {
 	case keymap.SyncNow:
 		return m.requestSync()
 	case keymap.PasteImage:
+		if m.content.ReadOnly() {
+			return m.content.ReadOnlyHint()
+		}
 		return m.content.PasteClipboard()
 	case keymap.ToggleCheckbox:
 		return m.editCheckboxes(m.content.ToggleCheckboxes)
@@ -102,8 +105,11 @@ func (m *Model) runAction(action string) tea.Cmd {
 
 // editCheckboxes runs a checkbox edit of the editor on the open note and,
 // when it changed the text, brings the modified mark and the preview up to
-// date, as typing does.
+// date, as typing does. The reading view only says it is read-only.
 func (m *Model) editCheckboxes(edit func() bool) tea.Cmd {
+	if m.content.ReadOnly() {
+		return m.content.ReadOnlyHint()
+	}
 	if m.activeBuffer() == nil || !edit() {
 		return nil
 	}

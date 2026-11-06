@@ -30,8 +30,8 @@ const (
 	NextTab        = "next_tab"
 	PrevTab        = "prev_tab"
 	CloseTab       = "close_tab"
-	TogglePreview  = "toggle_preview"
-	ReadingMode    = "reading_mode"
+	ReadingView    = "reading_view"
+	EditorView     = "editor_view"
 	ExportPDF      = "export_pdf"
 	Themes         = "themes"
 	Graph          = "graph"
@@ -128,10 +128,10 @@ var Actions = []Info{
 		Long: "Shows the previous open note in the tab bar, wrapping around before the first.", defaults: []string{"[", "space shift+tab"}},
 	{Action: CloseTab, Section: "general", Group: GroupNote, Help: "Close tab",
 		Long: "Closes the tab of this note. With unsaved changes it asks whether to save them first.", defaults: []string{"space x"}},
-	{Action: TogglePreview, Section: "general", Group: GroupView, Help: "Toggle preview",
-		Long: "Shows or hides the rendered preview of the note next to the editor.", defaults: []string{"space p"}},
-	{Action: ReadingMode, Section: "general", Group: GroupView, Help: "Reading mode: edit full width",
-		Long: "Shows only the editor at full width, without line numbers, with Markdown markers hidden except on the cursor line. The note stays editable; the same key goes back to the split.", defaults: []string{"space r"}},
+	{Action: ReadingView, Section: "general", Group: GroupView, Help: "Reading view: read-only, full width",
+		Long: "Shows only the rendered note at full width, without line numbers and with every Markdown marker hidden. It is read-only: move, scroll, search and follow links as usual, but keys that edit do nothing. The same key goes back to the split; the editor view key opens the note for editing.", defaults: []string{"space p"}},
+	{Action: EditorView, Section: "general", Group: GroupView, Help: "Editor view: Markdown full width",
+		Long: "Shows only the Markdown editor at full width, with line numbers and without the side preview; the note edits as usual. The same key goes back to the split.", defaults: []string{"space r"}},
 	{Action: ExportPDF, Section: "general", Group: GroupNote, Help: "Export note as PDF",
 		Long: "Writes this note as a PDF file in the note's folder, with its blocks rendered.", defaults: []string{"space P"}},
 	{Action: Themes, Section: "general", Group: GroupView, Help: "Themes",
@@ -245,11 +245,17 @@ func New(user map[string][]string) (Map, []string) {
 	}
 	sort.Strings(names)
 	for _, name := range names {
+		raw := user[name]
+		if now, ok := renamed[name]; ok {
+			if _, given := user[now]; given {
+				continue // the new name wins over the old one
+			}
+			name = now
+		}
 		if !known[name] {
 			warnings = append(warnings, fmt.Sprintf("keys: unknown action %q", name))
 			continue
 		}
-		raw := user[name]
 		keys := []string{}
 		for _, k := range raw {
 			n, err := normalize(k)
@@ -266,6 +272,12 @@ func New(user map[string][]string) (Map, []string) {
 	}
 	return m, append(warnings, m.clashes()...)
 }
+
+// renamed maps action names of older config files to today's actions.
+// reading_mode was the full-width rendered view, now the read-only reading
+// view; toggle_preview hid the side preview and left the editor alone, now
+// the editor view.
+var renamed = map[string]string{"reading_mode": ReadingView, "toggle_preview": EditorView}
 
 // sameAction pairs an explorer action with the general action that does the
 // same thing: when they share a key, the general one runs first and the

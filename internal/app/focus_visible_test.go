@@ -311,11 +311,11 @@ func TestFocusExplorerOverlayDimsEditor(t *testing.T) {
 	assertDimmed(t, v, "editor behind the overlay", edge+1, narrowEditorPreviewDivider)
 }
 
-// In reading mode the editor is hidden and the explorer's divider borders
-// the focused preview, so it is lit.
+// In the reading view the preview is hidden and the explorer's divider
+// borders the focused note, so it is lit.
 func TestFocusDividerLitInReadingMode(t *testing.T) {
 	h := focusHarness(t)
-	h.keys(" r")
+	h.keys(" p")
 	v := h.colourView()
 	th := theme.DefaultTheme()
 	c := cellAt(v, focusLayout.SidebarW, 5)

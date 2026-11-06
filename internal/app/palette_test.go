@@ -140,9 +140,9 @@ func typeQuery(h *harness, s string) {
 
 func TestPaletteExplainsTheSelectedEntryAtTheBottom(t *testing.T) {
 	h := openPalette(t)
-	typeQuery(h, "reading mode")
-	if got := noSpace(dialogText(h.view())); !strings.Contains(got, noSpace(keymap.LongText(keymap.ReadingMode))) {
-		t.Fatalf("the bottom should explain reading mode with its Long text:\n%s", h.view())
+	typeQuery(h, "reading view")
+	if got := noSpace(dialogText(h.view())); !strings.Contains(got, noSpace(keymap.LongText(keymap.ReadingView))) {
+		t.Fatalf("the bottom should explain the reading view with its Long text:\n%s", h.view())
 	}
 	for range 30 {
 		h.key(tea.KeyBackspace)
@@ -205,7 +205,7 @@ func TestPaletteFilterIsFuzzy(t *testing.T) {
 
 func TestPaletteEnterRunsARunnableEntry(t *testing.T) {
 	h := openPalette(t)
-	typeQuery(h, "reading mode")
+	typeQuery(h, "reading view")
 	h.key(tea.KeyEnter)
 	if v := h.view(); strings.Contains(v, paletteTitle) || mode(v) != "READING" {
 		t.Fatalf("Enter on Reading mode should close the palette and run it:\n%s", v)
@@ -232,7 +232,7 @@ func TestPaletteEnterOnlyExplainsAKeyThatIsNotACommand(t *testing.T) {
 	for range 4 {
 		h.key(tea.KeyBackspace)
 	}
-	typeQuery(h, "reading mode")
+	typeQuery(h, "reading view")
 	if v := h.view(); !strings.Contains(v, "Enter run") {
 		t.Fatalf("the footer should offer Enter on a runnable entry:\n%s", v)
 	}
@@ -336,7 +336,7 @@ func homePalette(t *testing.T, hidden bool) *harness {
 // From home, Enter does what the key would do there: the actions home
 // withholds (they need an open note) are only explained.
 func TestPaletteFromHomeOnlyRunsWhatTheHomeKeysRun(t *testing.T) {
-	for _, q := range []string{"reading mode", "next pane", "toggle preview", "close tab", "save (new"} {
+	for _, q := range []string{"reading view", "next pane", "editor view", "close tab", "save (new"} {
 		h := homePalette(t, true)
 		typeQuery(h, q)
 		if v := h.view(); !strings.Contains(v, "Needs an open note") || strings.Contains(v, "Enter run") {

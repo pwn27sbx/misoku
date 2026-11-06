@@ -248,6 +248,10 @@ type Model struct {
 	// blank. Nil draws every line raw, as before. misoku addition.
 	RenderLine func(line int, runes []rune, width int) []string
 
+	// RenderCursorLine makes RenderLine draw the cursor's line too, for a
+	// read-only view that conceals every line. misoku addition.
+	RenderCursorLine bool
+
 	// SelectionStyle paints selected text (misoku addition).
 	SelectionStyle lipgloss.Style
 	selecting      bool
@@ -781,6 +785,9 @@ func (m *Model) characterLeft(insideLine bool) {
 // so as not to reveal word breaks in the masked input.
 func (m *Model) wordLeft() {
 	for {
+		if m.row == 0 && m.col == 0 {
+			return // misoku: no word before the cursor; upstream looped forever
+		}
 		m.characterLeft(true /* insideLine */)
 		if m.col < len(m.value[m.row]) && !unicode.IsSpace(m.value[m.row][m.col]) {
 			break
@@ -1179,7 +1186,7 @@ func (m Model) View() string {
 		}
 
 		var rendered []string // misoku: the hook's rows, one per wrapped row
-		if m.RenderLine != nil && l != m.row {
+		if m.RenderLine != nil && (l != m.row || m.RenderCursorLine) {
 			rendered = m.renderedRows(l, len(wrappedLines))
 		}
 

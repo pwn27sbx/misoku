@@ -59,6 +59,7 @@ func (m *Model) createEntry(e core.NewEntry) tea.Cmd {
 		return nil
 	}
 	m.sidebar.SetSelectedID(p.ID)
+	m.leaveReading() // a new note is typed
 	return tea.Batch(m.openFile(p.ID), m.content.EnterInsert())
 }
 

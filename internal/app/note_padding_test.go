@@ -65,10 +65,13 @@ func TestSplitPanesHaveABlankRowTopAndBottom(t *testing.T) {
 	}
 }
 
+// S5: both full-width views keep the padding rows.
 func TestReadingModeHasABlankRowTopAndBottom(t *testing.T) {
-	h := openNoteWith(t, tallNote())
-	h.keys(" r")
-	assertNotePadding(t, h.view())
+	for _, k := range []string{" p", " r"} {
+		h := openNoteWith(t, tallNote())
+		h.keys(k)
+		assertNotePadding(t, h.view())
+	}
 }
 
 // The cursor is never drawn on a padding row: going to the last line scrolls

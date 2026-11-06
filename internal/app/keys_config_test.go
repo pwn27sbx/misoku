@@ -187,8 +187,8 @@ func TestExportPDFCanTakeSpacePWithPreviewMoved(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := newHarness(t, store, app.WithKeys(map[string][]string{
-		"export_pdf":     {"space p"},
-		"toggle_preview": {"space v"},
+		"export_pdf":   {"space p"},
+		"reading_view": {"space v"},
 	}))
 	h.keys("1")
 	h.key(tea.KeyEsc)
@@ -207,6 +207,6 @@ func TestExportPDFCanTakeSpacePWithPreviewMoved(t *testing.T) {
 	withPreview := strings.Count(h.view(), "Title")
 	h.keys(" v")
 	if strings.Count(h.view(), "Title") >= withPreview {
-		t.Fatalf("space v should now hide the preview:\n%s", h.view())
+		t.Fatalf("space v should now open the reading view, without the preview:\n%s", h.view())
 	}
 }

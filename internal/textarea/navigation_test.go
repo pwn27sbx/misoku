@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pwn27sbx/misoku/internal/testnote"
 	"github.com/pwn27sbx/misoku/internal/textarea"
@@ -118,5 +119,25 @@ func TestNavigationTraceGolden(t *testing.T) {
 			}
 		}
 		t.Fatalf("trace length differs: got %d lines, want %d", len(gl), len(wl))
+	}
+}
+
+// b with no word before the cursor (an empty note, or only blanks before
+// it) stays at the start of the text instead of looping forever.
+func TestWordBackwardStopsAtTheStartOfTheText(t *testing.T) {
+	for _, text := range []string{"", "   ", "\n  \n", "  word"} {
+		m := textarea.New()
+		m.SetValue(text)
+		m.GotoTop()
+		done := make(chan struct{})
+		go func() {
+			m.WordBackward()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("WordBackward on %q never returned", text)
+		}
 	}
 }

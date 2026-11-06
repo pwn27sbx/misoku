@@ -54,8 +54,7 @@ type Model struct {
 	height int
 
 	sidebarOpen   bool
-	previewOpen   bool
-	reading       bool // reading mode: only the preview, see toggleReading
+	noteView      noteView // the split or one full-width view, see toggleView
 	palette       *palette
 	leaderPending bool
 	leaderSeq     int  // bumps on every Space press, see leaderGuideMsg
@@ -251,7 +250,6 @@ func New(store *core.Store, opts ...Option) Model {
 		focus:       focusSidebar,
 		viewMode:    viewModeDashboard,
 		sidebarOpen: true,
-		previewOpen: true,
 		dashboard:   dashboard.New(th),
 		sidebar:     sidebar.New(th),
 		content:     content.New(th),
@@ -291,7 +289,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m *Model) layout() Layout {
-	return CalculateLayout(m.width, m.height, m.sidebarOpen && !m.narrowWindow(), m.previewOpen, m.reading, m.split)
+	return CalculateLayout(m.width, m.height, m.sidebarOpen && !m.narrowWindow(), m.noteView == viewSplit, m.noteView == viewReading, m.split)
 }
 
 // updateLayout recalculates dimensions across child panes.
@@ -338,7 +336,7 @@ func (m *Model) setStatus(s string) { m.say(s, false) }
 func (m *Model) setError(s string) { m.say(s, true) }
 
 // focusPane moves keyboard focus, opening the target pane if it was hidden.
-// A hidden preview (reading mode, or too narrow a window) hands the focus to
+// A hidden preview (a full-width view, or too narrow a window) hands the focus to
 // the editor.
 func (m *Model) focusPane(f focus) tea.Cmd {
 	m.viewMode = viewModeWorkspace
@@ -418,62 +416,61 @@ func (m *Model) toggleSidebar() tea.Cmd {
 	return m.focusPane(focusSidebar)
 }
 
-// togglePreview is Space p. In reading mode it only leaves reading mode,
-// bringing back the split the user had.
-func (m *Model) togglePreview() tea.Cmd {
-	if m.reading {
-		m.leaveReading()
-		return nil
-	}
-	m.previewOpen = !m.previewOpen
-	if !m.previewOpen {
-		preview.ClearImages()
-	}
-	m.updateLayout()
-	if m.previewOpen && m.layout().PreviewW == 0 {
-		m.setStatus("Window too narrow for the preview")
-	}
-	if m.focus == focusPreview && !m.previewOpen {
-		return m.focusPane(focusEditor)
-	}
-	return nil
-}
+// noteView is how the open note is laid out: the split of editor and side
+// preview, or one of the two full-width views.
+type noteView int
+
+const (
+	viewSplit   noteView = iota // the editor and the side preview
+	viewReading                 // Space p: the note rendered, read-only, full width
+	viewEditor                  // Space r: the Markdown editor alone, full width
+)
 
 // editorMargin is the editor's blank columns each side of the text: the
-// preview's page margins in reading mode, where the editor stands in for
-// the preview, and none in the split.
+// preview's page margins in the reading view, where the editor stands in
+// for the preview, and none elsewhere.
 func (m *Model) editorMargin(l Layout) int {
-	if !m.reading {
+	if m.noteView != viewReading {
 		return 0
 	}
 	return preview.PageMargin(l.EditorW)
 }
 
-// toggleReading is Space r: show only the editor at full width, drawn live
-// (Markdown rendered except on the cursor line) and still editable, or go
-// back to the split as it was (the divider positions are never touched).
-func (m *Model) toggleReading() tea.Cmd {
-	if m.reading {
-		m.leaveReading()
+// toggleView is Space p (viewReading) and Space r (viewEditor): show v and
+// focus the note, or go back to the split when v is already shown. Either
+// key switches straight from the other view. The divider positions are
+// never touched, so the split comes back as it was.
+func (m *Model) toggleView(v noteView) tea.Cmd {
+	if m.noteView == v {
+		m.setNoteView(viewSplit)
+		if m.layout().PreviewW == 0 {
+			m.setStatus("Window too narrow for the preview")
+		}
 		return nil
 	}
-	m.reading = true
-	m.content.SetLive(true)
-	preview.ClearImages() // the preview is hidden: drop its terminal images
-	m.updateLayout()      // after SetLive: SetSize recomputes the text width
+	m.setNoteView(v)
 	return m.focusPane(focusEditor)
 }
 
-// leaveReading brings the preview back and the editor's raw look, for
-// Space r and Space p and before anything that needs the split (the graph,
-// the block menu).
-func (m *Model) leaveReading() {
-	if !m.reading {
-		return
+// setNoteView lays the note out as v: the reading view draws every line
+// rendered and refuses edits, the others draw raw Markdown and edit.
+func (m *Model) setNoteView(v noteView) {
+	m.noteView = v
+	m.content.SetLive(v == viewReading)
+	m.content.SetReadOnly(v == viewReading)
+	if v != viewSplit {
+		preview.ClearImages() // the preview is hidden: drop its terminal images
 	}
-	m.reading = false
-	m.content.SetLive(false)
-	m.updateLayout()
+	m.updateLayout() // after SetLive: SetSize recomputes the text width
+}
+
+// leaveReading goes from the reading view back to the split, before
+// anything that needs the split or typing (the graph, the block menu, a new
+// note). The editor view stays: it already edits.
+func (m *Model) leaveReading() {
+	if m.noteView == viewReading {
+		m.setNoteView(viewSplit)
+	}
 }
 
 func (m *Model) startFind() tea.Cmd { return m.openFinder() }

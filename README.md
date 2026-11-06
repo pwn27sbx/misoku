@@ -228,7 +228,11 @@ never use `notes_dir`.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` (or `ctrl+←`/`ctrl+→`) or a click move the focus.
 - **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
-- **Reading mode** (`space r`): edit the note at full width, like render-markdown.nvim: line numbers hide, and every line but the cursor's is drawn rendered (headings without `#`, bold, italic and code without delimiters, links as their text, boxes, `•` bullets and `▎` quotes), while the cursor line shows its Markdown and edits as usual. Code blocks, front matter and tables stay raw. The side preview (`space p`) stays a read-only view; the statusline says READING.
+- **Two full-width views**, each toggled by its own key and back to the split of editor and side preview:
+  - **Reading view** (`space p`): the note alone at full width, like render-markdown.nvim: line numbers hide and every line is drawn rendered (headings without `#`, bold, italic and code without delimiters, links as their text, boxes, `•` bullets and `▎` quotes). Code blocks, front matter and tables stay raw. It is read-only: you move, scroll, select and copy, search and follow links (`Enter`, `gd`), but keys that edit only say how to edit; the statusline says READING.
+  - **Editor view** (`space r`): the Markdown editor alone at full width, with line numbers and editable as usual.
+
+  Either key switches straight from the other view.
 - **Fast search** across file names and note contents.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
 - **Use mini.files**: `M` in the explorer hands the screen to Neovim's [mini.files](https://github.com/nvim-mini/mini.files) on the vault folder, with your own Neovim setup (LazyVim's included). Deleting there goes to mini.files' trash, not for good, and dot files stay hidden. Closing it (`q`) returns to Misoku, which re-reads the folder at once. It needs `nvim` on `PATH` and mini.files installed (the plugin, or the LazyVim extra `editor.mini-files`); without them the status bar says what is missing.
@@ -331,7 +335,9 @@ listed on their own page after `space o`. `Esc` closes it; type the next key soo
 shows. On the home screen, a key that needs an open note (such as `space p`)
 says so in the status bar. A misspelled action, a malformed key, or a key given to two actions is
 reported in the status bar when Misoku starts (it stays until `Esc`, and
-`:messages` shows it again).
+`:messages` shows it again). The action names of older versions still work:
+`reading_mode` binds the reading view (`reading_view`) and `toggle_preview` the
+editor view (`editor_view`); when a config gives both names, the new one wins.
 
 Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 
@@ -363,10 +369,10 @@ exporting, the explorer and `:export`. Everything you type goes to the
 search, `?`, `q` and Space included; only `Esc` closes the palette. `↑`/`↓`
 move, and the bottom explains the selected entry. `Enter` runs it when it is
 an action or a command that needs nothing more (`:settings`, `:messages`,
-`:sync`, `Toggle preview`…); a key that only works in its own place (the
+`:sync`, `Reading view`…); a key that only works in its own place (the
 explorer, the editor, the graph) is just explained. Opened from the home
 screen, `Enter` runs only what the home screen runs; what acts on a note
-(`Toggle preview`, `Close tab`, `:w`, `:export`…) says "Needs an open note".
+(`Reading view`, `Close tab`, `:w`, `:export`…) says "Needs an open note".
 The list scrolls when it does not fit, so no row is cut.
 
 **General**
@@ -385,8 +391,8 @@ The list scrolls when it does not fit, so no row is cut.
 | `next_tab` | `]`, `space tab` | Next tab |
 | `prev_tab` | `[`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
-| `toggle_preview` | `space p` | Toggle preview |
-| `reading_mode` | `space r` | Reading mode: only the editor, full width, Markdown markers hidden off the cursor line (`space r` or `space p` brings the split back) |
+| `reading_view` | `space p` | Reading view: the rendered note alone, full width and read-only (`space p` again brings the split back) |
+| `editor_view` | `space r` | Editor view: the Markdown editor alone, full width, with line numbers (`space r` again brings the split back) |
 | `export_pdf` | `space P` (Space, then Shift+P) | Export note as PDF (same as `:export`) |
 | `themes` | `space t` | Themes |
 | `graph` | `space g` | Graph of this note's links |

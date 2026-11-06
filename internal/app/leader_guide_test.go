@@ -98,7 +98,7 @@ func TestLeaderGuideGroupsTheFollowingKeys(t *testing.T) {
 	cases := map[string]string{
 		"New note":       "NOTE",
 		"Export note":    "NOTE",
-		"Toggle preview": "VIEW",
+		"Reading view":   "VIEW",
 		"Themes":         "VIEW",
 		"Focus explorer": "GO",
 		"Home screen":    "GO",
@@ -122,14 +122,14 @@ func TestLeaderGuideFollowsTheConfiguredKeys(t *testing.T) {
 	h := openNote(t, app.WithKeys(map[string][]string{
 		"toggle_explorer": {"space e"},
 		"focus_explorer":  {},
-		"toggle_preview":  {"space v"},
+		"editor_view":     {"space v"},
 		"themes":          {},
 	}))
 	h.keys(" ")
 	tickGuide(h)
 	v := h.view()
-	if !guideRow(v, "v", "Toggle preview") {
-		t.Errorf("the moved toggle_preview should show its new key v:\n%s", v)
+	if !guideRow(v, "v", "Editor view") {
+		t.Errorf("the moved editor_view should show its new key v:\n%s", v)
 	}
 	if !guideRow(v, "e", "Toggle explorer") {
 		t.Errorf("toggle_explorer moved to space e should show its key e:\n%s", v)
@@ -217,21 +217,21 @@ func TestLeaderKeyStillRunsWhileTheGuideIsOpen(t *testing.T) {
 	before := h.view()
 	h.keys(" ")
 	tickGuide(h)
-	h.keys("p") // toggle_preview hides the preview
+	h.keys("p") // reading_view hides the preview
 	v := h.view()
 	if strings.Contains(v, guideFooter) {
 		t.Fatalf("running an action should close the guide:\n%s", v)
 	}
 	if v == before {
-		t.Fatalf("space p with the guide open should toggle the preview:\n%s", v)
+		t.Fatalf("space p with the guide open should open the reading view:\n%s", v)
 	}
 	h.keys(" ")
 	if guideOpen(h) {
 		t.Fatalf("the next Space should wait again before showing the guide:\n%s", h.view())
 	}
-	h.keys("p") // and a fast space p brings the preview back
+	h.keys("p") // and a fast space p brings the split back
 	if v := h.view(); v != before {
-		t.Fatalf("a fast space p should toggle the preview back:\n%s", v)
+		t.Fatalf("a fast space p should bring the split back:\n%s", v)
 	}
 }
 
