@@ -35,6 +35,11 @@ type Config struct {
 	// NotesDir is the folder `misoku` opens when no folder is given: an
 	// absolute path or one starting with "~". See NotesFolder.
 	NotesDir string `json:"notes_dir,omitempty"`
+	// LearnOffered records that the first-run dialog was answered ("Soy
+	// nuevo", "Ya tengo experiencia" or "Ahora no"), so it never shows
+	// again on this machine. A missing key means it was never answered:
+	// existing users see it once after updating.
+	LearnOffered bool `json:"learn_offered,omitempty"`
 }
 
 // Sync is the "sync" section of config.json:
