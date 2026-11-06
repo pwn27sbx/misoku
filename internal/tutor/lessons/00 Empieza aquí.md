@@ -14,6 +14,9 @@ jugando: son **7 niveles** y cada uno es una nota.
 Los ejemplos dentro de `código` no cuentan: tienes que escribirlo tú.
 Tu progreso se guarda en estas notas. Para empezar de cero: `misoku tutor --reset`.
 
+Cuando quieras parar, `Ctrl+C` vuelve a tu vault: lo que ya pasaste queda guardado.
+Al volver a `misoku tutor` sigues en el primer nivel que no hayas superado.
+
 ## Niveles
 
 1. [[01 Títulos]] — `#`, `##` y `###`

@@ -180,6 +180,14 @@ of a disk or a system folder. It never shows without a terminal to answer it
 unplugged disk, say), the welcome says `I can't find your notes at …` instead
 of creating it empty.
 
+Once a folder is open, the first time Misoku opens one it found on its own
+(`notes_dir`, `$MISOKU_WORKSPACE` or the Terminal's folder) a small dialog
+asks whether this is your first time and offers the tutorial (see
+[Learn Misoku](#learn-misoku)). Any of its three answers is remembered as
+`learn_offered` in the [config](#shortcuts), so it asks once; a folder you
+give (`--dir`, `misoku <folder>`) never sees it, and `misoku tutor` never
+offers it either.
+
 ```sh
 misoku ~/notes                # open a specific folder (same as --dir ~/notes)
 misoku                        # no folder: $MISOKU_WORKSPACE, else notes_dir in your config, else this folder
@@ -205,7 +213,7 @@ never use `notes_dir`.
 - **Plain Markdown files.** No database or lock-in: use git, sync the folder, open notes in any editor.
 - **A full workspace.** Start screen, file tree, tabs, statusline and 97 themes.
 - **Folders on the start screen**: the top-level folders of your notes, one key away (they follow the Recent notes on 1–9); opening one shows it expanded in the explorer.
-- **A start screen that follows your shortcuts**: its letter keys stay fixed (`n`, `f`, `e`, `t`, `?`, `g` for the [global graph](#global-graph), `s`, `q`, `1`–`9`), and the leader (`space`) sequences and Ctrl/Alt shortcuts from your [`keys`](#configuration) work there too.
+- **A start screen that follows your shortcuts**: its letter keys stay fixed (`n`, `f`, `e`, `t`, `?`, `g` for the [global graph](#global-graph), `l` for [Learn Misoku](#learn-misoku), `s`, `q`, `1`–`9`), and the leader (`space`) sequences and Ctrl/Alt shortcuts from your [`keys`](#configuration) work there too.
 - **Modal keyboard editing** with mouse support, plus unsaved tabs and Save As.
 - **`/` block menu** for headings, to-dos, tables, callouts, code, images and more.
 - **Live preview** laid out like a page, with syntax highlighting, images and cover banners drawn in the terminal.
@@ -236,13 +244,25 @@ never use `notes_dir`.
 
 ## Learn Misoku
 
-`misoku tutor` opens a tutorial vault of its own, in the normal app: seven levels in Spanish, one note each,
-plus an index (`00 Empieza aquí`). They teach headings, checkboxes, the `/` block menu, `[[links]]`, links to
-headings, block references and the explorer. Each level asks for one thing, and Misoku checks the note's text
-as you type (code is ignored, so the lesson's own examples never count): a passed level shows
-`✓ Nivel N superado (k/7)`, and the statusline shows `Tutor k/7`. Progress is the lesson notes themselves, so
-it survives a restart. The vault lives next to `config.json`, in a `tutor` folder;
-`misoku tutor --reset` moves it to the Trash and starts over from the bundled lessons.
+The first time you open Misoku it asks, in a floating dialog with a cat,
+whether this is your first time: `Soy nuevo` starts the tutorial,
+`Ya tengo experiencia` and `Ahora no` close it, and any answer is remembered.
+
+The start screen then keeps a `Learn` entry under `Graph`, on `l`, with the
+levels you passed (`Learn 3/7`, and a check once all seven do). Either way
+the tutorial is `misoku tutor`: a tutorial vault of its own, opened in the
+normal app, with seven levels in Spanish, one note each, plus an index
+(`00 Empieza aquí`). They teach headings, checkboxes, the `/` block menu,
+`[[links]]`, links to headings, block references and the explorer. Each level
+asks for one thing, and Misoku checks the note's text as you type (code is
+ignored, so the lesson's own examples never count): a passed level is saved
+at once and shows `✓ Nivel N superado (k/7)`, and the statusline shows
+`Tutor k/7`. Progress is the lesson notes themselves, so it survives a
+restart, and the tutorial comes back to the first lesson you did not pass
+(the index at the start and once all seven do). `Ctrl+C` returns to your
+vault. The vault lives next to `config.json`, in a `tutor` folder;
+`misoku tutor --reset` moves it to the Trash and starts over from the bundled
+lessons.
 
 ## Images
 

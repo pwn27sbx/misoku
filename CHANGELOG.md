@@ -4,6 +4,21 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Added
+
+- **A first-run dialog**: the first time Misoku opens a folder it found on its own, a floating dialog with a cat
+  asks whether this is your first time. `Soy nuevo` starts the tutorial, `Ya tengo experiencia` and `Ahora no`
+  close it (Esc means the same), Ctrl+C quits without recording anything, and any answer is remembered as
+  `learn_offered` in `config.json`, so it asks once. `--dir`, `misoku <folder>` and `misoku tutor` never offer it.
+- **`Learn` on the start screen**, under Graph and on `l`, counting the levels passed (`Learn 3/7`, with a check
+  once all seven do). It opens the tutorial without leaving Misoku, and returning gives the terminal's mouse back
+  and reads the progress again.
+- **The tutorial keeps what you pass**: a passed level is saved at once, so quitting with unsaved tabs keeps it,
+  and `misoku tutor` resumes at the first lesson you did not pass (`00 Empieza aquí` at the start and once every
+  level passes). The index says Ctrl+C returns to your vault.
+
 ## [0.20.0] - 2026-11-05
 
 ### Changed
