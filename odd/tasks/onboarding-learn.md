@@ -37,19 +37,20 @@ no merge, no release, no tag.
 ## Tasks
 
 - T1 config: `learn_offered` field and `config.SetLearnOffered` on `editFile`. Route: inline. Tests: writes,
-  keeps every other key, idempotent, bad file untouched.
+  keeps every other key, idempotent, bad file untouched. DONE in e78c06b.
 - T2 tutor: `tutor.Resume`; `app.WithOpenNote`; main opens the resumed lesson. Route: inline. Tests: 0/7, midway,
-  7/7, nil progress, the app opens the note.
+  7/7, nil progress, the app opens the note. DONE in eb472d8.
 - T3 home: `dashboard.SetLearn` entry under Graph, `app.WithLearn`, key `l`, `ActionLearn`, the tutorial launch
   and its return. Route: inline. Tests: label, position, cursor kept, hidden without progress, `l` runs
-  `misoku tutor`, the return rescans and re-enables the mouse.
+  `misoku tutor`, the return rescans and re-enables the mouse. DONE in eb472d8.
 - T4 dialog: `confirmDialog.minInner`, the offer gate, the answer write and the app launch. Route: inline.
   Tests: each answer remembered, Esc, Ctrl+C records nothing, too-small terminal, resize keeps it pending,
-  `--dir` gate, config write failure.
+  `--dir` gate, config write failure. DONE in 4cdee18; the terminal streams fixed in 844b9f9.
 - T5 tutor: save a level as soon as it passes. Route: inline. Test: pass, quit with Discard, `Scan` counts it.
-- T6 docs: README (key line, Learn section), CHANGELOG `[Unreleased]`, the lesson's Ctrl+C line.
+  DONE in 4bd445e.
+- T6 docs: README (key line, Learn section), CHANGELOG `[Unreleased]`, the lesson's Ctrl+C line. DONE in 64a2ce3.
 - T7 differential against the base in a scratch copy (Home unchanged except the entry; the banner threshold moves
-  up one row, allowed), `go vet`, `go test ./...`, live check in Ghostty and herdr.
+  up one row, allowed), `go vet`, `go test ./...`, live check in Ghostty and herdr. DONE, see L3-L5.
 
 ## Log
 
@@ -65,3 +66,21 @@ no merge, no release, no tag.
   final marker, offer the gentle-ai review in this pane. When finished, report commits, checks with observed
   results, anything not verified, and end with the line MISOKU-LEARN-DONE, or MISOKU-LEARN-BLOCKED if something
   stops you."
+- L2 (finding): a program run with `tea.ExecProcess` inherits the program's output writer as its stdout when it
+  sets none, and `os/exec` gives a pipe to a writer that is not an `*os.File` (see `syncout.Writer`'s own note).
+  A piped terminal reports no size, so the tutorial stayed on "loading…" behind the released terminal. The
+  tutorial command now sets `os.Stdin`, `os.Stdout` and `os.Stderr`; `TestTutorialRunsOnTheTerminalItself` pins
+  it. The cursor PTY tests now write `learn_offered` in their temp config, as a returning user has it.
+- L3 (differential, scratch copy of d82ff30 under /var/tmp): the Home dump at 11 sizes differs only in the Learn
+  row, in the vertical centring it moves by one row, and in the banner threshold: at a dashboard height of 27
+  (terminal 28) the figlet banner falls back to `M I S O K U`, exactly as allowed. At 13 rows the entry is
+  visible; at 12 rows `Quit` is the row clipped (Home already clipped its last rows there).
+- L4 (live check, herdr pane inside Ghostty, built binary in /var/tmp): the dialog shows with the cat; Enter
+  starts the tutorial on `00 Empieza aquí` and writes `learn_offered: true`; typing `- [x] probando` passes
+  level 2 with the statusline `Tutor 1/7` and `"02 Casillas.md" 22L written`; Ctrl+C returns to Home with
+  `Learn 1/7`; an unsaved `Untitled-1` survived `l` and the tutorial; `l` resumed at `01 Títulos.md`; an injected
+  SGR click opened Settings, so clicks reach the app after returning.
+- L5 (live check, a Ghostty window of its own, `script` recording every byte): the dialog with the cat, then the
+  tutorial, then Home with `Learn 0/7`; the record shows `\x1b[?1003l` when the terminal was released for the
+  tutorial and `\x1b[?1003h` right after `\x1b[?1049h` on the way back, so the terminal sends mouse events again.
+
