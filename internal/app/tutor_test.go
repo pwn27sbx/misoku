@@ -1,6 +1,8 @@
 package app_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -47,6 +49,38 @@ func cmdMsg(cmd tea.Cmd) []tea.Msg {
 func statusOf(view string) string {
 	lines := strings.Split(view, "\n")
 	return lines[len(lines)-1]
+}
+
+// S4: a passed level is written to its note at once, so a quit that
+// discards everything else keeps the progress the next Scan reads.
+func TestTutorSavesAPassedLevelAtOnce(t *testing.T) {
+	h := tutorHarness(t, "02 Casillas.md")
+	h.keys("- [x] hecho")
+	root := h.store.Root()
+	lesson := filepath.Join(root, "02 Casillas.md")
+	if data, err := os.ReadFile(lesson); err != nil || !strings.Contains(string(data), "- [x]") {
+		t.Fatalf("the passed level was not saved at once (%v):\n%s", err, data)
+	}
+	if done, total := tutor.Scan(root).Count(); done != 1 || total != 7 {
+		t.Fatalf("the disk counts %d/%d right after the level passed, want 1/7", done, total)
+	}
+
+	// An edit after the level is nobody's business but the discard's.
+	h.keys(" y algo más")
+	h.send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if h.quit {
+		t.Fatal("unsaved changes must ask before quitting")
+	}
+	h.keys("d") // Discard
+	if !h.quit {
+		t.Fatal("Discard should quit")
+	}
+	if done, total := tutor.Scan(root).Count(); done != 1 || total != 7 {
+		t.Fatalf("after quitting with Discard the progress is %d/%d, want 1/7", done, total)
+	}
+	if data, _ := os.ReadFile(lesson); strings.Contains(string(data), "y algo más") {
+		t.Fatalf("Discard kept the later edit:\n%s", data)
+	}
 }
 
 // S5, S6: ticking a box in 02 passes level 2 once, and the bar counts it.

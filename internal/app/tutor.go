@@ -28,9 +28,9 @@ func WithTutor(p *tutor.Progress) Option {
 }
 
 // tutorEdited re-checks the open lesson note after an edit: the first pass
-// of its level toasts it (the last one, the whole tutorial), and a "- []"
-// toasts the hint once until it is fixed. It reads only the editor and the
-// explorer's notes, never the disk.
+// of its level saves the note and toasts it (the last one, the whole
+// tutorial), and a "- []" toasts the hint once until it is fixed. It reads
+// only the editor and the explorer's notes, never the disk.
 func (m *Model) tutorEdited() tea.Cmd {
 	id := m.currentNoteID()
 	if m.tutor == nil || id == "" || m.tutor.progress.Level(id) == 0 {
@@ -44,10 +44,14 @@ func (m *Model) tutorEdited() tea.Cmd {
 	p := m.tutor.progress
 	if p.Update(id, text, exists) {
 		done, total := p.Count()
+		// Misoku has no autosave and the progress is the notes themselves,
+		// so a passed level goes to disk now: quitting with Discard, and
+		// the next Scan, keep it.
+		saved := m.savePassedLevel(id)
 		if done == total {
-			return m.showToast(fmt.Sprintf("🏆 Tutorial completo (%d/%d)", done, total))
+			return tea.Batch(saved, m.showToast(fmt.Sprintf("🏆 Tutorial completo (%d/%d)", done, total)))
 		}
-		return m.showToast(fmt.Sprintf("✓ Nivel %d superado (%d/%d)", p.Level(id), done, total))
+		return tea.Batch(saved, m.showToast(fmt.Sprintf("✓ Nivel %d superado (%d/%d)", p.Level(id), done, total)))
 	}
 	hint := tutor.Hint(id, text)
 	switch {
@@ -60,6 +64,16 @@ func (m *Model) tutorEdited() tea.Cmd {
 		return m.showToast(hint)
 	}
 	return nil
+}
+
+// savePassedLevel writes the lesson note whose level just passed. Only the
+// note the editor shows is written: the level was read from that text.
+func (m *Model) savePassedLevel(id string) tea.Cmd {
+	b := m.activeBuffer()
+	if b == nil || b.id != id {
+		return nil
+	}
+	return m.saveBuffer(b, nil)
 }
 
 // tutorBadge is the statusline's "Tutor k/n" while the tutorial is played,
