@@ -8,6 +8,7 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- Properties table at the top of the preview: front-matter fields as a key/value table, scalar values editable with a click (one undoable edit, the key keeps its spelling), lists read-only.
 - `:history` lists the git commits that changed the open note, renames included, previews the selected version and restores it into the editor as one undoable change, without writing to disk until you save.
 
 ### Changed

@@ -315,11 +315,15 @@ func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, ba
 
 // compile renders a whole note (or, for an embed, part of one) into c.out.
 func (c *compiler) compile(input string) {
+	raw := input
 	meta, body := SplitFrontMatter(input)
 	c.lineOffset = strings.Count(input, "\n") - strings.Count(body, "\n")
 	input = body
 	if c.depth == 0 {
 		c.header(meta)
+		if meta != nil {
+			c.properties(raw)
+		}
 	}
 
 	input = htmlCommentRegex.ReplaceAllString(strings.ReplaceAll(input, "\t", "    "), "")

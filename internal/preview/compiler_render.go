@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/highlight"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -203,6 +204,70 @@ func (c *compiler) header(meta map[string]string) {
 	}
 }
 
+// HitProperty is the hit kind of a scalar value in the properties table.
+// Arg holds the field's key as the note spells it, Line its document line.
+const HitProperty = "props:edit"
+
+// properties draws the note's front matter, minus cover and icon, as a
+// key/value table under the header. Scalar values are click targets for
+// editing them; lists and "- a" blocks are shown joined and read-only.
+func (c *compiler) properties(raw string) {
+	type prop struct {
+		key, value string
+		line       int
+		list       bool
+	}
+	var props []prop
+	widths := []int{1, 1}
+	for _, f := range core.ParseFrontMatter(raw).Fields {
+		if strings.EqualFold(f.Key, "cover") || strings.EqualFold(f.Key, "icon") {
+			continue
+		}
+		p := prop{key: f.Key, value: f.Value, line: f.Line}
+		if f.List != nil || f.EndLine > f.Line {
+			p.value, p.list = strings.Join(f.List, ", "), true
+		}
+		props = append(props, p)
+		widths[0] = max(widths[0], ansi.StringWidth(p.key))
+		widths[1] = max(widths[1], ansi.StringWidth(p.value))
+	}
+	if len(props) == 0 {
+		return
+	}
+	// Fit the pane: the value column gives way first, the key column only
+	// down to half of the room.
+	if avail := c.width - 7; widths[0]+widths[1] > avail {
+		widths[0] = max(1, min(widths[0], max(avail/2, avail-widths[1])))
+		widths[1] = max(1, avail-widths[0])
+	}
+
+	line := c.st.rule
+	keyStyle := c.st.text.Bold(true).Foreground(c.st.th.Blue)
+	c.emit(c.tableBorder(widths, "┌", "┬", "┐"))
+	for _, p := range props {
+		if !p.list {
+			x := widths[0] + 4 // "│ key │" before the value cell
+			c.hits = append(c.hits, Hit{Row: len(c.out), H: 1, X0: x, X1: x + widths[1] + 2, Kind: HitProperty, Line: p.line, Arg: p.key})
+		}
+		key := ui.Truncate(p.key, widths[0])
+		value := ui.Truncate(p.value, widths[1])
+		c.emit(line.Render("│") + " " + keyStyle.Render(pad(key, widths[0])) + " " + line.Render("│") +
+			" " + c.st.text.Render(pad(value, widths[1])) + " " + line.Render("│"))
+	}
+	c.emit(c.tableBorder(widths, "└", "┴", "┘"))
+	c.blank()
+}
+
+// tableBorder draws a table's horizontal border for columns of the given
+// widths, each padded by one space on either side.
+func (c *compiler) tableBorder(widths []int, l, mid, r string) string {
+	parts := make([]string, len(widths))
+	for j, w := range widths {
+		parts[j] = strings.Repeat("─", w+2)
+	}
+	return c.st.rule.Render(l + strings.Join(parts, mid) + r)
+}
+
 func (c *compiler) image(alt, src string) {
 	label := lipgloss.NewStyle().Foreground(c.st.th.Purple)
 	path, err := resolveImage(src, c.baseDir)
@@ -313,13 +378,7 @@ func (c *compiler) table(rows [][]string, docStart int) {
 	}
 
 	line := c.st.rule
-	border := func(l, mid, r string) string {
-		parts := make([]string, cols)
-		for j, w := range widths {
-			parts[j] = strings.Repeat("─", w+2)
-		}
-		return line.Render(l + strings.Join(parts, mid) + r)
-	}
+	border := func(l, mid, r string) string { return c.tableBorder(widths, l, mid, r) }
 	c.blank()
 	c.emit(border("┌", "┬", "┐"))
 	lastLine := docStart
