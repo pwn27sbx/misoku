@@ -19,7 +19,7 @@ func TestFirstRunDialogOffersTheThreeAnswers(t *testing.T) {
 	store := newTestStore(t)
 	h := newHarness(t, store, app.WithLearnOffer(true), app.WithConfigPath(filepath.Join(t.TempDir(), "config.json")))
 	v := h.view()
-	for _, want := range []string{"Soy nuevo", "Ya tengo experiencia", "Ahora no", "o.o"} {
+	for _, want := range []string{"Soy nuevo", "Ya tengo experiencia", "Ahora no", "^.^"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("the first-run dialog should show %q:\n%s", want, v)
 		}
@@ -40,8 +40,14 @@ func TestFirstRunDialogRemembersEachAnswer(t *testing.T) {
 		tutorial bool
 	}{
 		{"Soy nuevo", func(h *harness) { h.key(tea.KeyEnter) }, true},
-		{"Ya tengo experiencia", func(h *harness) { h.key(tea.KeyTab); h.key(tea.KeyEnter) }, false},
-		{"Ahora no", func(h *harness) { h.key(tea.KeyEsc) }, false},
+		{"Ya tengo experiencia", func(h *harness) { h.keys("j"); h.key(tea.KeyEnter) }, false},
+		{"Ahora no", func(h *harness) { h.keys("jj"); h.key(tea.KeyEnter) }, false},
+		{"n", func(h *harness) { h.keys("n") }, true},
+		{"e", func(h *harness) { h.keys("e") }, false},
+		{"a", func(h *harness) { h.keys("a") }, false},
+		{"Esc", func(h *harness) { h.key(tea.KeyEsc) }, false},
+		{"down then Enter", func(h *harness) { h.key(tea.KeyDown); h.key(tea.KeyEnter) }, false},
+		{"down, up then Enter", func(h *harness) { h.key(tea.KeyDown); h.key(tea.KeyUp); h.key(tea.KeyEnter) }, true},
 	}
 	for _, a := range answers {
 		t.Run(a.name, func(t *testing.T) {

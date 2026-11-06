@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **A new welcome dialog on first run.** The `MISOKU` banner, a cat and a one-line tagline sit above a vertical menu:
+  `Soy nuevo` (the tutorial, with its level count), `Ya tengo experiencia` and `Ahora no`, each with a line saying
+  what it does. `j`/`k` or the arrows move, `Enter` chooses, `n`, `e` and `a` choose directly and `Esc` is `Ahora no`;
+  no other key answers it, and a click on an option still chooses it. A terminal too short for the banner gets a
+  compact version with the small cat. The answers do what they did, and are remembered once as before.
+
 ## [0.22.0] - 2026-11-06
 
 ### Changed

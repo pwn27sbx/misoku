@@ -181,7 +181,7 @@ unplugged disk, say), the welcome says `I can't find your notes at …` instead
 of creating it empty.
 
 Once a folder is open, the first time Misoku opens one it found on its own
-(`notes_dir`, `$MISOKU_WORKSPACE` or the Terminal's folder) a small dialog
+(`notes_dir`, `$MISOKU_WORKSPACE` or the Terminal's folder) a welcome dialog
 asks whether this is your first time and offers the tutorial (see
 [Learn Misoku](#learn-misoku)). Any of its three answers is remembered as
 `learn_offered` in the [config](#shortcuts), so it asks once; a folder you
@@ -248,9 +248,14 @@ never use `notes_dir`.
 
 ## Learn Misoku
 
-The first time you open Misoku it asks, in a floating dialog with a cat,
-whether this is your first time: `Soy nuevo` starts the tutorial,
-`Ya tengo experiencia` and `Ahora no` close it, and any answer is remembered.
+The first time you open Misoku it greets you with a welcome dialog: the
+`MISOKU` banner, a cat, and a short menu asking whether this is your first
+time. `Soy nuevo` starts the tutorial, `Ya tengo experiencia` goes straight
+to your notes and `Ahora no` leaves it for later on the `Learn` entry; any
+answer is remembered. Move with `j`/`k` (or the arrows) and choose with
+`Enter`, or press an option's letter (`n`, `e`, `a`); `Esc` is `Ahora no`.
+No other key answers it. On a terminal too short for the banner it shows a
+compact version, and on one too small for that it waits for a bigger one.
 
 The start screen then keeps a `Learn` entry under `Graph`, on `l`, with the
 levels you passed (`Learn 3/7`, and a check once all seven do). Either way

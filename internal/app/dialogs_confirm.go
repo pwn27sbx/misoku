@@ -31,9 +31,6 @@ type confirmDialog struct {
 	message []string
 	buttons []string // the last button is always "cancel"
 	danger  bool     // paint the first button red (e.g. Delete)
-	// minInner is the least inner width, for a dialog whose buttons do not
-	// fit the default 46 (the message only counts here, see innerWidth).
-	minInner int
 	// deliberate takes a choice only from the arrow keys, Tab and Enter
 	// (or a click): no letter picks or moves to a button. For a dialog that
 	// can open on its own while the user types, where a stray letter must
@@ -41,6 +38,10 @@ type confirmDialog struct {
 	deliberate bool
 	selected   int
 	onChoose   func(m *Model, choice int) tea.Cmd
+	// welcome, when set, is the first-run dialog, drawn and answered by
+	// itself (a vertical menu, not buttons). It lives in this slot so every
+	// check for an open dialog sees it too.
+	welcome *welcomeDialog
 }
 
 type confirmGeom struct {
@@ -50,7 +51,7 @@ type confirmGeom struct {
 }
 
 func (d *confirmDialog) innerWidth() int {
-	w := max(46, d.minInner)
+	w := 46
 	for _, l := range d.message {
 		w = max(w, lipgloss.Width(l)+6)
 	}
@@ -59,6 +60,9 @@ func (d *confirmDialog) innerWidth() int {
 
 // fits reports whether the dialog's box fits whole in a W x H terminal.
 func (d *confirmDialog) fits(W, H int) bool {
+	if d.welcome != nil {
+		return d.welcome.fits(W, H)
+	}
 	g := d.geom(W, H)
 	return g.w <= W && g.h <= H
 }
@@ -78,6 +82,9 @@ func (d *confirmDialog) geom(W, H int) confirmGeom {
 }
 
 func (d *confirmDialog) view(th theme.Theme, W, H int) (string, int, int) {
+	if d.welcome != nil {
+		return d.welcome.view(th, W, H)
+	}
 	g := d.geom(W, H)
 	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	icon := bg.Foreground(th.Yellow).Render("  ")
@@ -114,6 +121,9 @@ func (d *confirmDialog) view(th theme.Theme, W, H int) (string, int, int) {
 
 // update handles keys and mouse; it returns done=true once the dialog closed.
 func (d *confirmDialog) update(m *Model, msg tea.Msg) (tea.Cmd, bool) {
+	if d.welcome != nil {
+		return d.welcome.update(m, msg)
+	}
 	choose := func(i int) (tea.Cmd, bool) {
 		m.confirm = nil
 		if i == len(d.buttons)-1 {

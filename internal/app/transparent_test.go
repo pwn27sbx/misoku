@@ -126,6 +126,21 @@ func TestFloatingBoxesFollowTheTransparency(t *testing.T) {
 				onAccent(th, th.Blue) + "  Delete  ",                           // selected button
 			}
 		}},
+		{"welcome dialog", true, func(m *Model) string {
+			box, _, _ := (&welcomeDialog{}).view(m.theme, 120, 40)
+			return box
+		}, func(th theme.Theme) []string {
+			sel := lipgloss.NewStyle().Background(th.OneBg2)
+			return []string{
+				paint(popup(th).Foreground(th.Blue)) + "╭",                    // panel border
+				paint(popup(th).Foreground(th.Blue).Bold(true)) + "█▀▄▀█",     // banner
+				paint(popup(th).Foreground(th.Purple)) + "( ^.^ )",            // cat
+				paint(popup(th).Foreground(th.GreyFg2)) + "al estilo de Vim.", // tagline
+				paint(sel.Foreground(th.Blue).Bold(true)) + "▸ n",             // the selected option's marker and key
+				paint(sel.Foreground(th.Fg).Bold(true)) + "Soy nuevo",         // its title, on the highlight
+				paint(popup(th).Foreground(th.Fg)) + "Ahora no",               // an unselected title
+			}
+		}},
 		{"save-as dialog", true, func(m *Model) string {
 			m.openSaveAs(&buffer{}, nil)
 			box, _, _ := m.saveAs.view(m.theme, 80, 24)

@@ -16,20 +16,6 @@ import (
 // outside Misoku's screen, and takes its progress back when it ends. The
 // parent's tabs and unsaved text stay in its memory meanwhile.
 
-// learnMessage is the first-run dialog's body: an original cat, and the
-// question its buttons answer. The dialog's height follows these rows.
-var learnMessage = []string{
-	`  /\_/\  `,
-	` ( o.o ) `,
-	`  > ^ <  `,
-	"¿Es tu primera vez en Misoku?",
-}
-
-// learnBoxWidth is the dialog's least inner width: its three buttons need 55
-// columns ("Soy nuevo", "Ya tengo experiencia", "Ahora no"), which the
-// default 46 would clip.
-const learnBoxWidth = 57
-
 // WithLearnOffer shows the first-run dialog once the home screen opens: the
 // answer is remembered, so it never shows again. It is opt-in, so test
 // harnesses and every other way of opening Misoku never see it.
@@ -55,16 +41,7 @@ func (m *Model) offerLearn() {
 	if m.width < MinTermWidth || m.height < MinTermHeight {
 		return
 	}
-	d := &confirmDialog{
-		title:      "Bienvenido a Misoku",
-		message:    learnMessage,
-		buttons:    []string{"Soy nuevo", "Ya tengo experiencia", "Ahora no"},
-		minInner:   learnBoxWidth,
-		deliberate: true,
-		onChoose: func(m *Model, choice int) tea.Cmd {
-			return m.learnChosen(choice == 0)
-		},
-	}
+	d := &confirmDialog{welcome: &welcomeDialog{}}
 	if !d.fits(m.width, m.height) {
 		return
 	}
