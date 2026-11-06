@@ -28,6 +28,8 @@ type finder struct {
 	link    bool                  // pick a note to link to instead of opening it
 	wiki    bool                  // finish a typed "[[" instead of a Markdown link
 	metas   map[string]finderMeta // status and tags of a note, read once; see meta
+	// templates is the templates folder, left out of status: and tag:.
+	templates string
 }
 
 // maxTextHits caps text matches so huge workspaces stay responsive.
@@ -59,7 +61,7 @@ func (m *Model) openFinder() tea.Cmd {
 			notes = append(notes, p)
 		}
 	}
-	f := &finder{input: in, root: filepath.Base(m.store.Root()), notes: notes, lines: map[string][]string{}}
+	f := &finder{input: in, root: filepath.Base(m.store.Root()), notes: notes, lines: map[string][]string{}, templates: m.templatesFolder()}
 	for _, p := range notes {
 		if full, err := m.store.Get(p.ID); err == nil {
 			f.lines[p.ID] = strings.Split(strings.ReplaceAll(full.Content, "\t", "    "), "\n")
@@ -133,13 +135,17 @@ func isBoundary(b byte) bool {
 func (f *finder) refilter() {
 	fq := parseFinderQuery(f.input.Value())
 	q := fq.text
-	// notes are the ones the search looks at. Every note takes part here,
-	// templates included: leaving the templates folder out belongs in
-	// f.passes, next to the other qualifiers.
+	// notes are the ones the search looks at. A plain search looks at every
+	// note, templates included; status: and tag: leave the templates out,
+	// as the link index does, since their status and tags are no note's.
 	notes := f.notes
 	if fq.qualified {
 		notes = nil
+		byMeta := len(fq.statuses) > 0 || len(fq.tags) > 0
 		for _, p := range f.notes {
+			if byMeta && inTemplates(p.ID, f.templates) {
+				continue
+			}
 			if f.passes(p, fq) {
 				notes = append(notes, p)
 			}

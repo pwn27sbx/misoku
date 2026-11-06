@@ -18,7 +18,7 @@ type slashItem struct {
 	aliases string
 	before  string // inserted before the cursor
 	after   string // inserted after the cursor
-	action  string // "page" / "link" are handled by the app
+	action  string // "page" / "link" / "template" are handled by the app
 	block   bool   // starts its own line
 }
 
@@ -46,6 +46,7 @@ var slashItems = []slashItem{
 	{section: "Basic blocks", icon: "\U000f056d", label: "3 columns", hint: "+++", aliases: "columns cols layout side split", before: "~~~columns\n", after: "\n+++\nColumn 2\n+++\nColumn 3\n~~~", block: true},
 	{section: "Basic blocks", icon: "\U000f0728", label: "4 columns", hint: "+++", aliases: "columns cols layout side split", before: "~~~columns\n", after: "\n+++\nColumn 2\n+++\nColumn 3\n+++\nColumn 4\n~~~", block: true},
 	{section: "Basic blocks", icon: "\U000f0337", label: "Link to page", aliases: "mention reference note", action: "link"},
+	{section: "Basic blocks", icon: "\U000f018f", label: "Template", hint: "{{}}", aliases: "plantilla template", action: "template"},
 	{section: "Views", icon: "\U000f0564", label: "Board", hint: "kanban", aliases: "kanban status tasks", before: "```board\n## Not started\n- ", after: "\n## In progress\n- Card 2\n  Lines under a card are its description\n## Done\n- Card 3\n```", block: true},
 	{section: "Views", icon: "\U000f00ed", label: "Calendar", aliases: "month events dates", before: "```calendar\nmonth: " + time.Now().Format("2006-01") + "\n" + time.Now().Format("2006-01-02") + ": ", after: "\n```", block: true},
 	{section: "Views", icon: "\U000f0b77", label: "Timeline", hint: "gantt", aliases: "gantt schedule roadmap", before: "```timeline\n", after: "Card 1: " + time.Now().AddDate(0, 0, -3).Format("2006-01-02") + " -> " + time.Now().AddDate(0, 0, 2).Format("2006-01-02") + "\nCard 2: " + time.Now().Format("2006-01-02") + " -> " + time.Now().AddDate(0, 0, 4).Format("2006-01-02") + "\n```", block: true},

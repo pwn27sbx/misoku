@@ -143,6 +143,7 @@ type Model struct {
 	syncRun    *syncRun         // the sync started last, to wait for on quit (S14)
 	now        func() time.Time // the clock; nil means time.Now
 	dailyDir   string           // the daily notes' folder in the vault, see daily.go
+	templates  string           // the templates' folder in the vault, see template.go
 	sync       syncState        // what the last sync said (S9)
 	// syncBase is when the last sync started or ended (or the window
 	// opened): the next timed sync is due an interval later.

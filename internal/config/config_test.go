@@ -491,3 +491,26 @@ func TestVaultFolder(t *testing.T) {
 		t.Errorf("DefaultDailyDir = %q, want Diario", config.DefaultDailyDir)
 	}
 }
+
+// S6: templates_dir is read from config.json and written back by Save, and
+// its default is Plantillas.
+func TestTemplatesDirIsReadAndSurvivesASave(t *testing.T) {
+	if config.DefaultTemplatesDir != "Plantillas" {
+		t.Errorf("DefaultTemplatesDir = %q, want Plantillas", config.DefaultTemplatesDir)
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"templates_dir": "Templates/notes"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(path)
+	if err != nil || c.TemplatesDir != "Templates/notes" {
+		t.Fatalf("templates_dir = %q, %v", c.TemplatesDir, err)
+	}
+	c.Theme = "gruvbox"
+	if err := config.Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := config.Load(path); c.TemplatesDir != "Templates/notes" {
+		t.Fatalf("templates_dir after a save = %q", c.TemplatesDir)
+	}
+}

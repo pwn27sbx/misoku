@@ -45,10 +45,18 @@ type Config struct {
 	// path relative to the vault such as "Journal/2026". Empty means
 	// DefaultDailyDir; see VaultFolder for what is refused.
 	DailyDir string `json:"daily_dir,omitempty"`
+	// TemplatesDir is the vault folder of the note templates "/plantilla"
+	// inserts, a path relative to the vault. Empty means
+	// DefaultTemplatesDir; see VaultFolder for what is refused.
+	TemplatesDir string `json:"templates_dir,omitempty"`
 }
 
 // DefaultDailyDir is the daily notes' folder when daily_dir is not set.
 const DefaultDailyDir = "Diario"
+
+// DefaultTemplatesDir is the templates' folder when templates_dir is not
+// set.
+const DefaultTemplatesDir = "Plantillas"
 
 // VaultFolder checks a folder setting that names a place inside the vault,
 // such as daily_dir, and returns it /-separated without "." segments or

@@ -90,6 +90,9 @@ func (m *Model) startLinkIndex() tea.Cmd {
 	if m.index.idx != nil {
 		idx = m.index.idx.Clone()
 	}
+	// Templates are no notes of their own: their tags and status stay out
+	// of ":tags", the explorer's status icons and the finder's qualifiers.
+	idx.SetExcluded(m.templatesFolder())
 	return func() tea.Msg {
 		idx.Update(store.List(), func(id string) (string, error) {
 			p, err := store.Get(id)

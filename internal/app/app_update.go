@@ -236,6 +236,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.newDraft(parent)
 		case "link":
 			return m, m.openLinkPicker()
+		case "template":
+			return m, m.openTemplatePicker()
 		case "wikilink":
 			cmd := m.openLinkPicker()
 			m.finder.wiki = true
