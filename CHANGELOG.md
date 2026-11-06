@@ -8,6 +8,9 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- **Ctrl+← and Ctrl+→ change pane**, like Ctrl+H and Ctrl+L, for anyone who does not use h j k l. On macOS
+  they switch desktops unless that Mission Control shortcut is turned off, so Ctrl+H and Ctrl+L stay the sure
+  choice there.
 - **A first-run dialog**: the first time Misoku opens a folder it found on its own, a floating dialog with a cat
   asks whether this is your first time. `Soy nuevo` starts the tutorial, `Ya tengo experiencia` and `Ahora no`
   close it (Esc means the same), Ctrl+C quits without recording anything, and any answer is remembered as

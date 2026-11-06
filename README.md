@@ -226,7 +226,7 @@ never use `notes_dir`.
 - **Export to PDF** with `:export`: a clean printable document, with boards, charts and flowcharts included.
 - **2, 3 and 4 column layouts** from the `/` menu.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
-- **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` or a click move the focus.
+- **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` (or `ctrl+←`/`ctrl+→`) or a click move the focus.
 - **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
 - **Reading mode** (`space r`): edit the note at full width, like render-markdown.nvim: line numbers hide, and every line but the cursor's is drawn rendered (headings without `#`, bold, italic and code without delimiters, links as their text, boxes, `•` bullets and `▎` quotes), while the cursor line shows its Markdown and edits as usual. Code blocks, front matter and tables stay raw. The side preview (`space p`) stays a read-only view; the statusline says READING.
 - **Fast search** across file names and note contents.
@@ -380,8 +380,8 @@ The list scrolls when it does not fit, so no row is cut.
 | `focus_explorer` | `space e` | Focus explorer |
 | `next_pane` | `tab` | Next pane |
 | `prev_pane` | `shift+tab` | Previous pane |
-| `pane_left` | `ctrl+h` | Pane to the left |
-| `pane_right` | `ctrl+l` | Pane to the right |
+| `pane_left` | `ctrl+h`, `ctrl+left` | Pane to the left |
+| `pane_right` | `ctrl+l`, `ctrl+right` | Pane to the right |
 | `next_tab` | `]`, `space tab` | Next tab |
 | `prev_tab` | `[`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
@@ -400,6 +400,12 @@ The list scrolls when it does not fit, so no row is cut.
 | `prev_link` | `space o [` | Move to the start of the previous `[[link]]`, wrapping the same way |
 | `help` | `?`, `space h`, `space ?` | This help: the [command palette](#command-palette) |
 | `quit` | `ctrl+c` | Quit (asks to save) |
+
+On macOS, `ctrl+left` and `ctrl+right` switch desktops (Mission Control) and
+never reach the terminal unless that system shortcut is turned off (System
+Settings → Keyboard → Keyboard Shortcuts → Mission Control), so `ctrl+h` and
+`ctrl+l` remain the reliable way to change pane there. While typing (INSERT
+mode) neither pair changes pane.
 
 **Explorer** (only while the explorer has focus)
 
