@@ -4,7 +4,7 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
-## [Unreleased]
+## [0.21.0] - 2026-11-06
 
 ### Added
 
