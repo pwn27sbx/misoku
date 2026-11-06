@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -62,6 +63,7 @@ type Model struct {
 	cursor      int
 	menuItems   []MenuItem
 	recentPages []core.Page
+	statuses    map[string]core.NoteStatus // drawn in place of a recent note's icon
 	projects    []core.Page
 	totalNotes  int
 	workspace   string
@@ -209,6 +211,11 @@ func (m *Model) SetRecentPages(pages []core.Page) {
 // the recent notes' ones.
 func (m Model) Projects() []core.Page { return m.projects }
 
+// SetStatuses sets the status of each note, by ID; a recent note with one
+// shows its glyph (see sidebar.StatusGlyph) in place of its icon. A nil map
+// clears them.
+func (m *Model) SetStatuses(statuses map[string]core.NoteStatus) { m.statuses = statuses }
+
 // RecentPages returns the notes listed under "RECENT", newest first.
 func (m Model) RecentPages() []core.Page { return m.recentPages }
 
@@ -319,7 +326,12 @@ func (m Model) lines() []dashLine {
 				sub = ui.Truncate(dir, 18)
 			}
 			idx := len(m.menuItems) + i
-			add(button(idx, "", ui.Truncate(p.Title+".md", 26), sub, fmt.Sprint(i+1), th.NordBlue), idx)
+			icon, color := "", th.NordBlue
+			if glyph, c, ok := sidebar.StatusGlyph(m.statuses[p.ID], th); ok {
+				// Same cells as the note icon, so the labels stay aligned.
+				icon, color = glyph+strings.Repeat(" ", max(lipgloss.Width(icon)-lipgloss.Width(glyph), 0)), c
+			}
+			add(button(idx, icon, ui.Truncate(p.Title+".md", 26), sub, fmt.Sprint(i+1), color), idx)
 		}
 	}
 

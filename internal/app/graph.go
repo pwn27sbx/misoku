@@ -106,6 +106,7 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		return
 	}
 	m.index.idx, m.index.applied = msg.idx, msg.gen
+	m.applyStatuses()
 	if m.bufferIndex(graphID) >= 0 {
 		m.graphNotes, m.graphEdges = m.linkGraph()
 		m.liveGraph()
@@ -122,6 +123,18 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
+}
+
+// applyStatuses hands the note statuses of the index in use to the explorer
+// and the home screen, which draw them in place of the note icons. Before
+// the first build there are none.
+func (m *Model) applyStatuses() {
+	var statuses map[string]core.NoteStatus
+	if m.index.idx != nil {
+		statuses = m.index.idx.Statuses()
+	}
+	m.sidebar.SetStatuses(statuses)
+	m.dashboard.SetStatuses(statuses)
 }
 
 // linkIndexOutOfDate reports whether pages, as a workspace scan listed

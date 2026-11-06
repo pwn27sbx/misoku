@@ -56,6 +56,7 @@ type Model struct {
 	workspace   string
 	activeID    string
 	modified    map[string]bool
+	statuses    map[string]core.NoteStatus // drawn in place of a note's icon
 	keys        keymap.Map
 	accordion   bool
 	width       int
@@ -110,6 +111,31 @@ func (m *Model) SetModified(ids map[string]bool) {
 		ids = map[string]bool{}
 	}
 	m.modified = ids
+}
+
+// SetStatuses sets the status of each note, by ID, that the explorer draws
+// in place of the note's icon (see StatusGlyph). Notes left out, and a nil
+// map, keep the plain icon.
+func (m *Model) SetStatuses(statuses map[string]core.NoteStatus) {
+	m.statuses = statuses
+}
+
+// StatusGlyph is the glyph and theme colour that stand for status s: ●
+// active (blue), ◐ on hold (yellow), ✓ completed (green), ✗ dropped
+// (muted). ok is false for StatusNone or an unknown status, which keep the
+// plain note icon. The explorer and the home screen share it.
+func StatusGlyph(s core.NoteStatus, th theme.Theme) (glyph string, color lipgloss.Color, ok bool) {
+	switch s {
+	case core.StatusActive:
+		return "●", th.Blue, true
+	case core.StatusOnHold:
+		return "◐", th.Yellow, true
+	case core.StatusCompleted:
+		return "✓", th.Green, true
+	case core.StatusDropped:
+		return "✗", th.MutedFg, true
+	}
+	return "", "", false
 }
 
 func (m Model) isExpanded(id string) bool { return m.expanded[id] }

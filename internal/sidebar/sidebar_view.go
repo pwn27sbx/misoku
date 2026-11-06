@@ -252,6 +252,14 @@ func (m Model) renderItem(item TreeItem, selected bool) string {
 		nameStyle = nameStyle.Bold(true)
 	}
 
+	if !item.Page.IsFolder {
+		if glyph, color, ok := StatusGlyph(m.statuses[item.Page.ID], th); ok {
+			// Same cells as the note icon, so the names stay aligned.
+			icon = glyph + strings.Repeat(" ", max(lipgloss.Width(markdownIcon)-lipgloss.Width(glyph), 0))
+			iconStyle = base.Foreground(color)
+		}
+	}
+
 	b.WriteString(base.Foreground(th.GreyFg).Render(arrow))
 	b.WriteString(iconStyle.Render(icon))
 

@@ -319,6 +319,7 @@ func (m *Model) applyTree(pages []core.Page) {
 	m.treeGen++
 	m.sidebar.SetPages(pages)
 	m.dashboard.SetRecentPages(pages)
+	m.applyStatuses()
 	m.notes = nil
 	for _, p := range pages {
 		if !p.IsFolder {

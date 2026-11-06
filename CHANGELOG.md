@@ -8,6 +8,7 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- Note status glyphs: a note's `status:` front matter field (`active`, `onhold`, `completed`, `dropped`) shows as `●` `◐` `✓` `✗` in place of its icon in the explorer and in the home screen's recent notes, updated when the note is saved.
 - Daily note: `space o d` and `:daily` open or start today's `Diario/YYYY-MM-DD.md`, from the home screen too; the folder is the new `daily_dir` setting.
 - Properties table at the top of the preview: front-matter fields as a key/value table, scalar values editable with a click (one undoable edit, the key keeps its spelling), lists read-only.
 - `:history` lists the git commits that changed the open note, renames included, previews the selected version and restores it into the editor as one undoable change, without writing to disk until you save.
