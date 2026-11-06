@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +15,90 @@ import (
 // window: the home screen starts `misoku tutor` as a program of its own,
 // outside Misoku's screen, and takes its progress back when it ends. The
 // parent's tabs and unsaved text stay in its memory meanwhile.
+
+// learnMessage is the first-run dialog's body: an original cat, and the
+// question its buttons answer. The dialog's height follows these rows.
+var learnMessage = []string{
+	`  /\_/\  `,
+	` ( o.o ) `,
+	`  > ^ <  `,
+	"¿Es tu primera vez en Misoku?",
+}
+
+// learnBoxWidth is the dialog's least inner width: its three buttons need 55
+// columns ("Soy nuevo", "Ya tengo experiencia", "Ahora no"), which the
+// default 46 would clip.
+const learnBoxWidth = 57
+
+// WithLearnOffer shows the first-run dialog once the home screen opens: the
+// answer is remembered, so it never shows again. It is opt-in, so test
+// harnesses and every other way of opening Misoku never see it.
+func WithLearnOffer(offered bool) Option {
+	return func(m *Model) { m.learnPending = offered }
+}
+
+// offerLearn shows the first-run dialog when it still waits to be answered,
+// on the home screen, with nothing else open, and a terminal it fits. Below
+// 60x12 the frame says the terminal is too small while a dialog would still
+// take keys, so a blind Enter can never answer it: that, and a resize that
+// stops it fitting, close it and keep it pending.
+func (m *Model) offerLearn() {
+	if m.learnBox != nil && m.confirm == m.learnBox {
+		if !m.learnBox.fits(m.width, m.height) {
+			m.confirm = nil // too small to read: it waits for a bigger terminal
+		}
+		return
+	}
+	if !m.learnPending || m.viewMode != viewModeDashboard || m.modalOpen() {
+		return
+	}
+	if m.width < MinTermWidth || m.height < MinTermHeight {
+		return
+	}
+	d := &confirmDialog{
+		title:      "Bienvenido a Misoku",
+		message:    learnMessage,
+		buttons:    []string{"Soy nuevo", "Ya tengo experiencia", "Ahora no"},
+		minInner:   learnBoxWidth,
+		deliberate: true,
+		onChoose: func(m *Model, choice int) tea.Cmd {
+			return m.learnChosen(choice == 0)
+		},
+	}
+	if !d.fits(m.width, m.height) {
+		return
+	}
+	m.learnBox = d
+	m.confirm = d
+}
+
+// learnChosenMsg is the answer to the first-run dialog, once the config says
+// so.
+type learnChosenMsg struct {
+	err      error
+	tutorial bool
+}
+
+// learnChosen closes the first-run dialog for good and remembers the answer;
+// taking the Learn entry counts as an answer too, since the question no
+// longer is one. The config is written in the command, outside the update
+// loop, and the tutorial starts only after it, so a write that fails still
+// starts what the answer asked for (and the dialog asks again next launch).
+func (m *Model) learnChosen(tutorial bool) tea.Cmd {
+	m.learnPending = false
+	m.learnBox = nil
+	path := m.configPath
+	prefs := m.prefs()
+	return func() tea.Msg {
+		if path == "" {
+			return learnChosenMsg{tutorial: tutorial}
+		}
+		// Settings saves rewrite the same file: take turns with them.
+		prefs.mu.Lock()
+		defer prefs.mu.Unlock()
+		return learnChosenMsg{err: config.SetLearnOffered(path), tutorial: tutorial}
+	}
+}
 
 // WithLearn shows the "Learn k/n" entry on the home screen for the tutorial
 // progress p, which main reads from disk before the program starts. A nil p

@@ -82,10 +82,19 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.flushPreview()
 		m.updateLayout()
+		m.offerLearn()
 		return m, nil
 	case tutorialDoneMsg:
 		m.finishTutorial(msg)
 		return m, tea.EnableMouseAllMotion
+	case learnChosenMsg:
+		if msg.err != nil {
+			m.setError("Could not remember the answer (" + msg.err.Error() + "); Misoku will ask again next time")
+		}
+		if msg.tutorial {
+			return m, m.startTutorial()
+		}
+		return m, nil
 	case core.StatusMsg:
 		m.say(msg.Text, msg.Error)
 		return m, nil

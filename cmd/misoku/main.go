@@ -127,6 +127,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, missingNotesMessage(choice.Dir))
 		os.Exit(1)
 	}
+	learn := learnDue(learnCheck{Choice: choice, TutorDir: tutorDir, ConfigPath: cfgPath, ConfigErr: cfgErr, Config: cfg,
+		Terminal: isTerminal(os.Stdin) && isTerminal(os.Stdout)})
 	workspace := choice.Dir
 
 	store, err := core.NewStore(workspace)
@@ -169,6 +171,9 @@ func main() {
 		// The home screen's way into the tutorial, with its progress; a
 		// tutorial session has none, so sessions cannot nest.
 		appOpts = append(appOpts, app.WithLearn(tutor.Scan(dir)))
+	}
+	if learn {
+		appOpts = append(appOpts, app.WithLearnOffer(true))
 	}
 	appModel := app.New(store, appOpts...)
 	preview.SetImageSink(images)

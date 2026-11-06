@@ -32,6 +32,19 @@ type cursorTerminal struct {
 	err    error
 }
 
+// answeredFirstRun writes a config that says the first-run dialog was
+// answered, so a test sees the home screen a returning user sees.
+func answeredFirstRun(t *testing.T, home string) {
+	t.Helper()
+	cfg := configIn(home)
+	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, []byte(`{"learn_offered": true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func openCursorTerminal(t *testing.T) *cursorTerminal {
 	t.Helper()
 	home := t.TempDir()
@@ -42,6 +55,7 @@ func openCursorTerminal(t *testing.T) *cursorTerminal {
 	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("hello\nworld\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	answeredFirstRun(t, home)
 	return openCursorTerminalIn(t, home, vault)
 }
 
@@ -166,7 +180,7 @@ func TestCursorShapeBlockLeavesTheTerminalAlone(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(cfg, []byte(`{"ui": {"cursor_shape": "block"}}`), 0o644); err != nil {
+	if err := os.WriteFile(cfg, []byte(`{"ui": {"cursor_shape": "block"}, "learn_offered": true}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	vault := filepath.Join(home, "notes")

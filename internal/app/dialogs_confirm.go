@@ -31,6 +31,9 @@ type confirmDialog struct {
 	message []string
 	buttons []string // the last button is always "cancel"
 	danger  bool     // paint the first button red (e.g. Delete)
+	// minInner is the least inner width, for a dialog whose buttons do not
+	// fit the default 46 (the message only counts here, see innerWidth).
+	minInner int
 	// deliberate takes a choice only from the arrow keys, Tab and Enter
 	// (or a click): no letter picks or moves to a button. For a dialog that
 	// can open on its own while the user types, where a stray letter must
@@ -47,11 +50,17 @@ type confirmGeom struct {
 }
 
 func (d *confirmDialog) innerWidth() int {
-	w := 46
+	w := max(46, d.minInner)
 	for _, l := range d.message {
 		w = max(w, lipgloss.Width(l)+6)
 	}
 	return w
+}
+
+// fits reports whether the dialog's box fits whole in a W x H terminal.
+func (d *confirmDialog) fits(W, H int) bool {
+	g := d.geom(W, H)
+	return g.w <= W && g.h <= H
 }
 
 func (d *confirmDialog) geom(W, H int) confirmGeom {

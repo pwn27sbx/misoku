@@ -191,7 +191,7 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		// Only while the entry shows: a tutorial session has none, so
 		// sessions cannot nest.
 		if m.learn != nil {
-			return m.startTutorial()
+			return m.learnChosen(true)
 		}
 		return nil
 	case "c":
@@ -254,7 +254,7 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 	case dashboard.ActionSettings:
 		return m.OpenSettings()
 	case dashboard.ActionLearn:
-		return m.startTutorial()
+		return m.learnChosen(true)
 	}
 	return nil
 }

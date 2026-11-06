@@ -80,16 +80,21 @@ func (m Model) explorerHasTheCursor(l Layout) bool {
 }
 
 // paneOwnsTyping reports that the workspace is on screen and no widget is
-// drawn over its panes: no dialog, picker, prompt, menu or leader guide.
+// drawn over its panes.
 func (m Model) paneOwnsTyping() bool {
+	return m.viewMode == viewModeWorkspace && !m.modalOpen()
+}
+
+// modalOpen reports whether a dialog, picker, prompt or menu is drawn over
+// the screen and owns the keys.
+func (m Model) modalOpen() bool {
 	switch {
-	case m.viewMode != viewModeWorkspace,
-		m.saveAs != nil, m.confirm != nil, m.finder != nil, m.themes != nil,
+	case m.saveAs != nil, m.confirm != nil, m.finder != nil, m.themes != nil,
 		m.browser != nil, m.datePick != nil, m.promptBox != nil, m.menuBox != nil,
 		m.palette != nil, m.leaderGuideOpen():
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 // execOutside runs cmd on the terminal in place of Misoku's screen: the cursor
