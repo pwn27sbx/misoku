@@ -47,7 +47,13 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			}
 			local := msg
 			local.X -= l.PreviewX
-			local.Y -= l.BodyY
+			var inside bool
+			local.Y, inside = l.noteRow(msg.Y)
+			if !inside && !m.preview.Dragging() {
+				// A padding row holds no block: no handle to show.
+				m.preview.ClearHover()
+				return nil
+			}
 			var cmd tea.Cmd
 			m.preview, cmd = m.preview.Update(local)
 			return cmd
@@ -57,7 +63,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 		local := msg
 		local.X -= l.EditorX
-		local.Y -= l.BodyY
+		local.Y = m.editorRow(l, msg.Y)
 		return m.editorPaneUpdate(local)
 	}
 	if msg.Action != tea.MouseActionPress {
@@ -78,6 +84,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 	local := msg
 	local.Y -= l.BodyY
+	noteY, onText := l.noteRow(msg.Y)
 	var target focus
 	switch {
 	case msg.X < l.SidebarW:
@@ -104,11 +111,35 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		cmd = m.chooseFromOverlay(cmd)
 	case focusEditor:
 		m.dragging = msg.Button == tea.MouseButtonLeft
+		local.Y = m.editorRow(l, msg.Y)
 		cmd = m.editorPaneUpdate(local)
 	case focusPreview:
+		if !onText && !wheel {
+			break // a padding row holds nothing to click; the press only focuses
+		}
+		local.Y = noteY
 		m.preview, cmd = m.preview.Update(local)
 	}
 	return tea.Batch(append(cmds, cmd)...)
+}
+
+// noteRow maps screen row y to the row of the editor's or the preview's text
+// under it, clamped into the text rows, and reports whether y is on one of
+// them rather than on a padding row.
+func (l Layout) noteRow(y int) (row int, onText bool) {
+	r := y - l.NoteY()
+	return clamp(r, 0, l.NoteH()-1), r >= 0 && r < l.NoteH()
+}
+
+// editorRow maps screen row y into the editor's pane. A graph fills the whole
+// body; the note keeps its padding rows, and a click on one lands on the text
+// row next to it.
+func (m *Model) editorRow(l Layout, y int) int {
+	if m.graphActive() || m.globalGraphActive() {
+		return y - l.BodyY
+	}
+	row, _ := l.noteRow(y)
+	return row
 }
 
 // overPreview reports whether screen cell (x, y) is inside the preview pane.

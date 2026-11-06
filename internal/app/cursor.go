@@ -61,7 +61,7 @@ func (m Model) cursorCell(l Layout) (x, y int, shape cursor.Shape, visible bool)
 	if !ok {
 		return 0, 0, shape, false
 	}
-	return l.EditorX + cx, l.BodyY + cy, shape, true
+	return l.EditorX + cx, l.NoteY() + cy, shape, true
 }
 
 // editorHasTheCursor reports whether the editor is what typing goes to with

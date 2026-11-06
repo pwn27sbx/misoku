@@ -4,6 +4,15 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **A blank row above and below the note** in the editor, the preview and reading mode (`Space r`), so the text no
+  longer touches the tab bar or the statusline. It is one row, narrower than the side margins, takes the pane's
+  background (none with `ui.transparent`), and a body shorter than eight rows gives it back to the text. Clicks,
+  scrolling and the terminal cursor follow the shifted rows.
+
 ## [0.21.0] - 2026-11-06
 
 ### Added

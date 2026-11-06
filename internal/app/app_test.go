@@ -405,7 +405,7 @@ func TestMouseTabsAndPanes(t *testing.T) {
 	// Clicking a tab switches to it.
 	x, _ = find(t, strings.Split(v, "\n")[0], "one.md")
 	h.click(x, 0)
-	if v = h.view(); !strings.Contains(strings.Split(v, "\n")[1], "1 one") {
+	if v = h.view(); !strings.Contains(strings.Split(v, "\n")[2], "1 one") { // row 1 is the editor's top padding
 		t.Fatalf("expected one.md active after clicking its tab:\n%s", v)
 	}
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -47,14 +48,14 @@ func (m Model) View() string {
 			case m.graphActive():
 				cols = append(cols, m.graph.View())
 			default:
-				cols = append(cols, m.content.View())
+				cols = append(cols, padNote(m.content.View(), l.EditorW, l.PadY))
 			}
 			if l.PreviewW > 0 {
 				cols = append(cols, div(dividerPreview))
 			}
 		}
 		if l.PreviewW > 0 {
-			cols = append(cols, m.preview.View())
+			cols = append(cols, padNote(m.preview.View(), l.PreviewW, l.PadY))
 		}
 		tabs, _ := m.tabline()
 		screen = lipgloss.JoinVertical(lipgloss.Left,
@@ -93,7 +94,7 @@ func (m Model) View() string {
 	case m.viewMode == viewModeWorkspace && m.focus == focusEditor && m.content.SlashOpen():
 		if box, x, y, ok := m.content.SlashView(); ok {
 			l := m.layout()
-			screen = ui.Overlay(screen, box, l.EditorX+x, l.BodyY+y)
+			screen = ui.Overlay(screen, box, l.EditorX+x, l.NoteY()+y)
 		}
 	case m.palette != nil:
 		box, x, y := m.palette.view(&m)
@@ -105,4 +106,15 @@ func (m Model) View() string {
 	// After the overlays: whether one of them owns the cursor is model state.
 	m.syncCursor(l)
 	return ui.Paint(screen, lipgloss.NewStyle().Foreground(m.theme.Fg).Background(m.theme.Bg))
+}
+
+// padNote adds pad blank rows above and below a note pane's view of width w.
+// They are plain spaces, so the frame's paint gives them the pane's
+// background, or none with ui.transparent.
+func padNote(view string, w, pad int) string {
+	if pad == 0 {
+		return view
+	}
+	blank := strings.Repeat(strings.Repeat(" ", w)+"\n", pad)
+	return blank + view + "\n" + strings.TrimSuffix(blank, "\n")
 }

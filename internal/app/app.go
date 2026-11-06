@@ -300,9 +300,9 @@ func (m *Model) updateLayout() {
 	l := m.layout()
 	m.dashboard.SetSize(m.width, max(m.height-footerHeight, 1))
 	m.sidebar.SetSize(m.explorerW(l), l.BodyH)
-	m.content.SetSize(l.EditorW, l.BodyH)
+	m.content.SetSize(l.EditorW, l.NoteH())
 	m.content.SetMargin(m.editorMargin(l))
-	m.preview.SetSize(l.PreviewW, l.BodyH)
+	m.preview.SetSize(l.PreviewW, l.NoteH())
 	m.graph.SetSize(l.EditorW, l.BodyH)
 	m.globalGraph.SetSize(l.EditorW, l.BodyH)
 	if m.focus == focusPreview && l.PreviewW == 0 {

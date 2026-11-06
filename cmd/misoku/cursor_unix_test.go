@@ -155,7 +155,7 @@ func TestTheRealCursorFollowsTheModeAndIsRestored(t *testing.T) {
 	if !strings.Contains(block, "\x1b[?25h") {
 		t.Fatalf("the cursor was never shown:\n%q", block)
 	}
-	if !strings.Contains(block, "\x1b[2;38H") {
+	if !strings.Contains(block, "\x1b[3;38H") {
 		t.Fatalf("NORMAL did not place the cursor on the editor cell:\n%q", block)
 	}
 
