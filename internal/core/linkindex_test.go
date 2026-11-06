@@ -449,3 +449,103 @@ func benchmarkLinkIndex(b *testing.B, n int) {
 
 func BenchmarkLinkIndex1k(b *testing.B) { benchmarkLinkIndex(b, 1000) }
 func BenchmarkLinkIndex5k(b *testing.B) { benchmarkLinkIndex(b, 5000) }
+
+func TestLinkIndexTagsAndStatus(t *testing.T) {
+	ids := []string{"a.md", "b.md", "c.md", "Plantillas/t.md", "PlantillasOld/d.md"}
+	content := map[string]string{
+		"a.md":               "---\nstatus: Active\ntags: [go]\n---\n#go #lang/go",
+		"b.md":               "---\nstatus: on hold\n---\n#Lang",
+		"c.md":               "#langs `#code`",
+		"Plantillas/t.md":    "---\nstatus: completed\n---\n#go #tpl",
+		"PlantillasOld/d.md": "---\nstatus: dropped\n---\n#go",
+	}
+	notes, read := memNotes(ids, content)
+	x := NewLinkIndex(nil)
+	x.SetExcluded("Plantillas/")
+	x.Update(notes, read)
+
+	wantTags := map[string]int{"go": 2, "lang/go": 1, "lang": 1, "langs": 1}
+	if got := x.Tags(); !reflect.DeepEqual(got, wantTags) {
+		t.Errorf("Tags() = %v, want %v", got, wantTags)
+	}
+	notesWith := []struct {
+		tag  string
+		want []string
+	}{
+		{"go", []string{"a.md", "PlantillasOld/d.md"}},
+		{"#GO", []string{"a.md", "PlantillasOld/d.md"}},
+		{"lang", []string{"a.md", "b.md"}}, // "lang" and "lang/go", not "langs"
+		{"tpl", nil},
+		{"", nil},
+	}
+	for _, tt := range notesWith {
+		if got := x.NotesWithTag(tt.tag); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("NotesWithTag(%q) = %q, want %q", tt.tag, got, tt.want)
+		}
+	}
+	wantStatus := map[string]NoteStatus{"a.md": StatusActive, "b.md": StatusOnHold, "PlantillasOld/d.md": StatusDropped}
+	if got := x.Statuses(); !reflect.DeepEqual(got, wantStatus) {
+		t.Errorf("Statuses() = %v, want %v", got, wantStatus)
+	}
+	for id, want := range map[string]NoteStatus{"a.md": StatusActive, "c.md": StatusNone, "Plantillas/t.md": StatusNone, "missing.md": StatusNone} {
+		if got := x.Status(id); got != want {
+			t.Errorf("Status(%q) = %q, want %q", id, got, want)
+		}
+	}
+
+	// Without the exclusion the templates count again.
+	x.SetExcluded("")
+	if got := x.Tags()["tpl"]; got != 1 {
+		t.Errorf("Tags()[tpl] without exclusion = %d, want 1", got)
+	}
+	if got := x.Status("Plantillas/t.md"); got != StatusCompleted {
+		t.Errorf("Status(template) without exclusion = %q, want completed", got)
+	}
+}
+
+func TestLinkIndexTagsFollowEdits(t *testing.T) {
+	ids := []string{"a.md", "b.md"}
+	content := map[string]string{"a.md": "#go", "b.md": "#go"}
+	notes, read := memNotes(ids, content)
+	x := NewLinkIndex(nil)
+	x.Update(notes, read)
+
+	// Unsaved text counts.
+	x.SetContent("a.md", "---\nstatus: dropped\n---\n#rust")
+	if got, want := x.Tags(), map[string]int{"go": 1, "rust": 1}; !reflect.DeepEqual(got, want) {
+		t.Errorf("after SetContent Tags() = %v, want %v", got, want)
+	}
+	if got := x.Status("a.md"); got != StatusDropped {
+		t.Errorf("after SetContent Status = %q, want dropped", got)
+	}
+
+	// A saved edit (new stamp) replaces it.
+	content["b.md"] = "---\nstatus: completed\n---\nnothing"
+	notes[1].UpdatedAt = stamp(100)
+	x.Update(notes, read)
+	if got, want := x.Tags(), map[string]int{"rust": 1}; !reflect.DeepEqual(got, want) {
+		t.Errorf("after Update Tags() = %v, want %v", got, want)
+	}
+	if got, want := x.Statuses(), map[string]NoteStatus{"a.md": StatusDropped, "b.md": StatusCompleted}; !reflect.DeepEqual(got, want) {
+		t.Errorf("after Update Statuses() = %v, want %v", got, want)
+	}
+}
+
+func TestLinkIndexCloneKeepsTagsApart(t *testing.T) {
+	notes, read := memNotes([]string{"a.md"}, map[string]string{"a.md": "---\nstatus: active\n---\n#go"})
+	x := NewLinkIndex(nil)
+	x.Update(notes, read)
+	c := x.Clone()
+	c.SetContent("a.md", "#rust")
+	c.SetExcluded("x")
+
+	if got, want := x.Tags(), map[string]int{"go": 1}; !reflect.DeepEqual(got, want) {
+		t.Errorf("original Tags() = %v, want %v", got, want)
+	}
+	if got := x.Status("a.md"); got != StatusActive {
+		t.Errorf("original Status = %q, want active", got)
+	}
+	if got, want := c.Tags(), map[string]int{"rust": 1}; !reflect.DeepEqual(got, want) {
+		t.Errorf("clone Tags() = %v, want %v", got, want)
+	}
+}

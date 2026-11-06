@@ -16,6 +16,7 @@ import (
 // A LinkIndex is not safe for concurrent use.
 type LinkIndex struct {
 	isAttachment func(target string) bool
+	excluded     string // lowercased folder prefix ending in "/", or ""
 
 	notes    []Page
 	byID     map[string]int
@@ -35,6 +36,9 @@ type indexEntry struct {
 	links      []noteLink // refs that resolve, in order
 	unresolved []UnresolvedLink
 	stale      bool // refs changed since they were last resolved
+
+	tags   []string // as Tags lists them; replaced, never changed in place
+	status NoteStatus
 }
 
 // UnresolvedLink is a wiki link to a note that doesn't exist yet.
@@ -116,7 +120,7 @@ func (x *LinkIndex) SetContent(id, content string) {
 // another still reads x. Neither may be used by two goroutines at once.
 //
 // The copy shares what Update and SetContent only ever replace, never
-// change in place (the note list, lookups, edges, parsed links); each
+// change in place (the note list, lookups, edges, parsed links and tags); each
 // note's entry is copied, since resolving it again rewrites it.
 func (x *LinkIndex) Clone() *LinkIndex {
 	c := *x
@@ -163,7 +167,12 @@ func newIndexEntry(id, content string, stamp time.Time) *indexEntry {
 		refs[i].target = strings.Clone(refs[i].target)
 		refs[i].text = strings.Clone(refs[i].text)
 	}
-	return &indexEntry{stamp: stamp, refs: refs, stale: true}
+	fm := ParseFrontMatter(content)
+	var status NoteStatus
+	if f, ok := fm.Get("status"); ok {
+		status = ParseStatus(f.Value)
+	}
+	return &indexEntry{stamp: stamp, refs: refs, stale: true, tags: tagsOf(fm), status: status}
 }
 
 func sameNoteIDs(a, b []Page) bool {
@@ -273,4 +282,87 @@ func (x *LinkIndex) rebuild() {
 		}
 		x.unresolved = append(x.unresolved, e.unresolved...)
 	}
+}
+
+// SetExcluded leaves the notes under folder (a path from the workspace
+// root, such as the templates folder) out of Tags, NotesWithTag, Status and
+// Statuses; they keep their links. The folder matches whole path segments
+// regardless of case. "" excludes nothing.
+func (x *LinkIndex) SetExcluded(folder string) {
+	folder = strings.Trim(folder, "/")
+	if folder == "" || path.Clean(folder) == "." {
+		x.excluded = ""
+		return
+	}
+	x.excluded = strings.ToLower(path.Clean(folder)) + "/"
+}
+
+// isExcluded reports whether note id lies under the excluded folder.
+func (x *LinkIndex) isExcluded(id string) bool {
+	return x.excluded != "" && strings.HasPrefix(strings.ToLower(id), x.excluded)
+}
+
+// entry returns the read, not excluded entry of note id, or nil.
+func (x *LinkIndex) entry(id string) *indexEntry {
+	if x.isExcluded(id) {
+		return nil
+	}
+	return x.entries[id]
+}
+
+// Tags counts the notes carrying each tag, as Tags lists a note's tags.
+func (x *LinkIndex) Tags() map[string]int {
+	counts := map[string]int{}
+	for _, p := range x.notes {
+		if e := x.entry(p.ID); e != nil {
+			for _, t := range e.tags {
+				counts[t]++
+			}
+		}
+	}
+	return counts
+}
+
+// NotesWithTag lists, in note order, the IDs of the notes tagged tag or a
+// tag nested under it ("lang" matches "lang/go"), regardless of case and of
+// a leading "#".
+func (x *LinkIndex) NotesWithTag(tag string) []string {
+	tag = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(tag), "#"))
+	if tag == "" {
+		return nil
+	}
+	var out []string
+	for _, p := range x.notes {
+		e := x.entry(p.ID)
+		if e == nil {
+			continue
+		}
+		for _, t := range e.tags {
+			if t == tag || strings.HasPrefix(t, tag+"/") {
+				out = append(out, p.ID)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// Status returns the status of note id; StatusNone for a note without one,
+// unknown, unread or excluded.
+func (x *LinkIndex) Status(id string) NoteStatus {
+	if e := x.entry(id); e != nil {
+		return e.status
+	}
+	return StatusNone
+}
+
+// Statuses maps the ID of every note that has a status to that status.
+func (x *LinkIndex) Statuses() map[string]NoteStatus {
+	out := map[string]NoteStatus{}
+	for _, p := range x.notes {
+		if e := x.entry(p.ID); e != nil && e.status != StatusNone {
+			out[p.ID] = e.status
+		}
+	}
+	return out
 }
