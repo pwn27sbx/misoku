@@ -247,6 +247,7 @@ never use `notes_dir`.
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it; `:graph all` maps every note of the vault at once.
 - **Note history** (`:history`): when the vault is in git, lists the commits that changed the open note, newest first, following it across renames, and previews the selected version beside the list (`j`/`k` or the arrows, the mouse wheel, a click). `Enter`, or a second click, puts that version back in the editor as one change: `u` undoes it, and nothing is written until you save. Without git, outside a repository, for a note never committed or a draft never saved, the status bar says why there is no history.
 - **Properties**: the preview shows a note's front matter (everything but cover and icon) as a table under the header; click a value to edit it — one change `u` undoes. Lists are shown read-only; add or remove keys in the editor.
+- **Daily note**: `space o d` or `:daily` opens today's note, `Diario/2026-11-06.md`, also from the home screen; when it does not exist yet a new note with that name starts in that folder, and saving creates both. `"daily_dir": "Journal"` in config.json picks another folder inside the vault.
 - **Sync between computers** through a private git repository of your own, with no Misoku server: `:sync setup` (or `s` on the start screen, or `misoku sync setup`) once per computer connects a private GitHub repository for you; `misoku sync init <url>` works with any git host. Then it syncs on its own, and with `:sync` or `space s`. Conflicting edits keep both versions, so nothing is lost ([Sync](#sync)).
 
 ## Learn Misoku
@@ -406,6 +407,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `graph` | `space g` | Graph of this note's links |
 | `global_graph` | `space G` (Space, then Shift+G) | Graph of every note (same as `:graph all`, see [Global graph](#global-graph)) |
 | `home` | `space d` | Home screen |
+| `daily_note` | `space o d` | Today's daily note, `<daily_dir>/YYYY-MM-DD.md` (same as `:daily`); a new one is a draft until you save it |
 | `sync_now` | `space s` | Sync the vault with git now (same as `:sync`, see [Sync](#sync)) |
 | `paste_image` | `space i`, `space o p` | Paste the picture in the clipboard next to this note and link it (see [Images](#images)); in INSERT mode `ctrl+v` does it too |
 | `toggle_checkbox` | `space o c` | Toggle the box of this line: `[ ]` becomes `[x]`, `[x]` or `[-]` becomes `[ ]`, and a line without one gets `- [ ] `. On a VISUAL or V-LINE selection it toggles every line and keeps the selection; the whole change is one `u` (after `Esc`) |

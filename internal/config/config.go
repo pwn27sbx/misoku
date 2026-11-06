@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -40,6 +41,39 @@ type Config struct {
 	// again on this machine. A missing key means it was never answered:
 	// existing users see it once after updating.
 	LearnOffered bool `json:"learn_offered,omitempty"`
+	// DailyDir is the vault folder of the daily notes (YYYY-MM-DD.md), a
+	// path relative to the vault such as "Journal/2026". Empty means
+	// DefaultDailyDir; see VaultFolder for what is refused.
+	DailyDir string `json:"daily_dir,omitempty"`
+}
+
+// DefaultDailyDir is the daily notes' folder when daily_dir is not set.
+const DefaultDailyDir = "Diario"
+
+// VaultFolder checks a folder setting that names a place inside the vault,
+// such as daily_dir, and returns it /-separated without "." segments or
+// edge slashes. Empty means fallback. An absolute path, one with "..", or
+// the vault's root itself returns fallback and an error saying why, so a
+// mistyped setting never sends notes outside the vault.
+func VaultFolder(raw, fallback string) (string, error) {
+	dir := strings.TrimSpace(raw)
+	if dir == "" {
+		return fallback, nil
+	}
+	slashed := strings.ReplaceAll(dir, `\`, "/")
+	if path.IsAbs(slashed) || filepath.IsAbs(dir) || filepath.VolumeName(dir) != "" {
+		return fallback, fmt.Errorf("%q is an absolute path; use a folder inside the vault", raw)
+	}
+	for _, seg := range strings.Split(slashed, "/") {
+		if seg == ".." {
+			return fallback, fmt.Errorf("%q leaves the vault", raw)
+		}
+	}
+	dir = path.Clean(slashed)
+	if dir == "." {
+		return fallback, fmt.Errorf("%q is the vault itself; name a folder in it", raw)
+	}
+	return dir, nil
 }
 
 // Sync is the "sync" section of config.json:

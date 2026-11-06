@@ -99,7 +99,7 @@ func TestCommandCatalogNoNoteCommandsRunAndLeaveTheNoteAlone(t *testing.T) {
 		}
 		no[c.Usage] = c.NoNote
 	}
-	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":graph all", ":enew", ":sync", ":sync status", ":sync setup"} {
+	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":graph all", ":enew", ":sync", ":sync status", ":sync setup", ":daily"} {
 		if !no[u] {
 			t.Errorf("%s needs no note", u)
 		}
@@ -134,5 +134,16 @@ func TestHistoryCommandTakesNoArgument(t *testing.T) {
 	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :history)", Error: true}
 	if got := content.RunCommand("history foo", ""); got != want {
 		t.Errorf(":history foo = %#v, want %#v", got, want)
+	}
+}
+
+// S5: ":daily" opens today's note; it takes no argument.
+func TestDailyCommandTakesNoArgument(t *testing.T) {
+	if _, ok := content.RunCommand("daily", "").(core.DailyNoteMsg); !ok {
+		t.Errorf(":daily = %#v, want DailyNoteMsg", content.RunCommand("daily", ""))
+	}
+	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :daily)", Error: true}
+	if got := content.RunCommand("daily foo", ""); got != want {
+		t.Errorf(":daily foo = %#v, want %#v", got, want)
 	}
 }

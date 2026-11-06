@@ -37,6 +37,7 @@ const (
 	Graph          = "graph"
 	GlobalGraph    = "global_graph"
 	Home           = "home"
+	DailyNote      = "daily_note"
 	SyncNow        = "sync_now"
 	PasteImage     = "paste_image"
 	ToggleCheckbox = "toggle_checkbox"
@@ -142,6 +143,8 @@ var Actions = []Info{
 		Long: "Shows a map of every note in the vault, grouped by top-level folder, with the links between them; h j k l move to the nearest note, n and N go round the selected note's links.", defaults: []string{"space G"}},
 	{Action: Home, Section: "general", Group: GroupGo, Help: "Home screen",
 		Long: "Goes back to the home screen, with recent notes and folders. Open tabs stay open.", defaults: []string{"space d"}},
+	{Action: DailyNote, Section: "general", Group: GroupNote, Help: "Today's daily note",
+		Long: "Opens today's note, Diario/YYYY-MM-DD.md (daily_dir in config.json names another folder). When it does not exist yet, a new note with that name starts in that folder; nothing is written until you save it. :daily does the same.", defaults: []string{"space o d"}},
 	{Action: SyncNow, Section: "general", Group: GroupNote, Help: "Sync the vault with git now",
 		Long: "Syncs the vault with its git remote right away, instead of waiting for the next automatic sync.", defaults: []string{"space s"}},
 	{Action: PasteImage, Section: "general", Group: GroupNote, Help: "Paste an image from the clipboard",

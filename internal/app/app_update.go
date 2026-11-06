@@ -273,6 +273,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.OpenSettings()
 	case core.HistoryMsg:
 		return m, m.requestHistory()
+	case core.DailyNoteMsg:
+		return m, m.openDailyNote()
 	case core.PageCreatedMsg:
 		return m, m.newDraft(msg.Page.ParentID)
 	case sidebar.CreateRequestMsg:

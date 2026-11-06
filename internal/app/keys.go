@@ -29,7 +29,7 @@ var generalActions = []string{
 	keymap.ToggleExplorer, keymap.FocusExplorer,
 	keymap.NextPane, keymap.PrevPane, keymap.PaneLeft, keymap.PaneRight,
 	keymap.NextTab, keymap.PrevTab, keymap.CloseTab, keymap.ReadingView, keymap.EditorView,
-	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.Home, keymap.SyncNow, keymap.Help,
+	keymap.ExportPDF, keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.Home, keymap.DailyNote, keymap.SyncNow, keymap.Help,
 	keymap.PasteImage, keymap.ToggleCheckbox, keymap.RemoveCheckbox, keymap.NextLink, keymap.PrevLink,
 }
 
@@ -82,6 +82,8 @@ func (m *Model) runAction(action string) tea.Cmd {
 		return m.openGlobalGraph()
 	case keymap.Home:
 		m.goHome()
+	case keymap.DailyNote:
+		return m.openDailyNote()
 	case keymap.SyncNow:
 		return m.requestSync()
 	case keymap.PasteImage:

@@ -78,6 +78,11 @@ func parseVimCommand(cmdStr, content string) any {
 			return core.GlobalGraphMsg{}
 		}
 		return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :graph or :graph all)", Error: true}
+	case "daily":
+		if arg != "" {
+			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :daily)", Error: true}
+		}
+		return core.DailyNoteMsg{}
 	case "history":
 		if arg != "" {
 			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :history)", Error: true}

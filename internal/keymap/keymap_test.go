@@ -306,6 +306,8 @@ func TestTheMisokuGroupDefaults(t *testing.T) {
 		keymap.FindNote:       {"ctrl+p", "\\", "space f", "space o f", "space o g"},
 		keymap.NewNote:        {"ctrl+n", "space n", "space o n"},
 		keymap.PasteImage:     {"space i", "space o p"},
+		keymap.DailyNote:      {"space o d"},
+		keymap.Home:           {"space d"},
 	}
 	for action, want := range cases {
 		if got := m.Keys(action); !reflect.DeepEqual(got, want) {

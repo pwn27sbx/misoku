@@ -442,3 +442,52 @@ func TestHeadingNumbersOnByDefault(t *testing.T) {
 		}
 	}
 }
+
+// S5: daily_dir is read from config.json and written back by Save.
+func TestDailyDirIsReadAndSurvivesASave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"daily_dir": "Journal"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(path)
+	if err != nil || c.DailyDir != "Journal" {
+		t.Fatalf("daily_dir = %q, %v", c.DailyDir, err)
+	}
+	c.Theme = "gruvbox"
+	if err := config.Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := config.Load(path); c.DailyDir != "Journal" {
+		t.Fatalf("daily_dir after a save = %q", c.DailyDir)
+	}
+}
+
+// S5: a folder inside the vault is kept, /-separated and without edge
+// slashes; empty means the default, and a path leaving the vault is refused
+// with the default instead.
+func TestVaultFolder(t *testing.T) {
+	cases := []struct {
+		raw, want string
+		refused   bool
+	}{
+		{"", config.DefaultDailyDir, false},
+		{"  ", config.DefaultDailyDir, false},
+		{"Journal", "Journal", false},
+		{"Journal/2026/", "Journal/2026", false},
+		{"./Journal//2026", "Journal/2026", false},
+		{"/abs/Journal", config.DefaultDailyDir, true},
+		{"..", config.DefaultDailyDir, true},
+		{"../elsewhere", config.DefaultDailyDir, true},
+		{"Journal/../../x", config.DefaultDailyDir, true},
+		{".", config.DefaultDailyDir, true},
+	}
+	for _, c := range cases {
+		got, err := config.VaultFolder(c.raw, config.DefaultDailyDir)
+		if got != c.want || (err != nil) != c.refused {
+			t.Errorf("VaultFolder(%q) = %q, %v; want %q, refused %v", c.raw, got, err, c.want, c.refused)
+		}
+	}
+	if config.DefaultDailyDir != "Diario" {
+		t.Errorf("DefaultDailyDir = %q, want Diario", config.DefaultDailyDir)
+	}
+}

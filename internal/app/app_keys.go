@@ -141,7 +141,7 @@ func (m *Model) editorLeaderKey(s string, actions []string) tea.Cmd {
 // and export actions need an open note, so they wait for one.
 var homeActions = []string{
 	keymap.NewNote, keymap.FindNote, keymap.ToggleExplorer, keymap.FocusExplorer,
-	keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.SyncNow, keymap.Help, keymap.Quit,
+	keymap.Themes, keymap.Graph, keymap.GlobalGraph, keymap.DailyNote, keymap.SyncNow, keymap.Help, keymap.Quit,
 }
 
 func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {

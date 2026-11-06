@@ -98,6 +98,10 @@ type ThemeMsg struct {
 // SettingsMsg opens the settings menu (":settings").
 type SettingsMsg struct{}
 
+// DailyNoteMsg opens today's daily note, or starts it as a draft
+// (":daily").
+type DailyNoteMsg struct{}
+
 // HistoryMsg lists the open note's versions in git, to look at and restore
 // one (":history").
 type HistoryMsg struct{}
