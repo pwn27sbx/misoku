@@ -3,6 +3,7 @@ package highlight
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
@@ -28,14 +29,14 @@ type Highlighter struct {
 	lines     []string
 	cols      Colors
 	starts    []bool // starts[i]: a segment starts on line i
-	fm        int    // frontMatterEnd of lines
+	fm        int    // core.FrontMatterEnd of lines
 	recolored int
 }
 
 // Markdown returns the colours of text, equal to Markdown(text, th).
 func (h *Highlighter) Markdown(text string, th theme.Theme) Colors {
 	lines := strings.Split(text, "\n")
-	fm := frontMatterEnd(lines)
+	fm := core.FrontMatterEnd(lines)
 	if !h.valid || h.th != th {
 		return h.save(lines, fm, th, 0, nil, nil, len(lines), 0)
 	}

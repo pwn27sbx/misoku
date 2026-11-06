@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"image"
 	"os"
-	"regexp"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/core"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -14,26 +15,22 @@ import (
 // coverRows is the banner height in terminal rows (two pixels each).
 const coverRows = 8
 
-var frontMatterKey = regexp.MustCompile(`^([A-Za-z_][\w-]*)\s*:\s*(.*)$`)
-
 // SplitFrontMatter separates a leading "---" YAML-style block of simple
-// "key: value" pairs from the Markdown body.
+// "key: value" pairs from the Markdown body. Keys are lowercased; it is a
+// thin view of core.ParseFrontMatter.
 func SplitFrontMatter(input string) (map[string]string, string) {
 	if !strings.HasPrefix(input, "---\n") && !strings.HasPrefix(input, "---\r\n") {
 		return nil, input
 	}
-	lines := strings.Split(input, "\n")
-	meta := map[string]string{}
-	for i := 1; i < len(lines); i++ {
-		l := strings.TrimRight(lines[i], "\r")
-		if l == "---" || l == "..." {
-			return meta, strings.Join(lines[i+1:], "\n")
-		}
-		if m := frontMatterKey.FindStringSubmatch(l); m != nil {
-			meta[strings.ToLower(m[1])] = strings.Trim(strings.TrimSpace(m[2]), `"'`)
-		}
+	fm := core.ParseFrontMatter(input)
+	if fm.EndLine < 0 {
+		return nil, input // unterminated: treat as normal text
 	}
-	return nil, input // unterminated: treat as normal text
+	meta := make(map[string]string, len(fm.Fields))
+	for _, f := range fm.Fields {
+		meta[strings.ToLower(f.Key)] = f.Value
+	}
+	return meta, fm.Body
 }
 
 // renderCover draws a banner: the image cropped to fill width × coverRows

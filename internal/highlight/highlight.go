@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	"github.com/alecthomas/chroma/v2"
@@ -136,24 +137,10 @@ func headingColor(level int, th theme.Theme) lipgloss.Color {
 func Markdown(text string, th theme.Theme) Colors {
 	lines := strings.Split(text, "\n")
 	out := make(Colors, len(lines))
-	for i := colorFrontMatter(lines, frontMatterEnd(lines), out, th); i < len(lines); {
+	for i := colorFrontMatter(lines, core.FrontMatterEnd(lines), out, th); i < len(lines); {
 		i = segment(lines, i, out, th)
 	}
 	return out
-}
-
-// frontMatterEnd returns the line that closes the front matter opened by a
-// "---" first line, or -1 when there is none: without a closing "---" or
-// "..." the first line is an ordinary rule.
-func frontMatterEnd(lines []string) int {
-	if len(lines) > 1 && strings.TrimRight(lines[0], "\r") == "---" {
-		for end := 1; end < len(lines); end++ {
-			if t := strings.TrimRight(lines[end], "\r"); t == "---" || t == "..." {
-				return end
-			}
-		}
-	}
-	return -1
 }
 
 // colorFrontMatter colours lines 0..end as front matter and returns the

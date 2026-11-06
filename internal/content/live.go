@@ -84,9 +84,9 @@ func (c *liveCache) renderLine(m Model, cols highlight.Colors) func(int, []rune,
 func rawLines(rowText func(int) string, n int) []bool {
 	raw := make([]bool, n)
 	start := 0
-	if n > 1 && strings.TrimRight(rowText(0), "\r") == "---" {
+	if n > 1 && core.IsFrontMatterOpen(rowText(0)) {
 		for end := 1; end < n; end++ {
-			if t := strings.TrimRight(rowText(end), "\r"); t == "---" || t == "..." {
+			if core.IsFrontMatterClose(rowText(end)) {
 				for i := 0; i <= end; i++ {
 					raw[i] = true
 				}

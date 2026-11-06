@@ -42,8 +42,7 @@ func printable(text string, lookup preview.NoteLookup, depth int) string {
 		case !found || !inNote || depth >= 3:
 			out = append(out, "> "+strings.TrimSpace(linkName(l)))
 		default:
-			_, body := preview.SplitFrontMatter(section)
-			out = append(out, "", printable(body, lookup, depth+1), "")
+			out = append(out, "", printable(core.ParseFrontMatter(section).Body, lookup, depth+1), "")
 		}
 	}
 	return strings.Join(out, "\n")

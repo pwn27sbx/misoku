@@ -209,9 +209,9 @@ func (m *Model) applySlash(it slashItem) tea.Cmd {
 	return nil
 }
 
-// SetFrontMatter sets key: value in the note's leading "---" block,
-// creating the block if needed, and keeps the cursor on the same text. It
-// is one change that u undoes.
+// SetFrontMatter sets key: value in the note's front matter through
+// core.SetFrontMatterField (creating the block if needed) and keeps the
+// cursor on the same text. It is one change that u undoes.
 func (m *Model) SetFrontMatter(key, value string) {
 	m.edit(func() { m.setFrontMatter(key, value) })
 }
@@ -219,35 +219,15 @@ func (m *Model) SetFrontMatter(key, value string) {
 func (m *Model) setFrontMatter(key, value string) {
 	text := m.textarea.Value()
 	row, col := m.textarea.RowCol()
-	lines := strings.Split(text, "\n")
-	entry := key + ": " + value
-	added := 0
-	if len(lines) > 1 && lines[0] == "---" {
-		end := -1
-		for i := 1; i < len(lines); i++ {
-			if lines[i] == "---" {
-				end = i
-				break
-			}
-		}
-		if end > 0 {
-			replaced := false
-			for i := 1; i < end; i++ {
-				if strings.HasPrefix(strings.ToLower(lines[i]), key+":") {
-					lines[i], replaced = entry, true
-				}
-			}
-			if !replaced {
-				lines = append(lines[:end], append([]string{entry}, lines[end:]...)...)
-				added = 1
-			}
-			m.textarea.SetValue(strings.Join(lines, "\n"))
-			m.textarea.SetRowCol(row+added, col)
-			return
-		}
+	updated := core.SetFrontMatterField(text, key, value)
+	// Lines are only added or removed inside the front matter (or a new
+	// block above everything), so text after it moves by the difference.
+	delta := strings.Count(updated, "\n") - strings.Count(text, "\n")
+	if end := core.ParseFrontMatter(text).EndLine; end >= 0 && row < end {
+		delta = 0
 	}
-	m.textarea.SetValue("---\n" + entry + "\n---\n" + text)
-	m.textarea.SetRowCol(row+3, col)
+	m.textarea.SetValue(updated)
+	m.textarea.SetRowCol(row+delta, col)
 }
 
 // InsertText types text at the cursor (used for "Link to page"). Outside

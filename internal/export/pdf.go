@@ -91,7 +91,7 @@ func PDF(markdown string, opts Options, w io.Writer) error {
 // build lays out every page of the document without writing it out.
 func build(markdown string, opts Options, th theme.Theme) *doc {
 	d := newDoc(opts, th)
-	_, body := preview.SplitFrontMatter(strings.ReplaceAll(markdown, "\r\n", "\n"))
+	body := core.ParseFrontMatter(strings.ReplaceAll(markdown, "\r\n", "\n")).Body
 	d.blocks(strings.Split(body, "\n"))
 	return d
 }

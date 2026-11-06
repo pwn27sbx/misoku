@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Fixed
+
+- Setting a cover on a note whose front matter ends with `...` (or uses Windows line endings) now adds it to that block instead of creating a second one.
+
 ## [0.24.0] - 2026-11-06
 
 ### Changed
