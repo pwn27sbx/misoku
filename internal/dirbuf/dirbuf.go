@@ -277,9 +277,14 @@ func (b *Buffer) openLine(below bool) tea.Cmd {
 
 // updateInput handles a key while a name is typed. Esc commits the line and
 // returns to normal; Enter commits it too and asks to save (NavSave). An
-// empty new line is dropped either way.
+// empty new line is dropped either way. Up and Down keep the typed name and
+// go on typing at the end of the line above or below.
 func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	switch k.Type {
+	case tea.KeyUp:
+		return NavNone, b.moveInput(-1)
+	case tea.KeyDown:
+		return NavNone, b.moveInput(1)
 	case tea.KeyEnter:
 		b.commit()
 		return NavSave, nil
@@ -290,6 +295,27 @@ func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	var cmd tea.Cmd
 	b.input, cmd = b.input.Update(k)
 	return NavNone, cmd
+}
+
+// moveInput keeps the typed name in its line (a pending edit, like Esc's) and
+// keeps typing at the end of the line delta away. An empty new line is
+// dropped. At the first or last line nothing moves. The whole insert stays
+// one undo step.
+func (b *Buffer) moveInput(delta int) tea.Cmd {
+	f := b.f()
+	to := f.cursor + delta
+	if to < 0 || to >= len(f.rows) {
+		return nil
+	}
+	f.rows[f.cursor].Name = b.input.Value()
+	if f.rows[f.cursor].Name == "" && f.rows[f.cursor].OrigID == "" {
+		f.rows = slices.Delete(f.rows, f.cursor, f.cursor+1)
+		if delta > 0 {
+			to--
+		}
+	}
+	f.cursor = to
+	return b.start(f.rows[to].Name, false)
 }
 
 // commit ends typing: the line takes the typed name, an empty new line is

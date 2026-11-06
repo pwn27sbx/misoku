@@ -19,6 +19,10 @@ func keys(t *testing.T, b *Buffer, seq ...string) Nav {
 			msg = tea.KeyMsg{Type: tea.KeyEnter}
 		case "ctrl+r":
 			msg = tea.KeyMsg{Type: tea.KeyCtrlR}
+		case "up":
+			msg = tea.KeyMsg{Type: tea.KeyUp}
+		case "down":
+			msg = tea.KeyMsg{Type: tea.KeyDown}
 		default:
 			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 		}
@@ -280,5 +284,68 @@ func TestSelectMovesTheCursorToAnEntry(t *testing.T) {
 	}
 	if b.Select("") || b.Select("zz.md") || b.Cursor() != 1 {
 		t.Fatalf("an unknown entry keeps the cursor, got %d", b.Cursor())
+	}
+}
+
+func TestArrowsMoveInNormalMode(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "down", "down")
+	if b.Cursor() != 2 {
+		t.Fatalf("cursor = %d after two downs, want 2", b.Cursor())
+	}
+	keys(t, b, "up")
+	if b.Cursor() != 1 {
+		t.Fatalf("cursor = %d after up, want 1", b.Cursor())
+	}
+}
+
+func TestArrowsInInsertKeepTheNameAndMoveTheLine(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "A")
+	keys(t, b, typed("x")...)
+	keys(t, b, "down")
+	if !b.Editing() || b.Cursor() != 1 {
+		t.Fatalf("editing=%v cursor=%d, want insert on line 1", b.Editing(), b.Cursor())
+	}
+	if got := b.Rows()[0].Name; got != "ax" {
+		t.Fatalf("line 0 = %q, want the typed ax kept", got)
+	}
+	if b.InputView() == "" || b.InputCursorX() != 1 {
+		t.Fatalf("cursor x = %d, want the end of b", b.InputCursorX())
+	}
+	keys(t, b, typed("y")...)
+	keys(t, b, "up")
+	keys(t, b, typed("z")...)
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"axz", "by", "c/"}) {
+		t.Fatalf("names = %v", got)
+	}
+	keys(t, b, "u")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
+		t.Fatalf("one u must undo the whole insert, names = %v", got)
+	}
+}
+
+func TestArrowsInInsertStayAtTheEdges(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "A", "up")
+	if !b.Editing() || b.Cursor() != 0 {
+		t.Fatalf("up on the first line: editing=%v cursor=%d", b.Editing(), b.Cursor())
+	}
+	keys(t, b, "esc", "G", "A", "down")
+	if !b.Editing() || b.Cursor() != 2 {
+		t.Fatalf("down on the last line: editing=%v cursor=%d", b.Editing(), b.Cursor())
+	}
+}
+
+func TestArrowsInInsertDropAnEmptyNewLine(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "o", "down")
+	if !b.Editing() || b.Cursor() != 1 || b.Rows()[1].Name != "b" {
+		t.Fatalf("down from an empty new line: cursor=%d names=%v", b.Cursor(), names(b.Rows()))
+	}
+	keys(t, b, "esc", "O", "up")
+	if !b.Editing() || b.Cursor() != 0 || len(b.Rows()) != 3 {
+		t.Fatalf("up from an empty new line: cursor=%d names=%v", b.Cursor(), names(b.Rows()))
 	}
 }

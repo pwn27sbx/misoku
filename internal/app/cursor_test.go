@@ -376,3 +376,42 @@ func TestFolderEditorNameShowsTheRealCursor(t *testing.T) {
 		t.Fatalf("normal mode in the folder editor must hide the real cursor: %q", got)
 	}
 }
+
+func TestFolderEditorArrowsMoveTheRealCursorWhileTyping(t *testing.T) {
+	out, opt := newCursorOut()
+	store := newTestStore(t)
+	for _, name := range []string{"aaa", "bbb"} {
+		if _, err := store.SaveAs("", name, "body"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := newHarness(t, store, opt)
+	h.keys("e")
+	h.keys("m")
+	h.keys("Ax")
+	out.buf.Reset()
+	h.m.View()
+	_, y0 := out.placed(t)
+
+	h.key(tea.KeyDown)
+	out.buf.Reset()
+	frame := h.m.View()
+	x, y := out.placed(t)
+	if y != y0+1 {
+		t.Fatalf("down moved the cursor to row %d, want %d\n%s", y, y0+1, h.view())
+	}
+	if got := cursorCellAt(t, frame, x-1, y); got != "b" {
+		t.Fatalf("cell before the cursor is %q, want the end of bbb\n%s", got, h.view())
+	}
+	if !strings.Contains(h.view(), "aaax") {
+		t.Fatalf("the typed x was lost:\n%s", h.view())
+	}
+
+	h.key(tea.KeyUp)
+	out.buf.Reset()
+	frame = h.m.View()
+	x, y = out.placed(t)
+	if y != y0 || cursorCellAt(t, frame, x-1, y) != "x" {
+		t.Fatalf("up did not bring the cursor back after aaax\n%s", h.view())
+	}
+}

@@ -4,6 +4,14 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Fixed
+
+- **`↑`/`↓` while typing a name in the folder editor**: they keep the typed name as a pending edit and go on typing
+  at the end of the line above or below, as in Vim's insert mode; an empty new line is dropped, and the first and
+  last lines stay put.
+
 ## [0.19.1] - 2026-11-05
 
 ### Changed
