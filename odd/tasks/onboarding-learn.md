@@ -83,4 +83,8 @@ no merge, no release, no tag.
 - L5 (live check, a Ghostty window of its own, `script` recording every byte): the dialog with the cat, then the
   tutorial, then Home with `Learn 0/7`; the record shows `\x1b[?1003l` when the terminal was released for the
   tutorial and `\x1b[?1003h` right after `\x1b[?1049h` on the way back, so the terminal sends mouse events again.
+- L6 (review): gentle-ai reviewed the branch with the risk, resilience, readability and reliability lenses and
+  approved it (advisory findings only, no correction). Its non-blocking notes led to 0f389cc, after the
+  acknowledgement: the config test now compares every kept value, `fakeTutorial`'s comment matches what it does,
+  and this document names no absolute home path.
 
