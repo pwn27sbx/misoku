@@ -137,7 +137,13 @@ func (m *Model) startTutorial() tea.Cmd {
 		m.setError("Could not start the tutorial: " + err.Error())
 		return nil
 	}
-	return m.execOutside(exec.Command(exe, "tutor"), func(err error) tea.Msg {
+	cmd := exec.Command(exe, "tutor")
+	// The terminal itself, not the program's wrapped output: os/exec would
+	// give a pipe to a program whose stdout is not an *os.File, and a piped
+	// terminal says no size, so the tutorial would never draw (see
+	// syncout.Writer).
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return m.execOutside(cmd, func(err error) tea.Msg {
 		return tutorialDoneMsg{err: err, progress: scanTutorial()}
 	})
 }

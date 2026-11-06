@@ -114,6 +114,28 @@ func TestLearnKeyStartsTheTutorial(t *testing.T) {
 	}
 }
 
+// S9: the tutorial runs on the terminal itself. os/exec would hand a program
+// written to Misoku's wrapped output a pipe, and a piped terminal never says
+// its size: the tutorial would stay on "loading…".
+func TestTutorialRunsOnTheTerminalItself(t *testing.T) {
+	dir := tutorialVault(t)
+	var got *exec.Cmd
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)), fakeTutorial(&got, nil, nil))
+	h.keys("l")
+	if got == nil {
+		t.Fatal("pressing l did not start the tutorial")
+	}
+	if got.Stdout != os.Stdout {
+		t.Errorf("the tutorial's stdout is %T, want the terminal (os.Stdout)", got.Stdout)
+	}
+	if got.Stdin != os.Stdin {
+		t.Errorf("the tutorial's stdin is %T, want the terminal (os.Stdin)", got.Stdin)
+	}
+	if got.Stderr != os.Stderr {
+		t.Errorf("the tutorial's stderr is %T, want the terminal (os.Stderr)", got.Stderr)
+	}
+}
+
 // S9: coming back from the tutorial reads its progress again and turns mouse
 // motion reports back on, which the terminal lost while the tutorial ran.
 func TestTutorialReturnRescansAndEnablesTheMouse(t *testing.T) {
