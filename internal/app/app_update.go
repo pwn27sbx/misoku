@@ -83,6 +83,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flushPreview()
 		m.updateLayout()
 		return m, nil
+	case tutorialDoneMsg:
+		m.finishTutorial(msg)
+		return m, tea.EnableMouseAllMotion
 	case core.StatusMsg:
 		m.say(msg.Text, msg.Error)
 		return m, nil

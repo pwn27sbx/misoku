@@ -187,6 +187,13 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		return m.openThemePicker()
 	case "g":
 		return m.openGlobalGraph()
+	case "l":
+		// Only while the entry shows: a tutorial session has none, so
+		// sessions cannot nest.
+		if m.learn != nil {
+			return m.startTutorial()
+		}
+		return nil
 	case "c":
 		return m.OpenSettings()
 	case "s":
@@ -246,6 +253,8 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 		return m.openGlobalGraph()
 	case dashboard.ActionSettings:
 		return m.OpenSettings()
+	case dashboard.ActionLearn:
+		return m.startTutorial()
 	}
 	return nil
 }

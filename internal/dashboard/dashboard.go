@@ -34,6 +34,8 @@ const (
 	ActionGraph
 	// ActionSettings opens the settings menu (`:settings`).
 	ActionSettings
+	// ActionLearn starts the tutorial (`misoku tutor`) from the home screen.
+	ActionLearn
 	ActionNone
 )
 
@@ -118,6 +120,38 @@ func (m *Model) SetSyncSetup(offered bool) {
 				m.cursor++ // the items from here move down a row
 			}
 			items = append(items, syncItem)
+		}
+		items = append(items, it)
+	}
+	m.menuItems = items
+	m.cursor = min(m.cursor, m.itemCount()-1)
+}
+
+// learnItem is the entry that starts the tutorial, before Settings. SetLearn
+// fills its label with the levels passed. Its icon is nf-fa-book, as the
+// tutorial's own title.
+var learnItem = MenuItem{Key: "l", Icon: "\uf02d", Label: "Learn", Action: ActionLearn}
+
+// SetLearn shows the "Learn" entry, under Graph, with label (such as
+// "Learn 3/7"), and removes it when label is "": the app offers it while
+// there is a tutorial folder to open and this is not a tutorial session. The
+// cursor stays on the item it was on.
+func (m *Model) SetLearn(label string) {
+	items := make([]MenuItem, 0, len(m.menuItems)+1)
+	for i, it := range m.menuItems {
+		if it.Action == ActionLearn {
+			if m.cursor > i {
+				m.cursor-- // the items below move up a row
+			}
+			continue
+		}
+		if label != "" && it.Action == ActionSettings {
+			if m.cursor >= len(items) {
+				m.cursor++ // the items from here move down a row
+			}
+			learn := learnItem
+			learn.Label = label
+			items = append(items, learn)
 		}
 		items = append(items, it)
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -106,8 +107,9 @@ type Model struct {
 
 	toast    string
 	toastSeq int
-	tutor    *tutorGame // misoku tutor's levels, nil outside the tutorial, see tutor.go
-	dragging bool       // a mouse drag started in the editor
+	tutor    *tutorGame      // misoku tutor's levels, nil outside the tutorial, see tutor.go
+	learn    *tutor.Progress // the home screen's "Learn k/n" entry, nil hides it, see learn.go
+	dragging bool            // a mouse drag started in the editor
 
 	split    Split   // dragged divider positions
 	resizing divider // the divider being dragged, if any
@@ -159,6 +161,12 @@ type Model struct {
 	// execProcess runs a program outside the screen (tea.ExecProcess);
 	// tests replace it.
 	execProcess func(*exec.Cmd, tea.ExecCallback) tea.Cmd
+
+	// startNote is the note to open at once, from WithOpenNote (misoku
+	// tutor resumes the lesson the player left). startCmd is the command
+	// that opening it asked for, run with Init.
+	startNote string
+	startCmd  tea.Cmd
 
 	// cursor is the terminal's own cursor, when main draws the mode with it
 	// (see cursor.go). nil keeps the editor's drawn cursor.
@@ -217,6 +225,14 @@ func WithConfigPath(path string) Option {
 	return func(m *Model) { m.configPath = path }
 }
 
+// WithOpenNote opens the note id when the program starts, as picking it in
+// the finder would: misoku tutor uses it to resume the lesson the player
+// left. A note that is not in the vault opens nothing and says nothing, so
+// a tutorial whose folder changed under it still starts.
+func WithOpenNote(id string) Option {
+	return func(m *Model) { m.startNote = id }
+}
+
 // New constructs the root App container for a workspace on disk. Nothing is
 // seeded and nothing is opened until the user asks.
 func New(store *core.Store, opts ...Option) Model {
@@ -250,6 +266,10 @@ func New(store *core.Store, opts ...Option) Model {
 	}
 	m.setupSync()
 	m.themeStamp = theme.UserThemesStamp()
+	if m.startNote != "" {
+		// Before Init, so the first frame is the note and its cursor.
+		m.startCmd = m.openInCurrentBuffer(m.startNote)
+	}
 	return m
 }
 
@@ -262,7 +282,7 @@ func tildePath(p string) string {
 
 // Init initializes child component commands.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.content.Init(), checkWorkspaceLater(), m.syncOnOpen())
+	return tea.Batch(m.content.Init(), checkWorkspaceLater(), m.syncOnOpen(), m.startCmd)
 }
 
 func (m *Model) layout() Layout {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/dirplan"
+	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -149,6 +150,12 @@ func SetHasTrash(has bool) (restore func()) {
 	prev := hasTrash
 	hasTrash = func() bool { return has }
 	return func() { hasTrash = prev }
+}
+
+// TutorialDone is the message the app gets when the tutorial it ran outside
+// the screen ends, with the progress it left on disk.
+func TutorialDone(err error, p *tutor.Progress) tea.Msg {
+	return tutorialDoneMsg{err: err, progress: p}
 }
 
 // DirPlanStoppedMsg is the result of a Stage A batch that stopped at failed

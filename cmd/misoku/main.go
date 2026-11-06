@@ -162,7 +162,13 @@ func main() {
 		appOpts = append(appOpts, app.WithCursor(cur))
 	}
 	if tutorDir != "" {
-		appOpts = append(appOpts, app.WithTutor(tutor.Scan(tutorDir)))
+		progress := tutor.Scan(tutorDir)
+		// The lesson the player left, so the tutorial resumes there.
+		appOpts = append(appOpts, app.WithTutor(progress), app.WithOpenNote(tutor.Resume(progress)))
+	} else if dir := tutor.Dir(); dir != "" {
+		// The home screen's way into the tutorial, with its progress; a
+		// tutorial session has none, so sessions cannot nest.
+		appOpts = append(appOpts, app.WithLearn(tutor.Scan(dir)))
 	}
 	appModel := app.New(store, appOpts...)
 	preview.SetImageSink(images)
