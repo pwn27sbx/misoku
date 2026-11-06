@@ -4,7 +4,8 @@ package content
 // render-markdown.nvim draws it, its Markdown markers hidden, while the
 // cursor line stays raw and editable. Colours come from the editor's own
 // syntax highlighting (hlCache); this file only hides markers, swaps a few
-// for glyphs and adds bold, italic and underline.
+// for glyphs and adds bold, italic and underline, and draws a checked task's
+// text muted and struck through, as the preview does.
 
 import (
 	"strings"
@@ -116,9 +117,11 @@ func rawLines(rowText func(int) string, n int) []bool {
 }
 
 // cellStyle is how one drawn rune looks; zero fields keep the text style.
+// muted draws the rune in the theme's muted colour, over fg.
 type cellStyle struct {
 	fg                      lipgloss.Color
 	bold, italic, underline bool
+	muted, strike           bool
 }
 
 // cell is one drawn rune.
@@ -146,6 +149,9 @@ type concealer struct {
 	hide  []bool
 	st    []cellStyle // fg unused: colours come from cols
 	subst map[int][]cell
+	// done is the byte where a checked task's text starts, or -1: from
+	// there on every cell, glyphs included, is muted and struck.
+	done int
 }
 
 func newConcealer(line string, cols []lipgloss.Color) *concealer {
@@ -155,6 +161,7 @@ func newConcealer(line string, cols []lipgloss.Color) *concealer {
 		hide:  make([]bool, len(line)),
 		st:    make([]cellStyle, len(line)),
 		subst: map[int][]cell{},
+		done:  -1,
 	}
 }
 
@@ -218,6 +225,8 @@ func (c *concealer) block() {
 	case 'x', 'X':
 		c.hideRange(marker, len(head))
 		c.replace(len(head), len(head)+3, liveChecked, cellStyle{fg: c.colorAt(len(head))})
+		text := len(head) + 3
+		c.done = text + len(c.line[text:]) - len(strings.TrimLeft(c.line[text:], " \t"))
 	default:
 		c.replace(marker, marker+1, liveBullet, cellStyle{fg: c.colorAt(marker)})
 	}
@@ -326,16 +335,26 @@ func (c *concealer) emphasis(code []bool, i int, delim string, f func(*cellStyle
 }
 
 // cells is the line as drawn: its visible runes with their colours and
-// styles, and the glyphs that replace hidden markers.
+// styles, and the glyphs that replace hidden markers. A checked task's text
+// is muted and struck, so its syntax colours give way.
 func (c *concealer) cells() []cell {
 	var out []cell
 	ri := 0
 	for b, r := range c.line {
-		out = append(out, c.subst[b]...)
+		done := c.done >= 0 && b >= c.done
+		for _, s := range c.subst[b] {
+			if done {
+				s.st.muted, s.st.strike = true, true
+			}
+			out = append(out, s)
+		}
 		if !c.hide[b] {
 			st := c.st[b]
 			if ri < len(c.cols) {
 				st.fg = c.cols[ri]
+			}
+			if done {
+				st.muted, st.strike = true, true
 			}
 			out = append(out, cell{r, st})
 		}
@@ -383,14 +402,17 @@ func renderCells(cells []cell, th theme.Theme) string {
 		}
 		st := cells[start].st
 		fg := st.fg
-		if fg == "" {
+		switch {
+		case st.muted:
+			fg = th.GreyFg2
+		case fg == "":
 			fg = th.Fg
 		}
 		text := make([]rune, 0, end-start)
 		for _, c := range cells[start:end] {
 			text = append(text, c.r)
 		}
-		b.WriteString(lipgloss.NewStyle().Foreground(fg).Bold(st.bold).Italic(st.italic).Underline(st.underline).Render(string(text)))
+		b.WriteString(lipgloss.NewStyle().Foreground(fg).Bold(st.bold).Italic(st.italic).Underline(st.underline).Strikethrough(st.strike).Render(string(text)))
 		start = end
 	}
 	return b.String()

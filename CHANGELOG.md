@@ -6,6 +6,10 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ## [Unreleased]
 
+### Changed
+
+- The reading view (`space p`) draws a checked task (`- [x]`) muted and struck through, as the preview does; the line under the cursor stays raw.
+
 ### Fixed
 
 - Setting a cover on a note whose front matter ends with `...` (or uses Windows line endings) now adds it to that block instead of creating a second one.
