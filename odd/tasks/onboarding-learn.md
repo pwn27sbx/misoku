@@ -55,7 +55,7 @@ no merge, no release, no tag.
 ## Log
 
 - L1 (user): "Implement the approved plan at
-  /home/pwnsxb/Documents/MisokuVault/Misoku/2026-11-06-onboarding-learn/README.md and read it completely first.
+  ~/Documents/MisokuVault/Misoku/2026-11-06-onboarding-learn/README.md and read it completely first.
   Run git fetch, then work only in a new worktree ~/Projects/misoku-yolo-worktrees/onboarding-learn on a new
   branch feat/onboarding-learn from the latest origin/main, and do not switch or touch the ~/Projects/misoku-yolo
   checkout. Do not touch the folder editor under revision. Never touch the real ~/.config/misoku, the real vault

@@ -59,8 +59,8 @@ func passLevel(t *testing.T, dir, file string) {
 }
 
 // fakeTutorial replaces how a program runs outside the screen: it records the
-// command and, when the program "ends", calls back with err. A nil callback
-// runs before the result, as the tutorial would leave the disk.
+// command and returns a result that calls back with err, after running
+// during (when set), as the tutorial leaves the disk behind it.
 func fakeTutorial(got **exec.Cmd, err error, during func()) app.Option {
 	return app.WithExec(func(cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
 		*got = cmd

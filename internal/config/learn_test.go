@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/config"
@@ -17,6 +18,20 @@ func unmarshalTop(t *testing.T, path, key string, v any) error {
 		t.Fatalf("%s is not in the config:\n%s", key, readTop(t, path))
 	}
 	return json.Unmarshal(raw, v)
+}
+
+// sameValue reports whether two raw JSON values hold the same setting,
+// however each is spaced or escaped.
+func sameValue(t *testing.T, a, b json.RawMessage) bool {
+	t.Helper()
+	var x, y any
+	if err := json.Unmarshal(a, &x); err != nil {
+		t.Fatalf("%s: %v", a, err)
+	}
+	if err := json.Unmarshal(b, &y); err != nil {
+		t.Fatalf("%s: %v", b, err)
+	}
+	return reflect.DeepEqual(x, y)
 }
 
 // S2: answering the first-run dialog is remembered as a top-level
@@ -33,6 +48,7 @@ func TestSetLearnOfferedKeepsEveryOtherSetting(t *testing.T) {
 	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	want := readTop(t, path)
 	if err := config.SetLearnOffered(path); err != nil {
 		t.Fatal(err)
 	}
@@ -40,9 +56,16 @@ func TestSetLearnOfferedKeepsEveryOtherSetting(t *testing.T) {
 	if err := unmarshalTop(t, path, "learn_offered", &got); err != nil || !got {
 		t.Fatalf("learn_offered = %v (%v), want true", got, err)
 	}
-	for _, key := range []string{"theme", "keys", "not_known_yet", "sync"} {
-		if _, ok := readTop(t, path)[key]; !ok {
-			t.Errorf("%s was dropped from the config", key)
+	// Every other key keeps its value (the file is rewritten with two-space
+	// indentation, so the bytes differ; the settings must not).
+	after := readTop(t, path)
+	delete(after, "learn_offered")
+	if len(after) != len(want) {
+		t.Fatalf("the config gained or lost keys: %v, want %v", after, want)
+	}
+	for key, raw := range want {
+		if !sameValue(t, raw, after[key]) {
+			t.Errorf("%s changed from %s to %s", key, raw, after[key])
 		}
 	}
 	// Load reads it back, for the gate that decides whether to ask.
