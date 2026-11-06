@@ -4,6 +4,26 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **The folder editor works like Oil.nvim**: `Enter` while typing only opens a new line below; nothing touches the
+  disk until you confirm. With edits pending, `Enter` in normal mode, `=`, `:w` or `ctrl+s` (also while typing)
+  shows "CONFIRM FILE SYSTEM ACTIONS" with every planned action; Yes applies them all, No returns to the lines with
+  the edits kept. After applying, the editor stays open on the same folder, re-read from disk and sorted, with the
+  cursor on the entry the line made, in the mode it was in. With nothing pending, `Enter` enters a folder or opens a
+  note. This replaces 0.19.3's `Enter` that created new lines at once.
+- **Deleting by erasing a line**: in the folder editor, `Backspace` at the start of a line joins it into the line
+  above and `Delete` at its end joins the line below, as in Vim; the entry of a line joined away is deleted on
+  apply, like `dd`, to the Trash.
+
+### Fixed
+
+- **Empty folders are listed**: a folder with nothing inside, such as one just made in the folder editor, now shows
+  in the explorer and the folder editor, also after restarting. Folders holding only other files (code, pictures)
+  stay hidden. Typing an existing empty folder again is refused instead of planned twice.
+
 ## [0.19.3] - 2026-11-05
 
 ### Changed

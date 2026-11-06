@@ -36,13 +36,10 @@ const (
 	NavParent
 	// NavChild asks to open the folder under the cursor (l); see Current.
 	NavChild
-	// NavOpen asks to open the line under the cursor (Enter): enter a
-	// folder, open a note; see Current.
+	// NavOpen is Enter in normal mode: with pending edits the host asks to
+	// apply them, otherwise it opens the line under the cursor (enter a
+	// folder, open a note); see Current.
 	NavOpen
-	// NavCreate asks to create the new line just named (Enter while
-	// typing it, which has already committed the line). The host creates
-	// it, then calls OpenBelow, and Settle once it is on disk.
-	NavCreate
 )
 
 type folder struct {
@@ -84,15 +81,35 @@ func (b *Buffer) Open(folderID string, rows []Row) {
 // Folder returns the ID of the folder being shown.
 func (b *Buffer) Folder() string { return b.cur }
 
-// Rows returns a copy of the current folder's edited rows.
-func (b *Buffer) Rows() []Row { return b.Edited(b.cur) }
+// Rows returns a copy of the current folder's lines as shown, the one being
+// typed included as it was when typing started.
+func (b *Buffer) Rows() []Row { return slices.Clone(b.f().rows) }
 
-// Edited returns a copy of the edited rows of a visited folder.
+// Edited returns a copy of the edited rows of a visited folder, as if
+// typing ended now: the line being typed has the typed name, and an empty
+// new one is left out. The host plans from it even while a name is typed.
 func (b *Buffer) Edited(folderID string) []Row {
-	if f, ok := b.folders[folderID]; ok {
-		return slices.Clone(f.rows)
+	f, ok := b.folders[folderID]
+	if !ok {
+		return nil
 	}
-	return nil
+	rows := slices.Clone(f.rows)
+	if b.editing && folderID == b.cur {
+		rows[f.cursor].Name = b.input.Value()
+		if rows[f.cursor].Name == "" && rows[f.cursor].OrigID == "" {
+			rows = slices.Delete(rows, f.cursor, f.cursor+1)
+		}
+	}
+	return rows
+}
+
+// Line is the name on the cursor's line as it stands now: the one being
+// typed, or the row's.
+func (b *Buffer) Line() string {
+	if b.editing {
+		return b.input.Value()
+	}
+	return b.name()
 }
 
 // Original returns a copy of the rows a visited folder was opened with.
@@ -277,11 +294,13 @@ func (b *Buffer) openLine(below bool) tea.Cmd {
 }
 
 // updateInput handles a key while a name is typed. Esc commits the line and
-// returns to normal. Enter commits it too and, as in Vim, never opens the
-// entry: on an existing line it opens an empty line below and goes on
-// typing; on a new named line it asks to create it (NavCreate); an empty
-// new line is dropped and typing ends, as with Esc. Up and Down keep the typed name and
-// go on typing at the end of the line above or below.
+// returns to normal. Enter, as in Oil, only opens an empty line below and
+// goes on typing there: it never creates, opens or applies anything, and on
+// an empty new line it keeps typing on it. Up and Down keep the typed name
+// and go on typing at the end of the line above or below. Backspace at the
+// start of the line joins it into the line above and Delete at its end
+// joins the line below into it, as in Vim: a line joined away is gone from
+// the folder, which plans its delete like dd.
 func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	switch k.Type {
 	case tea.KeyUp:
@@ -289,16 +308,15 @@ func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	case tea.KeyDown:
 		return NavNone, b.moveInput(1)
 	case tea.KeyEnter:
-		isNew := b.f().rows[b.f().cursor].OrigID == ""
-		named := b.input.Value() != ""
-		b.commit()
-		switch {
-		case isNew && named:
-			return NavCreate, nil
-		case isNew:
-			return NavNone, nil
+		return NavNone, b.splitLine()
+	case tea.KeyBackspace:
+		if b.input.Position() == 0 {
+			return NavNone, b.joinUp()
 		}
-		return NavNone, b.openLine(true)
+	case tea.KeyDelete:
+		if b.input.Position() == len([]rune(b.input.Value())) {
+			return NavNone, b.joinDown()
+		}
 	case tea.KeyEsc:
 		b.commit()
 		return NavNone, nil
@@ -308,28 +326,75 @@ func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	return NavNone, cmd
 }
 
-// OpenBelow opens an empty line below the cursor and starts typing its
-// name, as o does.
-func (b *Buffer) OpenBelow() tea.Cmd { return b.openLine(true) }
+// splitLine keeps the typed name in its line and goes on typing on a new
+// empty line below, within the same undo step. An empty new line stays as
+// it is.
+func (b *Buffer) splitLine() tea.Cmd {
+	f := b.f()
+	f.rows[f.cursor].Name = b.input.Value()
+	if f.rows[f.cursor].Name == "" && f.rows[f.cursor].OrigID == "" {
+		return nil
+	}
+	f.cursor++
+	f.rows = slices.Insert(f.rows, f.cursor, Row{})
+	return b.start("", true)
+}
 
-// Settle restarts the buffer on its folder with rows, as read from disk
-// after the new lines were created, with the cursor on the entry id. Every
-// other visited folder is forgotten: a create applies only when it is all
-// the buffer holds. A name being typed goes on, on a line below id.
-func (b *Buffer) Settle(rows []Row, id string) tea.Cmd {
-	typing, value := b.editing, b.input.Value()
+// joinUp joins the line being typed onto the end of the line above and
+// goes on typing there, at the join. On the first line nothing happens.
+func (b *Buffer) joinUp() tea.Cmd {
+	f := b.f()
+	if f.cursor == 0 {
+		return nil
+	}
+	rest := b.input.Value()
+	f.rows = slices.Delete(f.rows, f.cursor, f.cursor+1)
+	f.cursor--
+	at := len([]rune(f.rows[f.cursor].Name))
+	cmd := b.start(f.rows[f.cursor].Name+rest, false)
+	b.input.SetCursor(at)
+	return cmd
+}
+
+// joinDown joins the line below onto the end of the line being typed,
+// keeping the typing position. On the last line nothing happens.
+func (b *Buffer) joinDown() tea.Cmd {
+	f := b.f()
+	if f.cursor+1 >= len(f.rows) {
+		return nil
+	}
+	value, at := b.input.Value(), b.input.Position()
+	b.input.SetValue(value + f.rows[f.cursor+1].Name)
+	b.input.SetCursor(at)
+	f.rows = slices.Delete(f.rows, f.cursor+1, f.cursor+2)
+	return nil
+}
+
+// Reload restarts the buffer on its folder with rows, as read from disk
+// after its edits were applied: every visited folder's edits and history
+// are forgotten and the cursor goes to row at. A name being typed goes on
+// being typed, at the end of that row, or on a new empty line at at when
+// the typed line was empty.
+func (b *Buffer) Reload(rows []Row, at int) tea.Cmd {
+	typing, blank := b.editing, b.editing && b.input.Value() == ""
 	b.editing, b.before = false, nil
 	b.input.Blur()
 	b.folders = map[string]*folder{}
 	b.Open(b.cur, rows)
-	b.Select(id)
-	if !typing {
-		return nil
+	f := b.f()
+	f.cursor = at
+	b.clamp()
+	switch {
+	case blank:
+		b.before = slices.Clone(f.rows)
+		f.cursor = min(max(at, 0), len(f.rows))
+		f.rows = slices.Insert(f.rows, f.cursor, Row{})
+		return b.start("", true)
+	case typing && len(f.rows) > 0:
+		b.before = slices.Clone(f.rows)
+		return b.start(f.rows[f.cursor].Name, false)
 	}
-	cmd := b.openLine(true)
-	b.input.SetValue(value)
-	b.input.CursorEnd()
-	return cmd
+	return nil
 }
 
 // moveInput keeps the typed name in its line (a pending edit, like Esc's) and

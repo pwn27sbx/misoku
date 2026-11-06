@@ -60,8 +60,8 @@ func TestEditFolderRenameAppliesAfterTheConfirm(t *testing.T) {
 	if tabs := app.OpenTabs(h.m); !slices.Equal(tabs, []string{"bbb.md"}) {
 		t.Errorf("tabs = %q, want the renamed bbb.md", tabs)
 	}
-	if v := h.view(); strings.Contains(v, "EDIT /") {
-		t.Errorf("an applied batch closes the editor:\n%s", v)
+	if v := h.view(); !strings.Contains(v, "EDIT /") || !strings.Contains(app.ExplorerView(h.m), "bbb") {
+		t.Errorf("an applied batch keeps the editor open, re-read from disk:\n%s", v)
 	}
 }
 

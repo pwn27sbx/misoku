@@ -273,7 +273,7 @@ func TestDashboardAndNewNoteSaveAs(t *testing.T) {
 	if !strings.Contains(v, "Untitled-1") || !strings.Contains(v, "INSERT") {
 		t.Fatalf("expected Untitled-1 tab in INSERT mode:\n%s", v)
 	}
-	if pages := store.List(); len(pages) != 0 { // empty journal folder is hidden
+	if pages := store.List(); len(pages) != 1 { // just the empty journal folder
 		t.Fatalf("nothing may be written before saving, got %v", pages)
 	}
 

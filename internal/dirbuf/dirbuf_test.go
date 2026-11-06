@@ -23,6 +23,12 @@ func keys(t *testing.T, b *Buffer, seq ...string) Nav {
 			msg = tea.KeyMsg{Type: tea.KeyUp}
 		case "down":
 			msg = tea.KeyMsg{Type: tea.KeyDown}
+		case "bs":
+			msg = tea.KeyMsg{Type: tea.KeyBackspace}
+		case "del":
+			msg = tea.KeyMsg{Type: tea.KeyDelete}
+		case "ctrl+a":
+			msg = tea.KeyMsg{Type: tea.KeyCtrlA}
 		default:
 			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 		}
@@ -237,17 +243,27 @@ func TestRowsIsACopy(t *testing.T) {
 	}
 }
 
-// Enter while typing a new name commits the line and asks the host to
-// create it (NavCreate); it opens nothing.
-func TestEnterWhileTypingANewNameAsksToCreate(t *testing.T) {
+// S1: Enter while typing a new name keeps it as a line and opens an empty
+// line below, still typing, as Oil does: it asks the host for nothing. The
+// whole insert, every line it typed, is one undo step.
+func TestEnterWhileTypingANewNameOpensALine(t *testing.T) {
 	b := New("", orig())
 	keys(t, b, "o")
 	keys(t, b, typed("x/")...)
-	if nav := keys(t, b, "enter"); nav != NavCreate {
-		t.Fatalf("Enter while typing = %v, want NavCreate", nav)
+	if nav := keys(t, b, "enter"); nav != NavNone {
+		t.Fatalf("Enter while typing = %v, want NavNone", nav)
 	}
-	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "x/", "b", "c/"}) {
+	if !b.Editing() {
+		t.Fatal("Enter must go on typing on the new line")
+	}
+	keys(t, b, typed("y")...)
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "x/", "y", "b", "c/"}) {
 		t.Fatalf("names = %v", got)
+	}
+	keys(t, b, "u")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
+		t.Fatalf("one u undoes the whole insert, names = %v", got)
 	}
 }
 
@@ -268,17 +284,22 @@ func TestEnterWhileTypingAnExistingLineOpensOneBelow(t *testing.T) {
 	}
 }
 
-// Enter on an empty new line drops it and ends typing, as Esc does.
-func TestEnterOnAnEmptyNewLineDropsIt(t *testing.T) {
+// Enter on an empty new line keeps typing on it: no blank lines pile up,
+// and Esc then drops it.
+func TestEnterOnAnEmptyNewLineKeepsTyping(t *testing.T) {
 	b := New("", orig())
-	if nav := keys(t, b, "o", "enter"); nav != NavNone {
+	if nav := keys(t, b, "o", "enter", "enter"); nav != NavNone {
 		t.Fatalf("Enter = %v, want NavNone", nav)
 	}
-	if b.Editing() {
-		t.Fatal("Enter on an empty line must end typing")
+	if !b.Editing() {
+		t.Fatal("Enter on an empty line goes on typing")
 	}
-	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "", "b", "c/"}) {
 		t.Fatalf("names = %v", got)
+	}
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
+		t.Fatalf("Esc drops the empty line, names = %v", got)
 	}
 }
 
@@ -364,5 +385,88 @@ func TestArrowsInInsertDropAnEmptyNewLine(t *testing.T) {
 	keys(t, b, "esc", "O", "up")
 	if !b.Editing() || b.Cursor() != 0 || len(b.Rows()) != 3 {
 		t.Fatalf("up from an empty new line: cursor=%d names=%v", b.Cursor(), names(b.Rows()))
+	}
+}
+
+// S8: Backspace at the start of a line joins it into the line above, as
+// Vim does: an emptied line disappears (a planned delete), typing goes on
+// at the end of the line above, and it is all one undo step.
+func TestBackspaceAtStartJoinsIntoTheLineAbove(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "j", "a", "bs", "bs")
+	if !b.Editing() || b.Cursor() != 0 {
+		t.Fatalf("typing goes on on the line above: editing %v, cursor %d", b.Editing(), b.Cursor())
+	}
+	keys(t, b, typed("x")...)
+	keys(t, b, "esc")
+	if got := b.Rows(); !reflect.DeepEqual(got, []Row{{OrigID: "a.md", Name: "ax"}, {OrigID: "c", Name: "c/"}}) {
+		t.Fatalf("rows = %v", got)
+	}
+	keys(t, b, "u")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
+		t.Fatalf("one u undoes the join, names = %v", got)
+	}
+}
+
+// S8: Backspace at the start of a line with text left joins that text at
+// the end of the line above, with the cursor at the join.
+func TestBackspaceJoinsTheRestOfTheLine(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "j", "i", "bs")
+	keys(t, b, typed("-")...)
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a-b", "c/"}) {
+		t.Fatalf("names = %v", got)
+	}
+	keys(t, b, "gg", "i", "bs")
+	if got := names(b.Edited("")); !reflect.DeepEqual(got, []string{"a-b", "c/"}) {
+		t.Fatalf("Backspace on the first line does nothing, names = %v", got)
+	}
+}
+
+// S8: Delete at the end of a line joins the line below into it; typing
+// goes on at the join.
+func TestDeleteAtEndJoinsTheLineBelow(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "a", "del")
+	keys(t, b, typed("!")...)
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a!b", "c/"}) {
+		t.Fatalf("names = %v", got)
+	}
+}
+
+// Edited shows the name being typed as if Esc were pressed now, so the
+// host can plan while typing (Ctrl+S); an empty new line is left out.
+func TestEditedIncludesTheNameBeingTyped(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "a")
+	keys(t, b, typed("z")...)
+	if got := names(b.Edited("")); !reflect.DeepEqual(got, []string{"az", "b", "c/"}) {
+		t.Fatalf("Edited = %v", got)
+	}
+	keys(t, b, "enter")
+	if got := names(b.Edited("")); !reflect.DeepEqual(got, []string{"az", "b", "c/"}) {
+		t.Fatalf("Edited leaves the empty new line out, got %v", got)
+	}
+	if got := len(b.Rows()); got != 4 {
+		t.Fatalf("Rows still shows the line being typed: %d rows", got)
+	}
+}
+
+// Reload restarts on rows read from disk with the cursor at the given row
+// and every folder's edits forgotten; typing goes on when it was.
+func TestReloadKeepsTyping(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "a")
+	keys(t, b, typed("z")...)
+	b.Reload([]Row{{OrigID: "az.md", Name: "az"}, {OrigID: "b.md", Name: "b"}}, 1)
+	if !b.Editing() || b.Cursor() != 1 || b.Dirty() {
+		t.Fatalf("editing %v, cursor %d, dirty %v", b.Editing(), b.Cursor(), b.Dirty())
+	}
+	keys(t, b, typed("!")...)
+	keys(t, b, "esc")
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"az", "b!"}) {
+		t.Fatalf("names = %v", got)
 	}
 }

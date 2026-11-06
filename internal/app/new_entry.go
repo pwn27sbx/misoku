@@ -1,10 +1,6 @@
 package app
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -66,15 +62,10 @@ func (m *Model) createEntry(e core.NewEntry) tea.Cmd {
 	return tea.Batch(m.openFile(p.ID), m.content.EnterInsert())
 }
 
-// showCreatedFolders keeps folders in the tree while they are still empty
-// (the store lists only folders holding a note), then opens each one and
-// selects the last.
+// showCreatedFolders reads the tree again, so new folders show (an empty
+// one too, as the store lists it), then opens each one and selects the
+// last.
 func (m *Model) showCreatedFolders(folders []core.Page) {
-	for _, f := range folders {
-		if !containsPage(m.newFolders, f.ID) {
-			m.newFolders = append(m.newFolders, f)
-		}
-	}
 	m.reloadTree()
 	for _, f := range folders {
 		m.sidebar.Expand(f.ID)
@@ -82,48 +73,4 @@ func (m *Model) showCreatedFolders(folders []core.Page) {
 	if len(folders) > 0 {
 		m.sidebar.SetSelectedID(folders[len(folders)-1].ID)
 	}
-}
-
-// listTree is the store's tree plus the folders made with n that are still
-// on disk but hold no note yet.
-func listTree(store *core.Store, kept []core.Page) []core.Page {
-	pages := store.List()
-	for _, f := range kept {
-		info, err := os.Stat(filepath.Join(store.Root(), filepath.FromSlash(strings.TrimSuffix(f.ID, ".md"))))
-		if err != nil || !info.IsDir() || containsPage(pages, f.ID) {
-			continue
-		}
-		pages = insertSibling(pages, f)
-	}
-	return pages
-}
-
-// insertSibling adds folder f to pages where List would have put it: the
-// explorer keeps the order of siblings, and List sorts folders and notes
-// with sub-notes before plain notes, by name.
-func insertSibling(pages []core.Page, f core.Page) []core.Page {
-	parents := map[string]bool{}
-	for _, p := range pages {
-		parents[p.ParentID] = true
-	}
-	name := strings.ToLower(f.Title)
-	for i, p := range pages {
-		if p.ParentID != f.ParentID {
-			continue
-		}
-		expandable := p.IsFolder || parents[p.ID]
-		if !expandable || strings.ToLower(p.Title) > name {
-			return append(pages[:i], append([]core.Page{f}, pages[i:]...)...)
-		}
-	}
-	return append(pages, f)
-}
-
-func containsPage(pages []core.Page, id string) bool {
-	for _, p := range pages {
-		if p.ID == id {
-			return true
-		}
-	}
-	return false
 }

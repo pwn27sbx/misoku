@@ -70,7 +70,7 @@ func (m *Model) openFileManager() tea.Cmd {
 	// there, so Update never waits on the disk.
 	// The log and the notes are read there too, before the tree, so the
 	// tree read includes the sub-note folders that followed their notes.
-	store, kept := m.store, append([]core.Page(nil), m.newFolders...)
+	store := m.store
 	before := append([]core.Page(nil), m.notes...)
 	return m.execOutside(cmd, func(err error) tea.Msg {
 		moves := readFileManagerMoves(store, log.Name(), before)
@@ -79,7 +79,7 @@ func (m *Model) openFileManager() tea.Cmd {
 		if len(moves) > 0 {
 			done.relinks = planRelinksIn(store, relinkJob{renamed: fileManagerStatus(moves), before: before, moves: moves})
 		}
-		done.pages = listTree(store, kept)
+		done.pages = store.List()
 		return done
 	})
 }

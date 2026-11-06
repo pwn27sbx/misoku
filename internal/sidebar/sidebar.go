@@ -276,15 +276,13 @@ func (m Model) IsBusy() bool { return m.renaming || m.creating || m.edit != nil 
 
 // EditApplyMsg asks to plan and apply the folder editor's edits: every
 // visited folder with its edited lines. The editor stays open until the
-// app calls StopEditing, so a refused plan or a No keeps the edits.
-// Leave marks the request of leaving with edits (Esc or q), whose confirm
-// also closes the editor on No and offers a cancel that keeps editing.
-// Create marks Enter on a new named line: the edits apply with no confirm
-// when every action creates, and otherwise stay pending.
+// app calls StopEditing, so a refused plan or a No keeps the edits, and
+// after applying the app calls ReloadEditor. Leave marks the request of
+// leaving with edits (Esc or q), whose confirm also closes the editor on
+// No and offers a cancel that keeps editing.
 type EditApplyMsg struct {
 	Folders []dirplan.Folder
 	Leave   bool
-	Create  bool
 }
 
 // IsEditing reports whether the folder editor is open.
@@ -320,13 +318,42 @@ func (m *Model) SetRealCursor(on bool) {
 	}
 }
 
-// SettleCreated restarts the folder editor on its folder as the disk now
-// has it, after its new lines were created, with the cursor on id.
-func (m *Model) SettleCreated(id string) tea.Cmd {
+// ReloadEditor restarts the folder editor on its folder as the disk now
+// has it, after its edits were applied, as Oil does: the lines are read
+// again in the tree's order and the cursor goes to the entry made or
+// renamed from the cursor's line (or stays at its index). A name being
+// typed goes on being typed. A folder that is gone closes the editor.
+func (m *Model) ReloadEditor() tea.Cmd {
 	if m.edit == nil {
 		return nil
 	}
-	return m.edit.Settle(m.folderRows(m.edit.Folder()), id)
+	folder := m.edit.Folder()
+	if _, ok := m.byID[folder]; folder != "" && !ok {
+		m.StopEditing()
+		return nil
+	}
+	rows := m.folderRows(folder)
+	return m.edit.Reload(rows, lineIndex(rows, m.edit.Line(), m.edit.Cursor()))
+}
+
+// lineIndex is the row of rows that a line named line became once
+// applied: its first path segment, a folder when the line is a path or
+// ends in "/". fallback when no row has that name.
+func lineIndex(rows []dirbuf.Row, line string, fallback int) int {
+	segs, isDir, err := core.SplitEntryPath(line)
+	if err != nil || len(segs) == 0 {
+		return fallback
+	}
+	want := segs[0]
+	if isDir || len(segs) > 1 {
+		want += "/"
+	}
+	for i, r := range rows {
+		if r.Name == want {
+			return i
+		}
+	}
+	return fallback
 }
 
 // EditFolder is the folder the folder editor shows, "" when it is closed

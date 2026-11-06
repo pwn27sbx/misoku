@@ -83,7 +83,9 @@ func fileExists(abs string) bool {
 // List walks the workspace directory tree and returns a flattened list of
 // pages and folders, each carrying its real ParentID so callers can rebuild
 // the hierarchy. Folders are ordered before files, both alphabetically.
-// Folders with no Markdown file anywhere inside them are left out.
+// A folder shows when it holds a Markdown file somewhere inside, or no file
+// at all (an empty folder, as Oil lists it); one holding only other files
+// (code, pictures) is left out, and so is anything starting with ".".
 func (s *Store) List() []Page {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -93,15 +95,16 @@ func (s *Store) List() []Page {
 	return pages
 }
 
-// walk appends relDir's notes and folders to out and reports whether it
-// found any Markdown file in the subtree.
+// walk appends relDir's notes and folders to out and reports whether
+// relDir is to be shown: it holds a Markdown file somewhere inside, or no
+// file at all.
 func (s *Store) walk(relDir, parentID string, out *[]Page) bool {
 	absDir := filepath.Join(s.root, filepath.FromSlash(relDir))
 	entries, err := os.ReadDir(absDir)
 	if err != nil {
 		return false
 	}
-	found := false
+	found, others := false, false
 
 	mdBases := map[string]bool{}
 	dirBases := map[string]bool{}
@@ -110,10 +113,13 @@ func (s *Store) walk(relDir, parentID string, out *[]Page) bool {
 		if strings.HasPrefix(name, ".") {
 			continue
 		}
-		if e.IsDir() {
+		switch {
+		case e.IsDir():
 			dirBases[name] = true
-		} else if strings.HasSuffix(name, mdExt) {
+		case strings.HasSuffix(name, mdExt):
 			mdBases[strings.TrimSuffix(name, mdExt)] = true
+		default:
+			others = true
 		}
 	}
 
@@ -166,6 +172,8 @@ func (s *Store) walk(relDir, parentID string, out *[]Page) bool {
 				*out = append(*out, folder)
 				*out = append(*out, children...)
 				found = true
+			} else {
+				others = true // a hidden folder holds other files
 			}
 		}
 	}
@@ -180,7 +188,7 @@ func (s *Store) walk(relDir, parentID string, out *[]Page) bool {
 		})
 		found = true
 	}
-	return found
+	return found || !others
 }
 
 func modTime(abs string) time.Time {

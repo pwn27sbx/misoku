@@ -371,15 +371,21 @@ func TestRenameKeepsContent(t *testing.T) {
 	}
 }
 
-func TestListHidesFoldersWithoutMarkdown(t *testing.T) {
+// Folders holding no note show when they hold nothing but folders (an
+// empty folder made in the explorer, as Oil lists it); folders holding only
+// other files (code, pictures) and dot folders stay hidden.
+func TestListShowsEmptyFoldersHidesOtherFiles(t *testing.T) {
 	s := newTestStore(t)
 	root := s.Root()
-	for _, d := range []string{"bin", "cmd/misoku", "docs/guides/deep", "empty"} {
+	for _, d := range []string{"bin", "cmd/tsuzuri", "docs/guides/deep", "empty/inner", ".git/objects"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, "cmd/misoku/main.go"), []byte("package main"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "cmd/tsuzuri/main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "bin/.DS_Store"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.SaveAs("docs/guides/deep", "howto", "x"); err != nil {
@@ -390,8 +396,8 @@ func TestListHidesFoldersWithoutMarkdown(t *testing.T) {
 		ids = append(ids, p.ID)
 	}
 	got := strings.Join(ids, ",")
-	if got != "docs,docs/guides,docs/guides/deep,docs/guides/deep/howto.md" {
-		t.Fatalf("expected only folders leading to notes, got %s", got)
+	if got != "bin,docs,docs/guides,docs/guides/deep,docs/guides/deep/howto.md,empty,empty/inner" {
+		t.Fatalf("expected empty folders and folders leading to notes, got %s", got)
 	}
 }
 

@@ -37,9 +37,9 @@ type dirBatch struct {
 // on the disk), with the links the batch would rewrite, and the answer
 // comes back as a relinksPlannedMsg that shows the confirm.
 func (m *Model) requestDirPlan(folders []dirplan.Folder) tea.Cmd {
-	store, kept := m.store, append([]core.Page(nil), m.newFolders...)
+	store := m.store
 	return func() tea.Msg {
-		pages := listTree(store, kept)
+		pages := store.List()
 		plan, err := dirplan.Build(pages, folders)
 		job := relinkJob{before: notesOf(pages), batch: &dirBatch{plan: plan, err: err}}
 		if err != nil {

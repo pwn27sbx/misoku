@@ -160,12 +160,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateEdit handles a key of the folder editor: = and :w ask to apply,
-// Esc, q and :q leave, h and l walk folders, Enter enters a folder or opens
-// a note and the rest edits the lines. While a name is typed every key is
-// text but Enter, which creates a new named line and opens one below.
+// updateEdit handles a key of the folder editor, as Oil does: =, :w and
+// Ctrl+S (the save key, also while typing) ask to apply, Esc, q and :q
+// leave, h and l walk folders, and Enter asks to apply when edits are
+// pending, otherwise it enters a folder or opens a note; the rest edits
+// the lines. While a name is typed every other key is text: Enter only
+// opens a new line, and nothing touches the disk until the confirm.
 func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	k := key.String()
+	if m.keys.DirectModified(keymap.Save, k) {
+		m.cmdOn = false
+		return m, m.applyEdits(false)
+	}
 	if m.cmdOn {
 		switch {
 		case k == "enter":
@@ -205,10 +211,10 @@ func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	case dirbuf.NavChild:
 		m.enterFolder()
 	case dirbuf.NavOpen:
+		if m.pendingChanges() > 0 {
+			return m, m.applyEdits(false)
+		}
 		return m, m.activateLine()
-	case dirbuf.NavCreate:
-		apply := m.editApply(EditApplyMsg{Create: true})
-		return m, tea.Batch(apply, m.edit.OpenBelow())
 	}
 	return m, cmd
 }
@@ -225,9 +231,9 @@ func (m *Model) enterFolder() bool {
 	return true
 }
 
-// activateLine is Enter on a line of the folder editor: a folder is entered,
-// as l does, and a note opens in the editor. With nothing pending the
-// folder editor closes behind the note; with edits it stays, keeping them.
+// activateLine is Enter on a line of the folder editor with nothing
+// pending: a folder is entered, as l does, and a note opens in the editor,
+// closing the folder editor behind it.
 func (m *Model) activateLine() tea.Cmd {
 	if m.enterFolder() {
 		return nil
@@ -237,9 +243,7 @@ func (m *Model) activateLine() tea.Cmd {
 	if !ok {
 		return nil
 	}
-	if m.pendingChanges() == 0 {
-		m.StopEditing()
-	}
+	m.StopEditing()
 	return selectCmd(p.ID)
 }
 
@@ -264,7 +268,7 @@ func (m Model) editApply(msg EditApplyMsg) tea.Cmd {
 }
 
 // leaveEditing closes an editor without edits; with some it asks the app
-// for the same confirm as =, as mini.files does when it closes.
+// for the same confirm as =, as Oil saves on leaving.
 func (m *Model) leaveEditing() tea.Cmd {
 	if m.pendingChanges() == 0 {
 		m.StopEditing()

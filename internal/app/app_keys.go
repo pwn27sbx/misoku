@@ -43,6 +43,9 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 			if a == keymap.NewNote && sidebarBusy {
 				break
 			}
+			if a == keymap.Save && m.focus == focusSidebar && m.sidebar.IsEditing() {
+				break // the folder editor's save: it applies the edits
+			}
 			m.leaderPending = false
 			m.flushPreview()
 			return m.runAction(a)
