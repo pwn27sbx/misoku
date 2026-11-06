@@ -24,9 +24,10 @@ type finder struct {
 	matches []finderMatch
 	sel     int
 	offset  int
-	lines   map[string][]string // note text, split into lines
-	link    bool                // pick a note to link to instead of opening it
-	wiki    bool                // finish a typed "[[" instead of a Markdown link
+	lines   map[string][]string   // note text, split into lines
+	link    bool                  // pick a note to link to instead of opening it
+	wiki    bool                  // finish a typed "[[" instead of a Markdown link
+	metas   map[string]finderMeta // status and tags of a note, read once; see meta
 }
 
 // maxTextHits caps text matches so huge workspaces stay responsive.
@@ -68,6 +69,16 @@ func (m *Model) openFinder() tea.Cmd {
 	m.finder = f
 	m.leaderPending = false
 	return f.input.Focus()
+}
+
+// openFinderWith opens the finder with query already typed, as ":tags" and
+// ":status" do.
+func (m *Model) openFinderWith(query string) tea.Cmd {
+	cmd := m.openFinder()
+	m.finder.input.SetValue(query)
+	m.finder.input.CursorEnd()
+	m.finder.refilter()
+	return cmd
 }
 
 // fuzzyScore matches query as a subsequence of target (case-insensitive).
@@ -116,10 +127,26 @@ func isBoundary(b byte) bool {
 	return b < 0x80 && !unicode.IsLetter(r) && !unicode.IsDigit(r)
 }
 
+// refilter runs the query over the notes. Its qualifiers (finderQuery)
+// first narrow the notes; the words left then match their names and text.
+// With only qualifiers, every note that passes is listed, newest first.
 func (f *finder) refilter() {
-	q := strings.TrimSpace(f.input.Value())
+	fq := parseFinderQuery(f.input.Value())
+	q := fq.text
+	// notes are the ones the search looks at. Every note takes part here,
+	// templates included: leaving the templates folder out belongs in
+	// f.passes, next to the other qualifiers.
+	notes := f.notes
+	if fq.qualified {
+		notes = nil
+		for _, p := range f.notes {
+			if f.passes(p, fq) {
+				notes = append(notes, p)
+			}
+		}
+	}
 	f.matches = f.matches[:0]
-	for _, p := range f.notes {
+	for _, p := range notes {
 		if score, pos, ok := fuzzyScore(strings.ReplaceAll(q, " ", ""), p.ID); ok {
 			f.matches = append(f.matches, finderMatch{page: p, score: score, pos: pos})
 		}
@@ -133,7 +160,7 @@ func (f *finder) refilter() {
 
 	// Text inside notes (case-insensitive), in path order, after name hits.
 	if needle := strings.ToLower(q); len([]rune(needle)) >= 2 {
-		byPath := append([]core.Page(nil), f.notes...)
+		byPath := append([]core.Page(nil), notes...)
 		sort.Slice(byPath, func(i, j int) bool { return byPath[i].ID < byPath[j].ID })
 		hits := 0
 	scan:
@@ -214,7 +241,8 @@ func (m *Model) finderOpen(f *finder, newTab bool) tea.Cmd {
 	p, ok := f.selected()
 	if f.wiki && !ok {
 		// No such note yet: link to it anyway; following it starts it.
-		if q := strings.TrimSpace(f.input.Value()); q != "" {
+		// A query with qualifiers names no note: it links nowhere.
+		if q := strings.TrimSpace(f.input.Value()); q != "" && !parseFinderQuery(q).qualified {
 			m.finder = nil
 			m.insertWikiText(q)
 			return m.focusPane(focusEditor)

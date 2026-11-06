@@ -106,6 +106,16 @@ type DailyNoteMsg struct{}
 // one (":history").
 type HistoryMsg struct{}
 
+// TagsMsg lists every tag of the vault with its note count, to open the
+// finder on one (":tags").
+type TagsMsg struct{}
+
+// StatusFilterMsg opens the finder on the notes with Status (":status
+// value"); StatusNone opens it asking for one.
+type StatusFilterMsg struct {
+	Status NoteStatus
+}
+
 // FollowLinkMsg is emitted by "gd" / "gx" in the editor: open the link on
 // Line (the cursor's line) at rune column Col.
 type FollowLinkMsg struct {

@@ -69,6 +69,9 @@ func (f *finder) view(m *Model) (string, int, int) {
 	}
 
 	help := "↑↓ move · Enter open here (jumps to the line) · Ctrl+T new tab · Esc close"
+	if f.statusHint() {
+		help = statusHintText
+	}
 	rows = append(rows, bg.Foreground(th.GreyFg).Render(" "+ui.Truncate(help, inner-2)))
 	return panel(th, rows, inner), g.x, g.y
 }

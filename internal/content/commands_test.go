@@ -99,7 +99,7 @@ func TestCommandCatalogNoNoteCommandsRunAndLeaveTheNoteAlone(t *testing.T) {
 		}
 		no[c.Usage] = c.NoNote
 	}
-	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":graph all", ":enew", ":sync", ":sync status", ":sync setup", ":daily"} {
+	for _, u := range []string{":settings", ":messages", ":q / :q!", ":colo [name]", ":graph", ":graph all", ":enew", ":sync", ":sync status", ":sync setup", ":daily", ":tags", ":status [value]"} {
 		if !no[u] {
 			t.Errorf("%s needs no note", u)
 		}
@@ -145,5 +145,41 @@ func TestDailyCommandTakesNoArgument(t *testing.T) {
 	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :daily)", Error: true}
 	if got := content.RunCommand("daily foo", ""); got != want {
 		t.Errorf(":daily foo = %#v, want %#v", got, want)
+	}
+}
+
+// S4: ":tags" lists every tag; it takes no argument.
+func TestTagsCommandTakesNoArgument(t *testing.T) {
+	if _, ok := content.RunCommand("tags", "").(core.TagsMsg); !ok {
+		t.Errorf(":tags = %#v, want TagsMsg", content.RunCommand("tags", ""))
+	}
+	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :tags)", Error: true}
+	if got := content.RunCommand("tags foo", ""); got != want {
+		t.Errorf(":tags foo = %#v, want %#v", got, want)
+	}
+}
+
+// S1: ":status [value]" filters the finder by a status, read as the front
+// matter reads it; alone it asks for one, and an unknown value is an error.
+func TestStatusCommandTakesAKnownStatus(t *testing.T) {
+	for _, c := range []struct {
+		line string
+		want core.NoteStatus
+	}{
+		{"status", core.StatusNone},
+		{"status active", core.StatusActive},
+		{"status On Hold", core.StatusOnHold},
+		{"status on-hold", core.StatusOnHold},
+		{"status completed", core.StatusCompleted},
+		{"status DROPPED", core.StatusDropped},
+	} {
+		got, ok := content.RunCommand(c.line, "").(core.StatusFilterMsg)
+		if !ok || got.Status != c.want {
+			t.Errorf(":%s = %#v, want StatusFilterMsg{%q}", c.line, content.RunCommand(c.line, ""), c.want)
+		}
+	}
+	want := core.StatusMsg{Text: "E474: Invalid argument: foo (use active, onhold, completed or dropped)", Error: true}
+	if got := content.RunCommand("status foo", ""); got != want {
+		t.Errorf(":status foo = %#v, want %#v", got, want)
 	}
 }

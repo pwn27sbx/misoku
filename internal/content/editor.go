@@ -88,6 +88,17 @@ func parseVimCommand(cmdStr, content string) any {
 			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :history)", Error: true}
 		}
 		return core.HistoryMsg{}
+	case "tags":
+		if arg != "" {
+			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :tags)", Error: true}
+		}
+		return core.TagsMsg{}
+	case "status":
+		st := core.ParseStatus(arg)
+		if arg != "" && st == core.StatusNone {
+			return core.StatusMsg{Text: "E474: Invalid argument: " + arg + " (use active, onhold, completed or dropped)", Error: true}
+		}
+		return core.StatusFilterMsg{Status: st}
 	case "mes", "messages":
 		return core.MessagesMsg{}
 	case "sync":
