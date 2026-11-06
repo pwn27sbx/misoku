@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pwn27sbx/misoku/internal/kitty"
 	"github.com/pwn27sbx/misoku/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/ui"
 )
 
 // collectSink records what the graphics path sends.
@@ -76,7 +77,7 @@ func TestGraphicsFallsBackWhenThePictureIsTooLargeToSend(t *testing.T) {
 // colours, so its rows are left exactly as they are.
 func TestDimLeavesPicturesAlone(t *testing.T) {
 	line := kitty.Placeholders(9, 3, 1)[0]
-	if got := dim(line, lipgloss.Color("#808080")); got != line {
+	if got := ui.Dim(line, lipgloss.Color("#808080")); got != line {
 		t.Fatalf("dim rewrote a placeholder row:\n%q\n%q", line, got)
 	}
 }

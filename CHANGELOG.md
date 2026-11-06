@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **A dimmed backdrop behind dialogs.** While a dialog, the welcome dialog, the finder, the command palette, the theme
+  picker, a menu, a prompt, the date picker or the media browser is open, everything behind it turns grey on the plain
+  background (none with `ui.transparent`), and pictures behind it are hidden, so the box is the only coloured thing on
+  screen. Closing it brings the colours back. The leader guide and the `/` menu are hints next to what you type and
+  leave the screen as it is.
+
 ## [0.23.0] - 2026-11-06
 
 ### Changed

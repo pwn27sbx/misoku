@@ -335,7 +335,7 @@ func (m Model) View() string {
 		body = strings.Join(lines, "\n")
 	}
 	if m.dimmed {
-		body = dim(body, th.Grey)
+		body = ui.Dim(body, th.Grey)
 	}
 	return ui.Fit(body, m.width, m.height, plain)
 }

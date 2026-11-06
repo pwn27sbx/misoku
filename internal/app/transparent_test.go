@@ -63,8 +63,8 @@ func transparentModel(t *testing.T, w, h int) *Model {
 }
 
 // distinctModel is a w × h model on the distinct theme, made transparent
-// when clear is set, with two notes in its store.
-func distinctModel(t *testing.T, w, h int, clear bool) *Model {
+// when clear is set, with two notes in its store and opts applied.
+func distinctModel(t *testing.T, w, h int, clear bool, opts ...Option) *Model {
 	t.Helper()
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
@@ -81,7 +81,7 @@ func distinctModel(t *testing.T, w, h int, clear bool) *Model {
 			t.Fatal(err)
 		}
 	}
-	tm, _ := New(store).Update(tea.WindowSizeMsg{Width: w, Height: h})
+	tm, _ := New(store, opts...).Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m := tm.(Model)
 	m.applyTheme(th, false)
 	return &m

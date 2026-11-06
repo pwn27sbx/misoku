@@ -66,6 +66,9 @@ func (m Model) View() string {
 		screen = m.drawExplorerOverlay(screen)
 	}
 
+	if m.dimsBackdrop() {
+		screen = ui.DimBackdrop(screen, m.theme.Grey)
+	}
 	switch {
 	case m.saveAs != nil:
 		box, x, y := m.saveAs.view(m.theme, m.width, m.height)
@@ -107,6 +110,12 @@ func (m Model) View() string {
 	m.syncCursor(l)
 	return ui.Paint(screen, lipgloss.NewStyle().Foreground(m.theme.Fg).Background(m.theme.Bg))
 }
+
+// dimsBackdrop reports whether a modal box is open, so the screen behind it
+// is greyed out and the box is the only coloured thing on it. The leader
+// guide is a passing hint while a key chord is typed and the slash menu a
+// completion attached to the cursor: neither dims what the user is working on.
+func (m Model) dimsBackdrop() bool { return m.modalOpen() && !m.leaderGuideOpen() }
 
 // padNote adds pad blank rows above and below a note pane's view of width w.
 // They are plain spaces, so the frame's paint gives them the pane's
