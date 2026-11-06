@@ -78,6 +78,7 @@ type Model struct {
 	finder  *finder
 	themes  *themePicker
 	browser *fileBrowser
+	history *historyDialog // ":history", see history.go
 
 	promptBox *promptDialog
 	menuBox   *menuDialog

@@ -42,6 +42,8 @@ var Commands = []Command{
 		Long: "Shows the map of the notes this note links to and the ones linking to it."},
 	{Usage: ":graph all", Names: []string{"graph"}, Help: "Graph of every note", Run: "graph all", NoNote: true,
 		Long: "Shows the map of every note in the vault and the links between them, notes without links and links to missing notes included."},
+	{Usage: ":history", Names: []string{"history"}, Help: "Older versions of this note", Run: "history",
+		Long: "Lists the commits of git that changed this note, renames included, and shows the selected version. Enter puts it back in the editor as one change: u undoes it, and nothing is written until you save."},
 	{Usage: ":messages", Names: []string{"messages", "mes"}, Help: "Last messages of the bar", Run: "messages", NoNote: true,
 		Long: "Lists the last 100 messages the status bar showed, with their time, so an error that went away can be read again."},
 	{Usage: ":colo [name]", Names: []string{"colo", "colorscheme", "theme"}, Help: "Switch theme", Run: "colo", NoNote: true,

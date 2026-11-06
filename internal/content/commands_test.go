@@ -104,7 +104,7 @@ func TestCommandCatalogNoNoteCommandsRunAndLeaveTheNoteAlone(t *testing.T) {
 			t.Errorf("%s needs no note", u)
 		}
 	}
-	for _, u := range []string{":w", ":w name", ":wq / :x", ":bd", ":export [file]"} {
+	for _, u := range []string{":w", ":w name", ":wq / :x", ":bd", ":export [file]", ":history"} {
 		if no[u] {
 			t.Errorf("%s acts on the open note", u)
 		}
@@ -123,5 +123,16 @@ func TestGraphCommandTakesAllOrNothing(t *testing.T) {
 	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :graph or :graph all)", Error: true}
 	if got := content.RunCommand("graph foo", ""); got != want {
 		t.Errorf(":graph foo = %#v, want %#v", got, want)
+	}
+}
+
+// S9: ":history" lists the open note's versions; it takes no argument.
+func TestHistoryCommandTakesNoArgument(t *testing.T) {
+	if _, ok := content.RunCommand("history", "").(core.HistoryMsg); !ok {
+		t.Errorf(":history = %#v, want HistoryMsg", content.RunCommand("history", ""))
+	}
+	want := core.StatusMsg{Text: "E488: Trailing characters: foo (use :history)", Error: true}
+	if got := content.RunCommand("history foo", ""); got != want {
+		t.Errorf(":history foo = %#v, want %#v", got, want)
 	}
 }

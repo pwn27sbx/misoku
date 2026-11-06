@@ -98,6 +98,10 @@ type ThemeMsg struct {
 // SettingsMsg opens the settings menu (":settings").
 type SettingsMsg struct{}
 
+// HistoryMsg lists the open note's versions in git, to look at and restore
+// one (":history").
+type HistoryMsg struct{}
+
 // FollowLinkMsg is emitted by "gd" / "gx" in the editor: open the link on
 // Line (the cursor's line) at rune column Col.
 type FollowLinkMsg struct {

@@ -91,7 +91,7 @@ func (m Model) modalOpen() bool {
 	switch {
 	case m.saveAs != nil, m.confirm != nil, m.finder != nil, m.themes != nil,
 		m.browser != nil, m.datePick != nil, m.promptBox != nil, m.menuBox != nil,
-		m.palette != nil, m.leaderGuideOpen():
+		m.palette != nil, m.history != nil, m.leaderGuideOpen():
 		return true
 	}
 	return false

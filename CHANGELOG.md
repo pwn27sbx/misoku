@@ -6,6 +6,10 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ## [Unreleased]
 
+### Added
+
+- `:history` lists the git commits that changed the open note, renames included, previews the selected version and restores it into the editor as one undoable change, without writing to disk until you save.
+
 ### Changed
 
 - The reading view (`space p`) draws a checked task (`- [x]`) muted and struck through, as the preview does; the line under the cursor stays raw.

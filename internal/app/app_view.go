@@ -85,6 +85,9 @@ func (m Model) View() string {
 	case m.browser != nil:
 		box, x, y := m.browser.view(&m)
 		screen = ui.Overlay(screen, box, x, y)
+	case m.history != nil:
+		box, x, y := m.history.view(&m)
+		screen = ui.Overlay(screen, box, x, y)
 	case m.datePick != nil:
 		box, x, y := m.datePick.view(&m)
 		screen = ui.Overlay(screen, box, x, y)

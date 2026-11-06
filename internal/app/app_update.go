@@ -101,6 +101,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case core.MessagesMsg:
 		m.openMessages()
 		return m, nil
+	case historyListedMsg:
+		return m, m.showHistory(msg)
+	case historyVersionMsg:
+		m.applyHistoryVersion(msg)
+		return m, nil
 	case tea.KeyMsg:
 		// A key clears the bar's message, except while a step of the sync
 		// setup runs: the bar keeps saying so until its result arrives.
@@ -137,6 +142,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.browser != nil {
 		return m, m.browser.update(&m, msg)
+	}
+	if m.history != nil {
+		return m, m.history.update(&m, msg)
 	}
 	if m.datePick != nil {
 		switch msg.(type) {
@@ -263,6 +271,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case core.SettingsMsg:
 		return m, m.OpenSettings()
+	case core.HistoryMsg:
+		return m, m.requestHistory()
 	case core.PageCreatedMsg:
 		return m, m.newDraft(msg.Page.ParentID)
 	case sidebar.CreateRequestMsg:
