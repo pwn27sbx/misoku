@@ -39,9 +39,10 @@ const (
 	// NavOpen asks to open the line under the cursor (Enter): enter a
 	// folder, open a note; see Current.
 	NavOpen
-	// NavSave asks to save the edits (Enter while typing a name, which
-	// has already committed the line).
-	NavSave
+	// NavCreate asks to create the new line just named (Enter while
+	// typing it, which has already committed the line). The host creates
+	// it, then calls OpenBelow, and Settle once it is on disk.
+	NavCreate
 )
 
 type folder struct {
@@ -276,8 +277,10 @@ func (b *Buffer) openLine(below bool) tea.Cmd {
 }
 
 // updateInput handles a key while a name is typed. Esc commits the line and
-// returns to normal; Enter commits it too and asks to save (NavSave). An
-// empty new line is dropped either way. Up and Down keep the typed name and
+// returns to normal. Enter commits it too and, as in Vim, never opens the
+// entry: on an existing line it opens an empty line below and goes on
+// typing; on a new named line it asks to create it (NavCreate); an empty
+// new line is dropped and typing ends, as with Esc. Up and Down keep the typed name and
 // go on typing at the end of the line above or below.
 func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	switch k.Type {
@@ -286,8 +289,16 @@ func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	case tea.KeyDown:
 		return NavNone, b.moveInput(1)
 	case tea.KeyEnter:
+		isNew := b.f().rows[b.f().cursor].OrigID == ""
+		named := b.input.Value() != ""
 		b.commit()
-		return NavSave, nil
+		switch {
+		case isNew && named:
+			return NavCreate, nil
+		case isNew:
+			return NavNone, nil
+		}
+		return NavNone, b.openLine(true)
 	case tea.KeyEsc:
 		b.commit()
 		return NavNone, nil
@@ -295,6 +306,30 @@ func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	var cmd tea.Cmd
 	b.input, cmd = b.input.Update(k)
 	return NavNone, cmd
+}
+
+// OpenBelow opens an empty line below the cursor and starts typing its
+// name, as o does.
+func (b *Buffer) OpenBelow() tea.Cmd { return b.openLine(true) }
+
+// Settle restarts the buffer on its folder with rows, as read from disk
+// after the new lines were created, with the cursor on the entry id. Every
+// other visited folder is forgotten: a create applies only when it is all
+// the buffer holds. A name being typed goes on, on a line below id.
+func (b *Buffer) Settle(rows []Row, id string) tea.Cmd {
+	typing, value := b.editing, b.input.Value()
+	b.editing, b.before = false, nil
+	b.input.Blur()
+	b.folders = map[string]*folder{}
+	b.Open(b.cur, rows)
+	b.Select(id)
+	if !typing {
+		return nil
+	}
+	cmd := b.openLine(true)
+	b.input.SetValue(value)
+	b.input.CursorEnd()
+	return cmd
 }
 
 // moveInput keeps the typed name in its line (a pending edit, like Esc's) and

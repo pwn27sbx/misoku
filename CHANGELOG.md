@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **`Enter` while typing in the folder editor goes to a new line**: it never opens a note or enters a folder. On a
+  new line with a name it creates the note or folder on disk at once, with no confirm, since creating loses nothing
+  (a trailing `/` makes a folder, `a/b` the nested path), and opens an empty line below in insert, as in Vim. On an
+  existing line it opens the line below; a rename stays pending for `=`, `:w` or leaving, with their confirm. On an
+  empty new line it ends typing, as `Esc`. In normal mode `Enter` still enters a folder or opens a note.
+
 ## [0.19.2] - 2026-11-05
 
 ### Fixed

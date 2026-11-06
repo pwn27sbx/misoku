@@ -237,28 +237,45 @@ func TestRowsIsACopy(t *testing.T) {
 	}
 }
 
-// Enter while typing commits the line and asks the host to save, instead
-// of opening another line: o still adds lines.
-func TestEnterWhileTypingCommitsAndAsksToSave(t *testing.T) {
+// Enter while typing a new name commits the line and asks the host to
+// create it (NavCreate); it opens nothing.
+func TestEnterWhileTypingANewNameAsksToCreate(t *testing.T) {
 	b := New("", orig())
 	keys(t, b, "o")
 	keys(t, b, typed("x/")...)
-	if nav := keys(t, b, "enter"); nav != NavSave {
-		t.Fatalf("Enter while typing = %v, want NavSave", nav)
-	}
-	if b.Editing() {
-		t.Fatal("Enter must end typing")
+	if nav := keys(t, b, "enter"); nav != NavCreate {
+		t.Fatalf("Enter while typing = %v, want NavCreate", nav)
 	}
 	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "x/", "b", "c/"}) {
 		t.Fatalf("names = %v", got)
 	}
 }
 
-// Enter on an empty new line drops it, as Esc does, and still asks to save.
+// Enter while typing an existing line keeps its name and opens an empty
+// line below, still typing, as Vim does.
+func TestEnterWhileTypingAnExistingLineOpensOneBelow(t *testing.T) {
+	b := New("", orig())
+	keys(t, b, "i")
+	keys(t, b, typed("z")...)
+	if nav := keys(t, b, "enter"); nav != NavNone {
+		t.Fatalf("Enter = %v, want NavNone", nav)
+	}
+	if !b.Editing() {
+		t.Fatal("Enter must go on typing on the new line")
+	}
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"za", "", "b", "c/"}) {
+		t.Fatalf("names = %v", got)
+	}
+}
+
+// Enter on an empty new line drops it and ends typing, as Esc does.
 func TestEnterOnAnEmptyNewLineDropsIt(t *testing.T) {
 	b := New("", orig())
-	if nav := keys(t, b, "o", "enter"); nav != NavSave {
-		t.Fatalf("Enter = %v, want NavSave", nav)
+	if nav := keys(t, b, "o", "enter"); nav != NavNone {
+		t.Fatalf("Enter = %v, want NavNone", nav)
+	}
+	if b.Editing() {
+		t.Fatal("Enter on an empty line must end typing")
 	}
 	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
 		t.Fatalf("names = %v", got)

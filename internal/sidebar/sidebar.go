@@ -279,9 +279,12 @@ func (m Model) IsBusy() bool { return m.renaming || m.creating || m.edit != nil 
 // app calls StopEditing, so a refused plan or a No keeps the edits.
 // Leave marks the request of leaving with edits (Esc or q), whose confirm
 // also closes the editor on No and offers a cancel that keeps editing.
+// Create marks Enter on a new named line: the edits apply with no confirm
+// when every action creates, and otherwise stay pending.
 type EditApplyMsg struct {
 	Folders []dirplan.Folder
 	Leave   bool
+	Create  bool
 }
 
 // IsEditing reports whether the folder editor is open.
@@ -315,6 +318,24 @@ func (m *Model) SetRealCursor(on bool) {
 	if m.edit != nil {
 		m.edit.SetRealCursor(on)
 	}
+}
+
+// SettleCreated restarts the folder editor on its folder as the disk now
+// has it, after its new lines were created, with the cursor on id.
+func (m *Model) SettleCreated(id string) tea.Cmd {
+	if m.edit == nil {
+		return nil
+	}
+	return m.edit.Settle(m.folderRows(m.edit.Folder()), id)
+}
+
+// EditFolder is the folder the folder editor shows, "" when it is closed
+// or on the root.
+func (m Model) EditFolder() string {
+	if m.edit == nil {
+		return ""
+	}
+	return m.edit.Folder()
 }
 
 // StopEditing closes the folder editor, dropping its pending edits.

@@ -163,7 +163,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 // updateEdit handles a key of the folder editor: = and :w ask to apply,
 // Esc, q and :q leave, h and l walk folders, Enter enters a folder or opens
 // a note and the rest edits the lines. While a name is typed every key is
-// text but Enter, which saves.
+// text but Enter, which creates a new named line and opens one below.
 func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	k := key.String()
 	if m.cmdOn {
@@ -206,10 +206,9 @@ func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 		m.enterFolder()
 	case dirbuf.NavOpen:
 		return m, m.activateLine()
-	case dirbuf.NavSave:
-		if m.pendingChanges() > 0 {
-			return m, m.applyEdits(false)
-		}
+	case dirbuf.NavCreate:
+		apply := m.editApply(EditApplyMsg{Create: true})
+		return m, tea.Batch(apply, m.edit.OpenBelow())
 	}
 	return m, cmd
 }
@@ -247,6 +246,11 @@ func (m *Model) activateLine() tea.Cmd {
 // applyEdits asks the app to plan every visited folder's edited lines;
 // leave says the request comes from leaving the editor.
 func (m Model) applyEdits(leave bool) tea.Cmd {
+	return m.editApply(EditApplyMsg{Leave: leave})
+}
+
+// editApply sends msg with every visited folder's edited lines, taken now.
+func (m Model) editApply(msg EditApplyMsg) tea.Cmd {
 	var folders []dirplan.Folder
 	for _, id := range m.edit.Folders() {
 		f := dirplan.Folder{ID: id}
@@ -255,7 +259,8 @@ func (m Model) applyEdits(leave bool) tea.Cmd {
 		}
 		folders = append(folders, f)
 	}
-	return func() tea.Msg { return EditApplyMsg{Folders: folders, Leave: leave} }
+	msg.Folders = folders
+	return func() tea.Msg { return msg }
 }
 
 // leaveEditing closes an editor without edits; with some it asks the app

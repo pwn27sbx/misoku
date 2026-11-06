@@ -257,13 +257,20 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sidebar.CreateRequestMsg:
 		return m, m.requestCreate(msg.ParentID, msg.Name)
 	case sidebar.EditApplyMsg:
-		if msg.Leave {
+		switch {
+		case msg.Leave:
 			return m, m.requestLeavePlan(msg.Folders)
+		case msg.Create:
+			return m, m.requestCreatePlan(msg.Folders)
 		}
 		return m, m.requestDirPlan(msg.Folders)
 	case leavePlannedMsg:
 		m.confirmLeaveEditor(msg)
 		return m, nil
+	case createPlannedMsg:
+		return m, m.applyCreates(msg)
+	case createdMsg:
+		return m, m.finishCreates(msg)
 	case core.PageUpdatedMsg:
 		return m, m.renamePage(msg.Page.ID, msg.Page.Title)
 	case core.PageDeletedMsg:
