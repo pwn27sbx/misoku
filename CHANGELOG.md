@@ -8,6 +8,7 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ### Added
 
+- Unlinked mentions: the preview lists the notes that mention the open note without linking to it, with a button that converts those mentions into wiki links.
 - Templates: `/plantilla` inserts a note from the `templates_dir` folder (default `Plantillas`) at the cursor, replacing `{{fecha}}`/`{{date}}` and `{{titulo}}`/`{{title}}` and merging its front matter into the note's as one undoable edit; template notes are left out of tags and status filters.
 - Inline `#tags` are highlighted with the theme's cyan accent in the editor, the reading view and the preview; tags inside code, links, URLs, HTML comments (also across lines) and the front matter are left alone.
 - Finder filters `status:`, `tag:`/`#tag` (nested tags included) and `folder:` (quotes for spaces), combined with the search words, also in the link picker; `:tags` lists every tag with its note count and opens the finder on the one picked; `:status [value]` opens the finder on a note status.

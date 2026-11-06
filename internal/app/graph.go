@@ -126,6 +126,8 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
+	// The notes changed on disk: their mentions may have too.
+	m.requestMentions(true)
 }
 
 // applyStatuses hands the note statuses of the index in use to the explorer

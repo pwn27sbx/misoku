@@ -42,11 +42,13 @@ func IsWorkspaceScan(msg tea.Msg) bool {
 }
 
 // OpenInCurrentBuffer shows id in the active tab, as picking a note in the
-// finder does, and returns the updated model and its command.
+// finder does, and returns the updated model and its command. Like the
+// Update wrapper, it also starts the unlinked-mention scan the open asked
+// for, so that request doesn't leak into the next Update.
 func OpenInCurrentBuffer(tm tea.Model, id string) (tea.Model, tea.Cmd) {
 	m := tm.(Model)
 	cmd := m.openInCurrentBuffer(id)
-	return m, cmd
+	return m, tea.Batch(cmd, m.startMentionScan())
 }
 
 // PreviewCompiles counts the preview recompiles the editor's text caused.

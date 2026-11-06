@@ -20,14 +20,15 @@ import (
 
 // Update routes events down and handles events emitted up from child
 // components. Whatever the event, a link index build it asked for (see
-// refreshGraph) and a layout of the global map (see startGlobalMap) start
+// refreshGraph), a layout of the global map (see startGlobalMap) and a scan
+// of the open note's unlinked mentions (see requestMentions) start
 // afterwards, in commands of their own.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
-		build, layout := nm.startLinkIndex(), nm.startGlobalMap()
-		if build != nil || layout != nil {
-			return nm, tea.Batch(cmd, build, layout)
+		build, layout, mentions := nm.startLinkIndex(), nm.startGlobalMap(), nm.startMentionScan()
+		if build != nil || layout != nil || mentions != nil {
+			return nm, tea.Batch(cmd, build, layout, mentions)
 		}
 	}
 	return next, cmd
@@ -49,6 +50,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, checkWorkspaceLater()
 	case linkIndexedMsg:
 		m.applyLinkIndex(msg)
+		return m, nil
+	case mentionsScannedMsg:
+		m.applyMentions(msg)
+		return m, nil
+	case mentionsLinkedMsg:
+		m.finishLinkMentions(msg)
 		return m, nil
 	case globalMapMsg:
 		m.applyGlobalMap(msg)

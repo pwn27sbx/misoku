@@ -131,6 +131,7 @@ type Model struct {
 	graphNotes  []core.Page // the workspace's notes and links, see linkGraph
 	graphEdges  []core.Edge
 	index       linkIndexState // every note's links, for the graph and backlinks
+	mentions    mentionState   // the open note's unlinked mentions, see mentions.go
 	graphLiveID string         // the note whose unsaved links the graph shows, see liveGraph
 
 	pv previewSync // the preview's copy of the editor text, see preview_refresh.go

@@ -248,6 +248,7 @@ never use `notes_dir`.
 - **Links follow a rename**: renaming a note or folder in the explorer (`r`) finds the links that named it, in `[[…]]` or Markdown form, and asks `Update N links in M notes?` (`y` updates them, `n` keeps the new name and leaves the links). Aliases, headings and embeds stay as written. An open tab gets the same change and keeps your unsaved edits; `u` undoes it there. A note changed on disk meanwhile is left alone and named in the status bar.
 - **Messages you can read again**: errors stay in red in the status bar until you press `Esc` (which still does what it always does); other messages clear on the next key. `:messages` lists the last 100, with the time of each (results only: progress such as `Syncing…` is not kept).
 - **Graph view** (`:graph`): a zoomable map of how your notes link together, with a live preview beside it; `:graph all` maps every note of the vault at once.
+- **Unlinked mentions**: under the backlinks, the notes that name the open note in plain text without linking to it; click a row to open it, or its `[ link ]` button to turn every mention in that note into a `[[link]]` (after a confirm).
 - **Note history** (`:history`): when the vault is in git, lists the commits that changed the open note, newest first, following it across renames, and previews the selected version beside the list (`j`/`k` or the arrows, the mouse wheel, a click). `Enter`, or a second click, puts that version back in the editor as one change: `u` undoes it, and nothing is written until you save. Without git, outside a repository, for a note never committed or a draft never saved, the status bar says why there is no history.
 - **Properties**: the preview shows a note's front matter (everything but cover and icon) as a table under the header; click a value to edit it — one change `u` undoes. Lists are shown read-only; add or remove keys in the editor.
 - **Daily note**: `space o d` or `:daily` opens today's note, `Diario/2026-11-06.md`, also from the home screen; when it does not exist yet a new note with that name starts in that folder, and saving creates both. `"daily_dir": "Journal"` in config.json picks another folder inside the vault.
@@ -544,7 +545,7 @@ whose `]` and `[` switch tabs in Misoku), skipping the same code.
 Mark a paragraph or list item as a block by ending it with ` ^some-id`.
 A link to a note that doesn't exist yet is dimmed; following it starts that
 note, and nothing is written until you save. Every note lists the notes that
-link to it at the bottom of the preview. Web links (`[text](https://…)` and
+link to it at the bottom of the preview. Below them, "Unlinked mentions" lists the notes that write this note's title (whole word, any case) outside code, links and front matter without linking to it; `[ link ]` rewrites them as `[[Title]]`, or `[[Title|as written]]` when the case differs, skipping a note that changed on disk since and refusing one open with unsaved edits. Tags, emails, domains, paths, reference links and block ids are never counted. Web links (`[text](https://…)` and
 `<https://…>`) open in your browser.
 
 ### Graph

@@ -34,6 +34,10 @@ type Model struct {
 	ready      bool
 	margin     int // blank columns left of the page
 
+	// mentions are the notes naming note mentionsFor without linking it.
+	mentions    []core.UnlinkedMention
+	mentionsFor string
+
 	blocks   []Block
 	hover    int  // block under the mouse, -1 if none
 	drag     int  // block being dragged, -1 if none
@@ -169,6 +173,9 @@ func (m *Model) recompile() {
 	compiled, hits, blocks := CompileBlocks(m.rawContent, m.theme, m.look, vpWidth, m.baseDir, cal)
 	if len(m.backlinks) > 0 {
 		compiled, hits = m.appendBacklinks(compiled, hits, vpWidth)
+	}
+	if len(m.mentions) > 0 && m.mentionsFor == m.pageID {
+		compiled, hits = m.appendMentions(compiled, hits, vpWidth)
 	}
 	m.hits, m.blocks = hits, blocks
 	if m.hover >= len(blocks) {

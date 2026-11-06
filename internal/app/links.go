@@ -47,6 +47,7 @@ func (m *Model) refreshLinks() {
 		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
+	m.requestMentions(false)
 }
 
 // followHit opens a link clicked in the preview.
@@ -64,6 +65,8 @@ func (m *Model) followHit(h preview.Hit) tea.Cmd {
 			m.preview.ScrollToLine(h.Index - 1)
 		}
 		return tea.Batch(cmd, m.focusPane(keep))
+	case preview.HitMentionLink:
+		return m.askLinkMentions(h.Arg)
 	}
 	return nil
 }
@@ -261,14 +264,18 @@ func (m *Model) followEditorLink(msg core.FollowLinkMsg) tea.Cmd {
 // insertWikiLink finishes a "[[" the user typed with the picked note's
 // name, using its path when another note has the same name.
 func (m *Model) insertWikiLink(target core.Page) {
-	name := target.Title
+	m.insertWikiText(m.linkName(target))
+}
+
+// linkName is what a [[link]] to target holds: its name, or its path when
+// another note has the same name.
+func (m *Model) linkName(target core.Page) string {
 	for _, p := range m.notes {
 		if p.ID != target.ID && strings.EqualFold(p.Title, target.Title) {
-			name = strings.TrimSuffix(target.ID, ".md")
-			break
+			return strings.TrimSuffix(target.ID, ".md")
 		}
 	}
-	m.insertWikiText(name)
+	return target.Title
 }
 
 func (m *Model) insertWikiText(name string) {

@@ -60,6 +60,9 @@ const (
 	HitWikiLink = "link:wiki" // Arg: "Note#Heading" or "Note#^block"
 	HitURLLink  = "link:url"  // Arg: the URL or relative path
 	HitNoteLink = "link:note" // Arg: note ID, Index: 1-based line (backlinks)
+	// HitMentionLink is the link button of an unlinked mention. Arg: the
+	// note ID holding the mentions.
+	HitMentionLink = "link:mention"
 )
 
 // maxEmbedDepth stops notes that embed each other from recursing forever.
@@ -236,6 +239,43 @@ func (m *Model) SetNotes(notes NoteLookup) {
 func (m *Model) SetBacklinks(links []core.Backlink) {
 	m.backlinks = links
 	m.recompile()
+}
+
+// SetMentions lists, under the backlinks, the notes that mention note id
+// without linking to it. They show only while id is the page shown, so a
+// scan that ends after another note opened shows nothing there.
+func (m *Model) SetMentions(id string, ms []core.UnlinkedMention) {
+	m.mentionsFor, m.mentions = id, ms
+	m.recompile()
+}
+
+// mentionButton is the link action at the end of an unlinked mention's row.
+const mentionButton = "[ link ]"
+
+// appendMentions adds the "Unlinked mentions" section, rows drawn like the
+// backlinks: the name opens the note at its first mention, and the link
+// button at the end asks to link every mention in it.
+func (m *Model) appendMentions(compiled string, hits []Hit, width int) (string, []Hit) {
+	st := newStyles(m.theme)
+	lines := strings.Split(compiled, "\n")
+	if compiled == "" {
+		lines = nil
+	}
+	title := " Unlinked mentions in " + plural(len(m.mentions), "note") + " "
+	lines = append(lines, "", st.rule.Render("──")+st.muted.Bold(true).Render(title)+st.rule.Render(strings.Repeat("─", max(width-2-ansi.StringWidth(title), 0))))
+	for _, u := range m.mentions {
+		row := len(lines)
+		name, count := "󰈙 "+u.Title, " · "+plural(u.Count, "mention")+"  "
+		x0 := ansi.StringWidth(name + count)
+		lines = append(lines, ansi.Truncate(st.link.Render(name)+st.muted.Render(count)+st.link.Bold(true).Render(mentionButton), width, "…"))
+		hits = append(hits, Hit{Row: row, H: 2, X1: width, Kind: HitNoteLink, Arg: u.ID, Index: u.Line, Line: -1})
+		if x1 := x0 + ansi.StringWidth(mentionButton); x1 <= width {
+			hits = append(hits, Hit{Row: row, H: 1, X0: x0, X1: x1, Kind: HitMentionLink, Arg: u.ID, Line: -1})
+		}
+		snippet, _, _ := strings.Cut(ansi.Strip(Compile(u.Text, m.theme, 1000)), "\n")
+		lines = append(lines, ansi.Truncate(st.muted.Render("  "+strings.TrimSpace(snippet)), width, "…"))
+	}
+	return strings.Join(lines, "\n"), hits
 }
 
 // appendBacklinks adds the "Linked from" section below the note, each
