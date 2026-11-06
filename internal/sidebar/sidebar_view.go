@@ -97,20 +97,17 @@ func (m Model) editView(bg lipgloss.Style) string {
 	hint := bg.Foreground(th.GreyFg).Render(" " + ui.Truncate("= apply · esc leave", w-2))
 	out := []string{ui.FitLine(title, w, bg), ui.FitLine(hint, w, bg), ""}
 
-	h := max(m.height-len(out)-1, 1)
+	first, h := m.editWindow()
 	lines, cur := m.edit.Rows(), m.edit.Cursor()
 	if len(lines) == 0 && !m.edit.Editing() {
 		out = append(out, bg.Foreground(th.GreyFg).Italic(true).Render("  "+ui.Truncate("Empty — o adds a line", w-3)))
 	}
-	for i := max(0, cur-h+1); i < len(lines) && len(out) < h+3; i++ {
+	for i := first; i < len(lines) && len(out) < h+editHeader; i++ {
 		base := bg
 		if i == cur {
 			base = lipgloss.NewStyle().Background(th.OneBg2)
 		}
-		icon, style := markdownIcon, base.Foreground(th.NordBlue)
-		if strings.HasSuffix(lines[i].Name, "/") {
-			icon, style = folderClosed, base.Foreground(th.Folder)
-		}
+		icon, style := editIcon(lines[i].Name, base, th)
 		text := base.Foreground(th.Fg).Render(ui.Truncate(lines[i].Name, max(w-5, 1)))
 		if i == cur && m.edit.Editing() {
 			text = m.edit.InputView()
@@ -122,6 +119,48 @@ func (m Model) editView(bg lipgloss.Style) string {
 		body = ui.Fit(body, w, m.height-1, bg) + "\n" + ui.FitLine(bg.Foreground(th.Fg).Render(":"+m.cmdLine), w, bg)
 	}
 	return ui.Fit(body, w, m.height, bg)
+}
+
+// editHeader is how many rows the folder editor draws above its lines: the
+// path, the hint and a blank.
+const editHeader = 3
+
+// editWindow is the first line the folder editor shows and how many fit, so
+// the selected one stays on screen.
+func (m Model) editWindow() (first, h int) {
+	h = max(m.height-editHeader-1, 1)
+	return max(0, m.edit.Cursor()-h+1), h
+}
+
+// editIcon is the icon of a folder editor line and its style on base: a
+// folder for a name ending in "/", a note otherwise.
+func editIcon(name string, base lipgloss.Style, th theme.Theme) (string, lipgloss.Style) {
+	if strings.HasSuffix(name, "/") {
+		return folderClosed, base.Foreground(th.Folder)
+	}
+	return markdownIcon, base.Foreground(th.NordBlue)
+}
+
+// CursorCell is the cell, relative to the explorer's top-left corner, where
+// the next character of the name being typed in the folder editor goes,
+// after the indentation and the icon. ok is false when no name is being
+// typed, the : line has the keys, or the cell falls outside the explorer.
+func (m Model) CursorCell() (x, y int, ok bool) {
+	if m.edit == nil || !m.edit.Editing() || m.cmdOn {
+		return 0, 0, false
+	}
+	row, ok := m.edit.Current()
+	if !ok {
+		return 0, 0, false
+	}
+	first, _ := m.editWindow()
+	icon, _ := editIcon(row.Name, lipgloss.NewStyle(), m.theme)
+	x = lipgloss.Width("  "+icon) + m.edit.InputCursorX()
+	y = editHeader + m.edit.Cursor() - first
+	if x >= m.width || y >= m.height {
+		return 0, 0, false
+	}
+	return x, y, true
 }
 
 // newEntryRow is where the new entry's name line goes: just below its

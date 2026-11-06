@@ -233,39 +233,43 @@ func TestRowsIsACopy(t *testing.T) {
 	}
 }
 
-// Enter in insert commits the line and opens an empty one below, still in
-// insert, as Vim and mini.files do; Esc then drops the empty last line.
-func TestEnterOpensANewLineBelow(t *testing.T) {
+// Enter while typing commits the line and asks the host to save, instead
+// of opening another line: o still adds lines.
+func TestEnterWhileTypingCommitsAndAsksToSave(t *testing.T) {
 	b := New("", orig())
 	keys(t, b, "o")
 	keys(t, b, typed("x/")...)
-	keys(t, b, "enter")
-	if !b.Editing() {
-		t.Fatal("Enter must keep insert on a new line")
+	if nav := keys(t, b, "enter"); nav != NavSave {
+		t.Fatalf("Enter while typing = %v, want NavSave", nav)
 	}
-	keys(t, b, typed("y")...)
-	keys(t, b, "enter", "esc")
 	if b.Editing() {
-		t.Fatal("Esc must return to normal")
+		t.Fatal("Enter must end typing")
 	}
-	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "x/", "y", "b", "c/"}) {
+	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "x/", "b", "c/"}) {
 		t.Fatalf("names = %v", got)
-	}
-	if r, _ := b.Current(); r.Name != "y" {
-		t.Fatalf("cursor on %q, want the last typed line y", r.Name)
 	}
 }
 
-// Enter on an empty new line keeps typing on it: no blank lines pile up.
-func TestEnterOnAnEmptyNewLineStays(t *testing.T) {
+// Enter on an empty new line drops it, as Esc does, and still asks to save.
+func TestEnterOnAnEmptyNewLineDropsIt(t *testing.T) {
 	b := New("", orig())
-	keys(t, b, "o", "enter", "enter")
-	if !b.Editing() {
-		t.Fatal("Enter must keep insert")
+	if nav := keys(t, b, "o", "enter"); nav != NavSave {
+		t.Fatalf("Enter = %v, want NavSave", nav)
 	}
-	keys(t, b, "esc")
 	if got := names(b.Rows()); !reflect.DeepEqual(got, []string{"a", "b", "c/"}) {
 		t.Fatalf("names = %v", got)
+	}
+}
+
+// Enter in normal mode asks the host to open the line under the cursor:
+// enter a folder, open a note.
+func TestEnterInNormalAsksToOpen(t *testing.T) {
+	b := New("", orig())
+	if nav := keys(t, b, "enter"); nav != NavOpen {
+		t.Fatalf("Enter in normal = %v, want NavOpen", nav)
+	}
+	if b.Editing() {
+		t.Fatal("Enter in normal must not start typing")
 	}
 }
 

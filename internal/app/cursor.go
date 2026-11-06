@@ -25,6 +25,7 @@ func WithCursor(s CursorSink) Option {
 		m.cursor = s
 		if s != nil {
 			m.content.SetRealCursor(true)
+			m.sidebar.SetRealCursor(true)
 		}
 	}
 }
@@ -47,6 +48,12 @@ func (m Model) cursorCell(l Layout) (x, y int, shape cursor.Shape, visible bool)
 	if m.content.Mode() == content.ModeInsert {
 		shape = cursor.Bar
 	}
+	if m.explorerHasTheCursor(l) {
+		if sx, sy, ok := m.sidebar.CursorCell(); ok {
+			return sx, l.BodyY + sy, cursor.Bar, true
+		}
+		return 0, 0, shape, false
+	}
 	if !m.editorHasTheCursor(l) {
 		return 0, 0, shape, false
 	}
@@ -61,9 +68,22 @@ func (m Model) cursorCell(l Layout) (x, y int, shape cursor.Shape, visible bool)
 // nothing drawn over it: only then is the terminal cursor its cursor. Every
 // other widget keeps its own drawn cursor.
 func (m Model) editorHasTheCursor(l Layout) bool {
+	return m.focus == focusEditor && l.EditorW > 0 &&
+		!m.graphActive() && !m.globalGraphActive() && m.paneOwnsTyping()
+}
+
+// explorerHasTheCursor reports whether the explorer, docked or drawn over
+// the editor at column 0, is what typing goes to with nothing drawn over it.
+// Its folder editor then puts the terminal cursor on the name being typed.
+func (m Model) explorerHasTheCursor(l Layout) bool {
+	return m.focus == focusSidebar && (l.SidebarW > 0 || m.explorerOverlay()) && m.paneOwnsTyping()
+}
+
+// paneOwnsTyping reports that the workspace is on screen and no widget is
+// drawn over its panes: no dialog, picker, prompt, menu or leader guide.
+func (m Model) paneOwnsTyping() bool {
 	switch {
-	case m.viewMode != viewModeWorkspace, m.focus != focusEditor, l.EditorW <= 0,
-		m.graphActive(), m.globalGraphActive(),
+	case m.viewMode != viewModeWorkspace,
 		m.saveAs != nil, m.confirm != nil, m.finder != nil, m.themes != nil,
 		m.browser != nil, m.datePick != nil, m.promptBox != nil, m.menuBox != nil,
 		m.palette != nil, m.leaderGuideOpen():

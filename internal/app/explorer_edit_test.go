@@ -125,16 +125,16 @@ func TestEditFolderLeavingWithEditsConfirmsTheActions(t *testing.T) {
 	}
 }
 
-// Typing names one per line with Enter, as in mini.files: a name ending in
+// Typing names one per line with o, as in mini.files: a name ending in
 // / is a folder, a/b is the nested path, exactly as n reads them.
 func TestEditFolderTypedLinesCreateFoldersAndPaths(t *testing.T) {
 	h := editHarness(t)
 	h.keys("m")
 	h.keys("Go")
 	h.keys("ideas/")
-	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.keys("o")
 	h.keys("diario/hoy")
-	h.key(tea.KeyEnter)
 	h.key(tea.KeyEsc)
 	h.keys("q")
 	v := h.view()
@@ -230,7 +230,6 @@ func TestTreeOOpensALineInTheEditor(t *testing.T) {
 	h, store := newEntryHarness(t) // FLM/ selected
 	h.keys("o")
 	h.keys("idea/")
-	h.key(tea.KeyEnter)
 	h.key(tea.KeyEsc)
 	h.keys("q")
 	if v := h.view(); !strings.Contains(v, "CONFIRM FILE SYSTEM ACTIONS") {

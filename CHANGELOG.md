@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- **`Enter` saves in the folder editor**: `Enter` while typing a name commits it and shows
+  "CONFIRM FILE SYSTEM ACTIONS" at once; `Enter` or `y` applies. It no longer opens a new line: `o`/`O` add lines.
+  In normal mode `Enter` enters the folder under the cursor or opens the note, as in the tree, where `Enter` on a
+  folder only expands it. While a name is typed the terminal's own cursor shows, as INSERT's bar, where the next
+  character goes.
+
 ## [0.19.0] - 2026-11-05
 
 ### Changed

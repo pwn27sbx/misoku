@@ -9,6 +9,9 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/mattn/go-runewidth"
+
+	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -33,6 +36,12 @@ const (
 	NavParent
 	// NavChild asks to open the folder under the cursor (l); see Current.
 	NavChild
+	// NavOpen asks to open the line under the cursor (Enter): enter a
+	// folder, open a note; see Current.
+	NavOpen
+	// NavSave asks to save the edits (Enter while typing a name, which
+	// has already committed the line).
+	NavSave
 )
 
 type folder struct {
@@ -144,6 +153,22 @@ func (b *Buffer) Editing() bool { return b.editing }
 // InputView renders the name being typed, for the selected line.
 func (b *Buffer) InputView() string { return b.input.View() }
 
+// SetRealCursor hides the input's drawn cursor cell when the terminal's own
+// cursor stands in for it (see InputCursorX).
+func (b *Buffer) SetRealCursor(on bool) {
+	mode := cursor.CursorBlink
+	if on {
+		mode = cursor.CursorHide
+	}
+	b.input.Cursor.SetMode(mode)
+}
+
+// InputCursorX is the column, within InputView, where the next typed
+// character goes.
+func (b *Buffer) InputCursorX() int {
+	return runewidth.StringWidth(string([]rune(b.input.Value())[:b.input.Position()]))
+}
+
 func (b *Buffer) f() *folder { return b.folders[b.cur] }
 
 // Update handles one key. It returns a navigation request for h and l.
@@ -153,7 +178,7 @@ func (b *Buffer) Update(msg tea.Msg) (Nav, tea.Cmd) {
 		return NavNone, nil
 	}
 	if b.editing {
-		return NavNone, b.updateInput(k)
+		return b.updateInput(k)
 	}
 	f := b.f()
 	key := k.String()
@@ -194,6 +219,8 @@ func (b *Buffer) Update(msg tea.Msg) (Nav, tea.Cmd) {
 		return NavParent, nil
 	case "l":
 		return NavChild, nil
+	case "enter":
+		return NavOpen, nil
 	case "o", "O":
 		return NavNone, b.openLine(key == "o")
 	case "i", "I":
@@ -249,24 +276,20 @@ func (b *Buffer) openLine(below bool) tea.Cmd {
 }
 
 // updateInput handles a key while a name is typed. Esc commits the line and
-// returns to normal; Enter commits it and opens a new line below, still
-// typing, as Vim and mini.files do. Enter on an empty new line keeps typing
-// on it, so no blank lines pile up.
-func (b *Buffer) updateInput(k tea.KeyMsg) tea.Cmd {
+// returns to normal; Enter commits it too and asks to save (NavSave). An
+// empty new line is dropped either way.
+func (b *Buffer) updateInput(k tea.KeyMsg) (Nav, tea.Cmd) {
 	switch k.Type {
 	case tea.KeyEnter:
-		if b.input.Value() == "" && b.f().rows[b.f().cursor].OrigID == "" {
-			return nil
-		}
 		b.commit()
-		return b.openLine(true)
+		return NavSave, nil
 	case tea.KeyEsc:
 		b.commit()
-		return nil
+		return NavNone, nil
 	}
 	var cmd tea.Cmd
 	b.input, cmd = b.input.Update(k)
-	return cmd
+	return NavNone, cmd
 }
 
 // commit ends typing: the line takes the typed name, an empty new line is

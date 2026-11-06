@@ -172,7 +172,7 @@ var Actions = []Info{
 	{Action: ExplorerPageUp, Section: "explorer", Help: "Half page up",
 		Long: "In the explorer, moves the selection half a screen up.", defaults: []string{"ctrl+u", "pgup"}},
 	{Action: ExplorerOpen, Section: "explorer", Help: "Open note / expand",
-		Long: "In the explorer, opens the selected note in the editor, or opens and closes the selected folder.", defaults: []string{"enter"}},
+		Long: "In the explorer, opens the selected note in the editor, or opens and closes the selected folder without opening any note.", defaults: []string{"enter"}},
 	{Action: ExplorerPreview, Section: "explorer", Help: "Preview note (folder: open)",
 		Long: "In the explorer, shows the selected note without leaving the explorer; on a folder, opens it.", defaults: []string{"p"}},
 	{Action: ExplorerExpand, Section: "explorer", Help: "Expand / open",
@@ -196,7 +196,7 @@ var Actions = []Info{
 	{Action: ExplorerFileManager, Section: "explorer", Help: "Open the vault in Neovim's mini.files",
 		Long: "In the explorer, hands the screen to Neovim's mini.files on the vault folder; closing it (q) returns to Misoku, which re-reads the folder at once.", defaults: []string{"M"}},
 	{Action: ExplorerEditFolder, Section: "explorer", Help: "Edit the folder like text (mini.files)",
-		Long: "In the explorer, shows the selected folder as editable lines: type a line to create (Enter opens the next one, a trailing / makes a folder), edit a name to rename, dd to delete, dd then p in another folder (h/l) to move, u to undo; = or :w lists the actions and applies them after Yes. Esc or q leaves; with edits it shows the same confirm: Yes applies and closes, No drops them, Cancel keeps editing.", defaults: []string{"m"}},
+		Long: "In the explorer, shows the selected folder as editable lines: type a line to create with o/O (a trailing / makes a folder), edit a name to rename, dd to delete, dd then p in another folder (h/l) to move, u to undo; Enter while typing, = or :w lists the actions and applies them after Yes (Enter or y). Enter on a line enters a folder or opens a note. Esc or q leaves; with edits it shows the same confirm: Yes applies and closes, No drops them, Cancel keeps editing.", defaults: []string{"m"}},
 	{Action: ExplorerInsert, Section: "explorer", Help: "Start typing in the folder editor",
 		Long: "In the explorer, opens the folder editor (m) on the folder holding the selection, with the cursor on it, and passes it the key, as mini.files does: i/I and a/A edit the selected name, o/O type a new line below or above it.", defaults: []string{"i", "I", "a", "A", "o", "O"}},
 }

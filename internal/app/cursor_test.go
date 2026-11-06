@@ -335,3 +335,44 @@ func TestReadingModeShowsTheRealCursor(t *testing.T) {
 		t.Fatalf("reading mode did not place the real cursor: %q", out.all())
 	}
 }
+
+// Typing a name in the folder editor shows the real cursor as INSERT's bar,
+// on the cell where the next character goes, after the indentation and the
+// icon, with no drawn cell of its own. Its normal mode keeps today's look:
+// no real cursor.
+func TestFolderEditorNameShowsTheRealCursor(t *testing.T) {
+	out, opt := newCursorOut()
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "aaa", "body"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store, opt)
+	h.keys("e")
+	h.keys("m")
+	if v := h.view(); !strings.Contains(v, "EDIT /") {
+		t.Fatalf("setup: m must open the folder editor:\n%s", v)
+	}
+	h.keys("ix")
+	out.buf.Reset()
+	frame := h.m.View()
+	if out.count("\x1b[6 q") == 0 || out.count("\x1b[?25h") == 0 {
+		t.Fatalf("typing a name did not show the bar cursor: %q", out.all())
+	}
+	x, y := out.placed(t)
+	if got := cursorCellAt(t, frame, x-1, y); got != "x" {
+		t.Fatalf("cell before the cursor is %q, want the typed x\n%s", got, h.view())
+	}
+	if got := cursorCellAt(t, frame, x, y); got != "a" {
+		t.Fatalf("cursor on %q, want the a of aaa\n%s", got, h.view())
+	}
+	if line := strings.Split(frame, "\n")[y]; reverseVideo(line) {
+		t.Fatalf("the name line still draws its own cursor cell: %q", line)
+	}
+
+	h.key(tea.KeyEsc)
+	out.buf.Reset()
+	h.m.View()
+	if got := out.all(); !strings.Contains(got, "\x1b[?25l") || cupPattern.MatchString(got) {
+		t.Fatalf("normal mode in the folder editor must hide the real cursor: %q", got)
+	}
+}

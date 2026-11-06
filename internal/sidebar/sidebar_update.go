@@ -161,8 +161,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // updateEdit handles a key of the folder editor: = and :w ask to apply,
-// Esc, q and :q leave, h and l walk folders and the rest edits the lines.
-// While a name is typed every key is text.
+// Esc, q and :q leave, h and l walk folders, Enter enters a folder or opens
+// a note and the rest edits the lines. While a name is typed every key is
+// text but Enter, which saves.
 func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 	k := key.String()
 	if m.cmdOn {
@@ -202,12 +203,45 @@ func (m Model) updateEdit(key tea.KeyMsg) (Model, tea.Cmd) {
 			m.edit.Open(p.ParentID, m.folderRows(p.ParentID))
 		}
 	case dirbuf.NavChild:
-		r, _ := m.edit.Current()
-		if p, ok := m.byID[r.OrigID]; ok && (p.IsFolder || len(m.folderRows(p.ID)) > 0) {
-			m.edit.Open(p.ID, m.folderRows(p.ID))
+		m.enterFolder()
+	case dirbuf.NavOpen:
+		return m, m.activateLine()
+	case dirbuf.NavSave:
+		if m.pendingChanges() > 0 {
+			return m, m.applyEdits(false)
 		}
 	}
 	return m, cmd
+}
+
+// enterFolder shows the folder under the editor's cursor, keeping the
+// edits of the one it leaves; it reports false on a note or a new line.
+func (m *Model) enterFolder() bool {
+	r, _ := m.edit.Current()
+	p, ok := m.byID[r.OrigID]
+	if !ok || !p.IsFolder && len(m.folderRows(p.ID)) == 0 {
+		return false
+	}
+	m.edit.Open(p.ID, m.folderRows(p.ID))
+	return true
+}
+
+// activateLine is Enter on a line of the folder editor: a folder is entered,
+// as l does, and a note opens in the editor. With nothing pending the
+// folder editor closes behind the note; with edits it stays, keeping them.
+func (m *Model) activateLine() tea.Cmd {
+	if m.enterFolder() {
+		return nil
+	}
+	r, _ := m.edit.Current()
+	p, ok := m.byID[r.OrigID]
+	if !ok {
+		return nil
+	}
+	if m.pendingChanges() == 0 {
+		m.StopEditing()
+	}
+	return selectCmd(p.ID)
 }
 
 // applyEdits asks the app to plan every visited folder's edited lines;

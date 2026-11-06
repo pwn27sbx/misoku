@@ -50,6 +50,7 @@ type Model struct {
 	newParent   string          // where the new entry goes, see StartCreating
 	renameInput textinput.Model // also the new entry's name line
 	edit        *dirbuf.Buffer  // the folder editor (m), nil when closed
+	realCursor  bool            // the terminal's cursor stands in for the editor's drawn one
 	cmdOn       bool            // the editor's : command line is open
 	cmdLine     string          // what was typed after :
 	workspace   string
@@ -304,6 +305,16 @@ func (m *Model) StartInsert(key tea.KeyMsg) tea.Cmd {
 // openEditor opens the folder editor on folder id, with no pending edits.
 func (m *Model) openEditor(id string) {
 	m.edit, m.cmdOn = dirbuf.New(id, m.folderRows(id)), false
+	m.edit.SetRealCursor(m.realCursor)
+}
+
+// SetRealCursor makes the folder editor leave its name cursor to the
+// terminal's own, placed at CursorCell, instead of drawing a cell.
+func (m *Model) SetRealCursor(on bool) {
+	m.realCursor = on
+	if m.edit != nil {
+		m.edit.SetRealCursor(on)
+	}
 }
 
 // StopEditing closes the folder editor, dropping its pending edits.
