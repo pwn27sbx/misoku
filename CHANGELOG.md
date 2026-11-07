@@ -4,6 +4,22 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.26.0] - 2026-11-07
+
+### Security
+
+- A note ID can no longer leave the workspace: absolute paths, Windows drive paths and anything that climbs out with `..` are refused, so a link cannot read, overwrite or delete a file outside the vault.
+- Links that the system might run now ask first: a dialog that defaults to Cancel guards other URL schemes, paths outside the vault and executable file names. `http`, `https`, `mailto` and ordinary files in the vault open as before.
+
+### Fixed
+
+- Renaming a note whose sub-page folder name is already taken is refused with nothing moved, and a failed folder rename puts the note back, so a rename no longer stops halfway.
+
+### Changed
+
+- Releases are refused until CI is green on the tagged commit.
+- Tests no longer touch the real tutorial or Trash folders on Windows.
+
 ## [0.25.0] - 2026-11-06
 
 ### Added
