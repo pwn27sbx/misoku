@@ -184,7 +184,11 @@ func (m *Model) followURL(u string) tea.Cmd {
 			return cmd
 		}
 	}
-	abs := filepath.Join(m.store.Root(), filepath.FromSlash(id))
+	abs, err := m.store.Abs(id)
+	if err != nil {
+		m.setError("Not found: " + file)
+		return nil
+	}
 	if _, err := os.Stat(abs); err != nil {
 		m.setError("Not found: " + file)
 		return nil

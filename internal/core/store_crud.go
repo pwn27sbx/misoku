@@ -17,7 +17,10 @@ func (s *Store) childDirFor(parentID string) (string, error) {
 		return "", nil
 	}
 
-	abs := s.idToAbs(parentID)
+	abs, err := s.idToAbs(parentID)
+	if err != nil {
+		return "", err
+	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return "", ErrPageNotFound
@@ -182,7 +185,11 @@ func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
 	for _, seg := range dirSegs {
 		dir = path.Join(dir, seg)
 		id := dir
-		if fileExists(s.idToAbs(dir + mdExt)) {
+		noteAbs, err := s.idToAbs(dir + mdExt)
+		if err != nil {
+			return NewEntry{}, err
+		}
+		if fileExists(noteAbs) {
 			id = dir + mdExt // the folder holds that note's sub-notes
 		}
 		e.Folders = append(e.Folders, Page{ID: id, Title: seg, ParentID: parent, IsFolder: id == dir})
@@ -190,14 +197,22 @@ func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
 	}
 	if folder {
 		e.Path = dir + "/"
-		info, err := os.Stat(s.idToAbs(dir))
+		abs, err := s.idToAbs(dir)
+		if err != nil {
+			return NewEntry{}, err
+		}
+		info, err := os.Stat(abs)
 		e.Exists = err == nil && info.IsDir()
 		return e, nil
 	}
 	title := segs[len(segs)-1]
 	e.Note = Page{ID: path.Join(dir, title+mdExt), Title: title, ParentID: parent}
 	e.Path = e.Note.ID
-	e.Exists = fileExists(s.idToAbs(e.Note.ID))
+	abs, err := s.idToAbs(e.Note.ID)
+	if err != nil {
+		return NewEntry{}, err
+	}
+	e.Exists = fileExists(abs)
 	return e, nil
 }
 
@@ -259,7 +274,10 @@ func hasDriveLetter(p string) bool {
 func (s *Store) CreateEntry(e NewEntry) (Page, error) {
 	if len(e.Folders) > 0 {
 		last := e.Folders[len(e.Folders)-1]
-		abs := s.idToAbs(strings.TrimSuffix(last.ID, mdExt))
+		abs, err := s.idToAbs(strings.TrimSuffix(last.ID, mdExt))
+		if err != nil {
+			return Page{}, err
+		}
 		if err := os.MkdirAll(abs, 0755); err != nil {
 			return Page{}, fmt.Errorf("failed to create folder: %w", err)
 		}
@@ -268,7 +286,11 @@ func (s *Store) CreateEntry(e NewEntry) (Page, error) {
 			return last, nil
 		}
 	}
-	if fileExists(s.idToAbs(e.Note.ID)) {
+	noteAbs, err := s.idToAbs(e.Note.ID)
+	if err != nil {
+		return Page{}, err
+	}
+	if fileExists(noteAbs) {
 		return Page{}, fmt.Errorf("%s already exists", e.Note.ID)
 	}
 	return s.Create(e.Note.Title, e.Note.ParentID)
@@ -282,7 +304,10 @@ func (s *Store) Update(p Page) (Page, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	abs := s.idToAbs(p.ID)
+	abs, err := s.idToAbs(p.ID)
+	if err != nil {
+		return Page{}, err
+	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return Page{}, ErrPageNotFound
@@ -396,7 +421,10 @@ func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	abs := s.idToAbs(id)
+	abs, err := s.idToAbs(id)
+	if err != nil {
+		return err
+	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return ErrPageNotFound

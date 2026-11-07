@@ -34,7 +34,7 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	info, err := os.Stat(s.idToAbs(id))
+	info, err := os.Stat(s.joinID(id))
 	if err != nil {
 		return Page{}, ErrPageNotFound
 	}
@@ -61,11 +61,11 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 	name := path.Base(srcDir)
 	newDir := path.Join(destDir, name)
 	newNote := newDir + mdExt
-	if fileExists(s.idToAbs(newNote)) || fileExists(s.idToAbs(newDir)) {
+	if fileExists(s.joinID(newNote)) || fileExists(s.joinID(newDir)) {
 		return Page{}, fmt.Errorf("%q already exists in the destination", name)
 	}
 
-	absDest := s.idToAbs(destDir)
+	absDest := s.joinID(destDir)
 	createdDest := !fileExists(absDest)
 	if err := os.MkdirAll(absDest, 0755); err != nil {
 		return Page{}, fmt.Errorf("failed to create folder: %w", err)
@@ -77,21 +77,21 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 	}
 
 	if isFolder {
-		if err := os.Rename(s.idToAbs(id), s.idToAbs(newDir)); err != nil {
+		if err := os.Rename(s.joinID(id), s.joinID(newDir)); err != nil {
 			undoDest()
 			return Page{}, fmt.Errorf("failed to move folder: %w", err)
 		}
-		return Page{ID: newDir, Title: name, ParentID: parentIDFor(s.root, newDir), IsFolder: true, UpdatedAt: modTime(s.idToAbs(newDir))}, nil
+		return Page{ID: newDir, Title: name, ParentID: parentIDFor(s.root, newDir), IsFolder: true, UpdatedAt: modTime(s.joinID(newDir))}, nil
 	}
 
-	if err := os.Rename(s.idToAbs(id), s.idToAbs(newNote)); err != nil {
+	if err := os.Rename(s.joinID(id), s.joinID(newNote)); err != nil {
 		undoDest()
 		return Page{}, fmt.Errorf("failed to move page: %w", err)
 	}
-	if sInfo, err := os.Stat(s.idToAbs(srcDir)); err == nil && sInfo.IsDir() {
-		if err := os.Rename(s.idToAbs(srcDir), s.idToAbs(newDir)); err != nil {
+	if sInfo, err := os.Stat(s.joinID(srcDir)); err == nil && sInfo.IsDir() {
+		if err := os.Rename(s.joinID(srcDir), s.joinID(newDir)); err != nil {
 			// Put the note back next to its sub-notes rather than split them.
-			if backErr := os.Rename(s.idToAbs(newNote), s.idToAbs(id)); backErr == nil {
+			if backErr := os.Rename(s.joinID(newNote), s.joinID(id)); backErr == nil {
 				undoDest()
 				return Page{}, fmt.Errorf("failed to move sub-pages, nothing moved: %w", err)
 			}
@@ -99,7 +99,7 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 		}
 	}
 
-	data, err := os.ReadFile(s.idToAbs(newNote))
+	data, err := os.ReadFile(s.joinID(newNote))
 	if err != nil {
 		return Page{}, fmt.Errorf("moved the page but could not read it back: %w", err)
 	}
@@ -108,7 +108,7 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 		Title:     name,
 		Content:   strings.ReplaceAll(string(data), "\r\n", "\n"),
 		ParentID:  parentIDFor(s.root, newNote),
-		UpdatedAt: modTime(s.idToAbs(newNote)),
+		UpdatedAt: modTime(s.joinID(newNote)),
 	}, nil
 }
 
