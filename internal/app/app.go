@@ -84,8 +84,9 @@ type Model struct {
 	menuBox   *menuDialog
 	datePick  *datePicker
 
-	configPath string // where the theme choice is saved ("" = don't save)
-	quitting   bool   // "Save All" before quitting is in progress
+	configPath  string // where the theme choice is saved ("" = don't save)
+	recoveryDir string // where unsaved tabs are kept when the terminal closes ("" = off), see recovery.go
+	quitting    bool   // "Save All" before quitting is in progress
 
 	status    string
 	statusErr bool
@@ -233,6 +234,13 @@ func WithConfigPath(path string) Option {
 	return func(m *Model) { m.configPath = path }
 }
 
+// WithRecovery keeps the unsaved tabs in dir when the terminal closes (or a
+// SIGTERM stops Misoku) and offers them back on the next start. An empty dir
+// turns it off, as in tests and embedders.
+func WithRecovery(dir string) Option {
+	return func(m *Model) { m.recoveryDir = dir }
+}
+
 // WithOpenNote opens the note id when the program starts, as picking it in
 // the finder would: misoku tutor uses it to resume the lesson the player
 // left. A note that is not in the vault opens nothing and says nothing, so
@@ -289,7 +297,7 @@ func tildePath(p string) string {
 
 // Init initializes child component commands.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.content.Init(), checkWorkspaceLater(), m.syncOnOpen(), m.startCmd)
+	return tea.Batch(m.content.Init(), checkWorkspaceLater(), m.syncOnOpen(), m.startCmd, m.loadRecovery())
 }
 
 func (m *Model) layout() Layout {

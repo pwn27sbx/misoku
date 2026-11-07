@@ -39,6 +39,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case CheckWorkspaceMsg:
 		return m, tea.Batch(m.startWorkspaceScan(), m.autoSync())
+	case recoveryLoadedMsg:
+		m.applyRecovery(msg)
+		return m, nil
 	case PreviewRefreshMsg:
 		m.refreshPreview(msg)
 		return m, nil

@@ -222,3 +222,58 @@ func TestSIGTERMDuringTheQuitSyncStopsIt(t *testing.T) {
 		t.Fatal("a cancelled quit sync must not have pushed late.md")
 	}
 }
+
+// recoveryPath is where a session in home keeps its unsaved tabs.
+func recoveryPath(home string) string {
+	cache := home
+	if runtime.GOOS == "darwin" {
+		cache = filepath.Join(home, "Library", "Caches")
+	}
+	return filepath.Join(cache, "misoku", "recovery", "recovery.json")
+}
+
+// A SIGTERM with unsaved text keeps it in the recovery file, private, and
+// leaves the note on disk alone; the next start can offer it back.
+func TestSIGTERMKeepsUnsavedNotesForTheNextStart(t *testing.T) {
+	t.Parallel()
+	tm := openTerminal(t)
+	tm.waitFor(t, "a.md")
+	tm.master.Write([]byte("1")) // open a.md
+	tm.waitFor(t, "NORMAL")
+	tm.master.Write([]byte("i")) // insert
+	tm.waitFor(t, "INSERT")
+	tm.master.Write([]byte("kept text"))
+	tm.waitFor(t, "kept text")
+
+	if err := tm.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-tm.exited:
+	case <-time.After(15 * time.Second):
+		t.Fatalf("misoku did not exit after SIGTERM; log:\n%s", tm.logged(t))
+	}
+
+	path := recoveryPath(tm.home)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("no recovery file after SIGTERM: %v", err)
+	}
+	if !strings.Contains(string(data), "kept text") {
+		t.Fatalf("the recovery file lost the unsaved text: %s", data)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("recovery file mode = %o, want 600", perm)
+	}
+	onDisk, err := os.ReadFile(filepath.Join(tm.vault, "a.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(onDisk) != "a\n" {
+		t.Fatalf("the note on disk changed: %q", onDisk)
+	}
+}

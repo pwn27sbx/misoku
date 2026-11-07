@@ -161,6 +161,13 @@ func main() {
 		cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)))
 	appOpts := []app.Option{app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI),
 		app.WithDailyDir(cfg.DailyDir), app.WithTemplatesDir(cfg.TemplatesDir)}
+	// Unsaved tabs survive a closed terminal or a SIGTERM in the cache
+	// folder, never next to the notes; the next start offers them back.
+	if recDir := app.RecoveryDir(); recDir != "" {
+		appOpts = append(appOpts, app.WithRecovery(recDir))
+	} else {
+		log.Printf("No cache folder: unsaved tabs will not be kept when the terminal closes")
+	}
 	if cur != nil {
 		appOpts = append(appOpts, app.WithCursor(cur))
 	}
@@ -182,7 +189,10 @@ func main() {
 	// most of it changes nothing: MouseFilter drops that before Update and
 	// View run.
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
-		tea.WithFilter(app.MouseFilter), tea.WithOutput(out))
+		tea.WithFilter(app.MouseFilter), tea.WithOutput(out),
+		// quitOnHangup owns SIGHUP, SIGTERM and SIGINT below: it must mark
+		// the hang-up before the quit it sends, so the unsaved tabs are kept.
+		tea.WithoutSignalHandler())
 	hup := quitOnHangup(p)
 	final, err := p.Run()
 	// Give the terminal its own cursor back before anything else, so no bar or
@@ -280,6 +290,15 @@ func leave(final tea.Model, err error, hup hangup, stderr io.Writer, push func(a
 		return 1
 	}
 	if m, ok := final.(app.Model); ok {
+		if hungUp {
+			// Before the quit sync, which can wait on git: the text the
+			// user never saved is the part that cannot be rebuilt.
+			if path, rerr := m.SaveRecovery(); rerr != nil {
+				log.Printf("Could not keep the unsaved tabs: %v\n", rerr)
+			} else if path != "" {
+				log.Printf("Unsaved tabs kept in %s\n", path)
+			}
+		}
 		w := stderr
 		if hungUp {
 			w = log.Writer()
@@ -311,18 +330,28 @@ const hangupGrace = 500 * time.Millisecond
 type hangup chan struct{}
 
 // quitOnHangup makes closing the terminal (its pane or window, which
-// sends SIGHUP) leave p as SIGTERM does, through the normal quit path,
-// so the quit sync still runs (issue #22). SIGHUP stays caught until
-// Misoku exits: a later one, during the quit sync, is ignored rather
-// than killing it.
+// sends SIGHUP) or a SIGTERM leave p through the normal quit path, so the
+// quit sync still runs and the unsaved tabs are kept (issue #22, see
+// app.Model.SaveRecovery). Both signals stay caught until Misoku exits: a
+// later one, during the quit sync, is ignored rather than killing it.
 func quitOnHangup(p *tea.Program) hangup {
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGHUP)
+	signal.Notify(sig, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
 	h := make(hangup)
 	go func() {
-		<-sig
-		close(h)
-		p.Send(tea.Quit())
+		for s := range sig {
+			if s == syscall.SIGINT {
+				// What Bubble Tea's own handler does when input is not a
+				// TTY; a Ctrl+C in raw mode is a keystroke instead.
+				p.Send(tea.InterruptMsg{})
+				continue
+			}
+			// SIGHUP or SIGTERM: mark it before asking to quit, so leave
+			// already knows to keep the unsaved tabs when Run returns.
+			close(h)
+			p.Send(tea.Quit())
+			return
+		}
 	}()
 	return h
 }
