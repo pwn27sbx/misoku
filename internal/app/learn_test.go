@@ -16,13 +16,17 @@ import (
 
 // tutorialVault installs the bundled lessons in the tutorial folder of a
 // temporary HOME and returns that folder, so nothing here touches the real
-// config, vault or binary.
+// config, vault or binary. On Windows os.UserConfigDir, os.UserCacheDir and
+// os.UserHomeDir read %AppData%, %LocalAppData% and %UserProfile% instead.
 func tutorialVault(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("USERPROFILE", home)
 	dir := tutor.Dir()
 	if dir == "" {
 		t.Fatal("tutor.Dir is empty")
