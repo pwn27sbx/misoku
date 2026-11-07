@@ -33,6 +33,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The Release workflow runs this gate before goreleaser; its script is
+      # tested offline with a fake gh.
+      - name: Check the release gate
+        if: runner.os == 'Linux'
+        run: |
+          shellcheck scripts/require-green-ci.sh scripts/test-require-green-ci.sh
+          sh scripts/test-require-green-ci.sh
+
       # The tests start thousands of git processes in temporary folders, and
       # Defender scans every one of them. Best effort: if the runner does not
       # allow it, the tests still run, only slower.
