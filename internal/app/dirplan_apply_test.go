@@ -124,6 +124,7 @@ func TestDirPlanRefusalSaysWhy(t *testing.T) {
 // S8: a failing action stops the batch; the message says what was done and
 // what was not.
 func TestDirPlanStopsAtTheFirstFailure(t *testing.T) {
+	defer app.SetHasTrash(true)() // Windows has no Trash; the confirm still takes y
 	h := dirPlanVault(t)
 	h.requestDirPlan(dirplan.Folder{ID: "", Rows: []dirplan.Row{
 		{OrigID: "a.md", Name: "aa"}, {OrigID: "b.md", Name: "b"}, {Name: "n"},
