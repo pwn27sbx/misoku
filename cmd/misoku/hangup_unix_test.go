@@ -223,13 +223,29 @@ func TestSIGTERMDuringTheQuitSyncStopsIt(t *testing.T) {
 	}
 }
 
-// recoveryPath is where a session in home keeps its unsaved tabs.
-func recoveryPath(home string) string {
+// recoveryFolder is where a session in home keeps its unsaved tabs.
+func recoveryFolder(home string) string {
 	cache := home
 	if runtime.GOOS == "darwin" {
 		cache = filepath.Join(home, "Library", "Caches")
 	}
-	return filepath.Join(cache, "misoku", "recovery", "recovery.json")
+	return filepath.Join(cache, "misoku", "recovery")
+}
+
+// recoveryFile returns the snapshot in folder, failing when there is none.
+func recoveryFile(t *testing.T, folder string) string {
+	t.Helper()
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		t.Fatalf("no recovery folder after SIGTERM: %v", err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "recovery-") && strings.HasSuffix(e.Name(), ".json") {
+			return filepath.Join(folder, e.Name())
+		}
+	}
+	t.Fatalf("no recovery file after SIGTERM in %s", folder)
+	return ""
 }
 
 // A SIGTERM with unsaved text keeps it in the recovery file, private, and
@@ -254,10 +270,10 @@ func TestSIGTERMKeepsUnsavedNotesForTheNextStart(t *testing.T) {
 		t.Fatalf("misoku did not exit after SIGTERM; log:\n%s", tm.logged(t))
 	}
 
-	path := recoveryPath(tm.home)
+	path := recoveryFile(t, recoveryFolder(tm.home))
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("no recovery file after SIGTERM: %v", err)
+		t.Fatalf("recovery file unreadable: %v", err)
 	}
 	if !strings.Contains(string(data), "kept text") {
 		t.Fatalf("the recovery file lost the unsaved text: %s", data)

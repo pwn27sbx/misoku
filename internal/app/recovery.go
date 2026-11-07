@@ -8,16 +8,19 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// recoveryFileName is the one snapshot kept in a recovery folder. It is
-// written when the terminal closes or the process is asked to stop with
-// unsaved tabs, and removed once the user restores or discards it.
-const recoveryFileName = "recovery.json"
+// recoveryPrefix and recoverySuffix name one snapshot per session: a file
+// from a session the user chose to keep is never overwritten by a later one.
+const (
+	recoveryPrefix = "recovery-"
+	recoverySuffix = ".json"
+)
 
 // recoveryVersion is the snapshot format; a file from another version is
 // reported instead of guessed at.
@@ -35,13 +38,20 @@ type Recovery struct {
 	Content string `json:"content"`
 }
 
-// RecoverySnapshot is what a recovery file holds: the tabs that were dirty
+// RecoverySnapshot is what one recovery file holds: the tabs that were dirty
 // and the vault they belong to, so a file is never restored into another one.
 type RecoverySnapshot struct {
 	Version int        `json:"version"`
 	SavedAt time.Time  `json:"saved_at"`
 	Root    string     `json:"root"`
 	Tabs    []Recovery `json:"tabs"`
+}
+
+// RecoveryFile is a snapshot and the file it lives in, so a restore or a
+// discard removes exactly the files it acted on.
+type RecoveryFile struct {
+	Path string
+	Snap RecoverySnapshot
 }
 
 // RecoveryDir is the folder where a session keeps its unsaved tabs, or ""
@@ -55,10 +65,14 @@ func RecoveryDir() string {
 	return filepath.Join(cache, "misoku", "recovery")
 }
 
-// SaveRecovery writes the unsaved tabs to the recovery folder and returns the
-// file written, or "" when nothing was dirty or recovery is off. The file is
-// private (0600) and written through a temporary file and a rename: a crash
-// mid-write leaves the previous snapshot, never half a document.
+// SaveRecovery writes the unsaved tabs to a new file in the recovery folder
+// and returns the file written, or "" when nothing was dirty or recovery is
+// off. A later session never overwrites an earlier snapshot: one file per
+// session, so tabs the user chose to keep are still there.
+//
+// The file is private (0600) and written through a temporary file and a
+// rename: a crash mid-write leaves the previous snapshots, never half a
+// document.
 func (m Model) SaveRecovery() (string, error) {
 	if m.recoveryDir == "" {
 		return "", nil
@@ -94,7 +108,6 @@ func (m Model) SaveRecovery() (string, error) {
 		return "", fmt.Errorf("failed to encode the recovery file: %w", err)
 	}
 
-	path := filepath.Join(m.recoveryDir, recoveryFileName)
 	tmp, err := os.CreateTemp(m.recoveryDir, ".recovery-*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("failed to create the recovery file: %w", err)
@@ -117,36 +130,74 @@ func (m Model) SaveRecovery() (string, error) {
 	if err := os.Chmod(tmpName, 0o600); err != nil {
 		return "", fmt.Errorf("failed to protect the recovery file: %w", err)
 	}
-	if err := renameRecovery(tmpName, path); err != nil {
+	final := filepath.Join(m.recoveryDir, fmt.Sprintf("%s%d-%d%s", recoveryPrefix, time.Now().UnixNano(), os.Getpid(), recoverySuffix))
+	if err := renameRecovery(tmpName, final); err != nil {
 		return "", fmt.Errorf("failed to keep the recovery file: %w", err)
 	}
-	return path, nil
+	return final, nil
 }
 
-// LoadRecovery reads the snapshot in dir. A missing file is not an error; a
-// file from another version or a truncated one is reported and left alone.
-// Temporary files a crash left mid-write are removed: they were never the
-// snapshot.
-func LoadRecovery(dir string) (RecoverySnapshot, error) {
+// LoadRecoveries reads every snapshot in dir, oldest first. A missing folder
+// is not an error; an unreadable or truncated file is reported, kept, and
+// does not hide the snapshots that still parse. Temporary files a crash left
+// mid-write are removed: they were never a snapshot.
+func LoadRecoveries(dir string) ([]RecoveryFile, error) {
 	if dir == "" {
-		return RecoverySnapshot{}, nil
+		return nil, nil
 	}
 	removeStaleRecoveryTemps(dir)
-	data, err := os.ReadFile(filepath.Join(dir, recoveryFileName))
+	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return RecoverySnapshot{}, nil
+		return nil, nil
 	}
 	if err != nil {
-		return RecoverySnapshot{}, err
+		return nil, err
 	}
-	var snap RecoverySnapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
-		return RecoverySnapshot{}, fmt.Errorf("the recovery file is unreadable: %w", err)
+	var files []RecoveryFile
+	var errs []error
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, recoveryPrefix) || !strings.HasSuffix(name, recoverySuffix) {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		var snap RecoverySnapshot
+		if err := json.Unmarshal(data, &snap); err != nil {
+			errs = append(errs, fmt.Errorf("%s is unreadable: %w", name, err))
+			continue
+		}
+		if snap.Version != recoveryVersion {
+			errs = append(errs, fmt.Errorf("%s has version %d", name, snap.Version))
+			continue
+		}
+		files = append(files, RecoveryFile{Path: path, Snap: snap})
 	}
-	if snap.Version != recoveryVersion {
-		return RecoverySnapshot{}, fmt.Errorf("the recovery file has version %d", snap.Version)
+	sort.SliceStable(files, func(i, j int) bool {
+		if files[i].Snap.SavedAt.Equal(files[j].Snap.SavedAt) {
+			return files[i].Path < files[j].Path
+		}
+		return files[i].Snap.SavedAt.Before(files[j].Snap.SavedAt)
+	})
+	return files, errors.Join(errs...)
+}
+
+// RemoveRecoveryFiles deletes the snapshots restore or discard acted on.
+func RemoveRecoveryFiles(files []RecoveryFile) error {
+	var errs []error
+	for _, f := range files {
+		if f.Path == "" {
+			continue
+		}
+		if err := os.Remove(f.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			errs = append(errs, err)
+		}
 	}
-	return snap, nil
+	return errors.Join(errs...)
 }
 
 // removeStaleRecoveryTemps deletes the .recovery-*.tmp files a crash left
@@ -164,59 +215,61 @@ func removeStaleRecoveryTemps(dir string) {
 	}
 }
 
-// RemoveRecovery deletes the snapshot in dir, if there is one.
-func RemoveRecovery(dir string) error {
-	if dir == "" {
-		return nil
-	}
-	err := os.Remove(filepath.Join(dir, recoveryFileName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	return err
-}
-
-// recoveryLoadedMsg is the recovery file as read at startup.
+// recoveryLoadedMsg is the recovery folder as read at startup.
 type recoveryLoadedMsg struct {
-	snap RecoverySnapshot
-	err  error
+	files []RecoveryFile
+	err   error
 }
 
-// loadRecovery reads the snapshot off the update loop, at startup.
+// loadRecovery reads the snapshots off the update loop, at startup.
 func (m *Model) loadRecovery() tea.Cmd {
 	if m.recoveryDir == "" {
 		return nil
 	}
 	dir := m.recoveryDir
 	return func() tea.Msg {
-		snap, err := LoadRecovery(dir)
-		return recoveryLoadedMsg{snap: snap, err: err}
+		files, err := LoadRecoveries(dir)
+		return recoveryLoadedMsg{files: files, err: err}
 	}
 }
 
-// applyRecovery offers the unsaved tabs back, or clears a stale file. A
-// snapshot from another vault is kept and named, never restored here.
+// applyRecovery offers the unsaved tabs back, or clears snapshots with no
+// tabs. A snapshot from another vault is kept and named, never restored here.
 func (m *Model) applyRecovery(msg recoveryLoadedMsg) {
+	var mine []RecoveryFile
+	var other []string
+	for _, f := range msg.files {
+		if f.Snap.Root == m.store.Root() {
+			mine = append(mine, f)
+		} else {
+			other = append(other, f.Snap.Root)
+		}
+	}
+	if len(other) > 0 {
+		m.setError("Unsaved notes from " + strings.Join(other, ", ") + " are kept in " + m.recoveryDir)
+	}
 	if msg.err != nil {
 		m.setError("Recovery file could not be read: " + msg.err.Error())
+	}
+	if len(mine) == 0 {
 		return
 	}
-	if len(msg.snap.Tabs) == 0 {
-		if err := RemoveRecovery(m.recoveryDir); err != nil {
+	var tabs []Recovery
+	for _, f := range mine {
+		tabs = append(tabs, f.Snap.Tabs...)
+	}
+	if len(tabs) == 0 {
+		if err := RemoveRecoveryFiles(mine); err != nil {
 			m.setError("Could not remove the recovery file: " + err.Error())
 		}
 		return
 	}
-	if msg.snap.Root != m.store.Root() {
-		m.setError("Unsaved notes from " + msg.snap.Root + " are kept in " + m.recoveryDir)
-		return
-	}
-	m.askRecovery(msg.snap.Tabs)
+	m.askRecovery(tabs, mine)
 }
 
-// askRecovery shows the restore prompt. Discard deletes the file; Later
-// (Esc) keeps it for the next start.
-func (m *Model) askRecovery(tabs []Recovery) {
+// askRecovery shows the restore prompt. Discard deletes exactly the snapshots
+// offered; Later (Esc) keeps them for the next start.
+func (m *Model) askRecovery(tabs []Recovery, files []RecoveryFile) {
 	names := make([]string, 0, len(tabs))
 	for _, r := range tabs {
 		names = append(names, r.Title)
@@ -238,13 +291,13 @@ func (m *Model) askRecovery(tabs []Recovery) {
 			switch choice {
 			case 0:
 				m.restoreRecovery(tabs)
-				if err := RemoveRecovery(m.recoveryDir); err != nil {
+				if err := RemoveRecoveryFiles(files); err != nil {
 					m.setError("Recovered, but the file could not be removed: " + err.Error())
 					return nil
 				}
 				m.setStatus(fmt.Sprintf("Recovered %d unsaved tab(s)", len(tabs)))
 			case 1:
-				if err := RemoveRecovery(m.recoveryDir); err != nil {
+				if err := RemoveRecoveryFiles(files); err != nil {
 					m.setError("Could not remove the recovery file: " + err.Error())
 					return nil
 				}

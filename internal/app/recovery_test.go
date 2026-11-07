@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -19,6 +20,25 @@ func testModel(t *testing.T, store *core.Store) Model {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
 	return New(store)
+}
+
+// recoveryFiles lists the snapshot files left in dir.
+func recoveryFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), recoveryPrefix) && strings.HasSuffix(e.Name(), recoverySuffix) {
+			out = append(out, e.Name())
+		}
+	}
+	return out
 }
 
 // Only tabs that differ from disk (or hold draft text) are kept, in the
@@ -43,23 +63,31 @@ func TestSaveRecoveryKeepsOnlyDirtyTabs(t *testing.T) {
 	if path == "" {
 		t.Fatal("no recovery file written")
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("recovery file mode = %o, want 600", perm)
-	}
-	if dirInfo, err := os.Stat(m.recoveryDir); err != nil {
-		t.Fatal(err)
-	} else if perm := dirInfo.Mode().Perm(); perm != 0o700 {
-		t.Errorf("recovery folder mode = %o, want 700", perm)
+	if runtime.GOOS != "windows" { // Windows has no POSIX mode bits
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("recovery file mode = %o, want 600", perm)
+		}
+		dirInfo, err := os.Stat(m.recoveryDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := dirInfo.Mode().Perm(); perm != 0o700 {
+			t.Errorf("recovery folder mode = %o, want 700", perm)
+		}
 	}
 
-	snap, err := LoadRecovery(m.recoveryDir)
+	files, err := LoadRecoveries(m.recoveryDir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(files) != 1 {
+		t.Fatalf("loaded %d files, want 1", len(files))
+	}
+	snap := files[0].Snap
 	if snap.Root != store.Root() {
 		t.Errorf("snapshot root = %q, want %q", snap.Root, store.Root())
 	}
@@ -75,7 +103,7 @@ func TestSaveRecoveryKeepsOnlyDirtyTabs(t *testing.T) {
 }
 
 // A crash between the temporary write and the rename leaves the previous
-// snapshot whole and no half-written file behind.
+// snapshots whole and no half-written file behind.
 func TestSaveRecoveryKeepsThePreviousFileWhenTheRenameFails(t *testing.T) {
 	store, err := core.NewStore(t.TempDir())
 	if err != nil {
@@ -99,12 +127,12 @@ func TestSaveRecoveryKeepsThePreviousFileWhenTheRenameFails(t *testing.T) {
 		t.Fatal("a failed rename must be reported")
 	}
 
-	snap, err := LoadRecovery(dir)
+	files, err := LoadRecoveries(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snap.Tabs) != 1 || snap.Tabs[0].Content != "first" {
-		t.Fatalf("the previous snapshot was lost: %+v", snap.Tabs)
+	if len(files) != 1 || len(files[0].Snap.Tabs) != 1 || files[0].Snap.Tabs[0].Content != "first" {
+		t.Fatalf("the previous snapshot was lost: %+v", files)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -117,8 +145,57 @@ func TestSaveRecoveryKeepsThePreviousFileWhenTheRenameFails(t *testing.T) {
 	}
 }
 
+// A later session never overwrites a snapshot the user chose to keep: both
+// are loaded and restored, and both disappear only when the user acts.
+func TestRecoveryKeepsSnapshotsFromDifferentSessions(t *testing.T) {
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	first := testModel(t, store)
+	first.recoveryDir = dir
+	first.buffers = []*buffer{{id: "a.md", title: "a", saved: "", text: "first"}}
+	if _, err := first.SaveRecovery(); err != nil {
+		t.Fatal(err)
+	}
+	second := testModel(t, store)
+	second.recoveryDir = dir
+	second.buffers = []*buffer{{id: "b.md", title: "b", saved: "", text: "second"}}
+	if _, err := second.SaveRecovery(); err != nil {
+		t.Fatal(err)
+	}
+	if files := recoveryFiles(t, dir); len(files) != 2 {
+		t.Fatalf("files = %v, want 2 snapshots", files)
+	}
+
+	m := testModel(t, store)
+	m.recoveryDir = dir
+	files, err := LoadRecoveries(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.applyRecovery(recoveryLoadedMsg{files: files})
+	if m.confirm == nil {
+		t.Fatal("no recovery prompt")
+	}
+	if got := len(m.confirm.message); got < 1 || !strings.Contains(strings.Join(m.confirm.message, " "), "2 tab(s)") {
+		t.Fatalf("prompt does not offer both tabs: %v", m.confirm.message)
+	}
+	m.confirm.onChoose(&m, 0)
+
+	if files := recoveryFiles(t, dir); len(files) != 0 {
+		t.Errorf("files left after restore: %v", files)
+	}
+	for _, id := range []string{"a.md", "b.md"} {
+		if i := m.bufferIndex(id); i < 0 {
+			t.Errorf("%s was not restored", id)
+		}
+	}
+}
+
 // Temporary files a crash left mid-write are removed, and never mistaken for
-// the snapshot.
+// a snapshot.
 func TestLoadRecoveryRemovesStaleTemps(t *testing.T) {
 	dir := t.TempDir()
 	snap := RecoverySnapshot{Version: recoveryVersion, Tabs: []Recovery{{ID: "a.md", Title: "a", Content: "x"}}}
@@ -126,19 +203,19 @@ func TestLoadRecoveryRemovesStaleTemps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, recoveryFileName), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, recoveryPrefix+"1"+recoverySuffix), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	stale := filepath.Join(dir, ".recovery-123.tmp")
 	if err := os.WriteFile(stale, []byte("half"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := LoadRecovery(dir)
+	files, err := LoadRecoveries(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Tabs) != 1 || got.Tabs[0].Content != "x" {
-		t.Fatalf("snapshot = %+v", got)
+	if len(files) != 1 || len(files[0].Snap.Tabs) != 1 || files[0].Snap.Tabs[0].Content != "x" {
+		t.Fatalf("snapshots = %+v", files)
 	}
 	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the stale temporary file was not removed: %v", err)
@@ -148,12 +225,16 @@ func TestLoadRecoveryRemovesStaleTemps(t *testing.T) {
 // A truncated snapshot is reported and left where it is, never guessed at.
 func TestLoadRecoveryRejectsATruncatedFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, recoveryFileName)
+	path := filepath.Join(dir, recoveryPrefix+"1"+recoverySuffix)
 	if err := os.WriteFile(path, []byte(`{"version":1,"tabs":[`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadRecovery(dir); err == nil {
+	files, err := LoadRecoveries(dir)
+	if err == nil {
 		t.Fatal("a truncated file must be an error")
+	}
+	if len(files) != 0 {
+		t.Errorf("a truncated file was loaded: %+v", files)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("the unreadable file was removed: %v", err)
@@ -181,11 +262,11 @@ func TestRecoveryRestoreKeepsTheNoteOnDiskAndOpensAModifiedTab(t *testing.T) {
 
 	m := testModel(t, store)
 	m.recoveryDir = dir
-	snap, err := LoadRecovery(dir)
+	files, err := LoadRecoveries(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.applyRecovery(recoveryLoadedMsg{snap: snap})
+	m.applyRecovery(recoveryLoadedMsg{files: files})
 	if m.confirm == nil {
 		t.Fatal("no recovery prompt")
 	}
@@ -194,8 +275,8 @@ func TestRecoveryRestoreKeepsTheNoteOnDiskAndOpensAModifiedTab(t *testing.T) {
 	}
 	m.confirm.onChoose(&m, 0)
 
-	if _, err := os.Stat(filepath.Join(dir, recoveryFileName)); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("the recovery file was not removed: %v", err)
+	if files := recoveryFiles(t, dir); len(files) != 0 {
+		t.Errorf("files left after restore: %v", files)
 	}
 	p, err := store.Get("a.md")
 	if err != nil || p.Content != "disk" {
@@ -214,7 +295,39 @@ func TestRecoveryRestoreKeepsTheNoteOnDiskAndOpensAModifiedTab(t *testing.T) {
 	}
 }
 
-// Discard throws the snapshot away without opening anything.
+// Later keeps the snapshots for the next start and opens nothing.
+func TestRecoveryLaterKeepsTheFiles(t *testing.T) {
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	writer := testModel(t, store)
+	writer.recoveryDir = dir
+	writer.buffers = []*buffer{{id: "a.md", title: "a", saved: "", text: "kept"}}
+	if _, err := writer.SaveRecovery(); err != nil {
+		t.Fatal(err)
+	}
+	m := testModel(t, store)
+	m.recoveryDir = dir
+	files, err := LoadRecoveries(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.applyRecovery(recoveryLoadedMsg{files: files})
+	if m.confirm == nil {
+		t.Fatal("no recovery prompt")
+	}
+	m.confirm.onChoose(&m, 2)
+	if got := recoveryFiles(t, dir); len(got) != 1 {
+		t.Errorf("Later removed the snapshot: %v", got)
+	}
+	if len(m.buffers) != 0 {
+		t.Errorf("Later opened %d tabs", len(m.buffers))
+	}
+}
+
+// Discard throws the snapshots away without opening anything.
 func TestRecoveryDiscardRemovesTheFile(t *testing.T) {
 	store, err := core.NewStore(t.TempDir())
 	if err != nil {
@@ -230,17 +343,17 @@ func TestRecoveryDiscardRemovesTheFile(t *testing.T) {
 
 	m := testModel(t, store)
 	m.recoveryDir = dir
-	snap, err := LoadRecovery(dir)
+	files, err := LoadRecoveries(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.applyRecovery(recoveryLoadedMsg{snap: snap})
+	m.applyRecovery(recoveryLoadedMsg{files: files})
 	if m.confirm == nil {
 		t.Fatal("no recovery prompt")
 	}
 	m.confirm.onChoose(&m, 1)
-	if _, err := os.Stat(filepath.Join(dir, recoveryFileName)); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("the recovery file was not removed: %v", err)
+	if files := recoveryFiles(t, dir); len(files) != 0 {
+		t.Errorf("files left after discard: %v", files)
 	}
 	if len(m.buffers) != 0 {
 		t.Errorf("discard opened %d tabs", len(m.buffers))
@@ -255,11 +368,14 @@ func TestRecoveryFromAnotherVaultIsNotOffered(t *testing.T) {
 	}
 	m := testModel(t, store)
 	m.recoveryDir = t.TempDir()
-	m.applyRecovery(recoveryLoadedMsg{snap: RecoverySnapshot{
-		Version: recoveryVersion,
-		Root:    "/somewhere/else",
-		Tabs:    []Recovery{{ID: "a.md", Title: "a", Content: "x"}},
-	}})
+	m.applyRecovery(recoveryLoadedMsg{files: []RecoveryFile{{
+		Path: filepath.Join(m.recoveryDir, recoveryPrefix+"1"+recoverySuffix),
+		Snap: RecoverySnapshot{
+			Version: recoveryVersion,
+			Root:    "/somewhere/else",
+			Tabs:    []Recovery{{ID: "a.md", Title: "a", Content: "x"}},
+		},
+	}}})
 	if m.confirm != nil {
 		t.Error("another vault's snapshot must not be offered")
 	}
