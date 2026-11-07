@@ -58,7 +58,37 @@ func (s *Store) Root() string {
 	return s.root
 }
 
-func (s *Store) idToAbs(id string) string {
+// idToAbs resolves a page or folder ID (a slash-separated path relative to
+// the workspace root) to its absolute path. It refuses any ID that would
+// resolve outside the workspace, so a link or an imported path can never
+// read, overwrite or delete a file beyond the vault.
+func (s *Store) idToAbs(id string) (string, error) {
+	if id == "" {
+		return s.root, nil
+	}
+	clean := path.Clean(filepath.ToSlash(id))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") ||
+		path.IsAbs(clean) || hasDriveLetter(clean) {
+		return "", ErrPageNotFound
+	}
+	abs := filepath.Join(s.root, filepath.FromSlash(clean))
+	rel, err := filepath.Rel(s.root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", ErrPageNotFound
+	}
+	return abs, nil
+}
+
+// Abs resolves a page or folder ID to its absolute path, refusing IDs that
+// would leave the workspace (see idToAbs).
+func (s *Store) Abs(id string) (string, error) {
+	return s.idToAbs(id)
+}
+
+// joinID is idToAbs without the containment check, for IDs a caller already
+// validated with checkMovePath or SplitEntryPath. Never use it on an ID that
+// came from a link, a file or a user.
+func (s *Store) joinID(id string) string {
 	return filepath.Join(s.root, filepath.FromSlash(id))
 }
 
@@ -208,7 +238,10 @@ func (s *Store) Get(id string) (Page, error) {
 		return Page{}, ErrPageNotFound
 	}
 
-	abs := s.idToAbs(id)
+	abs, err := s.idToAbs(id)
+	if err != nil {
+		return Page{}, err
+	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return Page{}, ErrPageNotFound
