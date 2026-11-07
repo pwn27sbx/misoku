@@ -10,13 +10,19 @@ import (
 )
 
 // fakeConfigHome points HOME (and the XDG folders) at a temporary folder, so
-// tutor.Dir and the Trash are never the user's.
+// tutor.Dir and the Trash are never the user's. On Windows os.UserConfigDir,
+// os.UserCacheDir and os.UserHomeDir read %AppData%, %LocalAppData% and
+// %UserProfile% instead, so those must point there too: otherwise the tests
+// share the runner's real tutorial folder (and --reset deletes a developer's).
 func fakeConfigHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("USERPROFILE", home)
 }
 
 // S2: misoku tutor installs the lessons once and keeps a player's edits;
