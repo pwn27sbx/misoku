@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.26.1] - 2026-11-07
+
+### Fixed
+
+- Closing the terminal or a `SIGTERM` no longer loses unsaved text: modified tabs are saved to a private recovery file outside the vault, and the next start offers Restore, Discard or Later. Restored text stays unsaved until you save it, and that save goes through the normal conflict check.
+
 ## [0.26.0] - 2026-11-07
 
 ### Security
