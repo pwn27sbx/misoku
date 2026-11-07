@@ -99,7 +99,10 @@ func (s *Store) SaveAs(dir, name, content string) (Page, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	abs := s.idToAbs(rel)
+	abs, err := s.idToAbs(rel)
+	if err != nil {
+		return Page{}, err
+	}
 	if fileExists(abs) {
 		return Page{}, fmt.Errorf("%s already exists", rel)
 	}
@@ -138,7 +141,11 @@ func (s *Store) ApplyRelinks(rs []Relink) (done []Relink, skipped []string, err 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, r := range rs {
-		abs := s.idToAbs(r.ID)
+		abs, err := s.idToAbs(r.ID)
+		if err != nil {
+			skipped = append(skipped, r.ID)
+			continue
+		}
 		data, readErr := os.ReadFile(abs)
 		if readErr != nil || strings.ReplaceAll(string(data), "\r\n", "\n") != r.From {
 			skipped = append(skipped, r.ID)
@@ -168,7 +175,10 @@ func (s *Store) AttachFile(noteDir, src string) (string, error) {
 	if info.IsDir() {
 		return "", fmt.Errorf("%s is a folder", filepath.Base(absSrc))
 	}
-	noteAbs := s.idToAbs(noteDir)
+	noteAbs, err := s.idToAbs(noteDir)
+	if err != nil {
+		return "", err
+	}
 
 	if rel, err := filepath.Rel(s.root, absSrc); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		link, err := filepath.Rel(noteAbs, absSrc)
@@ -226,7 +236,11 @@ func (s *Store) FindFile(name, fromID string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, rel := range []string{path.Join(path.Dir(fromID), name), name} {
-		if abs := s.idToAbs(rel); fileExists(abs) {
+		abs, err := s.idToAbs(rel)
+		if err != nil {
+			continue
+		}
+		if fileExists(abs) {
 			return abs, true
 		}
 	}

@@ -130,7 +130,10 @@ func TestFindFile(t *testing.T) {
 	if _, err := s.SaveAs("assets", "readme", ""); err != nil {
 		t.Fatal(err)
 	}
-	abs := s.idToAbs("assets/diagram.png")
+	abs, err := s.idToAbs("assets/diagram.png")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := writeFile(abs); err != nil {
 		t.Fatal(err)
 	}
