@@ -337,15 +337,30 @@ func (s *Store) Update(p Page) (Page, error) {
 		if fileExists(newAbs) {
 			return Page{}, fmt.Errorf("a page named %q already exists here", newTitle)
 		}
+
+		// The note and its sidecar folder move together. Check both
+		// destinations first and put the note back if the second rename
+		// fails, so a name already used by a folder cannot split them.
+		oldSidecar := strings.TrimSuffix(abs, mdExt)
+		newSidecar := strings.TrimSuffix(newAbs, mdExt)
+		info, sidecarErr := os.Stat(oldSidecar)
+		hasSidecar := sidecarErr == nil && info.IsDir()
+		if hasSidecar {
+			if _, err := os.Stat(newSidecar); err == nil {
+				return Page{}, fmt.Errorf("a folder named %q already exists here", newTitle)
+			}
+		}
+
 		if err := os.Rename(abs, newAbs); err != nil {
 			return Page{}, fmt.Errorf("failed to rename page: %w", err)
 		}
 
-		oldSidecar := strings.TrimSuffix(abs, mdExt)
-		if info, err := os.Stat(oldSidecar); err == nil && info.IsDir() {
-			newSidecar := strings.TrimSuffix(newAbs, mdExt)
+		if hasSidecar {
 			if err := os.Rename(oldSidecar, newSidecar); err != nil {
-				return Page{}, fmt.Errorf("failed to rename sub-pages: %w", err)
+				if backErr := os.Rename(newAbs, abs); backErr != nil {
+					return Page{}, fmt.Errorf("failed to rename sub-pages and could not put the note back: %v: %w", backErr, err)
+				}
+				return Page{}, fmt.Errorf("failed to rename sub-pages, nothing moved: %w", err)
 			}
 		}
 
