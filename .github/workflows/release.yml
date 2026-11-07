@@ -7,10 +7,27 @@ on:
 
 permissions:
   contents: write
+  # The release gate reads the CI runs of the tagged commit.
+  actions: read
 
 jobs:
+  # A tag does not start CI: the tagged commit's run came from its push to
+  # main. Refuse to publish when that run is red, still going or missing.
+  ci-green:
+    name: Require green CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Require green CI for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh scripts/require-green-ci.sh "${{ github.repository }}" "${{ github.sha }}"
+
   goreleaser:
     name: GoReleaser
+    needs: ci-green
     runs-on: ubuntu-latest
 
     steps:
