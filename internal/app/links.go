@@ -192,8 +192,86 @@ func (m *Model) followURL(u string) tea.Cmd {
 	return m.openExternal(abs)
 }
 
-// openExternal hands a URL or file to the system's default app.
+// openExternal hands a URL or file to the system's default app. Web and mail
+// addresses, and files inside the vault that the system will not run, open at
+// once; anything else — another scheme, a path outside the vault, or an
+// executable name — asks first, since the opener may run it.
 func (m *Model) openExternal(target string) tea.Cmd {
+	if !m.openDirectly(target) {
+		m.confirm = &confirmDialog{
+			title:      "Open " + shortTarget(target) + "?",
+			message:    []string{"The system may run it, or it is outside the vault."},
+			buttons:    []string{"Open", "Cancel"},
+			deliberate: true, // a stray letter must not open it
+			selected:   1,    // Cancel is the safe default
+			onChoose: func(m *Model, choice int) tea.Cmd {
+				if choice != 0 {
+					return nil
+				}
+				return m.openExternalNow(target)
+			},
+		}
+		return nil
+	}
+	return m.openExternalNow(target)
+}
+
+// executableExts are names the system opener can run instead of showing:
+// macOS runs .command and .app, Windows rundll32 runs .bat and .exe, and an
+// interpreter may take the rest.
+var executableExts = map[string]bool{
+	".app": true, ".appimage": true, ".bat": true, ".bash": true, ".cmd": true,
+	".com": true, ".command": true, ".desktop": true, ".exe": true,
+	".fish": true, ".hta": true,
+	".jar": true, ".js": true, ".jse": true, ".lnk": true, ".msi": true,
+	".pl": true, ".ps1": true, ".psm1": true, ".py": true, ".rb": true,
+	".reg": true, ".scr": true, ".sh": true, ".url": true, ".vbe": true,
+	".vbs": true, ".wsf": true, ".wsh": true, ".zsh": true,
+}
+
+// executableName reports whether a local file name may be run by the system
+// opener rather than opened in a viewer.
+func executableName(name string) bool {
+	return executableExts[strings.ToLower(filepath.Ext(name))]
+}
+
+// openDirectly reports whether target may go to the system opener without
+// asking: web and mail addresses, and files inside the vault whose name the
+// system will not run. Anything else asks first.
+func (m *Model) openDirectly(target string) bool {
+	if strings.Contains(target, "://") {
+		u, err := url.Parse(target)
+		if err != nil {
+			return false
+		}
+		switch strings.ToLower(u.Scheme) {
+		case "http", "https":
+			return true
+		}
+		return false
+	}
+	if strings.HasPrefix(strings.ToLower(target), "mailto:") {
+		return true
+	}
+	if m.store == nil {
+		return false
+	}
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(m.store.Root(), abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	if info, err := os.Stat(abs); err == nil && info.Mode().Perm()&0o111 != 0 {
+		return false // a program without an extension, run by `open` on macOS
+	}
+	return !executableName(abs)
+}
+
+// openExternalNow hands target to the opener, once openExternal allows it.
+func (m *Model) openExternalNow(target string) tea.Cmd {
 	open := m.openURL
 	if open == nil {
 		open = systemOpen
