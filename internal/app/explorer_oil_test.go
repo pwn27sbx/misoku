@@ -173,6 +173,7 @@ func TestOilEmptyFolderStaysListed(t *testing.T) {
 // line above, which plans its delete; Ctrl+S in insert confirms, Yes moves
 // it to the Trash, the editor stays open and goes on typing.
 func TestOilBackspaceErasesALineAndCtrlSApplies(t *testing.T) {
+	defer app.SetHasTrash(true)() // Windows has no Trash; the confirm still takes y/n
 	h, store := newEntryHarness(t)
 	h.keys("G") // zeta
 	h.keys("a")
@@ -209,6 +210,7 @@ func TestOilBackspaceErasesALineAndCtrlSApplies(t *testing.T) {
 
 // S9: Ctrl+S in normal mode confirms like =.
 func TestOilCtrlSInNormalConfirms(t *testing.T) {
+	defer app.SetHasTrash(true)() // Windows has no Trash; the confirm still takes y
 	h, store := newEntryHarness(t)
 	h.keys("G")
 	h.keys("m")
