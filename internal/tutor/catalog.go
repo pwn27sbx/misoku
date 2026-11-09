@@ -13,12 +13,12 @@ type Lesson struct {
 // Lessons lists the tutorial notes in play order. The index (position 0) has
 // no check; every other position is its level number.
 var Lessons = []Lesson{
-	{File: "00 Empieza aquí.md", Title: "Empieza aquí"},
-	{File: "01 Títulos.md", Title: "Títulos", Check: "subheading"},
-	{File: "02 Casillas.md", Title: "Casillas", Check: "checkbox"},
-	{File: "03 Menú de bloques.md", Title: "Menú de bloques", Check: "table"},
-	{File: "04 Links.md", Title: "Links", Check: "wikilink"},
-	{File: "05 Links a títulos.md", Title: "Links a títulos", Check: "headinglink"},
-	{File: "06 Referencias a bloque.md", Title: "Referencias a bloque", Check: "blockref"},
-	{File: "07 Explorador.md", Title: "Explorador", Check: "newnote"},
+	{File: "B00 Básico.md", Title: "Básico"},
+	{File: "B01 Títulos.md", Title: "Títulos", Check: "subheading"},
+	{File: "B02 Casillas.md", Title: "Casillas", Check: "checkbox"},
+	{File: "B03 Menú de bloques.md", Title: "Menú de bloques", Check: "table"},
+	{File: "B04 Links.md", Title: "Links", Check: "wikilink"},
+	{File: "B05 Links a títulos.md", Title: "Links a títulos", Check: "headinglink"},
+	{File: "B06 Referencias a bloque.md", Title: "Referencias a bloque", Check: "blockref"},
+	{File: "B07 Explorador.md", Title: "Explorador", Check: "newnote"},
 }

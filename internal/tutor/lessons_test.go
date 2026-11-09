@@ -14,13 +14,13 @@ var answers = map[string]struct {
 	text   string
 	exists func(string) bool
 }{
-	"01 Títulos.md":              {"\n## Viaje\n\n### Día 1\n", none},
-	"02 Casillas.md":             {"\n- [x] Aprender casillas\n", none},
-	"03 Menú de bloques.md":      {"\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n", none},
-	"04 Links.md":                {"\n[[05 Links a títulos]]\n", none},
-	"05 Links a títulos.md":      {"\n[[#Tu turno]]\n", none},
-	"06 Referencias a bloque.md": {"\nMi frase favorita ^favorita\n\n[[#^favorita]]\n", none},
-	"07 Explorador.md":           {"\n[[Mi nota]]\n", func(n string) bool { return n == "Mi nota" }},
+	"B01 Títulos.md":              {"\n## Viaje\n\n### Día 1\n", none},
+	"B02 Casillas.md":             {"\n- [x] Aprender casillas\n", none},
+	"B03 Menú de bloques.md":      {"\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n", none},
+	"B04 Links.md":                {"\n[[05 Links a títulos]]\n", none},
+	"B05 Links a títulos.md":      {"\n[[#Tu turno]]\n", none},
+	"B06 Referencias a bloque.md": {"\nMi frase favorita ^favorita\n\n[[#^favorita]]\n", none},
+	"B07 Explorador.md":           {"\n[[Mi nota]]\n", func(n string) bool { return n == "Mi nota" }},
 }
 
 func TestLessons(t *testing.T) {
@@ -61,12 +61,12 @@ func TestLessons(t *testing.T) {
 func TestLessonsQuoteSpec(t *testing.T) {
 	bundled := tutor.Bundled()
 	musts := map[string][]string{
-		"01 Títulos.md":  {"`##` → `###` para meter secciones dentro de otra (no hay numeración 2.1 automática)"},
-		"02 Casillas.md": {"`- [ ]` lleva espacio entre los corchetes; `- []` no es una tarea"},
-		"06 Referencias a bloque.md": {
+		"B01 Títulos.md":  {"`##` → `###` para meter secciones dentro de otra (no hay numeración 2.1 automática)"},
+		"B02 Casillas.md": {"`- [ ]` lleva espacio entre los corchetes; `- []` no es una tarea"},
+		"B06 Referencias a bloque.md": {
 			"marcar una línea con `^nombre` al final y enlazarla con `[[#^nombre]]` (misma nota), `[[Nota#^nombre]]` (otra nota) o `[[#^nombre|texto]]`. Seguir el link con `gd`.",
 		},
-		"05 Links a títulos.md": {"`[[#Título]]`"},
+		"B05 Links a títulos.md": {"`[[#Título]]`"},
 	}
 	for file, ss := range musts {
 		data, err := fs.ReadFile(bundled, file)
@@ -83,7 +83,7 @@ func TestLessonsQuoteSpec(t *testing.T) {
 }
 
 func TestIndexLinksEveryLevel(t *testing.T) {
-	data, err := fs.ReadFile(tutor.Bundled(), "00 Empieza aquí.md")
+	data, err := fs.ReadFile(tutor.Bundled(), "B00 Básico.md")
 	if err != nil {
 		t.Fatal(err)
 	}

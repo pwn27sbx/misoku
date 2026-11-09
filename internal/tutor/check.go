@@ -84,7 +84,7 @@ func Passed(check, text string, exists func(name string) bool) bool {
 
 // Hint returns a tip for a common mistake in a lesson note, or "".
 func Hint(file, text string) string {
-	if lessonFile(file) == "02 Casillas.md" && anyLine(stripCode(text), taskNoSpace) {
+	if lessonFile(file) == "B02 Casillas.md" && anyLine(stripCode(text), taskNoSpace) {
 		return hintNoSpace
 	}
 	return ""

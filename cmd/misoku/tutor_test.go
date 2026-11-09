@@ -36,7 +36,7 @@ func TestTutorWorkspaceKeepsEditsUnlessReset(t *testing.T) {
 	if dir != tutor.Dir() || dir == "" {
 		t.Fatalf("dir = %q, want tutor.Dir() %q", dir, tutor.Dir())
 	}
-	lesson := filepath.Join(dir, "02 Casillas.md")
+	lesson := filepath.Join(dir, "B02 Casillas.md")
 	bundled, err := os.ReadFile(lesson)
 	if err != nil {
 		t.Fatalf("the lesson was not installed: %v", err)

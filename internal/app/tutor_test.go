@@ -54,10 +54,10 @@ func statusOf(view string) string {
 // S4: a passed level is written to its note at once, so a quit that
 // discards everything else keeps the progress the next Scan reads.
 func TestTutorSavesAPassedLevelAtOnce(t *testing.T) {
-	h := tutorHarness(t, "02 Casillas.md")
+	h := tutorHarness(t, "B02 Casillas.md")
 	h.keys("- [x] hecho")
 	root := h.store.Root()
-	lesson := filepath.Join(root, "02 Casillas.md")
+	lesson := filepath.Join(root, "B02 Casillas.md")
 	if data, err := os.ReadFile(lesson); err != nil || !strings.Contains(string(data), "- [x]") {
 		t.Fatalf("the passed level was not saved at once (%v):\n%s", err, data)
 	}
@@ -85,7 +85,7 @@ func TestTutorSavesAPassedLevelAtOnce(t *testing.T) {
 
 // S5, S6: ticking a box in 02 passes level 2 once, and the bar counts it.
 func TestTutorAnnouncesALevelOnceAndCountsIt(t *testing.T) {
-	h := tutorHarness(t, "02 Casillas.md")
+	h := tutorHarness(t, "B02 Casillas.md")
 	if s := statusOf(h.view()); !strings.Contains(s, "Tutor 0/7") {
 		t.Fatalf("the statusline should show Tutor 0/7 before any level:\n%s", s)
 	}
@@ -106,7 +106,7 @@ func TestTutorAnnouncesALevelOnceAndCountsIt(t *testing.T) {
 
 // S5: "- []" in 02 explains the missing space, once while the note is open.
 func TestTutorHintsTheMissingSpace(t *testing.T) {
-	h := tutorHarness(t, "02 Casillas.md")
+	h := tutorHarness(t, "B02 Casillas.md")
 	h.keys("- [] x")
 	hint := "- [] no es una tarea: falta el espacio → - [ ]"
 	if v := h.view(); !strings.Contains(v, hint) {
@@ -134,7 +134,7 @@ func TestNoTutorLeavesTheStatuslineAsItWas(t *testing.T) {
 	if got := statusOf(h.view()); got != baseStatusline {
 		t.Fatalf("statusline changed without the tutor:\n got %q\nwant %q", got, baseStatusline)
 	}
-	m, cmd := app.OpenInCurrentBuffer(h.m, "02 Casillas.md")
+	m, cmd := app.OpenInCurrentBuffer(h.m, "B02 Casillas.md")
 	h.m = m
 	h.send(cmdMsg(cmd)...)
 	h.keys("Go- [x] hecho")

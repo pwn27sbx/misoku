@@ -46,13 +46,13 @@ func passLevel(t *testing.T, dir, file string) {
 		t.Fatal(err)
 	}
 	answer := map[string]string{
-		"01 Títulos.md":              "\n## Viaje\n\n### Día 1\n",
-		"02 Casillas.md":             "\n- [x] Aprender casillas\n",
-		"03 Menú de bloques.md":      "\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n",
-		"04 Links.md":                "\n[[05 Links a títulos]]\n",
-		"05 Links a títulos.md":      "\n[[#Tu turno]]\n",
-		"06 Referencias a bloque.md": "\nMi frase favorita ^favorita\n\n[[#^favorita]]\n",
-		"07 Explorador.md":           "\n[[Mi nota]]\n",
+		"B01 Títulos.md":              "\n## Viaje\n\n### Día 1\n",
+		"B02 Casillas.md":             "\n- [x] Aprender casillas\n",
+		"B03 Menú de bloques.md":      "\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n",
+		"B04 Links.md":                "\n[[B05 Links a títulos]]\n",
+		"B05 Links a títulos.md":      "\n[[#Tu turno]]\n",
+		"B06 Referencias a bloque.md": "\nMi frase favorita ^favorita\n\n[[#^favorita]]\n",
+		"B07 Explorador.md":           "\n[[Mi nota]]\n",
 	}[file]
 	if answer == "" {
 		t.Fatalf("no fixture answer for %s", file)
@@ -79,7 +79,7 @@ func fakeTutorial(got **exec.Cmd, err error, during func()) app.Option {
 // without the tutorial (also inside a tutorial session).
 func TestLearnEntryShowsTheTutorialProgress(t *testing.T) {
 	dir := tutorialVault(t)
-	passLevel(t, dir, "02 Casillas.md")
+	passLevel(t, dir, "B02 Casillas.md")
 	store := newTestStore(t)
 
 	h := newHarness(t, store, app.WithLearn(tutor.Scan(dir)))
@@ -146,7 +146,7 @@ func TestTutorialReturnRescansAndEnablesTheMouse(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)),
-		fakeTutorial(&got, nil, func() { passLevel(t, dir, "01 Títulos.md") }))
+		fakeTutorial(&got, nil, func() { passLevel(t, dir, "B01 Títulos.md") }))
 	h.keys("l")
 	if v := h.view(); !strings.Contains(v, "Learn 1/7") {
 		t.Fatalf("the entry should count the level the tutorial passed:\n%s", v)
@@ -165,7 +165,7 @@ func TestTutorialReturnReportsAFailedExit(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)),
-		fakeTutorial(&got, errors.New("exit status 2"), func() { passLevel(t, dir, "02 Casillas.md") }))
+		fakeTutorial(&got, errors.New("exit status 2"), func() { passLevel(t, dir, "B02 Casillas.md") }))
 	h.keys("l")
 	if s := app.StatusText(h.m); !strings.Contains(s, "exit status 2") {
 		t.Fatalf("the failed tutorial should be reported, status %q", s)

@@ -34,7 +34,7 @@ func passed(t *testing.T, dir string, files ...string) {
 // and the first unpassed lesson in between.
 func TestResume(t *testing.T) {
 	t.Parallel()
-	if got := tutor.Resume(nil); got != "00 Empieza aquí.md" {
+	if got := tutor.Resume(nil); got != "B00 Básico.md" {
 		t.Errorf("without progress the index should open, got %q", got)
 	}
 
@@ -42,23 +42,23 @@ func TestResume(t *testing.T) {
 	if err := tutor.Install(tutor.Bundled(), dir, false); err != nil {
 		t.Fatal(err)
 	}
-	if got := tutor.Resume(tutor.Scan(dir)); got != "00 Empieza aquí.md" {
+	if got := tutor.Resume(tutor.Scan(dir)); got != "B00 Básico.md" {
 		t.Errorf("at 0/7 the index should open, got %q", got)
 	}
 
-	passed(t, dir, "01 Títulos.md", "02 Casillas.md")
-	if got := tutor.Resume(tutor.Scan(dir)); got != "03 Menú de bloques.md" {
+	passed(t, dir, "B01 Títulos.md", "B02 Casillas.md")
+	if got := tutor.Resume(tutor.Scan(dir)); got != "B03 Menú de bloques.md" {
 		t.Errorf("after levels 1 and 2 the next unpassed lesson should open, got %q", got)
 	}
 
 	// A gap in the middle is resumed at the gap, not after it.
-	passed(t, dir, "04 Links.md", "05 Links a títulos.md", "06 Referencias a bloque.md", "07 Explorador.md")
-	if got := tutor.Resume(tutor.Scan(dir)); got != "03 Menú de bloques.md" {
+	passed(t, dir, "B04 Links.md", "B05 Links a títulos.md", "B06 Referencias a bloque.md", "B07 Explorador.md")
+	if got := tutor.Resume(tutor.Scan(dir)); got != "B03 Menú de bloques.md" {
 		t.Errorf("the first unpassed lesson should open, got %q", got)
 	}
 
-	passed(t, dir, "03 Menú de bloques.md")
-	if got := tutor.Resume(tutor.Scan(dir)); got != "00 Empieza aquí.md" {
+	passed(t, dir, "B03 Menú de bloques.md")
+	if got := tutor.Resume(tutor.Scan(dir)); got != "B00 Básico.md" {
 		t.Errorf("at 7/7 the index should open, got %q", got)
 	}
 }

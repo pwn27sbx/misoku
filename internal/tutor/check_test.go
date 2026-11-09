@@ -75,11 +75,11 @@ func TestHint(t *testing.T) {
 	cases := []struct {
 		file, text, want string
 	}{
-		{"02 Casillas.md", "- [] comprar pan\n", want},
-		{"02 Casillas.md", "  * [] comprar pan\n", want},
-		{"02 Casillas.md", "- [ ] comprar pan\n", ""},
-		{"02 Casillas.md", "Escribe `- []` mal\n", ""},
-		{"01 Títulos.md", "- [] comprar pan\n", ""},
+		{"B02 Casillas.md", "- [] comprar pan\n", want},
+		{"B02 Casillas.md", "  * [] comprar pan\n", want},
+		{"B02 Casillas.md", "- [ ] comprar pan\n", ""},
+		{"B02 Casillas.md", "Escribe `- []` mal\n", ""},
+		{"B01 Títulos.md", "- [] comprar pan\n", ""},
 	}
 	for _, c := range cases {
 		if got := tutor.Hint(c.file, c.text); got != c.want {
