@@ -107,6 +107,20 @@ HOME, config, vault or tutorial folder.
   lesson stay for F3a2.
 - **L3:** `B07` already said reading `space p` / editor `space r` at
   origin/main 40a51fb; the E1 fix is verified, not re-applied.
+- **L10:** A fresh 4-lens review of the fixed candidate escalated two more
+  blockers, both in the temporary placeholders: `R3-B01-heading-order`
+  (B01's two existence steps do not enforce that `### Día 1` is below
+  `## Viaje`) and `R3-B02-task-check` (the literal `line-starts "- [x] "`
+  rejects indented/starred/uppercase task forms and accepts a bare prefix).
+  The bounded correction (wording only) was rejected by the targeted
+  validator: the durable fix needs an ordering-sensitive predicate and a
+  tolerant task predicate, which are outside the approved E12/E13 schema.
+  The wording change was reverted (`1ab77fd`); the review closed
+  `escalated` / `targeted_validator_rejected`. **Open decision for F4/Claude:**
+  extend the schema with those two predicates, or keep the curriculum's
+  literal checks and treat these as content follow-ups when F4-B replaces the
+  placeholders. The engine itself was not implicated; no new regression was
+  introduced by the correction.
 - **L9:** The native 4-lens review completed with one escalated finding,
   `R3-migration-failure-order` (severe, unknown causality): the old notes
   were retired before the new lessons were written, so a failed copy left an
