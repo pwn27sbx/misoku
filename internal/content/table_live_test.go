@@ -213,6 +213,39 @@ func TestTableLiveAlignLeavesTextAfterTheClosingPipeAlone(t *testing.T) {
 	}
 }
 
+// S1: a row whose last cell has no trailing pipe (Markdown's optional one)
+// is still a cell: typing at its end aligns the table as usual and adds the
+// closing pipes.
+func TestTableLiveAlignAlignsARowWithoutATrailingPipe(t *testing.T) {
+	note := "| a | b |\n| --- | --- |\n| a | bxyz"
+	c := newNote(note)
+	c = keys(c, "jj")
+	c, _ = c.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	c = keys(c, "i")
+	c = keys(c, "Q")
+	want := "| a   | b     |\n| --- | ----- |\n| a   | bxyzQ |"
+	if c.Value() != want {
+		t.Fatalf("a row without a trailing pipe should align as usual:\n%q\nwant\n%q", c.Value(), want)
+	}
+	row, col := c.CursorPosition()
+	if row != 3 || col != 14 {
+		t.Fatalf("cursor should stay after the typed rune, got %d:%d", row, col)
+	}
+}
+
+// A5 without a separator row: the fallback cannot take the edited row as the
+// shape, or the "|" typed there would become a column before Tab decides.
+func TestTableLiveAlignWithoutASeparatorKeepsATypedPipe(t *testing.T) {
+	note := "| a | b |\n| c | d |"
+	c := newNote(note)
+	c = keys(c, "jllli")
+	c = keys(c, "|x")
+	want := "| a | b |\n| c|x | d |"
+	if c.Value() != want {
+		t.Fatalf("a typed delimiter must wait for Tab without a separator:\n%q\nwant\n%q", c.Value(), want)
+	}
+}
+
 // S3: a long note pays only for its table, not for a whole-document rewrite
 // per key. Each iteration types and deletes a rune, so the cell keeps its
 // width and the number stays comparable.
