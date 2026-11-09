@@ -70,7 +70,8 @@ type learnChosenMsg struct {
 // the tutorial starts only after it, so a write that fails still starts what
 // the answer asked for (and the dialog asks again next launch).
 func (m *Model) learnChosen(route string) tea.Cmd {
-	if m.learn != nil {
+	if m.learn != nil && route != "" {
+		// Only a route answer falls back; "Ahora no" (empty) goes to the notes.
 		route = m.learn.routeOrFirst(route)
 	}
 	m.learnPending = false

@@ -445,3 +445,17 @@ func TestRecordEvent(t *testing.T) {
 		t.Fatal("the action step did not pass")
 	}
 }
+
+func TestStepNeedsGit(t *testing.T) {
+	gitStep := Step{Text: "Historia", Check: Check{Kind: KindAction, Event: "history_open"}}
+	if !gitStep.NeedsGit() {
+		t.Fatal("a history event should need git")
+	}
+	if (Step{Text: "Texto", Check: contains("x")}).NeedsGit() {
+		t.Fatal("a text step does not need git")
+	}
+	l := textLesson("A07", Check{Kind: KindAction, Event: "history_open"}, contains("x"))
+	if !l.NeedsGit() {
+		t.Fatal("a lesson with a history step needs git")
+	}
+}

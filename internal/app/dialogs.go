@@ -107,15 +107,16 @@ func (d *saveAsDialog) pick(i int) {
 func (d *saveAsDialog) dir() string { return strings.Trim(strings.TrimSpace(d.folder.Value()), "/") }
 
 func (d *saveAsDialog) submit(m *Model) tea.Cmd {
-	if err := m.saveBufferAs(d.buf, d.dir(), d.name.Value()); err != nil {
+	cmd, err := m.saveBufferAs(d.buf, d.dir(), d.name.Value())
+	if err != nil {
 		d.err = err.Error()
 		return nil
 	}
 	m.saveAs = nil
 	if d.after != nil {
-		return d.after(m)
+		return tea.Batch(cmd, d.after(m))
 	}
-	return nil
+	return cmd
 }
 
 func (d *saveAsDialog) update(m *Model, msg tea.Msg) tea.Cmd {

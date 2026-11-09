@@ -133,7 +133,7 @@ func (m *Model) tutorSkipGit(l tutor.Lesson) tea.Cmd {
 	}
 	changed := false
 	for i := range l.Steps {
-		if g.store.MarkSkipped(l, i+1) {
+		if l.Steps[i].NeedsGit() && g.store.MarkSkipped(l, i+1) {
 			changed = true
 		}
 	}
@@ -254,15 +254,19 @@ func (m *Model) tutorEdited() tea.Cmd {
 // with changes since it was opened, and runs the disk checks after the save.
 func (m *Model) tutorSaved(b *buffer, text string) tea.Cmd {
 	g := m.tutor
-	if g == nil || !g.hasCurrent || b.id != g.current.File {
+	if g == nil || !g.hasCurrent {
 		return nil
 	}
 	l := g.current
-	before := m.tutorPassed(l)
-	changed := g.store.RecordSave(l, g.openedText, text)
+	// A save changes the disk, which a lesson may check (create a note and
+	// save it): re-run the current lesson's disk checks even when the saved
+	// tab is another note.
 	cmds := []tea.Cmd{m.tutorDiskCmd(l)}
-	if changed {
-		cmds = append(cmds, m.tutorChanged(l, before))
+	if b.id == l.File {
+		before := m.tutorPassed(l)
+		if g.store.RecordSave(l, g.openedText, text) {
+			cmds = append(cmds, m.tutorChanged(l, before))
+		}
 	}
 	return tea.Batch(cmds...)
 }

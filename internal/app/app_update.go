@@ -384,10 +384,12 @@ func (m *Model) handleSave(msg core.VimSaveMsg) tea.Cmd {
 	}
 	if msg.Path != "" {
 		dir, name := path.Split(strings.TrimPrefix(filepath.ToSlash(msg.Path), "/"))
-		if err := m.saveBufferAs(b, dir, name); err != nil {
+		cmd, err := m.saveBufferAs(b, dir, name)
+		if err != nil {
 			m.setError(err.Error())
+			return nil
 		}
-		return nil
+		return cmd
 	}
 	return m.saveBuffer(b, nil)
 }

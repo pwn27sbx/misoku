@@ -115,3 +115,16 @@ func TestTutorRouteCompleteLine(t *testing.T) {
 		t.Fatalf("the bar should say the route is complete:\n%s", s)
 	}
 }
+
+// E10: "Ahora no" goes to the notes even when the home has Learn entries.
+func TestLearnNowDoesNotStartTheTutorial(t *testing.T) {
+	cat, progress := fixtureRoutes()
+	var got *exec.Cmd
+	h := newHarness(t, newTestStore(t), app.WithLearn(progress, cat), app.WithLearnOffer(true),
+		app.WithConfigPath(t.TempDir()+"/config.json"), fakeTutorial(&got, nil, nil))
+	h.keys("jj")
+	h.key(tea.KeyEnter)
+	if got != nil {
+		t.Fatalf("Ahora no started %v", got.Args)
+	}
+}

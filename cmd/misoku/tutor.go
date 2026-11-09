@@ -46,5 +46,17 @@ func tutorWorkspace(args []string) (dir, route, notice string, err error) {
 	return dir, route, notice, nil
 }
 
+// tutorialProgress reads the tutorial's progress. A malformed or newer file
+// is reported and ignored: Load returns an empty store that is safe to use,
+// so the tutorial still opens and only records new progress (this is the old
+// empty-store recovery path).
+func tutorialProgress(dir string) *tutor.Store {
+	store, err := tutor.Load(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "misoku tutor: ignoring the progress file: %v\n", err)
+	}
+	return store
+}
+
 // tutorUsage is the help of "misoku tutor".
 const tutorUsage = "Usage: misoku tutor [--route B|I|A|E] [--reset]"

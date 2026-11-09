@@ -175,10 +175,7 @@ func main() {
 	}
 	cat := tutor.Default()
 	if tutorDir != "" {
-		store, err := tutor.Load(tutorDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "misoku tutor: %v\n", err)
-		}
+		store := tutorialProgress(tutorDir)
 		store.ScanDir(cat, tutorDir, tutor.DirEnv(tutorDir))
 		start := tutor.ResumeNote(cat, store, tutorRoute)
 		appOpts = append(appOpts, app.WithTutor(store, cat, tutorDir, gitAvailable()),
@@ -186,10 +183,7 @@ func main() {
 	} else if dir := tutor.Dir(); dir != "" {
 		// The home screen's way into the tutorial, with its progress; a
 		// tutorial session has none, so sessions cannot nest.
-		store, err := tutor.Load(dir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Misoku: %v\n", err)
-		}
+		store := tutorialProgress(dir)
 		store.ScanDir(cat, dir, tutor.DirEnv(dir))
 		appOpts = append(appOpts, app.WithLearn(store, cat))
 	}

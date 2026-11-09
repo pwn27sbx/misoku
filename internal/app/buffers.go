@@ -524,7 +524,7 @@ func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 }
 
 // saveBufferAs writes b's text to dir/name and turns the tab into that file.
-func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
+func (m *Model) saveBufferAs(b *buffer, dir, name string) (tea.Cmd, error) {
 	if b.id == m.active {
 		// Close an open INSERT session first (Ctrl+N, type, Ctrl+S): the
 		// reload below would otherwise find text the history never saw.
@@ -533,7 +533,7 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 	text := m.liveText(b)
 	p, err := m.store.SaveAs(dir, name, text)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	m.noteSaved()
 	wasActive := b.id == m.active
@@ -544,6 +544,8 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 		m.active = b.id
 	}
 	m.reloadTree()
+	// A new file changes the disk the current lesson may check.
+	tutorCmd := m.tutorSaved(b, text)
 	if wasActive {
 		m.content.SetBuffer(b.page(), false)
 		m.preview.SetBaseDir(m.noteDir(b))
@@ -553,7 +555,7 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) error {
 	}
 	m.setStatus(fmt.Sprintf("\"%s\" written", p.ID))
 	m.refreshModified()
-	return nil
+	return tutorCmd, nil
 }
 
 // requestQuit exits, first offering to save any unsaved tabs.

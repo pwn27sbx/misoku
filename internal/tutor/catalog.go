@@ -664,8 +664,18 @@ func (c Catalog) NextLesson(routeID, lessonID string) (Lesson, bool) {
 // NeedsGit reports whether a step of l waits for a git event (":history"):
 // without git those steps are skipped instead of failed.
 func (l Lesson) NeedsGit() bool {
+	for _, st := range l.Steps {
+		if st.NeedsGit() {
+			return true
+		}
+	}
+	return false
+}
+
+// NeedsGit reports whether this step waits for a git event.
+func (st Step) NeedsGit() bool {
 	need := false
-	walkChecks(l, func(c Check) {
+	walkCheck(st.Check, func(c Check) {
 		if c.Kind == KindAction && strings.HasPrefix(c.Event, "history_") {
 			need = true
 		}
@@ -692,14 +702,15 @@ func (l Lesson) ConfigKeys() []string {
 
 // walkChecks calls fn for every check of the lesson, inner checks included.
 func walkChecks(l Lesson, fn func(Check)) {
-	var walk func(Check)
-	walk = func(c Check) {
-		fn(c)
-		for _, sub := range c.Checks {
-			walk(sub)
-		}
-	}
 	for _, st := range l.Steps {
-		walk(st.Check)
+		walkCheck(st.Check, fn)
+	}
+}
+
+// walkCheck calls fn for a check and its inner checks.
+func walkCheck(c Check, fn func(Check)) {
+	fn(c)
+	for _, sub := range c.Checks {
+		walkCheck(sub, fn)
 	}
 }

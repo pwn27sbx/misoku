@@ -76,3 +76,23 @@ func TestUsageListsTutor(t *testing.T) {
 		t.Fatalf("usage does not list misoku tutor:\n%s", b.String())
 	}
 }
+
+// S5: a corrupt progress file is reported and ignored, so the tutorial opens
+// with an empty store instead of failing.
+func TestTutorialProgressIgnoresACorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".misoku-tutor.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := tutorialProgress(dir)
+	if store == nil {
+		t.Fatal("tutorialProgress returned nil")
+	}
+	l, ok := tutor.Default().Lesson("B01 Títulos.md")
+	if !ok {
+		t.Fatal("B01 is not in the catalog")
+	}
+	if store.Passed(l, 1) || store.Migrated() {
+		t.Fatal("a corrupt file produced progress")
+	}
+}

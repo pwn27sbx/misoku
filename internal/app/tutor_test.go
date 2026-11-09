@@ -222,6 +222,67 @@ func TestTutorModeChangedEvent(t *testing.T) {
 	}
 }
 
+// E14: without git, only the steps that wait for :history are skipped, not
+// the ordinary steps of the same lesson.
+func TestTutorSkipsOnlyTheHistoryStep(t *testing.T) {
+	cat := tutor.Catalog{Routes: []tutor.Route{{
+		ID: "A", Name: "Avanzado", Index: "A00 Avanzado.md",
+		Lessons: []tutor.Lesson{{
+			ID: "A07", Title: "Historia", File: "A07 Historia.md",
+			Steps: []tutor.Step{
+				{Text: "Abre :history", Check: tutor.Check{Kind: tutor.KindAction, Event: "history_open"}},
+				{Text: "Escribe hola", Check: tutor.Check{Kind: tutor.KindText, Pred: "line-contains", Args: []string{"hola"}}},
+			},
+		}},
+	}}}
+	h, progress := fixtureHarness(t, cat, "A07 Historia.md", "A07 Historia", false)
+	l, _ := cat.Lesson("A07 Historia.md")
+	if !progress.Skipped(l, 1) {
+		t.Fatal("the history step should be skipped without git")
+	}
+	if progress.Skipped(l, 2) || progress.Passed(l, 2) {
+		t.Fatal("the ordinary step must not be skipped")
+	}
+	if got := progress.NextStep(l); got != 2 {
+		t.Fatalf("NextStep = %d, want 2 (the text step)", got)
+	}
+	if s := statusOf(h.view()); !strings.Contains(s, "A07 · Paso 2/2") {
+		t.Fatalf("the bar should show the ordinary step:\n%s", s)
+	}
+}
+
+// E7: saving another note after the lesson is current re-runs its disk
+// checks, so a note created and saved completes the exists step.
+func TestTutorDiskCheckAfterSavingAnotherNote(t *testing.T) {
+	cat := tutor.Catalog{Routes: []tutor.Route{{
+		ID: "B", Name: "Básico", Index: "B00 Básico.md",
+		Lessons: []tutor.Lesson{{
+			ID: "B07", Title: "Nota", File: "B07 Nota.md",
+			Steps: []tutor.Step{{
+				Text:  "Crea Mi nota",
+				Check: tutor.Check{Kind: tutor.KindDisk, Pred: "exists", Args: []string{"Mi nota"}},
+			}},
+		}},
+	}}}
+	h, progress := fixtureHarness(t, cat, "B07 Nota.md", "B07 Nota", true)
+	h.key(tea.KeyEsc) // an update makes B07 the current lesson
+	// Create Mi nota through the app, as the player would, and save it.
+	h.keys(" n")
+	h.keys("hecha")
+	h.key(tea.KeyEsc)
+	h.keys(":w")
+	h.key(tea.KeyEnter)
+	for range "Untitled-1" {
+		h.key(tea.KeyBackspace)
+	}
+	h.keys("Mi nota")
+	h.key(tea.KeyEnter)
+	l, _ := cat.Lesson("B07 Nota.md")
+	if !progress.Passed(l, 1) {
+		t.Fatal("saving another note did not run the lesson's disk check")
+	}
+}
+
 // E2/E9: a tab switch credits the current lesson even when another tab is
 // now active.
 func TestTutorNextTabCreditsTheCurrentLesson(t *testing.T) {
