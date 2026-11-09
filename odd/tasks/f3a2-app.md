@@ -68,5 +68,7 @@ under `TMPDIR=/var/tmp`, never the real HOME, config, vault or tutorial folder.
   switch B01/B02 to them; F4-B is told to use them for B13/B15.
 - **L3:** The old `internal/tutor` compatibility bridge (Lessons, Progress,
   Scan, Resume, Hint) is removed; the app and cmd use `Store` + `Catalog`.
+- **L5:** Implemented in `7ba9e1a`; `make all` green with 25 packages,
+  1964 top-level tests and 792 subtests, 0 failures.
 - **L4:** Git is optional: the skip rule keys off the `history_*` event
   family, so no content is hardcoded; the skip lives in the progress file.
