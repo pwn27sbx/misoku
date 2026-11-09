@@ -236,7 +236,7 @@ never use `notes_dir`.
   Either key switches straight from the other view.
 - **Fast search** across file names and note contents.
 - **Search inside a note** (`/`, `n`, `N`, in the editor and the reading view): `/` opens a prompt at the bottom, Enter finds the next match of the literal text from the cursor, and `n`/`N` repeat it forward and backward, wrapping around the note (the status bar says `search hit BOTTOM, continuing at TOP`). Case-insensitive unless the text has an upper-case letter; `E486: Pattern not found: text` when there is none. The cursor goes to the match, which is also how the reading view scrolls to it.
-- **Search filters**: in the finder (and the `[[` link picker), `status:active tag:go folder:Zentro docker` narrows the notes before the words match their names and text. `status:` takes `active`, `onhold` (or `on-hold`), `completed`, `dropped`; `tag:go` or `#go` also finds nested tags like `#go/web`; `folder:Zentro` matches that folder anywhere in the path but not `ZentroOld`, and `folder:"My Notes"` holds spaces. Qualifiers combine; anything else, `foo:bar` included, is plain text. Only qualifiers list every matching note, newest first.
+- **Search filters**: in the finder, `status:active tag:go folder:Zentro docker` narrows the notes before the words match their names and text. `status:` takes `active`, `onhold` (or `on-hold`), `completed`, `dropped`; `tag:go` or `#go` also finds nested tags like `#go/web`; `folder:Zentro` matches that folder anywhere in the path but not `ZentroOld`, and `folder:"My Notes"` holds spaces. Qualifiers combine; anything else, `foo:bar` included, is plain text. Only qualifiers list every matching note, newest first. In the `[[` link picker (with `link_suggestions` set to `finder`) a leading `#` means headings instead, so tags there are filtered with `tag:`.
 - **Tags**: write `#tag` anywhere in a note (letters, digits, `_`, `-`, `/` for nesting) or list them in the front matter as `tags: a, b`, `[a, b]` or `- a` lines. Tags are highlighted in the editor, the reading view and the preview (never inside code, links, URLs, comments or the front matter); `:tags` lists every tag with its note count and opens the finder on the one you pick (before the notes are indexed it says "Indexing notes…"), and `tag:<name>` (or `#<name>`) filters the finder.
 - **Status filter** (`:status [value]`): opens the finder on `status:<value>`; without a value it opens on `status:` and lists `active · onhold · completed · dropped`.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
@@ -503,6 +503,7 @@ with render-markdown:
 | `accordion` | `true` (default): opening a folder in the explorer closes its open siblings. `false` keeps several open |
 | `explorer_hide_width` | Terminal width, in columns, below which the explorer hides (default `120`) |
 | `cursor_shape` | `"auto"` (default): the cursor itself shows the mode, a block in NORMAL and VISUAL and a thin bar in INSERT, like LazyVim. `"block"` keeps Misoku's drawn block in every mode |
+| `link_suggestions` | What typing `[[` opens. `"inline"` (default) lists notes under the cursor, and `#`, `Note#` and `^` their headings and blocks; `"finder"` opens the note picker instead |
 | `transparent` | `true` leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal with opacity or blur shows through. Popups go clear too, set apart by their border, and heading bands are off; highlights stay painted. `false` (default) paints the theme's background |
 
 ### Transparent background
@@ -528,17 +529,27 @@ catch (a panic or `kill -9`) can leave the shape set until the terminal resets i
 ### Settings menu
 
 `:settings` (or **Settings**, key `c`, on the home screen) opens a menu for
-six of these keys: accordion folders (on or off), the explorer hide width,
+seven of these keys: accordion folders (on or off), the explorer hide width,
 heading icons and bullets (one of the presets Misoku, Numbers, Arrows and
 Plain; Misoku removes both keys), the dialog border, the transparent
-background (on or off; off removes the key), and heading numbers (on or off). A value picked with Enter applies at once and is saved at once
+background (on or off; off removes the key), heading numbers (on or off) and
+link suggestions (Inline or Finder; Inline is the default and removes the
+key). A value picked with Enter applies at once and is saved at once
 in `config.json`: only that key changes, and every other setting stays as you
 wrote it. Esc goes back without saving, and picking the value already in use
 writes nothing. If the file cannot be written, the status bar says why.
 
 ## Links
 
-Type `[[` to link to another note. Click a link in the preview, or press
+Type `[[` to link to another note: a small list opens under the cursor with
+the notes, `#` lists the headings of the note you are in, `Note#` the
+headings of another one, `^` and `Note#^` their block ids. What you type
+stays in the note as you go: `↑`/`↓` move, `Enter` or `Tab` completes the
+link (`]]` included), `Esc` closes the list and leaves the text to write by
+hand. `:settings` → **Link suggestions** → **Finder** brings back the big
+picker instead, where `#`, `Note#` and `^` narrow the list the same way and
+the footer says so; `Esc` there also leaves the typed `[[`.
+Click a link in the preview, or press
 `gd` on it in the editor, to follow it. In NORMAL mode `Enter` on a
 `[[link]]` follows it too, as in the LazyVim companion: a link inside a code
 block or inline `` `code` `` is skipped, and a link to a note that doesn't

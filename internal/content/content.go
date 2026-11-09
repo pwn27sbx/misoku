@@ -31,13 +31,15 @@ type Model struct {
 	mode       VimMode
 	pending    string // first key of a two-key Vim command ("g", "d")
 	slash      *slashMenu
-	search     bool       // the command line is the "/" search prompt
-	lastSearch string     // the text NORMAL's n and N repeat
-	hl         *hlCache   // shared across copies so View can memoise
-	lv         *liveCache // the live view's memo, shared like hl
-	live       bool       // the live view is on; see SetLive
-	readOnly   bool       // keys that edit do nothing; see SetReadOnly
-	hist       *History   // the shown tab's undo history (SetHistory)
+	linkList   *linkList       // the inline "[[" suggestions, see linklist.go
+	linkSrc    []core.LinkNote // the notes those suggestions read
+	search     bool            // the command line is the "/" search prompt
+	lastSearch string          // the text NORMAL's n and N repeat
+	hl         *hlCache        // shared across copies so View can memoise
+	lv         *liveCache      // the live view's memo, shared like hl
+	live       bool            // the live view is on; see SetLive
+	readOnly   bool            // keys that edit do nothing; see SetReadOnly
+	hist       *History        // the shown tab's undo history (SetHistory)
 	copies     *atomic.Int64
 	dragging   bool
 	dragRow    int
@@ -155,6 +157,7 @@ func (m *Model) SetBuffer(p core.Page, draft bool) {
 	m.draft = draft
 	m.pending = ""
 	m.slash = nil
+	m.linkList = nil
 	m.textarea.SetValue(p.Content)
 	m.textarea.GotoTop()
 	m.syncHistory()
@@ -168,6 +171,7 @@ func (m *Model) SetFocused(focused bool) {
 	m.focused = focused
 	if !focused {
 		m.slash = nil
+		m.linkList = nil
 		m.Blur()
 		if m.mode == ModeCommand {
 			m.closeCommandLine()
@@ -296,6 +300,7 @@ func (m *Model) ExitInsert() {
 		m.mode = ModeNormal
 	}
 	m.slash = nil
+	m.linkList = nil
 }
 
 func (m *Model) enterInsert() tea.Cmd {

@@ -27,7 +27,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	if mouse, ok := msg.(tea.MouseMsg); ok {
-		return m.handleMouse(mouse)
+		m, cmd := m.handleMouse(mouse)
+		m.refreshLinkList() // a click can move the cursor out of the link
+		return m, cmd
 	}
 	if m.page.ID == "" {
 		return m, nil
@@ -50,6 +52,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	case ModeInsert:
 		k, isKey := msg.(tea.KeyMsg)
+		if isKey && m.linkList != nil {
+			if cmd, handled := m.updateLinkList(k); handled {
+				return m, cmd
+			}
+		}
 		if isKey && m.slash != nil {
 			if cmd, handled := m.updateSlash(k); handled {
 				return m, cmd
@@ -78,12 +85,13 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.textarea.EnsureVisible()
 		if isKey {
 			m.alignTableWhileTyping(k)
+			m.refreshLinkList()
 			if m.slash != nil {
 				m.afterSlashKey()
-			} else {
+			} else if m.linkList == nil {
 				m.maybeOpenSlash(k)
 			}
-			if k.Type == tea.KeyRunes && string(k.Runes) == "[" && strings.HasSuffix(m.textarea.LineBeforeCursor(), "[[") {
+			if m.linkList == nil && k.Type == tea.KeyRunes && string(k.Runes) == "[" && strings.HasSuffix(m.textarea.LineBeforeCursor(), "[[") {
 				return m, tea.Batch(cmd, func() tea.Msg { return core.SlashActionMsg{Action: "wikilink"} })
 			}
 		}
@@ -263,6 +271,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	case tea.MouseButtonLeft:
 		if m.slash != nil && msg.Action == tea.MouseActionPress {
 			if cmd, hit := m.clickSlash(msg.X, msg.Y); hit {
+				return m, cmd
+			}
+		}
+		if m.linkList != nil && msg.Action == tea.MouseActionPress {
+			if cmd, hit := m.clickLinkList(msg.X, msg.Y); hit {
 				return m, cmd
 			}
 		}

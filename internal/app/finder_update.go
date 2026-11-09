@@ -60,7 +60,7 @@ func (f *finder) update(m *Model, msg tea.Msg) tea.Cmd {
 		row := msg.Y - g.y - 1 - g.listTop
 		col := msg.X - g.x - 1
 		if row >= 0 && row < g.listRows && col < g.listW {
-			if idx := f.offset + row; idx < len(f.matches) {
+			if idx := f.offset + row; idx < f.count() {
 				f.sel = idx
 				return m.finderOpen(f, false)
 			}

@@ -249,8 +249,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "template":
 			return m, m.openTemplatePicker()
 		case "wikilink":
+			if m.inlineLinkSuggestions() {
+				return m, m.openLinkList()
+			}
 			cmd := m.openLinkPicker()
 			m.finder.wiki = true
+			if b := m.activeBuffer(); b != nil {
+				m.finder.current, m.finder.currentText = b.id, m.content.Value()
+			}
+			m.finder.refilter()
 			return m, cmd
 		}
 		if msg.Action == "media:paste" {
@@ -262,6 +269,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case core.ClipboardImageMsg:
 		m.attachPastedImage(msg)
+		return m, nil
+	case linkSourceMsg:
+		m.content.OpenLinkList(msg.notes)
 		return m, nil
 	case mediaPickedMsg:
 		switch {

@@ -130,7 +130,7 @@ func TestSettingsMenuListsTheFourOptions(t *testing.T) {
 	h := settingsHarness(t, tempConfig(t, ""))
 	h.openSettings()
 	v := h.view()
-	for _, want := range []string{"Settings", "Accordion folders", "on", "Explorer hide width", "120", "Icons & bullets", "Misoku", "Dialog border", "rounded", "Heading numbers"} {
+	for _, want := range []string{"Settings", "Accordion folders", "on", "Explorer hide width", "120", "Icons & bullets", "Misoku", "Dialog border", "rounded", "Heading numbers", "Link suggestions", "Inline"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("settings menu lacks %q:\n%s", want, v)
 		}
@@ -284,6 +284,32 @@ func TestSettingsHeadingNumbersApplyLiveAndAreSaved(t *testing.T) {
 		t.Fatalf("numbers off brings the level icon back:\n%s", p)
 	}
 	assertOnlyUIChanged(t, path, map[string]any{"heading_numbers": false})
+}
+
+// The seventh row chooses what "[[" opens: Inline (the default) or Finder,
+// applied at once and saved as ui.link_suggestions.
+func TestSettingsLinkSuggestionsAppliesLiveAndIsSaved(t *testing.T) {
+	path := tempConfig(t, userConfig)
+	h := settingsHarness(t, path)
+	h.openSettings()
+	h.keys("7")
+	if v := h.view(); !strings.Contains(v, "Link suggestions") || !strings.Contains(v, "Finder") {
+		t.Fatalf("the row should read Finder:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	h.keys("i[[")
+	if v := h.view(); !strings.Contains(v, "Link to Note") {
+		t.Fatalf("the Finder setting should open the picker:\n%s", v)
+	}
+	assertOnlyUIChanged(t, path, map[string]any{"link_suggestions": "finder"})
+
+	// Inline is the default: choosing it removes the key again.
+	h.key(tea.KeyEsc) // close the picker
+	h.key(tea.KeyEsc) // leave INSERT
+	h.openSettings()
+	h.keys("7")
+	h.key(tea.KeyEsc)
+	assertOnlyUIChanged(t, path, map[string]any{})
 }
 
 func TestSettingsBorderAppliesLiveAndIsSaved(t *testing.T) {
