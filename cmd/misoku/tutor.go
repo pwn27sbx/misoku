@@ -26,6 +26,15 @@ func tutorWorkspace(args []string) (dir, route, notice string, err error) {
 	if fs.NArg() > 0 {
 		return "", "", "", fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	}
+	routeSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "route" {
+			routeSet = true
+		}
+	})
+	if routeSet && strings.TrimSpace(*routeFlag) == "" {
+		return "", "", "", fmt.Errorf("--route needs B, I, A or E")
+	}
 	if *routeFlag != "" {
 		route = strings.ToUpper(*routeFlag)
 		if r, ok := tutor.Default().RouteByID(route); !ok || len(r.Lessons) == 0 {

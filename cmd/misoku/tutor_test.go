@@ -62,7 +62,7 @@ func TestTutorWorkspaceKeepsEditsUnlessReset(t *testing.T) {
 
 func TestTutorWorkspaceRejectsOtherArguments(t *testing.T) {
 	fakeConfigHome(t)
-	for _, args := range [][]string{{"--nope"}, {"folder"}} {
+	for _, args := range [][]string{{"--nope"}, {"folder"}, {"--route="}} {
 		if _, _, _, err := tutorWorkspace(args); err == nil {
 			t.Errorf("tutorWorkspace(%q): no error", args)
 		}
