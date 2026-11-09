@@ -1,6 +1,8 @@
 package tutor_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -129,6 +131,33 @@ func TestInstallRetiresDecomposedNames(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "B01 Títulos.md")); err != nil {
 		t.Errorf("the new lesson was not installed: %v", err)
+	}
+}
+
+// failFS refuses every read, as a copy that fails at the first file does.
+type failFS struct{}
+
+func (failFS) Open(string) (fs.File, error) { return nil, errors.New("no copy today") }
+
+// S5: a copy that fails leaves the old tutorial in place; nothing was retired
+// before the new lessons were written.
+func TestInstallCopyFailureKeepsOldNotes(t *testing.T) {
+	tempHome(t)
+	dir := filepath.Join(t.TempDir(), "tutor")
+	mustWrite(t, dir, "00 Empieza aquí.md", "viejo")
+
+	if _, err := tutor.InstallWithNotice(failFS{}, dir, false); err == nil {
+		t.Fatal("the failing copy should report an error")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "00 Empieza aquí.md")); err != nil {
+		t.Fatalf("the old note was retired before the lessons were installed: %v", err)
+	}
+	store, err := tutor.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.Migrated() {
+		t.Fatal("a failed install recorded the migration")
 	}
 }
 

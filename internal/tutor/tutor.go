@@ -82,11 +82,10 @@ func InstallWithNotice(fsys fs.FS, dir string, reset bool) (string, error) {
 	if err := os.MkdirAll(clean, 0o755); err != nil {
 		return "", err
 	}
-	notice, err := migrateOldLessons(clean)
-	if err != nil {
-		return "", err
-	}
-	err = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+	// Copy the new lessons first: if that fails, the old tutorial is still
+	// there to open, and the retirement has not happened yet. Only then move
+	// the old notes to the Trash.
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -105,7 +104,10 @@ func InstallWithNotice(fsys fs.FS, dir string, reset bool) (string, error) {
 		}
 		return os.WriteFile(target, data, 0o644)
 	})
-	return notice, err
+	if err != nil {
+		return "", err
+	}
+	return migrateOldLessons(clean)
 }
 
 // migrateOldLessons retires the pre-routes notes once. It matches names by
