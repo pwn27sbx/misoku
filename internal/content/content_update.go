@@ -77,6 +77,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.textarea, cmd = m.textarea.Update(msg)
 		m.textarea.EnsureVisible()
 		if isKey {
+			m.alignTableWhileTyping(k)
 			if m.slash != nil {
 				m.afterSlashKey()
 			} else {

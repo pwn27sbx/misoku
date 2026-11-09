@@ -366,6 +366,11 @@ func (m *Model) message() string {
 		return m.messageOf(m.status)
 	case m.leaderPending:
 		return lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Blue).Bold(true).Render("  <Space>")
+	case m.viewMode == viewModeWorkspace && m.focus == focusEditor &&
+		m.content.Mode() == content.ModeInsert && m.content.InTable():
+		// The keys that work in a table, where the caret is, and how to add a
+		// column without leaving the cell: MISOKU-05's discoverability ask.
+		return lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.GreyFg).Render("  Tab next cell · / add row or column")
 	}
 	return ""
 }
