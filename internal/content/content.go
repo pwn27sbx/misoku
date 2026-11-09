@@ -53,6 +53,12 @@ type Model struct {
 	focused    bool
 	dimmed     bool // greyed out while another pane has the focus
 	realCursor bool // the terminal draws the cursor; see SetRealCursor
+
+	// linkSeq numbers the "[[" triggers and linkPending is the trigger a
+	// source read still waits for: a read that arrives after a close is
+	// dropped, see RequestLinkList.
+	linkSeq     uint64
+	linkPending uint64
 }
 
 // New constructs a Content Model.
@@ -157,7 +163,7 @@ func (m *Model) SetBuffer(p core.Page, draft bool) {
 	m.draft = draft
 	m.pending = ""
 	m.slash = nil
-	m.linkList = nil
+	m.closeLinkList()
 	m.textarea.SetValue(p.Content)
 	m.textarea.GotoTop()
 	m.syncHistory()
@@ -171,7 +177,7 @@ func (m *Model) SetFocused(focused bool) {
 	m.focused = focused
 	if !focused {
 		m.slash = nil
-		m.linkList = nil
+		m.closeLinkList()
 		m.Blur()
 		if m.mode == ModeCommand {
 			m.closeCommandLine()
@@ -300,7 +306,7 @@ func (m *Model) ExitInsert() {
 		m.mode = ModeNormal
 	}
 	m.slash = nil
-	m.linkList = nil
+	m.closeLinkList()
 }
 
 func (m *Model) enterInsert() tea.Cmd {

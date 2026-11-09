@@ -77,6 +77,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		if isKey && k.String() == "esc" {
 			m.mode = ModeNormal
+			m.closeLinkList()
 			m.textarea.CharLeft()
 			return m, m.focusTextarea()
 		}

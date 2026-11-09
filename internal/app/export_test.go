@@ -4,12 +4,19 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dirplan"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
+
+// LinkSourceRead is the result of the suggestion read for the "[[" numbered
+// request, so a test can deliver one that arrives after the list closed.
+func LinkSourceRead(request uint64, notes []core.LinkNote) tea.Msg {
+	return linkSourceMsg{notes: notes, request: request}
+}
 
 // WithClock makes the app read the time from now, so a test can say how
 // long ago the last sync was.

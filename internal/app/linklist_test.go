@@ -90,6 +90,26 @@ func TestInlineLinkListClosesOnClosedBrackets(t *testing.T) {
 	}
 }
 
+// A read that arrives after Esc must not reopen the inline list: only a new
+// "[[" does.
+func TestInlineLinkListStaysClosedAfterALateSource(t *testing.T) {
+	h := openDeployGuide(t)
+	h.keys("i[[#zzzz")
+	if v := h.view(); !strings.Contains(v, "No matches") {
+		t.Fatalf("the list should be open:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	// The first "[[" of this app is request 1: this is the read it left in
+	// flight when the user closed the list.
+	h.send(app.LinkSourceRead(1, []core.LinkNote{{
+		ID: "tech/Deploy Guide.md", Title: "Deploy Guide",
+		Text: "# Deploy Guide\n\n## Steps\n",
+	}}))
+	if v := h.view(); strings.Contains(v, "No matches") {
+		t.Fatalf("a late source read must not reopen the list:\n%s", v)
+	}
+}
+
 // S4: the finder comes back with ui.link_suggestions = "finder".
 func TestLinkSuggestionsFinderSettingRestoresThePicker(t *testing.T) {
 	h := openDeployGuide(t, app.WithUI(config.UI{LinkSuggestions: config.LinkSuggestionsFinder}))

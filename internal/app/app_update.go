@@ -271,7 +271,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.attachPastedImage(msg)
 		return m, nil
 	case linkSourceMsg:
-		m.content.OpenLinkList(msg.notes)
+		m.content.OpenLinkList(msg.notes, msg.request)
 		return m, nil
 	case mediaPickedMsg:
 		switch {

@@ -19,16 +19,47 @@ type linkList struct {
 
 // OpenLinkList opens the inline list of link suggestions for the "[[" before
 // the cursor, reading the vault's notes from src. The app reads them in a
-// command: Update never touches the disk. Nothing happens when no "[[" is
-// open under the cursor.
-func (m *Model) OpenLinkList(src []core.LinkNote) {
+// command: Update never touches the disk. request is the token
+// RequestLinkList returned: a read that arrives after the list closed (Esc,
+// "]]", the cursor leaving the link, leaving INSERT, the "[[" deleted) is
+// dropped, so only a new "[[" brings the list back.
+func (m *Model) OpenLinkList(src []core.LinkNote, request uint64) {
+	if request == 0 || m.linkPending != request {
+		return
+	}
+	m.linkPending = 0 // the read this trigger asked for arrived
 	m.linkSrc = src
+	if m.mode != ModeInsert {
+		m.closeLinkList()
+		return
+	}
 	if _, ok := m.linkListQuery(); !ok {
-		m.linkList = nil
+		m.closeLinkList()
 		return
 	}
 	m.linkList = &linkList{}
 	m.refreshLinkList()
+}
+
+// RequestLinkList records a "[[" trigger and returns the token its source
+// read must carry back, or 0 when the cursor is not completing a link.
+func (m *Model) RequestLinkList() uint64 {
+	if m.mode != ModeInsert {
+		return 0
+	}
+	if _, ok := m.linkListQuery(); !ok {
+		return 0
+	}
+	m.linkSeq++
+	m.linkPending = m.linkSeq
+	return m.linkSeq
+}
+
+// closeLinkList hides the list and forgets the trigger a source read waits
+// for, so a read still in flight cannot bring the list back.
+func (m *Model) closeLinkList() {
+	m.linkList = nil
+	m.linkPending = 0
 }
 
 // LinkListOpen reports whether the inline link list is showing.
@@ -59,7 +90,7 @@ func (m *Model) refreshLinkList() {
 	}
 	q, ok := m.linkListQuery()
 	if !ok {
-		m.linkList = nil
+		m.closeLinkList()
 		return
 	}
 	if m.linkList.items == nil || m.linkList.version != m.textarea.Version() {
@@ -82,7 +113,7 @@ func (m *Model) refreshLinkList() {
 func (m *Model) updateLinkList(k tea.KeyMsg) (tea.Cmd, bool) {
 	switch k.String() {
 	case "esc":
-		m.linkList = nil
+		m.closeLinkList()
 		return nil, true
 	case "up", "ctrl+p", "ctrl+k":
 		m.moveLinkList(-1)
@@ -104,14 +135,14 @@ func (m *Model) updateLinkList(k tea.KeyMsg) (tea.Cmd, bool) {
 func (m *Model) applyLinkList(passThrough bool) (tea.Cmd, bool) {
 	q, ok := m.linkListQuery()
 	if !ok {
-		m.linkList = nil
+		m.closeLinkList()
 		return nil, false
 	}
 	if it, found := m.selectedLinkItem(); found {
 		m.insertLinkSuggestion(q, it.Insert)
 		return nil, true
 	}
-	m.linkList = nil
+	m.closeLinkList()
 	done := core.LinkCompletion(q)
 	if done == "" {
 		return nil, !passThrough
@@ -134,7 +165,7 @@ func (m *Model) insertLinkSuggestion(query, insert string) {
 	ta := &m.textarea
 	ta.DeleteBefore(len([]rune(query)))
 	ta.InsertString(insert + "]]")
-	m.linkList = nil
+	m.closeLinkList()
 	ta.EnsureVisible()
 }
 

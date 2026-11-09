@@ -117,7 +117,7 @@ func (m *Model) clickLinkList(x, y int) (tea.Cmd, bool) {
 		return nil, false
 	}
 	if x < bx || x >= bx+w || y < by || y >= by+h {
-		m.linkList = nil
+		m.closeLinkList()
 		return nil, false
 	}
 	row := y - by - 1
@@ -126,7 +126,7 @@ func (m *Model) clickLinkList(x, y int) (tea.Cmd, bool) {
 	}
 	q, ok := m.linkListQuery()
 	if !ok {
-		m.linkList = nil
+		m.closeLinkList()
 		return nil, false
 	}
 	m.insertLinkSuggestion(q, items[row].Insert)

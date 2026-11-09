@@ -29,7 +29,7 @@ func linkListNote(t *testing.T, text string, src []core.LinkNote) content.Model 
 	c := linkListNoteAt(t, text)
 	c.GotoLine(c.LineCount())
 	c = keys(c, "[[")
-	c.OpenLinkList(src)
+	c.OpenLinkList(src, c.RequestLinkList())
 	return c
 }
 
@@ -200,7 +200,7 @@ func TestLinkListInATableCell(t *testing.T) {
 	c.GotoLine(3)
 	c, _ = c.Update(tea.KeyMsg{Type: tea.KeyEnd})
 	c = keys(c, " [[")
-	c.OpenLinkList(linkSource())
+	c.OpenLinkList(linkSource(), c.RequestLinkList())
 	if !c.LinkListOpen() {
 		t.Fatal("[[]] inside a table cell should open the inline list")
 	}
@@ -220,7 +220,7 @@ func TestLinkListOpensAboveWhenItDoesNotFit(t *testing.T) {
 	c.GotoLine(c.LineCount())
 	c.EnterInsert()
 	c = keys(c, "A[[")
-	c.OpenLinkList(linkSource())
+	c.OpenLinkList(linkSource(), c.RequestLinkList())
 	_, cy, ok := c.CursorScreen()
 	if !ok {
 		t.Fatal("no cursor")
@@ -228,5 +228,91 @@ func TestLinkListOpensAboveWhenItDoesNotFit(t *testing.T) {
 	_, _, y, drawn := c.LinkListView()
 	if !drawn || y >= cy {
 		t.Fatalf("the list should open above the cursor: y=%d, cursor=%d", y, cy)
+	}
+}
+
+// The app reads the notes away from Update: a read that arrives after Esc
+// must not bring the list back. Only a new "[[" opens it again.
+func TestLinkListStaysClosedAfterALateSource(t *testing.T) {
+	c := linkListNoteAt(t, "")
+	c.GotoLine(c.LineCount())
+	c = keys(c, "[[#step")
+	req := c.RequestLinkList()
+	c.OpenLinkList(linkSource(), req)
+	if !c.LinkListOpen() {
+		t.Fatal("the trigger should open the list")
+	}
+	c, _ = c.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if c.LinkListOpen() {
+		t.Fatal("Esc should close the list")
+	}
+	c.OpenLinkList(linkSource(), req) // the read was still in flight
+	if c.LinkListOpen() {
+		t.Fatal("a late source must not reopen the list")
+	}
+
+	// A new "[[" asks again; the old read still does not open it.
+	c.EnterInsert()
+	c, _ = c.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	c = keys(c, " [[")
+	again := c.RequestLinkList()
+	if again == 0 || again == req {
+		t.Fatalf("a new trigger should ask with a new token, got %d after %d", again, req)
+	}
+	c.OpenLinkList(linkSource(), req)
+	if c.LinkListOpen() {
+		t.Fatal("the read of an older trigger must not open the list")
+	}
+	c.OpenLinkList(linkSource(), again)
+	if !c.LinkListOpen() {
+		t.Fatal("a new trigger should open the list")
+	}
+}
+
+// Every way of closing the list also drops the trigger its read waits for.
+func TestLinkListDropsALateSourceAfterEveryClose(t *testing.T) {
+	closes := []struct {
+		name  string
+		close func(content.Model) content.Model
+	}{
+		{"]]", func(c content.Model) content.Model { return keys(c, "]]") }},
+		{"leaving INSERT", func(c content.Model) content.Model {
+			c.ExitInsert()
+			return c
+		}},
+		{"the cursor leaving the link", func(c content.Model) content.Model {
+			for i := 0; i < 8; i++ {
+				c, _ = c.Update(tea.KeyMsg{Type: tea.KeyLeft})
+			}
+			return c
+		}},
+		{"deleting [[", func(c content.Model) content.Model {
+			for i := 0; i < 5; i++ { // back to just after the "[["; "#step" is 5 runes
+				c, _ = c.Update(tea.KeyMsg{Type: tea.KeyLeft})
+			}
+			c, _ = c.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+			c, _ = c.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+			return c
+		}},
+	}
+	for _, tc := range closes {
+		t.Run(tc.name, func(t *testing.T) {
+			c := linkListNoteAt(t, "")
+			c.GotoLine(c.LineCount())
+			c = keys(c, "[[#step")
+			req := c.RequestLinkList()
+			c.OpenLinkList(linkSource(), req)
+			if !c.LinkListOpen() {
+				t.Fatal("the trigger should open the list")
+			}
+			c = tc.close(c)
+			if c.LinkListOpen() {
+				t.Fatal("the close should hide the list")
+			}
+			c.OpenLinkList(linkSource(), req)
+			if c.LinkListOpen() {
+				t.Fatal("a late source must not reopen the list")
+			}
+		})
 	}
 }
