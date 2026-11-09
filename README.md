@@ -228,7 +228,7 @@ never use `notes_dir`.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` (or `ctrl+←`/`ctrl+→`) or a click move the focus.
 - **Dimmed backdrop**: while a dialog, the finder, the command palette or another box that takes the keys is open, the screen behind it turns grey and its pictures hide, so the box is the only thing in colour; closing it brings the colours back. The leader guide and the `/` menu leave the screen as it is.
-- **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
+- **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. `space e` opens and closes it too. Wider windows keep your last toggle until the width crosses 120 again.
 - **Two full-width views**, each toggled by its own key and back to the split of editor and side preview:
   - **Reading view** (`space p`): the note alone at full width, like render-markdown.nvim: line numbers hide and every line is drawn rendered (headings without `#`, bold, italic and code without delimiters, links as their text, boxes, `•` bullets and `▎` quotes; a checked task's text is muted and struck through, as in the preview). Code blocks, front matter and tables stay raw. It is read-only: you move, scroll, select and copy, search and follow links (`Enter`, `gd`), but keys that edit only say how to edit; the statusline says READING.
   - **Editor view** (`space r`): the Markdown editor alone at full width, with line numbers and editable as usual.
@@ -328,7 +328,7 @@ off:
 ```json
 {
   "keys": {
-    "toggle_explorer": ["space e"],
+    "reading_view": ["space p", "space v"],
     "focus_explorer": [],
     "close_tab": ["space q", "ctrl+w"]
   }
@@ -398,13 +398,13 @@ The list scrolls when it does not fit, so no row is cut.
 | `save` | `ctrl+s`, `space w` | Save (new notes: pick folder) |
 | `find_note` | `ctrl+p`, `\`, `space f`, `space o f`, `space o g` | Find note (opens in this tab) |
 | `toggle_explorer` | `ctrl+b` | Toggle explorer |
-| `focus_explorer` | `space e` | Focus explorer |
+| `focus_explorer` | `space e` | Focus / close explorer (opens and focuses it; with the focus, closes it and returns to the editor) |
 | `next_pane` | `tab` | Next pane |
 | `prev_pane` | `shift+tab` | Previous pane |
 | `pane_left` | `ctrl+h`, `ctrl+left` | Pane to the left |
 | `pane_right` | `ctrl+l`, `ctrl+right` | Pane to the right |
-| `next_tab` | `]`, `space tab` | Next tab |
-| `prev_tab` | `[`, `space shift+tab` | Previous tab |
+| `next_tab` | `]`, `L`, `space tab` | Next tab |
+| `prev_tab` | `[`, `H`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
 | `reading_view` | `space p` | Reading view: the rendered note alone, full width and read-only (`space p` again brings the split back) |
 | `editor_view` | `space r` | Editor view: the Markdown editor alone, full width, with line numbers (`space r` again brings the split back) |

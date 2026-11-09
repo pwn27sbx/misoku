@@ -96,12 +96,12 @@ func TestLeaderGuideGroupsTheFollowingKeys(t *testing.T) {
 	tickGuide(h)
 	v := h.view()
 	cases := map[string]string{
-		"New note":       "NOTE",
-		"Export note":    "NOTE",
-		"Reading view":   "VIEW",
-		"Themes":         "VIEW",
-		"Focus explorer": "GO",
-		"Home screen":    "GO",
+		"New note":               "NOTE",
+		"Export note":            "NOTE",
+		"Reading view":           "VIEW",
+		"Themes":                 "VIEW",
+		"Focus / close explorer": "GO",
+		"Home screen":            "GO",
 	}
 	for text, want := range cases {
 		if got := guideGroup(t, v, text); got != want {
@@ -137,7 +137,7 @@ func TestLeaderGuideFollowsTheConfiguredKeys(t *testing.T) {
 	if got := guideGroup(t, v, "Toggle explorer"); got != "VIEW" {
 		t.Errorf("toggle_explorer moved to space e should show under VIEW, got %s:\n%s", got, v)
 	}
-	for _, gone := range []string{"Themes", "Focus explorer"} {
+	for _, gone := range []string{"Themes", "Focus / close explorer"} {
 		if strings.Contains(v, gone) {
 			t.Errorf("unbound %q is still listed:\n%s", gone, v)
 		}

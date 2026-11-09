@@ -429,6 +429,26 @@ func (m *Model) toggleSidebar() tea.Cmd {
 	return m.focusPane(focusSidebar)
 }
 
+// toggleExplorerFocus is Space e, the LazyVim <leader>e behaviour: an
+// explorer that has the focus closes and gives the focus back to the editor;
+// an open one without the focus gets it; a hidden one is shown and focused.
+// With no note open there is nothing to go back to, so it stays. The home
+// screen keeps opening it, as it did before the toggle.
+func (m *Model) toggleExplorerFocus() tea.Cmd {
+	if m.viewMode != viewModeWorkspace || !m.sidebarOpen || m.focus != focusSidebar {
+		return m.focusPane(focusSidebar)
+	}
+	if m.activeBuffer() == nil {
+		return nil
+	}
+	if m.explorerOverlay() {
+		return m.closeExplorerOverlay()
+	}
+	m.sidebarOpen = false
+	m.updateLayout()
+	return m.focusPane(focusEditor)
+}
+
 // noteView is how the open note is laid out: the split of editor and side
 // preview, or one of the two full-width views.
 type noteView int

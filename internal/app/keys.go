@@ -53,7 +53,7 @@ func (m *Model) runAction(action string) tea.Cmd {
 	case keymap.ToggleExplorer:
 		return m.toggleSidebar()
 	case keymap.FocusExplorer:
-		return m.focusPane(focusSidebar)
+		return m.toggleExplorerFocus()
 	case keymap.NextPane:
 		return m.movePane(1, true)
 	case keymap.PrevPane:
