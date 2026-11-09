@@ -40,13 +40,13 @@ func TestFirstRunDialogRemembersEachAnswer(t *testing.T) {
 		tutorial bool
 	}{
 		{"Soy nuevo", func(h *harness) { h.key(tea.KeyEnter) }, true},
-		{"Ya tengo experiencia", func(h *harness) { h.keys("j"); h.key(tea.KeyEnter) }, false},
+		{"Ya tengo experiencia", func(h *harness) { h.keys("j"); h.key(tea.KeyEnter) }, true},
 		{"Ahora no", func(h *harness) { h.keys("jj"); h.key(tea.KeyEnter) }, false},
 		{"n", func(h *harness) { h.keys("n") }, true},
-		{"e", func(h *harness) { h.keys("e") }, false},
+		{"e", func(h *harness) { h.keys("e") }, true},
 		{"a", func(h *harness) { h.keys("a") }, false},
 		{"Esc", func(h *harness) { h.key(tea.KeyEsc) }, false},
-		{"down then Enter", func(h *harness) { h.key(tea.KeyDown); h.key(tea.KeyEnter) }, false},
+		{"down then Enter", func(h *harness) { h.key(tea.KeyDown); h.key(tea.KeyEnter) }, true},
 		{"down, up then Enter", func(h *harness) { h.key(tea.KeyDown); h.key(tea.KeyUp); h.key(tea.KeyEnter) }, true},
 	}
 	for _, a := range answers {

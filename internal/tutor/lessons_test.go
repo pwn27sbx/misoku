@@ -13,7 +13,7 @@ var answers = map[string]struct {
 	env  Env
 }{
 	"B01 Títulos.md":              {"\n## Viaje\n\n### Día 1\n", Env{}},
-	"B02 Casillas.md":             {"\n- [x] Aprender casillas\n", Env{}},
+	"B02 Casillas.md":             {"\n- [x] comprar pan\n", Env{}},
 	"B03 Menú de bloques.md":      {"\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n", Env{}},
 	"B04 Links.md":                {"\n[[B05 Links a títulos]]\n", Env{Exists: func(string) bool { return true }}},
 	"B05 Links a títulos.md":      {"\n[[#Un título de ejemplo]]\n", Env{}},

@@ -24,15 +24,19 @@ type welcomeDialog struct {
 // muted line under it.
 type welcomeOption struct{ key, title, desc string }
 
-// welcomeOptions lists the answers in order; the first starts the tutorial.
-// The level count comes from the tutorial's catalogue (an empty Progress
-// counts its levels).
+// welcomeOptions lists the answers in order; the first two start the tutorial
+// on a route, and the last goes straight to the notes.
 func welcomeOptions() []welcomeOption {
-	_, levels := (&tutor.Progress{}).Count()
+	b, _ := tutor.Default().RouteByID("B")
+	lessons := len(b.Lessons)
+	word := "lecciones"
+	if lessons == 1 {
+		word = "lección"
+	}
 	return []welcomeOption{
-		{"n", "Soy nuevo", fmt.Sprintf("Tutorial interactivo · %d niveles · ~10 min", levels)},
-		{"e", "Ya tengo experiencia", "Vas directo a tus notas"},
-		{"a", "Ahora no", "Te espera en «Learn» (tecla l) cuando quieras"},
+		{"n", "Soy nuevo", fmt.Sprintf("Ruta Básico · %d %s", lessons, word)},
+		{"e", "Ya tengo experiencia", "Ruta Intermedio"},
+		{"a", "Ahora no", "Vas directo a tus notas"},
 	}
 }
 
@@ -63,7 +67,11 @@ func (d *welcomeDialog) innerWidth() int {
 	for _, o := range welcomeOptions() {
 		w = max(w, lipgloss.Width(o.title), lipgloss.Width(o.desc))
 	}
-	return welcomeIndent + 5 + w + 1
+	w = welcomeIndent + 5 + w + 1
+	// The full banner and its cat share one row: keep room for both.
+	banner := welcomeIndent + lipgloss.Width(welcomeCat[0]) + 4 + lipgloss.Width(welcomeBanner[0])
+	tagline := welcomeIndent + lipgloss.Width("Tus notas en Markdown, en la terminal,") + 1
+	return max(w, banner, tagline)
 }
 
 // compact reports whether a W x H terminal takes the compact variant.
@@ -157,8 +165,15 @@ func (d *welcomeDialog) view(th theme.Theme, W, H int) (string, int, int) {
 func (d *welcomeDialog) update(m *Model, msg tea.Msg) (tea.Cmd, bool) {
 	options := welcomeOptions()
 	choose := func(i int) (tea.Cmd, bool) {
+		route := ""
+		switch i {
+		case 0:
+			route = "B"
+		case 1:
+			route = "I"
+		}
 		m.confirm = nil
-		return m.learnChosen(i == 0), true
+		return m.learnChosen(route), true
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

@@ -358,7 +358,9 @@ func (m *Model) bottomBar() string {
 	return m.statusline()
 }
 
-// message is the transient text shown in the middle of the statusline.
+// message is the transient text shown in the middle of the statusline: the
+// status, the leader, the tutorial's step line and the table hint, in that
+// order (E8).
 func (m *Model) message() string {
 	th := m.theme
 	switch {
@@ -366,11 +368,38 @@ func (m *Model) message() string {
 		return m.messageOf(m.status)
 	case m.leaderPending:
 		return lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.Blue).Bold(true).Render("  <Space>")
-	case m.viewMode == viewModeWorkspace && m.focus == focusEditor &&
-		m.content.Mode() == content.ModeInsert && m.content.InTable():
-		// The keys that work in a table, where the caret is, and how to add a
-		// column without leaving the cell: MISOKU-05's discoverability ask.
-		return lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.GreyFg).Render("  Tab next cell · / add row or column")
+	}
+	if m.tutor != nil && m.tutor.flash != "" {
+		return m.tutorBar(m.tutor.flash, false)
+	}
+	line := m.tutorLine()
+	table := m.tableHint()
+	switch {
+	case line != "" && table != "":
+		return m.tutorBar(line+" · "+table, false)
+	case line != "":
+		return m.tutorBar(line, false)
+	case table != "":
+		return m.tutorBar(table, true)
+	}
+	return ""
+}
+
+// tutorBar draws a plain bar message, in the normal or the muted colour.
+func (m *Model) tutorBar(text string, muted bool) string {
+	fg := m.theme.Fg
+	if muted {
+		fg = m.theme.GreyFg
+	}
+	return lipgloss.NewStyle().Background(m.theme.StatusBg).Foreground(fg).Render("  " + m.barText(text))
+}
+
+// tableHint is the keys that work in a table, where the caret is, and how to
+// add a column without leaving the cell: MISOKU-05's discoverability ask.
+func (m *Model) tableHint() string {
+	if m.viewMode == viewModeWorkspace && m.focus == focusEditor &&
+		m.content.Mode() == content.ModeInsert && m.content.InTable() {
+		return "Tab next cell · / add row or column"
 	}
 	return ""
 }

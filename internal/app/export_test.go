@@ -161,10 +161,19 @@ func SetHasTrash(has bool) (restore func()) {
 	return func() { hasTrash = prev }
 }
 
+// ExpireTutorFlash clears the timed "✓ Paso N" state, as its timer does.
+func ExpireTutorFlash(tm tea.Model) tea.Model {
+	m := tm.(Model)
+	if m.tutor != nil {
+		m.tutor.flash = ""
+	}
+	return m
+}
+
 // TutorialDone is the message the app gets when the tutorial it ran outside
 // the screen ends, with the progress it left on disk.
-func TutorialDone(err error, p *tutor.Progress) tea.Msg {
-	return tutorialDoneMsg{err: err, progress: p}
+func TutorialDone(err error, s *tutor.Store, cat tutor.Catalog) tea.Msg {
+	return tutorialDoneMsg{err: err, learn: &learnState{store: s, cat: cat}}
 }
 
 // DirPlanStoppedMsg is the result of a Stage A batch that stopped at failed

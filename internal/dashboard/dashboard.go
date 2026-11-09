@@ -43,9 +43,17 @@ const (
 // MenuItem represents a selectable button on the start screen.
 type MenuItem struct {
 	Key    string
+	ID     string
 	Icon   string
 	Label  string
 	Action Action
+}
+
+// LearnEntry is one route on the home screen: its ID and the label, such as
+// "Learn · Básico 3/26".
+type LearnEntry struct {
+	Route string
+	Label string
 }
 
 const (
@@ -134,30 +142,41 @@ func (m *Model) SetSyncSetup(offered bool) {
 // tutorial's own title.
 var learnItem = MenuItem{Key: "l", Icon: "\uf02d", Label: "Learn", Action: ActionLearn}
 
-// SetLearn shows the "Learn" entry, under Graph, with label (such as
-// "Learn 3/7"), and removes it when label is "": the app offers it while
-// there is a tutorial folder to open and this is not a tutorial session. The
+// SetLearn shows one "Learn" entry per route, under Graph, with its label
+// (such as "Learn · Básico 3/26"), and removes them when entries is empty:
+// the app offers them while there is a tutorial folder to open and this is
+// not a tutorial session. The first route not complete keeps the l key. The
 // cursor stays on the item it was on.
-func (m *Model) SetLearn(label string) {
-	items := make([]MenuItem, 0, len(m.menuItems)+1)
-	for i, it := range m.menuItems {
+func (m *Model) SetLearn(entries []LearnEntry) {
+	action, id := m.itemAt(m.cursor)
+	items := make([]MenuItem, 0, len(m.menuItems)+len(entries))
+	for _, it := range m.menuItems {
 		if it.Action == ActionLearn {
-			if m.cursor > i {
-				m.cursor-- // the items below move up a row
-			}
 			continue
 		}
-		if label != "" && it.Action == ActionSettings {
-			if m.cursor >= len(items) {
-				m.cursor++ // the items from here move down a row
+		if it.Action == ActionSettings && len(entries) > 0 {
+			keyed := false
+			for _, e := range entries {
+				learn := learnItem
+				learn.ID = e.Route
+				learn.Label = e.Label
+				learn.Key = ""
+				if !keyed && !strings.HasSuffix(e.Label, "✓") {
+					learn.Key = "l"
+					keyed = true
+				}
+				items = append(items, learn)
 			}
-			learn := learnItem
-			learn.Label = label
-			items = append(items, learn)
 		}
 		items = append(items, it)
 	}
 	m.menuItems = items
+	for i := 0; i < m.itemCount(); i++ {
+		if a, aid := m.itemAt(i); a == action && aid == id {
+			m.cursor = i
+			return
+		}
+	}
 	m.cursor = min(m.cursor, m.itemCount()-1)
 }
 
@@ -227,7 +246,7 @@ func (m Model) itemAt(i int) (Action, string) {
 		return ActionNone, ""
 	}
 	if i < len(m.menuItems) {
-		return m.menuItems[i].Action, ""
+		return m.menuItems[i].Action, m.menuItems[i].ID
 	}
 	i -= len(m.menuItems)
 	if i < len(m.recentPages) {

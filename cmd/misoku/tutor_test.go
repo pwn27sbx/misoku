@@ -29,7 +29,7 @@ func fakeConfigHome(t *testing.T) {
 // --reset brings the bundled lesson back.
 func TestTutorWorkspaceKeepsEditsUnlessReset(t *testing.T) {
 	fakeConfigHome(t)
-	dir, err := tutorWorkspace(nil)
+	dir, _, _, err := tutorWorkspace(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,14 +45,14 @@ func TestTutorWorkspaceKeepsEditsUnlessReset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := tutorWorkspace(nil); err != nil {
+	if _, _, _, err := tutorWorkspace(nil); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(lesson); string(got) != "- [x] hecho\n" {
 		t.Fatalf("without --reset the edited lesson was replaced:\n%s", got)
 	}
 
-	if _, err := tutorWorkspace([]string{"--reset"}); err != nil {
+	if _, _, _, err := tutorWorkspace([]string{"--reset"}); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(lesson); string(got) != string(bundled) {
@@ -63,7 +63,7 @@ func TestTutorWorkspaceKeepsEditsUnlessReset(t *testing.T) {
 func TestTutorWorkspaceRejectsOtherArguments(t *testing.T) {
 	fakeConfigHome(t)
 	for _, args := range [][]string{{"--nope"}, {"folder"}} {
-		if _, err := tutorWorkspace(args); err == nil {
+		if _, _, _, err := tutorWorkspace(args); err == nil {
 			t.Errorf("tutorWorkspace(%q): no error", args)
 		}
 	}
@@ -72,7 +72,7 @@ func TestTutorWorkspaceRejectsOtherArguments(t *testing.T) {
 func TestUsageListsTutor(t *testing.T) {
 	var b strings.Builder
 	usage(&b)
-	if !strings.Contains(b.String(), "misoku tutor [--reset]") {
+	if !strings.Contains(b.String(), "misoku tutor [--route B|I|A|E] [--reset]") {
 		t.Fatalf("usage does not list misoku tutor:\n%s", b.String())
 	}
 }

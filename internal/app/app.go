@@ -20,7 +20,6 @@ import (
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
-	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -108,8 +107,11 @@ type Model struct {
 
 	toast    string
 	toastSeq int
-	tutor    *tutorGame      // misoku tutor's levels, nil outside the tutorial, see tutor.go
-	learn    *tutor.Progress // the home screen's "Learn k/n" entry, nil hides it, see learn.go
+	tutor    *tutorGame  // misoku tutor's lessons, nil outside the tutorial, see tutor.go
+	learn    *learnState // the home screen's per-route Learn entries, nil hides them, see learn.go
+	// tutorNotice is the one-line migration notice shown when the tutorial
+	// opens, see WithTutorNotice.
+	tutorNotice string
 	// learnPending is the first-run dialog still to be shown and learnBox
 	// the dialog as drawn, so a resize tells it from another one; see
 	// offerLearn.

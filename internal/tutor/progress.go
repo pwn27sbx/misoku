@@ -34,6 +34,7 @@ type progressState struct {
 	Migrated  bool            `json:"migrated,omitempty"`
 	LastRoute string          `json:"last_route,omitempty"`
 	Steps     map[string]bool `json:"steps"`
+	Skipped   map[string]bool `json:"skipped,omitempty"`
 }
 
 // Store is a tutorial's progress. Text and disk steps are re-derived from the
@@ -73,6 +74,9 @@ func Load(dir string) (*Store, error) {
 	if st.Steps == nil {
 		st.Steps = map[string]bool{}
 	}
+	if st.Skipped == nil {
+		st.Skipped = map[string]bool{}
+	}
 	s.state = st
 	return s, nil
 }
@@ -92,6 +96,9 @@ func (s *Store) Save(dir string) error {
 	s.state.Version = progressVersion
 	if s.state.Steps == nil {
 		s.state.Steps = map[string]bool{}
+	}
+	if s.state.Skipped == nil {
+		s.state.Skipped = map[string]bool{}
 	}
 	data, err := json.MarshalIndent(s.state, "", "  ")
 	if err != nil {
@@ -123,7 +130,8 @@ func (s *Store) Passed(l Lesson, step int) bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.state.Steps[StepKey(l.ID, step)]
+	key := StepKey(l.ID, step)
+	return s.state.Steps[key] || s.state.Skipped[key]
 }
 
 // NextStep is the first step of l that has not passed, 1-based, or 0 when
@@ -135,7 +143,8 @@ func (s *Store) NextStep(l Lesson) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range l.Steps {
-		if !s.state.Steps[StepKey(l.ID, i+1)] {
+		key := StepKey(l.ID, i+1)
+		if !s.state.Steps[key] && !s.state.Skipped[key] {
 			return i + 1
 		}
 	}
@@ -151,7 +160,8 @@ func (s *Store) LessonDone(l Lesson) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range l.Steps {
-		if !s.state.Steps[StepKey(l.ID, i+1)] {
+		key := StepKey(l.ID, i+1)
+		if !s.state.Steps[key] && !s.state.Skipped[key] {
 			return false
 		}
 	}
@@ -194,6 +204,83 @@ func (s *Store) lessonDoneLocked(l Lesson) bool {
 		}
 	}
 	return true
+}
+
+// MarkSkipped records a step as skipped: a check that cannot run here (the
+// lessons that need git) counts as done instead of failing.
+func (s *Store) MarkSkipped(l Lesson, step int) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.Skipped == nil {
+		s.state.Skipped = map[string]bool{}
+	}
+	key := StepKey(l.ID, step)
+	if s.state.Skipped[key] {
+		return false
+	}
+	s.state.Skipped[key] = true
+	return true
+}
+
+// ClearSkipped forgets the skips of l, for when their condition is gone (git
+// is available again).
+func (s *Store) ClearSkipped(l Lesson) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := false
+	for i := range l.Steps {
+		key := StepKey(l.ID, i+1)
+		if s.state.Skipped[key] {
+			delete(s.state.Skipped, key)
+			changed = true
+		}
+	}
+	return changed
+}
+
+// Skipped reports whether a step is skipped.
+func (s *Store) Skipped(l Lesson, step int) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state.Skipped[StepKey(l.ID, step)]
+}
+
+// Started reports whether any step of l passed or was skipped.
+func (s *Store) Started(l Lesson) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range l.Steps {
+		key := StepKey(l.ID, i+1)
+		if s.state.Steps[key] || s.state.Skipped[key] {
+			return true
+		}
+	}
+	return false
+}
+
+// RouteStarted reports whether any lesson of r started.
+func (s *Store) RouteStarted(r Route) bool {
+	if s == nil {
+		return false
+	}
+	for _, l := range r.Lessons {
+		if s.Started(l) {
+			return true
+		}
+	}
+	return false
 }
 
 // Migrated reports whether the old level notes were already retired.
@@ -507,4 +594,10 @@ func withoutOriginal(file, text string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// RecordEvent credits an event to the action steps of l (the tutor.Event
+// shape the rest of the app uses).
+func (s *Store) RecordEvent(l Lesson, e Event) bool {
+	return s.RecordAction(l, e.Name, e.Value())
 }

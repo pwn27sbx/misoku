@@ -14,6 +14,7 @@ var (
 	delimRe   = regexp.MustCompile(`^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
 	wikiRe    = regexp.MustCompile(`\[\[([^\[\]\n]*)\]\]`)
 	blockIDRe = regexp.MustCompile(`\s\^([A-Za-z0-9_-]+)\s*$`)
+	taskRe    = regexp.MustCompile(`^\s*[-*+]\s+\[([ xX-])\]\s+(.*\S)\s*$`)
 )
 
 // Env answers the questions a check asks about the vault and the app without
@@ -160,6 +161,66 @@ func (c Check) match(lines []string, env Env) bool {
 		}
 	case "table-shape":
 		return c.tableShape(lines, env)
+	case "heading-under":
+		return c.headingUnder(lines, env, arg(0), arg(1), arg(2), arg(3))
+	case "task-status":
+		return c.taskStatus(lines, arg(0), arg(1))
+	}
+	return false
+}
+
+// headingUnder reports whether a new heading of childLevel/childText appears
+// after the parent heading and before the next heading of the parent's level
+// or above. The parent may be the lesson's own heading; the child must be the
+// player's.
+func (c Check) headingUnder(lines []string, env Env, parentLevelArg, parentText, childLevelArg, childText string) bool {
+	parentLevel, _ := strconv.Atoi(parentLevelArg)
+	childLevel, _ := strconv.Atoi(childLevelArg)
+	full := contextLines(lines, env)
+	parentAt := -1
+	for i, l := range full {
+		m := headingRe.FindStringSubmatch(l)
+		if m == nil {
+			continue
+		}
+		level := len(m[1])
+		text := strings.TrimSpace(m[2])
+		if parentAt >= 0 && level <= parentLevel && !(level == parentLevel && strings.EqualFold(text, parentText)) {
+			parentAt = -1
+		}
+		if level == parentLevel && strings.EqualFold(text, parentText) {
+			parentAt = i
+		}
+		if parentAt >= 0 && level == childLevel && strings.EqualFold(text, childText) &&
+			(env.full == "" || (i < len(lines) && strings.TrimSpace(lines[i]) != "")) {
+			return true
+		}
+	}
+	return false
+}
+
+// taskStatus reports whether a task line of the given state contains text. It
+// takes any bullet, any indentation, and x/X as done.
+func (c Check) taskStatus(lines []string, state, text string) bool {
+	want := strings.ToLower(strings.TrimSpace(text))
+	for _, l := range lines {
+		m := taskRe.FindStringSubmatch(l)
+		if m == nil {
+			continue
+		}
+		box := m[1]
+		ok := false
+		switch state {
+		case "done":
+			ok = box == "x" || box == "X"
+		case "open":
+			ok = box == " "
+		case "doing":
+			ok = box == "-"
+		}
+		if ok && strings.Contains(strings.ToLower(m[2]), want) {
+			return true
+		}
 	}
 	return false
 }
@@ -474,9 +535,10 @@ func run(s string, i int) int {
 	return n
 }
 
-// dirEnv answers disk checks from a tutorial folder, for the scan that runs
-// before the program starts. Names are notes without ".md".
-func dirEnv(dir string) Env {
+// DirEnv answers disk checks from a tutorial folder, for the scan that runs
+// before the program starts. Paths are relative to the tutorial vault; note
+// names leave out ".md".
+func DirEnv(dir string) Env {
 	note := func(name string) string { return filepath.Join(dir, name+".md") }
 	return Env{
 		Exists: func(name string) bool {

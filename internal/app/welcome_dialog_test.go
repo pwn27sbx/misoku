@@ -52,14 +52,15 @@ func selectedOption(t *testing.T, v string) string {
 func TestWelcomeDialogShowsTheFullDesign(t *testing.T) {
 	h, _ := welcomeHarness(t, 100, 40)
 	v := h.screen()
-	_, levels := tutor.Scan(t.TempDir()).Count()
+	b, _ := tutor.Default().RouteByID("B")
+	levels := len(b.Lessons)
 	for _, want := range []string{
 		bannerTop, bannerBottom, "/\\_/\\", "( ^.^ )", "> ♥ <", "───────",
 		"Tus notas en Markdown, en la terminal,", "al estilo de Vim.",
 		"¿Es tu primera vez aquí?",
-		"▸ n  Soy nuevo", "Tutorial interactivo · " + strconv.Itoa(levels) + " niveles · ~10 min",
-		"e  Ya tengo experiencia", "Vas directo a tus notas",
-		"a  Ahora no", "Te espera en «Learn» (tecla l) cuando quieras",
+		"▸ n  Soy nuevo", "Ruta Básico · " + strconv.Itoa(levels) + " lecciones",
+		"e  Ya tengo experiencia", "Ruta Intermedio",
+		"a  Ahora no", "Vas directo a tus notas",
 		"j/k mover · enter elegir",
 	} {
 		if !strings.Contains(v, want) {
@@ -108,7 +109,7 @@ func TestWelcomeDialogFallsBackToTheCompactVariant(t *testing.T) {
 	}
 	for _, want := range []string{
 		"/\\_/\\", "( o.o )", "> ^ <", "¿Es tu primera vez en Misoku?",
-		"▸ n  Soy nuevo", "Tutorial interactivo", "e  Ya tengo experiencia", "a  Ahora no",
+		"▸ n  Soy nuevo", "Ruta Básico", "e  Ya tengo experiencia", "a  Ahora no",
 		"j/k mover · enter elegir",
 	} {
 		if !strings.Contains(v, want) {
@@ -217,10 +218,10 @@ func TestWelcomeDialogTakesAClickOnAnOption(t *testing.T) {
 		text     string
 		tutorial bool
 	}{
-		{"Tutorial interactivo", true},
+		{"Ruta Básico", true},
 		{"Soy nuevo", true},
 		{"Ahora no", false},
-		{"Te espera en", false},
+		{"Vas directo", false},
 	} {
 		t.Run(c.text, func(t *testing.T) {
 			cfgPath := filepath.Join(t.TempDir(), "config.json")

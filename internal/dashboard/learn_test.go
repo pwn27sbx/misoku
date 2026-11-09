@@ -16,7 +16,7 @@ func TestHomeListsLearnUnderGraphOnKeyL(t *testing.T) {
 	db := dashboard.New(theme.DefaultTheme())
 	db.SetSize(100, 50)
 	db.SetRecentPages(nil)
-	db.SetLearn("Learn 3/7")
+	db.SetLearn([]dashboard.LearnEntry{{Route: "B", Label: "Learn 3/7"}})
 	v := db.View()
 
 	row := strings.TrimRight(rowWith(v, "Learn"), " ")
@@ -40,12 +40,12 @@ func TestLearnEntryShowsTheProgress(t *testing.T) {
 	db.SetSize(100, 50)
 	db.SetRecentPages(nil)
 	for _, label := range []string{"Learn 0/7", "Learn 3/7", "Learn 7/7 ✓"} {
-		db.SetLearn(label)
+		db.SetLearn([]dashboard.LearnEntry{{Route: "B", Label: label}})
 		if v := db.View(); rowWith(v, label) == "" {
 			t.Errorf("the entry should read %q:\n%s", label, v)
 		}
 	}
-	db.SetLearn("")
+	db.SetLearn(nil)
 	if v := db.View(); strings.Contains(v, "Learn") {
 		t.Errorf("an empty label hides the entry:\n%s", v)
 	}
@@ -56,7 +56,7 @@ func TestLearnEntryIsVisibleFromThirteenRows(t *testing.T) {
 	db := dashboard.New(theme.DefaultTheme())
 	db.SetSize(100, 13)
 	db.SetRecentPages(nil)
-	db.SetLearn("Learn 3/7")
+	db.SetLearn([]dashboard.LearnEntry{{Route: "B", Label: "Learn 3/7"}})
 	if v := db.View(); rowWith(v, "Learn 3/7") == "" {
 		t.Fatalf("the Learn entry should show at 13 rows:\n%s", v)
 	}
@@ -73,23 +73,23 @@ func TestLearnEntryKeepsTheCursorOnItsItem(t *testing.T) {
 	if a, _ := db.SelectedAction(); a != dashboard.ActionGraph {
 		t.Fatalf("setup: cursor on %v, want Graph", a)
 	}
-	db.SetLearn("Learn 1/7")
+	db.SetLearn([]dashboard.LearnEntry{{Route: "B", Label: "Learn 1/7"}})
 	if a, _ := db.SelectedAction(); a != dashboard.ActionGraph {
 		t.Errorf("adding Learn moved the cursor from Graph to %v", a)
 	}
-	db.SetLearn("")
+	db.SetLearn(nil)
 	if a, _ := db.SelectedAction(); a != dashboard.ActionGraph {
 		t.Errorf("removing Learn moved the cursor from Graph to %v", a)
 	}
 	// The entry below the removed one keeps its place too.
-	db.SetLearn("Learn 1/7")
+	db.SetLearn([]dashboard.LearnEntry{{Route: "B", Label: "Learn 1/7"}})
 	for i := 0; i < 2; i++ { // Learn → Settings
 		db, _ = db.Update(tea.KeyMsg{Type: tea.KeyDown})
 	}
 	if a, _ := db.SelectedAction(); a != dashboard.ActionSettings {
 		t.Fatalf("setup: cursor on %v, want Settings", a)
 	}
-	db.SetLearn("")
+	db.SetLearn(nil)
 	if a, _ := db.SelectedAction(); a != dashboard.ActionSettings {
 		t.Errorf("removing Learn moved the cursor from Settings to %v", a)
 	}

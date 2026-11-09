@@ -143,6 +143,8 @@ var textPreds = map[string]bool{
 	"blockref-exists":    true,
 	"headinglink-exists": true,
 	"table-shape":        true,
+	"heading-under":      true,
+	"task-status":        true,
 }
 
 // diskPreds are the predicates a disk check may name.
@@ -474,6 +476,36 @@ func validateTextPred(pred string, args []string) error {
 		if cells, err := strconv.Atoi(args[0]); err != nil || cells < 1 {
 			return fmt.Errorf("%s needs a positive cell count", pred)
 		}
+	case "heading-under":
+		if err := argc(pred, args, 4); err != nil {
+			return err
+		}
+		parent, err := strconv.Atoi(args[0])
+		if err != nil || parent < 1 || parent > 6 {
+			return fmt.Errorf("%s needs a parent level 1-6 first", pred)
+		}
+		child, err := strconv.Atoi(args[2])
+		if err != nil || child < 1 || child > 6 {
+			return fmt.Errorf("%s needs a child level 1-6 third", pred)
+		}
+		if child <= parent {
+			return fmt.Errorf("%s needs a child level below the parent level", pred)
+		}
+		if strings.TrimSpace(args[1]) == "" || strings.TrimSpace(args[3]) == "" {
+			return fmt.Errorf("%s needs a parent and a child heading", pred)
+		}
+	case "task-status":
+		if err := argc(pred, args, 2); err != nil {
+			return err
+		}
+		switch args[0] {
+		case "done", "open", "doing":
+		default:
+			return fmt.Errorf("%s state %q must be done, open or doing", pred, args[0])
+		}
+		if strings.TrimSpace(args[1]) == "" {
+			return fmt.Errorf("%s needs the task text", pred)
+		}
 	}
 	return nil
 }
@@ -575,4 +607,99 @@ func lessonFile(file string) string {
 		f += ".md"
 	}
 	return f
+}
+
+// RouteByID returns the route with that ID.
+func (c Catalog) RouteByID(id string) (Route, bool) {
+	for _, r := range c.Routes {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return Route{}, false
+}
+
+// FirstRoute returns the first route with lessons (or the first route).
+func (c Catalog) FirstRoute() (Route, bool) {
+	for _, r := range c.Routes {
+		if len(r.Lessons) > 0 {
+			return r, true
+		}
+	}
+	if len(c.Routes) > 0 {
+		return c.Routes[0], true
+	}
+	return Route{}, false
+}
+
+// RouteOfLesson returns the route that owns the lesson ID.
+func (c Catalog) RouteOfLesson(id string) (Route, bool) {
+	for _, r := range c.Routes {
+		for _, l := range r.Lessons {
+			if l.ID == id {
+				return r, true
+			}
+		}
+	}
+	return Route{}, false
+}
+
+// NextLesson returns the lesson after lessonID in the route.
+func (c Catalog) NextLesson(routeID, lessonID string) (Lesson, bool) {
+	r, ok := c.RouteByID(routeID)
+	if !ok {
+		return Lesson{}, false
+	}
+	for i, l := range r.Lessons {
+		if l.ID == lessonID {
+			if i+1 < len(r.Lessons) {
+				return r.Lessons[i+1], true
+			}
+			return Lesson{}, false
+		}
+	}
+	return Lesson{}, false
+}
+
+// NeedsGit reports whether a step of l waits for a git event (":history"):
+// without git those steps are skipped instead of failed.
+func (l Lesson) NeedsGit() bool {
+	need := false
+	walkChecks(l, func(c Check) {
+		if c.Kind == KindAction && strings.HasPrefix(c.Event, "history_") {
+			need = true
+		}
+	})
+	return need
+}
+
+// ConfigKeys returns the config keys the lesson's checks read, for the
+// snapshot config-changed compares against.
+func (l Lesson) ConfigKeys() []string {
+	seen := map[string]bool{}
+	var keys []string
+	walkChecks(l, func(c Check) {
+		if c.Kind != KindDisk || (c.Pred != "config-key" && c.Pred != "config-changed") || len(c.Args) == 0 {
+			return
+		}
+		if !seen[c.Args[0]] {
+			seen[c.Args[0]] = true
+			keys = append(keys, c.Args[0])
+		}
+	})
+	return keys
+}
+
+// walkChecks calls fn for every check of the lesson, inner checks included.
+func walkChecks(l Lesson, fn func(Check)) {
+	var walk func(Check)
+	walk = func(c Check) {
+		fn(c)
+		for _, sub := range c.Checks {
+			walk(sub)
+		}
+	}
+	for _, st := range l.Steps {
+		walk(st.Check)
+	}
 }

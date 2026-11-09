@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/dashboard"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +16,13 @@ import (
 // window: the home screen starts `misoku tutor` as a program of its own,
 // outside Misoku's screen, and takes its progress back when it ends. The
 // parent's tabs and unsaved text stay in its memory meanwhile.
+
+// learnState is the tutorial as the home screen sees it: the routes and the
+// stored progress.
+type learnState struct {
+	store *tutor.Store
+	cat   tutor.Catalog
+}
 
 // WithLearnOffer shows the first-run dialog once the home screen opens: the
 // answer is remembered, so it never shows again. It is opt-in, so test
@@ -50,103 +58,154 @@ func (m *Model) offerLearn() {
 }
 
 // learnChosenMsg is the answer to the first-run dialog, once the config says
-// so.
+// so. An empty route means "not now".
 type learnChosenMsg struct {
-	err      error
-	tutorial bool
+	err   error
+	route string
 }
 
 // learnChosen closes the first-run dialog for good and remembers the answer;
-// taking the Learn entry counts as an answer too, since the question no
-// longer is one. The config is written in the command, outside the update
-// loop, and the tutorial starts only after it, so a write that fails still
-// starts what the answer asked for (and the dialog asks again next launch).
-func (m *Model) learnChosen(tutorial bool) tea.Cmd {
+// taking a Learn entry counts as an answer too, since the question no longer
+// is one. The config is written in the command, outside the update loop, and
+// the tutorial starts only after it, so a write that fails still starts what
+// the answer asked for (and the dialog asks again next launch).
+func (m *Model) learnChosen(route string) tea.Cmd {
+	if m.learn != nil {
+		route = m.learn.routeOrFirst(route)
+	}
 	m.learnPending = false
 	m.learnBox = nil
 	path := m.configPath
 	prefs := m.prefs()
 	return func() tea.Msg {
 		if path == "" {
-			return learnChosenMsg{tutorial: tutorial}
+			return learnChosenMsg{route: route}
 		}
 		// Settings saves rewrite the same file: take turns with them.
 		prefs.mu.Lock()
 		defer prefs.mu.Unlock()
-		return learnChosenMsg{err: config.SetLearnOffered(path), tutorial: tutorial}
+		return learnChosenMsg{err: config.SetLearnOffered(path), route: route}
 	}
 }
 
-// WithLearn shows the "Learn k/n" entry on the home screen for the tutorial
-// progress p, which main reads from disk before the program starts. A nil p
-// hides it, as it stays hidden inside a tutorial session: sessions cannot
-// nest.
-func WithLearn(p *tutor.Progress) Option {
+// WithLearn shows one home entry per route with lessons, with the progress
+// store read before the program starts. A nil store hides them, as they stay
+// hidden inside a tutorial session: sessions cannot nest.
+func WithLearn(store *tutor.Store, cat tutor.Catalog) Option {
 	return func(m *Model) {
-		m.learn = p
-		m.dashboard.SetLearn(learnLabel(p))
+		if store == nil {
+			return
+		}
+		m.learn = &learnState{store: store, cat: cat}
+		m.dashboard.SetLearn(m.learn.entries())
 	}
 }
 
-// learnLabel is the home entry's label: the levels passed, and a check once
-// every level does. "" hides the entry.
-func learnLabel(p *tutor.Progress) string {
-	if p == nil {
+// entries is the home screen's list: only routes with lessons, "Learn ·
+// Básico 3/26", with a check once the route is complete.
+func (l *learnState) entries() []dashboard.LearnEntry {
+	if l == nil || l.store == nil {
+		return nil
+	}
+	var out []dashboard.LearnEntry
+	for _, r := range l.cat.Routes {
+		if len(r.Lessons) == 0 {
+			continue
+		}
+		done, total := l.store.RouteCount(r)
+		label := fmt.Sprintf("Learn · %s %d/%d", r.Name, done, total)
+		if done == total {
+			label += " ✓"
+		}
+		out = append(out, dashboard.LearnEntry{Route: r.ID, Label: label})
+	}
+	return out
+}
+
+// firstIncomplete is the route the l key opens: the first one not complete,
+// or the first route with lessons when all are.
+func (l *learnState) firstIncomplete() string {
+	if l == nil || l.store == nil {
 		return ""
 	}
-	done, total := p.Count()
-	switch {
-	case total == 0:
-		return "Learn"
-	case done == total:
-		return fmt.Sprintf("Learn %d/%d ✓", done, total)
+	first := ""
+	for _, r := range l.cat.Routes {
+		if len(r.Lessons) == 0 {
+			continue
+		}
+		if first == "" {
+			first = r.ID
+		}
+		if done, total := l.store.RouteCount(r); done < total {
+			return r.ID
+		}
 	}
-	return fmt.Sprintf("Learn %d/%d", done, total)
+	return first
 }
 
-// startTutorial runs `misoku tutor` in place of Misoku's screen, and reads
-// the tutorial's progress again when it ends, in the callback (which runs
-// outside the update loop, see tutor.Scan). A session-only --theme is not
-// passed on: the tutorial opens with the saved theme.
-func (m *Model) startTutorial() tea.Cmd {
+// routeOrFirst keeps route when it has lessons and falls back to the first
+// route otherwise ("Ya tengo experiencia" while Intermedio has no lessons).
+func (l *learnState) routeOrFirst(route string) string {
+	if l == nil || l.store == nil {
+		return route
+	}
+	if r, ok := l.cat.RouteByID(route); ok && len(r.Lessons) > 0 {
+		return route
+	}
+	return l.firstIncomplete()
+}
+
+// routeChooser starts a tutorial run on route, which may be "".
+func (m *Model) startTutorial(route string) tea.Cmd {
 	exe, err := os.Executable()
 	if err != nil {
 		m.setError("Could not start the tutorial: " + err.Error())
 		return nil
 	}
-	cmd := exec.Command(exe, "tutor")
+	args := []string{"tutor"}
+	if route != "" {
+		args = append(args, "--route", route)
+	}
+	cmd := exec.Command(exe, args...)
 	// The terminal itself, not the program's wrapped output: os/exec would
 	// give a pipe to a program whose stdout is not an *os.File, and a piped
 	// terminal says no size, so the tutorial would never draw (see
 	// syncout.Writer).
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return m.execOutside(cmd, func(err error) tea.Msg {
-		return tutorialDoneMsg{err: err, progress: scanTutorial()}
+		return tutorialDoneMsg{err: err, learn: scanTutorial()}
 	})
 }
 
 // scanTutorial reads the tutorial's progress from disk, if it has a folder.
-func scanTutorial() *tutor.Progress {
-	if dir := tutor.Dir(); dir != "" {
-		return tutor.Scan(dir)
+func scanTutorial() *learnState {
+	dir := tutor.Dir()
+	if dir == "" {
+		return nil
 	}
-	return nil
+	cat := tutor.Default()
+	store, err := tutor.Load(dir)
+	if err != nil {
+		return nil
+	}
+	store.ScanDir(cat, dir, tutor.DirEnv(dir))
+	return &learnState{store: store, cat: cat}
 }
 
 // tutorialDoneMsg ends a tutorial run: err is what `misoku tutor` exited
-// with, and progress what its notes hold now.
+// with, and learn what the tutorial holds now.
 type tutorialDoneMsg struct {
-	err      error
-	progress *tutor.Progress
+	err   error
+	learn *learnState
 }
 
 // finishTutorial brings the tutorial's progress to the home screen and says
 // so when the run failed. Drawing the screen turns mouse motion reports back
 // on, which the terminal lost while the tutorial held it.
 func (m *Model) finishTutorial(msg tutorialDoneMsg) {
-	if msg.progress != nil {
-		m.learn = msg.progress
-		m.dashboard.SetLearn(learnLabel(msg.progress))
+	if msg.learn != nil {
+		m.learn = msg.learn
+		m.dashboard.SetLearn(msg.learn.entries())
 	}
 	if msg.err != nil {
 		m.setError("Tutorial: " + msg.err.Error())

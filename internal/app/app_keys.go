@@ -15,7 +15,18 @@ import (
 // ---------------------------------------------------------------------------
 // Keyboard
 
+// handleKey runs a key and reports a mode change to the current tutorial
+// lesson (E9).
 func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
+	before := m.content.Mode()
+	cmd := m.handleKeyAction(k)
+	if m.content.Mode() != before {
+		return tea.Batch(cmd, m.tutorEvent("mode_changed", modeValue(m.content.Mode())))
+	}
+	return cmd
+}
+
+func (m *Model) handleKeyAction(k tea.KeyMsg) tea.Cmd {
 	s := k.String()
 	if m.keys.DirectModified(keymap.Quit, s) {
 		return m.requestQuit(false)
@@ -194,10 +205,10 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 	case "g":
 		return m.openGlobalGraph()
 	case "l":
-		// Only while the entry shows: a tutorial session has none, so
+		// Only while the entries show: a tutorial session has none, so
 		// sessions cannot nest.
 		if m.learn != nil {
-			return m.learnChosen(true)
+			return m.learnChosen(m.learn.firstIncomplete())
 		}
 		return nil
 	case "c":
@@ -260,7 +271,7 @@ func (m *Model) runDashboardAction(a dashboard.Action, id string) tea.Cmd {
 	case dashboard.ActionSettings:
 		return m.OpenSettings()
 	case dashboard.ActionLearn:
-		return m.learnChosen(true)
+		return m.learnChosen(id)
 	}
 	return nil
 }

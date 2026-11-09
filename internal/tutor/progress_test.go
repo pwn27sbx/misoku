@@ -384,3 +384,64 @@ func TestStepKey(t *testing.T) {
 		t.Fatalf("StepKey = %q", got)
 	}
 }
+
+func TestSkippedSteps(t *testing.T) {
+	dir := t.TempDir()
+	l := textLesson("A07", contains("historia"))
+	s := &Store{}
+	if !s.MarkSkipped(l, 1) {
+		t.Fatal("the first skip should be new")
+	}
+	if s.MarkSkipped(l, 1) {
+		t.Fatal("a second skip of the same step is not new")
+	}
+	if !s.Skipped(l, 1) || !s.Passed(l, 1) {
+		t.Fatal("a skipped step counts as done")
+	}
+	if s.NextStep(l) != 0 || !s.LessonDone(l) {
+		t.Fatal("a skipped step should not block the lesson")
+	}
+	if !s.Started(l) {
+		t.Fatal("a skipped step starts the lesson")
+	}
+	if err := s.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.Skipped(l, 1) || !loaded.Passed(l, 1) {
+		t.Fatal("Load lost the skip")
+	}
+	if !loaded.ClearSkipped(l) {
+		t.Fatal("ClearSkipped should report the change")
+	}
+	if loaded.Skipped(l, 1) || loaded.Passed(l, 1) {
+		t.Fatal("ClearSkipped left the skip behind")
+	}
+}
+
+func TestRouteStarted(t *testing.T) {
+	l := textLesson("B01", contains("a"))
+	r := Route{ID: "B", Name: "Básico", Index: "B00 B.md", Lessons: []Lesson{l}}
+	s := &Store{}
+	if s.RouteStarted(r) {
+		t.Fatal("a fresh route started")
+	}
+	s.Mark(l, 1)
+	if !s.RouteStarted(r) {
+		t.Fatal("a passed step should start the route")
+	}
+}
+
+func TestRecordEvent(t *testing.T) {
+	l := textLesson("B07", Check{Kind: KindAction, Event: "next_tab"})
+	s := &Store{}
+	if !s.RecordEvent(l, Event{Name: "next_tab"}) {
+		t.Fatal("RecordEvent did not credit the action")
+	}
+	if !s.Passed(l, 1) {
+		t.Fatal("the action step did not pass")
+	}
+}

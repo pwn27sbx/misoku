@@ -137,6 +137,18 @@ func TestCatalogValidation(t *testing.T) {
 		{"duplicate action value", func(c *Catalog) {
 			c.Routes[0].Lessons[0].Steps[0].Check = Check{Kind: KindAction, Event: "next_tab", Value: Values{"a", "a"}}
 		}},
+		{"heading-under arity", func(c *Catalog) {
+			c.Routes[0].Lessons[0].Steps[0].Check = Check{Kind: KindText, Pred: "heading-under", Args: []string{"2", "Viaje", "3"}}
+		}},
+		{"heading-under level order", func(c *Catalog) {
+			c.Routes[0].Lessons[0].Steps[0].Check = Check{Kind: KindText, Pred: "heading-under", Args: []string{"3", "Viaje", "2", "Día 1"}}
+		}},
+		{"task-status state", func(c *Catalog) {
+			c.Routes[0].Lessons[0].Steps[0].Check = Check{Kind: KindText, Pred: "task-status", Args: []string{"bogus", "comprar pan"}}
+		}},
+		{"task-status text", func(c *Catalog) {
+			c.Routes[0].Lessons[0].Steps[0].Check = Check{Kind: KindText, Pred: "task-status", Args: []string{"done", " "}}
+		}},
 		{"action with a pred", func(c *Catalog) {
 			c.Routes[0].Lessons[0].Steps[0].Check = Check{Kind: KindAction, Event: "next_tab", Pred: "line-contains"}
 		}},
@@ -272,6 +284,27 @@ func TestBaselinePerCheck(t *testing.T) {
 			check:    Check{Kind: KindTextFence, Fence: "board", Pattern: "- "},
 			full:     "```board\n## Columna\n- tarjeta\n```\n",
 			filtered: "\n\n\n\n",
+			want:     false,
+		},
+		{
+			name:     "a new child under the lesson's own heading",
+			check:    Check{Kind: KindText, Pred: "heading-under", Args: []string{"2", "Viaje", "3", "Día 1"}},
+			full:     "## Viaje\n\n### Día 1\n",
+			filtered: "\n\n### Día 1\n",
+			want:     true,
+		},
+		{
+			name:     "the lesson's own child is not evidence",
+			check:    Check{Kind: KindText, Pred: "heading-under", Args: []string{"2", "Viaje", "3", "Día 1"}},
+			full:     "## Viaje\n\n### Día 1\n",
+			filtered: "## Viaje\n\n\n",
+			want:     false,
+		},
+		{
+			name:     "the lesson's own task is not evidence",
+			check:    Check{Kind: KindText, Pred: "task-status", Args: []string{"done", "comprar pan"}},
+			full:     "- [x] comprar pan\n",
+			filtered: "\n",
 			want:     false,
 		},
 		{

@@ -95,6 +95,19 @@ func TestCheckPass(t *testing.T) {
 		{"all passes", tutor.Check{Kind: tutor.KindAll, Checks: []tutor.Check{textCheck("line-contains", "a"), textCheck("line-contains", "b")}}, "a\nb\n", tutor.Env{}, true},
 		{"all fails on one", tutor.Check{Kind: tutor.KindAll, Checks: []tutor.Check{textCheck("line-contains", "a"), textCheck("line-contains", "b")}}, "a\n", tutor.Env{}, false},
 
+		{"heading under", textCheck("heading-under", "2", "Viaje", "3", "Día 1"), "## Viaje\n\n### Día 1\n", tutor.Env{}, true},
+		{"heading under before the parent", textCheck("heading-under", "2", "Viaje", "3", "Día 1"), "### Día 1\n\n## Viaje\n", tutor.Env{}, false},
+		{"heading under after a sibling", textCheck("heading-under", "2", "Viaje", "3", "Día 1"), "## Viaje\n\n## Otro\n\n### Día 1\n", tutor.Env{}, false},
+		{"heading under wrong child", textCheck("heading-under", "2", "Viaje", "3", "Día 1"), "## Viaje\n\n### Otro\n", tutor.Env{}, false},
+
+		{"task done", textCheck("task-status", "done", "comprar pan"), "- [x] comprar pan\n", tutor.Env{}, true},
+		{"task done uppercase star indented", textCheck("task-status", "done", "comprar pan"), "  * [X] comprar pan\n", tutor.Env{}, true},
+		{"task open", textCheck("task-status", "open", "comprar pan"), "+ [ ] comprar pan\n", tutor.Env{}, true},
+		{"task doing", textCheck("task-status", "doing", "comprar pan"), "- [-] comprar pan\n", tutor.Env{}, true},
+		{"task wrong state", textCheck("task-status", "done", "comprar pan"), "- [ ] comprar pan\n", tutor.Env{}, false},
+		{"task wrong text", textCheck("task-status", "done", "comprar pan"), "- [x] comprar leche\n", tutor.Env{}, false},
+		{"task without text", textCheck("task-status", "done", "comprar pan"), "- [x] \n", tutor.Env{}, false},
+
 		{"action never from text", tutor.Check{Kind: tutor.KindAction, Event: "next_tab"}, "cualquier texto", tutor.Env{}, false},
 		{"none never from text", tutor.Check{Kind: tutor.KindNone}, "cualquier texto", tutor.Env{}, false},
 		{"unknown kind", tutor.Check{Kind: "bogus"}, "texto", tutor.Env{}, false},

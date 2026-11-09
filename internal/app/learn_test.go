@@ -37,6 +37,19 @@ func tutorialVault(t *testing.T) string {
 	return dir
 }
 
+// tutorialLearn reads the tutorial's progress from dir, as main does before
+// opening it or the home screen.
+func tutorialLearn(t *testing.T, dir string) (*tutor.Store, tutor.Catalog) {
+	t.Helper()
+	cat := tutor.Default()
+	store, err := tutor.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.ScanDir(cat, dir, tutor.DirEnv(dir))
+	return store, cat
+}
+
 // passLevel writes the fixture answer of a lesson, as a player would.
 func passLevel(t *testing.T, dir, file string) {
 	t.Helper()
@@ -47,7 +60,7 @@ func passLevel(t *testing.T, dir, file string) {
 	}
 	answer := map[string]string{
 		"B01 Títulos.md":              "\n## Viaje\n\n### Día 1\n",
-		"B02 Casillas.md":             "\n- [x] Aprender casillas\n",
+		"B02 Casillas.md":             "\n- [x] comprar pan\n",
 		"B03 Menú de bloques.md":      "\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n",
 		"B04 Links.md":                "\n[[B05 Links a títulos]]\n",
 		"B05 Links a títulos.md":      "\n[[#Un título de ejemplo]]\n",
@@ -82,17 +95,17 @@ func TestLearnEntryShowsTheTutorialProgress(t *testing.T) {
 	passLevel(t, dir, "B02 Casillas.md")
 	store := newTestStore(t)
 
-	h := newHarness(t, store, app.WithLearn(tutor.Scan(dir)))
-	if v := h.view(); !strings.Contains(v, "Learn 1/7") {
+	h := newHarness(t, store, app.WithLearn(tutorialLearn(t, dir)))
+	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/7") {
 		t.Fatalf("the home screen should count the tutorial's progress:\n%s", v)
 	}
 
 	plain := newHarness(t, newTestStore(t))
-	if v := plain.view(); strings.Contains(v, "Learn 0/7") {
+	if v := plain.view(); strings.Contains(v, "Learn · Básico 0/7") {
 		t.Fatalf("without the tutorial no Learn entry may show:\n%s", v)
 	}
-	hidden := newHarness(t, newTestStore(t), app.WithLearn(nil))
-	if v := hidden.view(); strings.Contains(v, "Learn 0/7") {
+	hidden := newHarness(t, newTestStore(t), app.WithLearn(nil, tutor.Default()))
+	if v := hidden.view(); strings.Contains(v, "Learn · Básico 0/7") {
 		t.Fatalf("a nil progress hides the entry:\n%s", v)
 	}
 }
@@ -101,7 +114,7 @@ func TestLearnEntryShowsTheTutorialProgress(t *testing.T) {
 func TestLearnKeyStartsTheTutorial(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
-	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)), fakeTutorial(&got, nil, nil))
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)), fakeTutorial(&got, nil, nil))
 	h.keys("l")
 	if got == nil {
 		t.Fatal("pressing l did not start the tutorial")
@@ -113,8 +126,8 @@ func TestLearnKeyStartsTheTutorial(t *testing.T) {
 	if got.Path != exe {
 		t.Errorf("the tutorial runs %q, want misoku itself (%q)", got.Path, exe)
 	}
-	if len(got.Args) != 2 || got.Args[1] != "tutor" {
-		t.Errorf("the tutorial runs %q, want misoku tutor", got.Args)
+	if len(got.Args) != 4 || got.Args[1] != "tutor" || got.Args[2] != "--route" || got.Args[3] != "B" {
+		t.Errorf("the tutorial runs %q, want misoku tutor --route B", got.Args)
 	}
 }
 
@@ -124,7 +137,7 @@ func TestLearnKeyStartsTheTutorial(t *testing.T) {
 func TestTutorialRunsOnTheTerminalItself(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
-	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)), fakeTutorial(&got, nil, nil))
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)), fakeTutorial(&got, nil, nil))
 	h.keys("l")
 	if got == nil {
 		t.Fatal("pressing l did not start the tutorial")
@@ -145,13 +158,14 @@ func TestTutorialRunsOnTheTerminalItself(t *testing.T) {
 func TestTutorialReturnRescansAndEnablesTheMouse(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
-	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)),
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)),
 		fakeTutorial(&got, nil, func() { passLevel(t, dir, "B01 Títulos.md") }))
 	h.keys("l")
-	if v := h.view(); !strings.Contains(v, "Learn 1/7") {
+	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/7") {
 		t.Fatalf("the entry should count the level the tutorial passed:\n%s", v)
 	}
-	cmd := h.update(app.TutorialDone(nil, tutor.Scan(dir)))
+	progress, cat := tutorialLearn(t, dir)
+	cmd := h.update(app.TutorialDone(nil, progress, cat))
 	if cmd == nil {
 		t.Fatal("the return from the tutorial returned no command")
 	}
@@ -164,13 +178,13 @@ func TestTutorialReturnRescansAndEnablesTheMouse(t *testing.T) {
 func TestTutorialReturnReportsAFailedExit(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
-	h := newHarness(t, newTestStore(t), app.WithLearn(tutor.Scan(dir)),
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)),
 		fakeTutorial(&got, errors.New("exit status 2"), func() { passLevel(t, dir, "B02 Casillas.md") }))
 	h.keys("l")
 	if s := app.StatusText(h.m); !strings.Contains(s, "exit status 2") {
 		t.Fatalf("the failed tutorial should be reported, status %q", s)
 	}
-	if v := h.view(); !strings.Contains(v, "Learn 1/7") {
+	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/7") {
 		t.Fatalf("a failed exit must not lose the progress:\n%s", v)
 	}
 }

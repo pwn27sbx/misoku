@@ -13,8 +13,8 @@
           "check": { "kind": "text", "pred": "heading-exists", "args": ["2", "Viaje"] }
         },
         {
-          "text": "Añade debajo la subsección `### Día 1`",
-          "check": { "kind": "text", "pred": "heading-exists", "args": ["3", "Día 1"] }
+          "text": "Añade la subsección `### Día 1` debajo",
+          "check": { "kind": "text", "pred": "heading-under", "args": ["2", "Viaje", "3", "Día 1"] }
         }
       ]
     },
@@ -24,9 +24,9 @@
       "file": "B02 Casillas.md",
       "steps": [
         {
-          "text": "Marca una tarea con `- [x]`",
+          "text": "Marca `- [x] comprar pan`",
           "hint": "- [] no es una tarea: falta el espacio → - [ ]",
-          "check": { "kind": "text", "pred": "line-starts", "args": ["- [x] "] }
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "comprar pan"] }
         }
       ]
     },

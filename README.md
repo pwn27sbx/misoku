@@ -200,7 +200,8 @@ misoku export note.md         # write note.pdf next to the note (-o to pick the 
 misoku paste-image            # save the picture in the clipboard under ./assets (--dir, --link)
 misoku sync setup             # sync this folder through a private GitHub repository (see Sync)
 misoku sync init <url>        # sync this folder through any git repository, SSH included
-misoku tutor                  # learn Misoku and Markdown level by level (see Learn Misoku)
+misoku tutor                  # learn Misoku and Markdown by routes (see Learn Misoku)
+misoku tutor --route I        # open the Intermedio route
 misoku tutor --reset          # start the tutorial over
 ```
 
@@ -261,28 +262,42 @@ never use `notes_dir`.
 
 The first time you open Misoku it greets you with a welcome dialog: the
 `MISOKU` banner, a cat, and a short menu asking whether this is your first
-time. `Soy nuevo` starts the tutorial, `Ya tengo experiencia` goes straight
-to your notes and `Ahora no` leaves it for later on the `Learn` entry; any
-answer is remembered. Move with `j`/`k` (or the arrows) and choose with
-`Enter`, or press an option's letter (`n`, `e`, `a`); `Esc` is `Ahora no`.
-No other key answers it. On a terminal too short for the banner it shows a
-compact version, and on one too small for that it waits for a bigger one.
+time. `Soy nuevo` opens the tutorial's Básico route, `Ya tengo experiencia`
+opens the Intermedio route (the Básico one until Intermedio has lessons),
+and `Ahora no` leaves it for later; any answer is remembered. Move with
+`j`/`k` (or the arrows) and choose with `Enter`, or press an option's letter
+(`n`, `e`, `a`); `Esc` is `Ahora no`. No other key answers it. On a terminal
+too short for the banner it shows a compact version, and on one too small for
+that it waits for a bigger one.
 
-The start screen then keeps a `Learn` entry under `Graph`, on `l`, with the
-levels you passed (`Learn 3/7`, and a check once all seven do). Either way
-the tutorial is `misoku tutor`: a tutorial vault of its own, opened in the
-normal app, with seven levels in Spanish, one note each, plus an index
-(`00 Empieza aquí`). They teach headings, checkboxes, the `/` block menu,
-`[[links]]`, links to headings, block references and the explorer. Each level
-asks for one thing, and Misoku checks the note's text as you type (code is
-ignored, so the lesson's own examples never count): a passed level is saved
-at once and shows `✓ Nivel N superado (k/7)`, and the statusline shows
-`Tutor k/7`. Progress is the lesson notes themselves, so it survives a
-restart, and the tutorial comes back to the first lesson you did not pass
-(the index at the start and once all seven do). `Ctrl+C` returns to your
-vault. The vault lives next to `config.json`, in a `tutor` folder;
-`misoku tutor --reset` moves it to the Trash and starts over from the bundled
-lessons.
+The start screen then keeps one entry per route under `Graph`:
+`Learn · Básico 3/26`, with a check once the route is complete. `l` opens the
+first route you have not finished, and each entry starts
+`misoku tutor --route <route>` on that route.
+
+The tutorial is a vault of its own, opened in the normal app, with the routes
+Básico, Intermedio, Avanzado and Experto in Spanish. Each lesson is one note
+of two to four minutes with numbered steps; every form it teaches is a step
+you do, and Misoku checks it as you go: the note's text (code and the
+lesson's own examples never count), a file, a folder or a setting on disk, or
+an action in the editor such as leaving INSERT or switching tabs. The
+statusline follows you: `B03 · Paso 2/4 · <what to do>`, a short `✓ Paso 2`
+when a step passes, `✓ B03 superado · siguiente: <lesson>` when the lesson
+does, and `🏆 Ruta Básico completa` at the end. A hint explains the common
+mistake, and the badge counts the route: `Tutor 3/26`.
+
+Progress is stored in `.misoku-tutor.json` in the tutorial vault, so actions
+that leave no trace in a note still count; editing a note's text still
+re-derives its text steps. `Ctrl+C` returns to your vault. `misoku tutor`
+resumes the last route you played at its first unfinished step;
+`misoku tutor --route I` opens that route (its first lesson, or its index
+when the route has no progress). The folder lives next to `config.json`, in a
+`tutor` folder. `misoku tutor --reset` moves it to the Trash and starts over.
+
+When git is installed, the tutorial vault is also a git repository with one
+initial commit of the lessons, so the `:history` lessons have something to
+show; the progress file stays out of it. Without git those steps say
+`Necesitas git para esta lección` and count as skipped, not failed.
 
 ## Images
 

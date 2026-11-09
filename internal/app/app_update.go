@@ -27,8 +27,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
 		build, layout, mentions := nm.startLinkIndex(), nm.startGlobalMap(), nm.startMentionScan()
-		if build != nil || layout != nil || mentions != nil {
-			return nm, tea.Batch(cmd, build, layout, mentions)
+		tutor := nm.tutorSyncCurrent()
+		if build != nil || layout != nil || mentions != nil || tutor != nil {
+			return nm, tea.Batch(cmd, build, layout, mentions, tutor)
 		}
 	}
 	return next, cmd
@@ -101,8 +102,29 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.setError("Could not remember the answer (" + msg.err.Error() + "); Misoku will ask again next time")
 		}
-		if msg.tutorial {
-			return m, m.startTutorial()
+		if msg.route != "" {
+			return m, m.startTutorial(msg.route)
+		}
+		return m, nil
+	case tutorSaveMsg:
+		if msg.err != nil {
+			m.setError("Could not save the tutorial's progress: " + msg.err.Error())
+		}
+		return m, nil
+	case tutorOpenMsg:
+		if m.tutor == nil || !m.tutor.hasCurrent || m.tutor.current.ID != msg.lesson {
+			return m, nil
+		}
+		m.tutor.configAtOpen = msg.config
+		return m, m.tutorDiskCmd(m.tutor.current)
+	case tutorDiskMsg:
+		if m.tutor == nil || !m.tutor.hasCurrent || m.tutor.current.ID != msg.lesson || !msg.changed {
+			return m, nil
+		}
+		return m, m.tutorChanged(m.tutor.current, msg.before)
+	case tutorFlashMsg:
+		if m.tutor != nil && m.tutor.flashSeq == msg.seq {
+			m.tutor.flash = ""
 		}
 		return m, nil
 	case core.StatusMsg:

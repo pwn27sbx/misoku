@@ -144,7 +144,7 @@ func usage(w io.Writer) {
                                            and print the path to link it (--link prints the link)
   misoku sync setup [--dir <folder>]       sync a folder through a private GitHub repository (recommended)
   misoku sync init <url> [--dir <folder>]  set up git sync of a folder with any git URL (SSH, other services)
-  misoku tutor [--reset]                   learn Misoku and Markdown level by level (--reset starts over)
+  misoku tutor [--route B|I|A|E] [--reset]  learn Misoku and Markdown by routes (--reset starts over)
 
 Flags:
 `)

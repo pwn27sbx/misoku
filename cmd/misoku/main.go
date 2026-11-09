@@ -46,9 +46,11 @@ func main() {
 	}
 
 	args := os.Args[1:]
-	tutorDir := "" // the tutorial vault, when misoku tutor is played
+	tutorDir := ""    // the tutorial vault, when misoku tutor is played
+	tutorRoute := ""  // the route --route asked for
+	tutorNotice := "" // the one-line migration notice, when there is one
 	if len(args) > 0 && args[0] == "tutor" {
-		d, err := tutorWorkspace(args[1:])
+		d, route, notice, err := tutorWorkspace(args[1:])
 		if errors.Is(err, flag.ErrHelp) {
 			fmt.Println(tutorUsage)
 			return
@@ -57,7 +59,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "misoku tutor: %v\n%s\n", err, tutorUsage)
 			os.Exit(2)
 		}
-		tutorDir, args = d, nil
+		tutorDir, tutorRoute, tutorNotice, args = d, route, notice, nil
 	}
 
 	flag.Usage = func() { usage(flag.CommandLine.Output()) }
@@ -171,14 +173,25 @@ func main() {
 	if cur != nil {
 		appOpts = append(appOpts, app.WithCursor(cur))
 	}
+	cat := tutor.Default()
 	if tutorDir != "" {
-		progress := tutor.Scan(tutorDir)
-		// The lesson the player left, so the tutorial resumes there.
-		appOpts = append(appOpts, app.WithTutor(progress), app.WithOpenNote(tutor.Resume(progress)))
+		store, err := tutor.Load(tutorDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "misoku tutor: %v\n", err)
+		}
+		store.ScanDir(cat, tutorDir, tutor.DirEnv(tutorDir))
+		start := tutor.ResumeNote(cat, store, tutorRoute)
+		appOpts = append(appOpts, app.WithTutor(store, cat, tutorDir, gitAvailable()),
+			app.WithOpenNote(start), app.WithTutorNotice(tutorNotice))
 	} else if dir := tutor.Dir(); dir != "" {
 		// The home screen's way into the tutorial, with its progress; a
 		// tutorial session has none, so sessions cannot nest.
-		appOpts = append(appOpts, app.WithLearn(tutor.Scan(dir)))
+		store, err := tutor.Load(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Misoku: %v\n", err)
+		}
+		store.ScanDir(cat, dir, tutor.DirEnv(dir))
+		appOpts = append(appOpts, app.WithLearn(store, cat))
 	}
 	if learn {
 		appOpts = append(appOpts, app.WithLearnOffer(true))

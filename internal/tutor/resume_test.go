@@ -1,62 +1,56 @@
 package tutor
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
-// passed writes the answer of every lesson named in files into dir, as the
-// player's notes would hold it. B07 needs the note it links to exist.
-func passed(t *testing.T, dir string, files ...string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, "Mi nota.md"), []byte("una nota\n"), 0o644); err != nil {
-		t.Fatal(err)
+// D6: an explicit route nobody started opens its index; the last route
+// played or the first route resumes at its first unfinished step.
+func TestResumeNote(t *testing.T) {
+	b := textLesson("B01", contains("b"))
+	b.File = "B01 B.md"
+	i := textLesson("I01", contains("i"))
+	i.File = "I01 I.md"
+	cat := Catalog{Routes: []Route{
+		{ID: "B", Name: "Básico", Index: "B00 Básico.md", Lessons: []Lesson{b}},
+		{ID: "I", Name: "Intermedio", Index: "I00 Intermedio.md", Lessons: []Lesson{i}},
+	}}
+	s := &Store{}
+	if got := ResumeNote(cat, s, "I"); got != "I00 Intermedio.md" {
+		t.Fatalf("an explicit fresh route opens its index, got %q", got)
 	}
-	for _, f := range files {
-		a, ok := answers[f]
-		if !ok {
-			t.Fatalf("no fixture answer for %s", f)
-		}
-		data, err := os.ReadFile(filepath.Join(dir, f))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, f), append(data, a.text...), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	if got := ResumeNote(cat, s, ""); got != "B01 B.md" {
+		t.Fatalf("without progress the first lesson opens, got %q", got)
+	}
+	s.Mark(b, 1)
+	if got := ResumeNote(cat, s, "B"); got != "B00 Básico.md" {
+		t.Fatalf("a finished route opens its index, got %q", got)
+	}
+	s.SetLastRoute("I")
+	s.Mark(i, 1)
+	// A new unfinished lesson in the last route resumes there.
+	i2 := textLesson("I02", contains("i2"))
+	i2.File = "I02 I.md"
+	cat.Routes[1].Lessons = append(cat.Routes[1].Lessons, i2)
+	if got := ResumeNote(cat, s, ""); got != "I02 I.md" {
+		t.Fatalf("the last route resumed at %q, want I02 I.md", got)
 	}
 }
 
-// S4: the tutorial opens its index at the start and once every lesson passes,
-// and the first unpassed lesson in between.
-func TestResume(t *testing.T) {
-	t.Parallel()
-	if got := Resume(nil); got != "B00 Básico.md" {
-		t.Errorf("without progress the index should open, got %q", got)
+func TestCatalogHelpers(t *testing.T) {
+	need := textLesson("A07", Check{Kind: KindAction, Event: "history_open"})
+	if !need.NeedsGit() {
+		t.Fatal("a history event should need git")
 	}
-
-	dir := t.TempDir()
-	if err := Install(Bundled(), dir, false); err != nil {
-		t.Fatal(err)
+	if textLesson("B01", contains("x")).NeedsGit() {
+		t.Fatal("a text step does not need git")
 	}
-	if got := Resume(Scan(dir)); got != "B00 Básico.md" {
-		t.Errorf("at 0/7 the index should open, got %q", got)
-	}
-
-	passed(t, dir, "B01 Títulos.md", "B02 Casillas.md")
-	if got := Resume(Scan(dir)); got != "B03 Menú de bloques.md" {
-		t.Errorf("after lessons 1 and 2 the next unpassed lesson should open, got %q", got)
-	}
-
-	// A gap in the middle is resumed at the gap, not after it.
-	passed(t, dir, "B04 Links.md", "B05 Links a títulos.md", "B06 Referencias a bloque.md", "B07 Explorador.md")
-	if got := Resume(Scan(dir)); got != "B03 Menú de bloques.md" {
-		t.Errorf("the first unpassed lesson should open, got %q", got)
-	}
-
-	passed(t, dir, "B03 Menú de bloques.md")
-	if got := Resume(Scan(dir)); got != "B00 Básico.md" {
-		t.Errorf("at 7/7 the index should open, got %q", got)
+	cfgj := textLesson("E01",
+		Check{Kind: KindDisk, Pred: "config-key", Args: []string{"ui.link_suggestions"}},
+		Check{Kind: KindAll, Checks: []Check{{Kind: KindDisk, Pred: "config-changed", Args: []string{"ui.theme"}}}},
+	)
+	keys := cfgj.ConfigKeys()
+	if len(keys) != 2 || keys[0] != "ui.link_suggestions" || keys[1] != "ui.theme" {
+		t.Fatalf("ConfigKeys = %v", keys)
 	}
 }

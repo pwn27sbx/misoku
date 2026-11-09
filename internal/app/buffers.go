@@ -312,7 +312,9 @@ func (m *Model) newDraft(parentID string) tea.Cmd {
 	return tea.Batch(cmd, m.content.EnterInsert())
 }
 
-// cycleBuffer activates the tab delta positions away (wrapping).
+// cycleBuffer activates the tab delta positions away (wrapping). The tab
+// switch is a tutorial event (B07): it credits the current lesson, which is
+// the one the player was in.
 func (m *Model) cycleBuffer(delta int) tea.Cmd {
 	if len(m.buffers) < 2 {
 		return nil
@@ -323,7 +325,10 @@ func (m *Model) cycleBuffer(delta int) tea.Cmd {
 	}
 	next := (i + delta + len(m.buffers)) % len(m.buffers)
 	m.showBuffer(m.buffers[next])
-	return nil
+	if delta > 0 {
+		return m.tutorEvent("next_tab", "")
+	}
+	return m.tutorEvent("prev_tab", "")
 }
 
 // removeBuffer drops a tab without any prompt, activating its neighbour.
@@ -459,6 +464,7 @@ func (m *Model) writeBufferNote(b *buffer, after func(*Model) tea.Cmd, note stri
 		return nil
 	}
 	b.setSaved(saved.Content)
+	tutorCmd := m.tutorSaved(b, text)
 	m.noteSaved()
 	m.refreshGraph()
 	if note != "" {
@@ -468,9 +474,9 @@ func (m *Model) writeBufferNote(b *buffer, after func(*Model) tea.Cmd, note stri
 	}
 	m.refreshModified()
 	if after != nil {
-		return after(m)
+		return tea.Batch(after(m), tutorCmd)
 	}
-	return nil
+	return tutorCmd
 }
 
 // noteGone reports whether b's file is no longer on disk. Only a missing
