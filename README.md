@@ -529,7 +529,9 @@ Type `[[` to link to another note. Click a link in the preview, or press
 block or inline `` `code` `` is skipped, and a link to a note that doesn't
 exist says "No note found for this link" instead of starting it (use `gd`
 for that). `Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
-the box; anywhere else it moves down a line. `space o ]` and `space o [`
+the box; anywhere else it moves down a line. Clicking the box of a to-do
+line in the preview toggles it too, as one change `u` undoes; clicking the
+text of the line does not. `space o ]` and `space o [`
 jump to the next and previous `[[link]]` (the companion's `]o` and `[o`,
 whose `]` and `[` switch tabs in Misoku), skipping the same code.
 

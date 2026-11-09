@@ -508,6 +508,15 @@ func (c *compiler) compile(input string) {
 			c.openBlock(i, listItemEnd(lines, i))
 			m := checkboxRegex.FindStringSubmatch(line)
 			indent := strings.Repeat(" ", len(m[1]))
+			// The box itself is the click target: "- [-]" with no todo glyph
+			// stays plain text, and so gets none.
+			if glyph := c.boxGlyph(m[2]); glyph != "" {
+				x0 := ansi.StringWidth(indent)
+				c.hits = append(c.hits, Hit{
+					Row: len(c.out), H: 1, X0: x0, X1: x0 + ansi.StringWidth(glyph),
+					Kind: HitCheckbox, Line: c.lineOffset + i,
+				})
+			}
 			switch {
 			case m[2] == "-" && c.st.look.Todo == "":
 				// No todo glyph configured: "[-]" is just text in a bullet.
@@ -582,6 +591,18 @@ func listItemEnd(lines []string, i int) int {
 		end++
 	}
 	return end
+}
+
+// boxGlyph is the mark the preview draws for the box of a to-do line, or ""
+// when the line has no box of its own ("[-]" without a todo glyph).
+func (c *compiler) boxGlyph(mark string) string {
+	switch mark {
+	case "-":
+		return c.st.look.Todo
+	case "x", "X":
+		return c.st.look.Checked
+	}
+	return c.st.look.Unchecked
 }
 
 // bulletLine draws one bullet item: lead is its leading whitespace, text the

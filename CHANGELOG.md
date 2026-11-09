@@ -14,6 +14,10 @@ version comes from the tag, so nothing else in the tree carries it.
 
 - `space e` (`focus_explorer`) now toggles the explorer like LazyVim: it opens and focuses it, and closes it when it already has the focus. With no note open, or on the home screen, it keeps opening it.
 
+### Fixed
+
+- Clicking the box of a to-do line in the preview toggles it, as the help always said: the box itself is the target, so clicking the text does not toggle, and the change is one `u` undoes.
+
 ## [0.26.1] - 2026-11-07
 
 ### Fixed
