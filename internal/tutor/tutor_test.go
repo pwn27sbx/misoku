@@ -1,4 +1,4 @@
-package tutor_test
+package tutor
 
 import (
 	"os"
@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"testing"
 	"testing/fstest"
-
-	"github.com/pwn27sbx/misoku/internal/tutor"
 )
+
+func none(string) bool { return false }
 
 func TestInstall(t *testing.T) {
 	fsys := fstest.MapFS{
@@ -16,7 +16,7 @@ func TestInstall(t *testing.T) {
 		"B02 Casillas.md": {Data: []byte("dos")},
 	}
 	dir := filepath.Join(t.TempDir(), "tutor")
-	if err := tutor.Install(fsys, dir, false); err != nil {
+	if err := Install(fsys, dir, false); err != nil {
 		t.Fatal(err)
 	}
 	read := func(name string) string {
@@ -45,7 +45,7 @@ func TestInstall(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "B02 Casillas.md")); err != nil {
 		t.Fatal(err)
 	}
-	if err := tutor.Install(fsys, dir, false); err != nil {
+	if err := Install(fsys, dir, false); err != nil {
 		t.Fatal(err)
 	}
 	if got := read("B01 Títulos.md"); got != "editado" {
@@ -58,7 +58,7 @@ func TestInstall(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
-	if err := tutor.Install(fsys, dir, true); err != nil {
+	if err := Install(fsys, dir, true); err != nil {
 		t.Fatal(err)
 	}
 	if got := read("B01 Títulos.md"); got != "original" {
@@ -82,13 +82,13 @@ func TestInstall(t *testing.T) {
 }
 
 func TestInstallRefusesEmptyDir(t *testing.T) {
-	if err := tutor.Install(fstest.MapFS{}, "", true); err == nil {
+	if err := Install(fstest.MapFS{}, "", true); err == nil {
 		t.Fatal("Install with an empty dir must fail")
 	}
 }
 
 func TestDir(t *testing.T) {
-	d := tutor.Dir()
+	d := Dir()
 	if d == "" {
 		t.Skip("no user config dir")
 	}
@@ -97,52 +97,38 @@ func TestDir(t *testing.T) {
 	}
 }
 
-func writeVault(t *testing.T, files map[string]string) string {
-	t.Helper()
-	dir := t.TempDir()
-	for name, text := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return dir
-}
-
 func TestProgress(t *testing.T) {
-	dir := writeVault(t, map[string]string{
-		"B01 Títulos.md":    "## A\n### B\n",
-		"B02 Casillas.md":   "- [ ] nada\n",
-		"B07 Explorador.md": "[[Mi nota]]\n",
-		"Mi nota.md":        "hola\n",
-	})
-	p := tutor.Scan(dir)
+	dir := t.TempDir()
+	if err := Install(Bundled(), dir, false); err != nil {
+		t.Fatal(err)
+	}
+	passed(t, dir, "B01 Títulos.md", "B07 Explorador.md")
+	p := Scan(dir)
 	if done, total := p.Count(); done != 2 || total != 7 {
 		t.Fatalf("Scan Count = %d/%d, want 2/7", done, total)
 	}
 
-	if p.Update("B02 Casillas.md", "- [ ] nada\n", none) {
-		t.Fatal("Update reported a pass for an unticked box")
+	if p.Update("B02 Casillas.md", readNote(t, dir, "B02 Casillas.md"), none) {
+		t.Fatal("Update passed an unticked box")
 	}
-	if !p.Update("B02 Casillas.md", "- [x] hecho\n", none) {
+	if !p.Update("B02 Casillas.md", answers["B02 Casillas.md"].text, none) {
 		t.Fatal("first pass not reported")
 	}
 	if done, _ := p.Count(); done != 3 {
 		t.Fatalf("Count after pass = %d, want 3", done)
 	}
-	if p.Update("B02 Casillas.md", "- [x] hecho otra vez\n", none) {
+	if p.Update("B02 Casillas.md", answers["B02 Casillas.md"].text, none) {
 		t.Fatal("second pass reported again")
-	}
-	if p.Update("B01 Títulos.md", "## A\n### B\nmás\n", none) {
-		t.Fatal("a level passed on disk was reported again")
 	}
 	if p.Update("B02 Casillas.md", "- [ ] deshecho\n", none) {
 		t.Fatal("un-passing reported as a pass")
 	}
-	if done, _ := p.Count(); done != 2 {
-		t.Fatalf("Count after un-pass = %d, want 2", done)
+	// E4: a passed step is sticky, so the lesson stays passed.
+	if done, _ := p.Count(); done != 3 {
+		t.Fatalf("Count after un-pass = %d, want 3 (sticky)", done)
 	}
-	if p.Update("B02 Casillas.md", "- [x] de nuevo\n", none) {
-		t.Fatal("re-pass after un-pass reported again")
+	if p.Update("B01 Títulos.md", answers["B01 Títulos.md"].text, none) {
+		t.Fatal("a lesson passed on disk was reported again")
 	}
 	if p.Update("Mi nota.md", "- [x] x\n", none) {
 		t.Fatal("a non-lesson note reported a pass")
@@ -152,8 +138,18 @@ func TestProgress(t *testing.T) {
 	}
 }
 
+// readNote reads an installed note.
+func readNote(t *testing.T, dir, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
 func TestLevel(t *testing.T) {
-	p := tutor.Scan(t.TempDir())
+	p := Scan(t.TempDir())
 	cases := map[string]int{
 		"B00 Básico.md":     0,
 		"B01 Títulos.md":    1,
@@ -170,11 +166,33 @@ func TestLevel(t *testing.T) {
 }
 
 func TestNilProgress(t *testing.T) {
-	var p *tutor.Progress
+	var p *Progress
 	if p.Update("B02 Casillas.md", "- [x] a\n", none) {
 		t.Fatal("nil Update reported a pass")
 	}
 	if done, total := p.Count(); done != 0 || total != 0 {
 		t.Fatalf("nil Count = %d/%d", done, total)
+	}
+	if got := p.Level("B01 Títulos.md"); got != 0 {
+		t.Fatalf("nil Level = %d", got)
+	}
+}
+
+// E5: the "- []" hint travels with B02's step, not with a file name.
+func TestHint(t *testing.T) {
+	const want = "- [] no es una tarea: falta el espacio → - [ ]"
+	cases := []struct {
+		file, text, want string
+	}{
+		{"B02 Casillas.md", "", want},
+		{"B02 Casillas.md", "- [ ] comprar pan\n", want},
+		{"B02 Casillas.md", "- [x] comprar pan\n", ""},
+		{"B01 Títulos.md", "", ""},
+		{"Mi nota.md", "- [] comprar pan\n", ""},
+	}
+	for _, c := range cases {
+		if got := Hint(c.file, c.text); got != c.want {
+			t.Errorf("Hint(%q, %q) = %q, want %q", c.file, c.text, got, c.want)
+		}
 	}
 }

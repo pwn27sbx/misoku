@@ -50,7 +50,7 @@ func passLevel(t *testing.T, dir, file string) {
 		"B02 Casillas.md":             "\n- [x] Aprender casillas\n",
 		"B03 Menú de bloques.md":      "\n| Fruta | Precio |\n| --- | --- |\n| Mango | 2 |\n",
 		"B04 Links.md":                "\n[[B05 Links a títulos]]\n",
-		"B05 Links a títulos.md":      "\n[[#Tu turno]]\n",
+		"B05 Links a títulos.md":      "\n[[#Un título de ejemplo]]\n",
 		"B06 Referencias a bloque.md": "\nMi frase favorita ^favorita\n\n[[#^favorita]]\n",
 		"B07 Explorador.md":           "\n[[Mi nota]]\n",
 	}[file]

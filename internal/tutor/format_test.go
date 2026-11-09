@@ -93,7 +93,7 @@ func bundledLessons(t *testing.T) []string {
 	}
 	var names []string
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
 			names = append(names, e.Name())
 		}
 	}

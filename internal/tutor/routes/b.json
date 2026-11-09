@@ -1,0 +1,93 @@
+{
+  "id": "B",
+  "name": "Básico",
+  "index": "B00 Básico.md",
+  "lessons": [
+    {
+      "id": "B01",
+      "title": "Títulos",
+      "file": "B01 Títulos.md",
+      "steps": [
+        {
+          "text": "Escribe la sección `## Viaje`",
+          "check": { "kind": "text", "pred": "heading-exists", "args": ["2", "Viaje"] }
+        },
+        {
+          "text": "Añade debajo la subsección `### Día 1`",
+          "check": { "kind": "text", "pred": "heading-exists", "args": ["3", "Día 1"] }
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "title": "Casillas",
+      "file": "B02 Casillas.md",
+      "steps": [
+        {
+          "text": "Marca una tarea con `- [x]`",
+          "hint": "- [] no es una tarea: falta el espacio → - [ ]",
+          "check": { "kind": "text", "pred": "line-starts", "args": ["- [x] "] }
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "title": "Menú de bloques",
+      "file": "B03 Menú de bloques.md",
+      "steps": [
+        {
+          "text": "Inserta una tabla de dos columnas",
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
+        }
+      ]
+    },
+    {
+      "id": "B04",
+      "title": "Links",
+      "file": "B04 Links.md",
+      "steps": [
+        {
+          "text": "Escribe un link a `B05 Links a títulos`",
+          "check": { "kind": "text", "pred": "wikilink-resolves", "args": ["B05 Links a títulos"] }
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "title": "Links a títulos",
+      "file": "B05 Links a títulos.md",
+      "steps": [
+        {
+          "text": "Enlaza el título de ejemplo",
+          "check": { "kind": "text", "pred": "headinglink-exists", "args": ["Un título de ejemplo"] }
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "title": "Referencias a bloque",
+      "file": "B06 Referencias a bloque.md",
+      "steps": [
+        {
+          "text": "Marca una frase y enlaza su bloque",
+          "check": { "kind": "text", "pred": "blockref-exists", "args": ["favorita"] }
+        }
+      ]
+    },
+    {
+      "id": "B07",
+      "title": "Explorador",
+      "file": "B07 Explorador.md",
+      "steps": [
+        {
+          "text": "Crea la nota `Mi nota` en el explorador",
+          "check": { "kind": "disk", "pred": "exists", "args": ["Mi nota"] }
+        },
+        {
+          "text": "Enlázala desde esta nota",
+          "check": { "kind": "text", "pred": "wikilink-resolves", "args": ["Mi nota"] }
+        }
+      ]
+    }
+  ]
+}

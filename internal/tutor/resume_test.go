@@ -1,15 +1,13 @@
-package tutor_test
+package tutor
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/pwn27sbx/misoku/internal/tutor"
 )
 
-// passed writes the answer of every level named in files into dir, as the
-// player's notes would hold it. Level 7 needs the note it links to exist.
+// passed writes the answer of every lesson named in files into dir, as the
+// player's notes would hold it. B07 needs the note it links to exist.
 func passed(t *testing.T, dir string, files ...string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, "Mi nota.md"), []byte("una nota\n"), 0o644); err != nil {
@@ -30,35 +28,35 @@ func passed(t *testing.T, dir string, files ...string) {
 	}
 }
 
-// S5: the tutorial opens its index at the start and once every level passes,
+// S4: the tutorial opens its index at the start and once every lesson passes,
 // and the first unpassed lesson in between.
 func TestResume(t *testing.T) {
 	t.Parallel()
-	if got := tutor.Resume(nil); got != "B00 Básico.md" {
+	if got := Resume(nil); got != "B00 Básico.md" {
 		t.Errorf("without progress the index should open, got %q", got)
 	}
 
 	dir := t.TempDir()
-	if err := tutor.Install(tutor.Bundled(), dir, false); err != nil {
+	if err := Install(Bundled(), dir, false); err != nil {
 		t.Fatal(err)
 	}
-	if got := tutor.Resume(tutor.Scan(dir)); got != "B00 Básico.md" {
+	if got := Resume(Scan(dir)); got != "B00 Básico.md" {
 		t.Errorf("at 0/7 the index should open, got %q", got)
 	}
 
 	passed(t, dir, "B01 Títulos.md", "B02 Casillas.md")
-	if got := tutor.Resume(tutor.Scan(dir)); got != "B03 Menú de bloques.md" {
-		t.Errorf("after levels 1 and 2 the next unpassed lesson should open, got %q", got)
+	if got := Resume(Scan(dir)); got != "B03 Menú de bloques.md" {
+		t.Errorf("after lessons 1 and 2 the next unpassed lesson should open, got %q", got)
 	}
 
 	// A gap in the middle is resumed at the gap, not after it.
 	passed(t, dir, "B04 Links.md", "B05 Links a títulos.md", "B06 Referencias a bloque.md", "B07 Explorador.md")
-	if got := tutor.Resume(tutor.Scan(dir)); got != "B03 Menú de bloques.md" {
+	if got := Resume(Scan(dir)); got != "B03 Menú de bloques.md" {
 		t.Errorf("the first unpassed lesson should open, got %q", got)
 	}
 
 	passed(t, dir, "B03 Menú de bloques.md")
-	if got := tutor.Resume(tutor.Scan(dir)); got != "B00 Básico.md" {
+	if got := Resume(Scan(dir)); got != "B00 Básico.md" {
 		t.Errorf("at 7/7 the index should open, got %q", got)
 	}
 }

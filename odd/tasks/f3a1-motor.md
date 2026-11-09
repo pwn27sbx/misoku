@@ -14,21 +14,44 @@ HOME, config, vault or tutorial folder.
 
 ## Specs
 
-- **S1. Catalog (D1).** `Catalog{Routes []Route, Extra []Lesson}`;
-  `Route{ID, Name, Lessons}`; `Lesson{ID, File, Title, Steps}`;
-  `Step{Text, Check, Hint}`. Files stay at the tutorial vault root, named
-  `<ID> <Title>.md`; one index note per route (`B00 Básico.md`) and the final
-  reference note `Después del tutorial.md`, both without steps. The catalog is
-  injectable (tests build their own routes); `Default()` is the bundled one.
-- **S2. Check kinds (D2).** `text`, `text-fence`, `text-raw`, `disk`,
-  `action`, exactly the curriculum's predicates: `line-contains`,
-  `line-starts`, `line-equals`, `line-ends`, `n-lines-start`, `absent`,
-  `heading-exists`, `wikilink-resolves`, `blockref-exists`,
-  `headinglink-exists`, `table-shape`; fence kind + inner line pattern; disk
-  `exists`, `folder-exists`, `file-changed`, `other-note-text`, `config-key`,
-  `no-file`; action name + optional value. Pure evaluation with an injected
-  `Env` reader (nil callback = that check fails). Action checks never pass
-  from text.
+- **S1. Catalog (D1 + E12).** The catalog is embedded JSON, one file per route
+  in `internal/tutor/routes/{b,i,a,e}.json` (`//go:embed`), with exactly the
+  schema in `F4-lecciones.md` ("What each unit writes"): route
+  `{id, name, index, lessons}`, lesson `{id, title, file, steps}`, step
+  `{text, hint?, check, ids?}`. `Check{kind, pred?, args?, fence?, pattern?,
+  event?, value?, checks?}` mirrors the schema; `kind` is one of `text`,
+  `text-fence`, `text-raw`, `disk`, `action`, `all`, `none`. `BundledRoutes()`
+  loads and validates every embedded route (unknown kind/pred/event, bad
+  arity, duplicate IDs, a missing file → error, tested; `Default()` degrades
+  to an empty catalog at runtime instead of panicking). File names are L1
+  slugs (letters, digits, spaces, `, - .`). Routes with no file do not exist.
+  The catalog is injectable for tests. Files stay at the tutorial vault root;
+  the route index (`B00 Básico.md`) is a route field, not a lesson, and the
+  final reference note `Después del tutorial.md` is embedded but belongs to no
+  route.
+- **S1b. E13 schema additions.** `all` runs every sub-check (`checks`), each
+  sticky. An action `value` is a string or an array; every listed value must be
+  seen. `config-key [key]` = present, `[key, value]` = equals; new
+  `config-changed [key]` = changed since the lesson opened. Paths expand
+  `{today}` to `AAAA-MM-DD` from `Env.Today`. Argument orders are fixed (L3),
+  with no permissive parsing.
+- **S2. Check kinds (D2).** The curriculum's predicates: text
+  `line-contains`, `line-starts`, `line-equals`, `line-ends`,
+  `n-lines-start`, `absent`, `heading-exists`, `wikilink-resolves`,
+  `blockref-exists`, `headinglink-exists`, `table-shape`; `text-fence` uses
+  `fence` + `pattern` (a line of that fence contains the pattern); `text-raw`
+  keeps inline code; disk `exists`, `folder-exists`, `file-changed`,
+  `other-note-text`, `config-key`, `config-changed`, `no-file`; action `event`
+  + optional `value` (string or array). Pure evaluation with an injected `Env`
+  reader (nil callback = that check fails). Action checks never pass from text.
+- **S2b. Baseline (L4/E13).** Text, text-fence and text-raw checks ignore every
+  line present in the embedded original of the lesson file, so a lesson never
+  passes on its own text; the store subtracts the original before evaluating,
+  and table tests prove it.
+- **S3b. Sticky sub-checks.** Each leaf of an `all` and each action value has
+  its own progress key (`B03#2.1`, `B03#2.1=2`) so a sub-check that passed
+  stays passed even when the text changes; the step key is set once every
+  leaf is stored.
 - **S3. Stored progress (D4/E6).** `<tutorial dir>/.misoku-tutor.json`:
   `{version, migrated, last_route, steps: {"B03#2": true}}`, keys 1-based
   (`S1`). `Load` tolerates a missing file, refuses a newer version, and
@@ -57,6 +80,10 @@ HOME, config, vault or tutorial folder.
 - **S8. Core export (E6).** `core.WriteFileAtomic` replaces the unexported
   `writeFileAtomic`, with a doc comment; `internal/core/store_crud.go` and
   any other call site updated.
+- **S10. E14.** Text checks see the front matter (only the D8 format test
+  skips it); `{today}` expands in text and text-fence patterns as well as in
+  paths; `lessons/*.png` is embedded too, with one small original `mapa.png`
+  (< 50 KB) for the image lessons. The git-init part of E14 is F3a2.
 - **S9. Compatibility bridge.** The app still runs the pre-routes API until
   F3a2: `Lessons`, `Scan`, `Progress` (`Update`, `Count`, `Level`), `Hint`,
   `Resume` are derived from the new engine (one source of truth), marked as a
@@ -68,8 +95,8 @@ HOME, config, vault or tutorial folder.
 |---|---|---|---|---|
 | T1 | S7 checks, S6 content | inline | done | commit `refactor(tutor): unwrap the placeholder lessons...` |
 | T2 | S8 export | inline | done | commit `feat(core): export WriteFileAtomic` |
-| T3 | S1, S2, S3, S4, S9 | inline | done | commit `feat(tutor): ...` |
-| T4 | S5 | inline | done | commit `feat(tutor): retire the old level notes...` |
+| T3 | S1, S1b, S2, S2b, S3, S3b, S4, S9, S10 | inline | done | commit `feat(tutor): routes, steps, embedded checks and stored progress` |
+| T4 | S5 | inline | done | same commit: the one-time migration lives in `Install` |
 
 ## Log
 
@@ -80,3 +107,25 @@ HOME, config, vault or tutorial folder.
   lesson stay for F3a2.
 - **L3:** `B07` already said reading `space p` / editor `space r` at
   origin/main 40a51fb; the E1 fix is verified, not re-applied.
+- **L7:** README and CHANGELOG are left for F3a2/F4: F3a1 changes no key,
+  command or setting the player sees, and the tutorial chapter is rewritten
+  when Home, feedback and the real lessons land.
+- **L6 (owner, 2026-11-09, verbatim):** "One more small amendment: read
+  'Amendment E14' at the end of .../F3a-motor.md. In F3a1 apply the parts that
+  belong to internal/tutor: text checks see front matter (only the D8 format
+  test skips it), {today} expands in text/text-fence patterns as well as
+  paths, and embed lessons/*.png. The git-init part is for F3a2 later."
+- **L5 (owner, 2026-11-09, verbatim):** "Another schema update before you
+  finish: read 'Amendment E13' at the end of .../F3a-motor.md and the
+  referenced Amendments L2-L4 in F4-lecciones.md (kind 'all', value arrays,
+  config-key/config-changed, {today}, fixed argument orders, and the baseline
+  rule that text checks ignore lines already in the embedded original).
+  Include them in F3a1 with table tests." L2 also makes every sub-check
+  sticky, so progress stores a key per leaf and per action value.
+- **L4 (owner, 2026-11-09, verbatim):** "Important change before you go
+  further: read the new section 'Amendment E12' at the end of .../F3a-motor.md
+  and the schema in .../F4-lecciones.md ('What each unit writes'). The catalog
+  must be loaded from embedded JSON (internal/tutor/routes/*.json) with Go
+  types mirroring that schema, validated by tests. Adjust your F3a1 work to it,
+  then continue as before." The Go catalog literal from T1's plan is replaced
+  by `routes/b.json`; E12 overrides D1's "checks stay in Go".
