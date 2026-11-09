@@ -107,6 +107,13 @@ HOME, config, vault or tutorial folder.
   lesson stay for F3a2.
 - **L3:** `B07` already said reading `space p` / editor `space r` at
   origin/main 40a51fb; the E1 fix is verified, not re-applied.
+- **L9:** The native 4-lens review completed with one escalated finding,
+  `R3-migration-failure-order` (severe, unknown causality): the old notes
+  were retired before the new lessons were written, so a failed copy left an
+  empty tutorial. Fixed in `ddb31d0` (copy first, migrate after) with a
+  regression test that fails the copy and proves the old notes stay. The
+  review closed as `native_stop_required` / `escalated`; a fresh review of the
+  fixed candidate follows.
 - **L8:** `make all` green on `892ab76`: 25 packages, 1951 top-level tests
   and 774 subtests pass, 0 failures. `go test -race ./internal/tutor/` is
   green too.
