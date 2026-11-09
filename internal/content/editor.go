@@ -118,10 +118,15 @@ func parseVimCommand(cmdStr, content string) any {
 			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :settings)", Error: true}
 		}
 		return core.SettingsMsg{}
-	case "enew", "new", "e", "edit":
-		if arg == "" || name == "enew" || name == "new" {
+	case "enew", "new":
+		return core.VimNewBufferMsg{}
+	case "e", "edit":
+		// ":e name" opens or starts a note, as a [[link]] would; bare ":e"
+		// keeps opening an empty tab.
+		if arg == "" {
 			return core.VimNewBufferMsg{}
 		}
+		return core.VimEditMsg{Target: arg}
 	}
 	return core.StatusMsg{Text: "E492: Not an editor command: " + cmdStr, Error: true}
 }

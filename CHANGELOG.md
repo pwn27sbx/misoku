@@ -17,6 +17,7 @@ version comes from the tag, so nothing else in the tree carries it.
 ### Fixed
 
 - Clicking the box of a to-do line in the preview toggles it, as the help always said: the box itself is the target, so clicking the text does not toggle, and the change is one `u` undoes.
+- `:e name` and `:edit name` open that note, resolved as a `[[link]]` written in the open note would be (a path such as `Projects/AWS` works); a note that does not exist yet starts unsaved with that name. Bare `:e`, `:enew` and `:new` still open an empty tab.
 
 ### Added
 

@@ -318,6 +318,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.exportPDF(msg.Path)
 	case core.VimNewBufferMsg:
 		return m, m.newDraft(m.sidebar.ContextParentID())
+	case core.VimEditMsg:
+		// ":e name" opens the note a [[link]] would, and starts it as an
+		// unresolved link does.
+		return m, m.followWikiLink(core.ParseWikiLink(msg.Target))
 	case tea.MouseMsg:
 		return m, m.handleMouse(msg)
 	case fileManagerDoneMsg:
