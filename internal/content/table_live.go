@@ -48,12 +48,30 @@ func (m *Model) tableRowInFence(row int) bool {
 	return inFence(m.textarea.RowText, row)
 }
 
+// hasPipeAtOrAfter reports whether a pipe sits at or after the rune column
+// col: a cursor with none is past the row's last pipe.
+func hasPipeAtOrAfter(line string, col int) bool {
+	for i, r := range []rune(line) {
+		if i >= col && r == '|' {
+			return true
+		}
+	}
+	return false
+}
+
 // alignCursorTable reformats the table at the cursor, if there is one and it
 // is not inside a fenced code block, and restores the cursor in its cell.
 func (m *Model) alignCursorTable() {
 	row, col := m.textarea.RowCol()
 	text := m.textarea.RowText
 	if !isTableLine(text(row)) {
+		return
+	}
+	// A pipe at or after the cursor is what closes the cell being typed in.
+	// Without one the cursor sits past the row's last pipe, outside every
+	// cell: what is typed there is text after the table, not cell content,
+	// and must be left exactly as typed.
+	if !hasPipeAtOrAfter(text(row), col) {
 		return
 	}
 	// Walk the table's own rows only: a long note must not pay for a split of

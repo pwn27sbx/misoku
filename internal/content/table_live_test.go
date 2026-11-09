@@ -198,6 +198,21 @@ func TestTableLiveAlignLeavesTheSlashMenuAlone(t *testing.T) {
 	}
 }
 
+// S1: text typed after the row's closing pipe is outside every cell; the
+// live path leaves the row exactly as typed. U3's link list types its "[[" in
+// that position on a table row, and the row must not be reformatted under it.
+func TestTableLiveAlignLeavesTextAfterTheClosingPipeAlone(t *testing.T) {
+	c := newNote(tableFormatted)
+	c = keys(c, "jj")
+	c, _ = c.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	c = keys(c, "i")
+	c = keys(c, " x")
+	want := tableFormatted + " x"
+	if c.Value() != want {
+		t.Fatalf("typing after the closing pipe must not realign the row:\n%q\nwant\n%q", c.Value(), want)
+	}
+}
+
 // S3: a long note pays only for its table, not for a whole-document rewrite
 // per key. Each iteration types and deletes a rune, so the cell keeps its
 // width and the number stays comparable.
