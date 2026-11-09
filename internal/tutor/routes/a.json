@@ -1,0 +1,595 @@
+{
+  "id": "A",
+  "name": "Avanzado",
+  "index": "A00 Avanzado.md",
+  "lessons": [
+    {
+      "id": "A01",
+      "title": "Títulos profundos, citas anidadas y comentarios",
+      "file": "A01 Títulos profundos, citas anidadas y comentarios.md",
+      "steps": [
+        {
+          "text": "Escribe a mano los títulos de nivel 5 y 6",
+          "hint": "El menú llega al 4; el 5 y el 6 se escriben con cinco y seis almohadillas",
+          "ids": ["MD-06"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "heading-exists", "args": [5, "Presupuesto"] },
+              { "kind": "text", "pred": "heading-exists", "args": [6, "Detalle"] }
+            ]
+          }
+        },
+        {
+          "text": "Anida una cita dentro de otra cita",
+          "hint": "Empieza la línea por dos signos de mayor seguidos",
+          "ids": ["MD-17"],
+          "check": { "kind": "text", "pred": "line-starts", "args": [">> "] }
+        },
+        {
+          "text": "Escribe un comentario que el preview no dibuja",
+          "hint": "El comentario va entre los dos signos de menor y dos guiones",
+          "ids": ["MD-45"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["<!-- pendiente de confirmar -->"] }
+        }
+      ]
+    },
+    {
+      "id": "A02",
+      "title": "Front matter y propiedades",
+      "file": "A02 Front matter y propiedades.md",
+      "steps": [
+        {
+          "text": "Escribe el bloque de propiedades con dos claves",
+          "hint": "Tres guiones, las claves y tres guiones, al principio de la nota",
+          "ids": ["PROP-01"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["viaje: costa"] },
+              { "kind": "text", "pred": "line-contains", "args": ["estado: planeado"] }
+            ]
+          }
+        },
+        {
+          "text": "Mira la tabla de propiedades del preview",
+          "hint": "La tabla va bajo el encabezado, una fila por clave",
+          "ids": ["PROP-02"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "properties" }
+        },
+        {
+          "text": "Comprueba que cover e icon no están en la tabla",
+          "hint": "cover e icon son presentación, no datos",
+          "ids": ["PRV-34"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "properties" }
+        }
+      ]
+    },
+    {
+      "id": "A03",
+      "title": "Editar propiedades",
+      "file": "A03 Editar propiedades.md",
+      "steps": [
+        {
+          "text": "Cambia el valor costa por sierra en la tabla",
+          "hint": "Un clic en el valor abre el campo; la clave no se toca",
+          "ids": ["PROP-03"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["viaje: sierra"] }
+        },
+        {
+          "text": "Añade montaña a la lista de tags en el editor",
+          "hint": "La tabla dibuja las listas de solo lectura",
+          "ids": ["PROP-04"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["tags: [playa, sol, montaña]"] }
+        }
+      ]
+    },
+    {
+      "id": "A04",
+      "title": "Estado de la nota",
+      "file": "A04 Estado de la nota.md",
+      "steps": [
+        {
+          "text": "Añade status: active al front matter",
+          "hint": "status es una propiedad más de la cabecera",
+          "ids": ["PROP-05"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["status: active"] }
+        },
+        {
+          "text": "Prueba los cuatro estados y mira sus glifos",
+          "hint": "Los glifos salen en el explorador y en el inicio",
+          "ids": ["PROP-06", "NOTE-24", "NOTE-28"],
+          "check": {
+            "kind": "action",
+            "event": "status_glyph",
+            "value": ["active", "onhold", "completed", "dropped"]
+          }
+        },
+        {
+          "text": "Escribe un estado inventado y mira que no hay glifo",
+          "hint": "Un valor desconocido se trata como si no hubiera estado",
+          "ids": ["PROP-08"],
+          "check": { "kind": "action", "event": "status_glyph", "value": "none" }
+        }
+      ]
+    },
+    {
+      "id": "A05",
+      "title": "Filtros avanzados",
+      "file": "A05 Filtros avanzados.md",
+      "steps": [
+        {
+          "text": "Ejecuta :status y elige un estado",
+          "hint": ":status abre el buscador ya filtrado",
+          "ids": ["PROP-07"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "status:" }
+        },
+        {
+          "text": "Filtra el buscador con status:active",
+          "hint": "Las condiciones van dentro del buscador",
+          "ids": ["TAG-10"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "status:active" }
+        },
+        {
+          "text": "Filtra con folder:Viajes y folder entre comillas",
+          "hint": "Una carpeta con espacios va entre comillas",
+          "ids": ["TAG-11"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "folder:" }
+        },
+        {
+          "text": "Combina estado, carpeta y palabra",
+          "hint": "Todas las condiciones deben cumplirse",
+          "ids": ["TAG-12"],
+          "check": {
+            "kind": "action",
+            "event": "finder_filter",
+            "value": "status:active folder:Viajes playa"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A06",
+      "title": "Historia de la nota",
+      "file": "A06 Historia de la nota.md",
+      "steps": [
+        {
+          "text": "Ejecuta :history en una nota con commits",
+          "hint": "El historial es el del git del vault",
+          "ids": ["HIST-01"],
+          "check": { "kind": "action", "event": "history_open", "value": "commits" }
+        },
+        {
+          "text": "Recorre las versiones con j y k",
+          "hint": "La rueda también mueve la lista",
+          "ids": ["HIST-02"],
+          "check": { "kind": "action", "event": "history_preview" }
+        },
+        {
+          "text": "Restaura una versión con Enter y deshaz con u",
+          "hint": "La versión entra en el editor como un solo cambio",
+          "ids": ["HIST-03"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["presupuesto: 900"] }
+        },
+        {
+          "text": "Prueba :history en una nota sin commits",
+          "hint": "Sin git no hay diálogo: la barra dice por qué",
+          "ids": ["HIST-04"],
+          "check": { "kind": "action", "event": "history_error" }
+        }
+      ]
+    },
+    {
+      "id": "A07",
+      "title": "Menciones y backlinks",
+      "file": "A07 Menciones y backlinks.md",
+      "steps": [
+        {
+          "text": "Escribe un enlace a esta nota en otra y mira la lista",
+          "hint": "Los backlinks salen debajo del preview",
+          "ids": ["LNK-22"],
+          "check": { "kind": "action", "event": "backlinks" }
+        },
+        {
+          "text": "Abre una mención sin enlace con un clic",
+          "hint": "Las menciones son notas que nombran esta sin corchetes",
+          "ids": ["PRV-31"],
+          "check": { "kind": "action", "event": "mention_open" }
+        },
+        {
+          "text": "Convierte una mención en enlace con el botón link",
+          "hint": "El botón reescribe todas las menciones de esa nota",
+          "ids": ["PRV-32"],
+          "check": {
+            "kind": "disk",
+            "pred": "other-note-text",
+            "args": ["Idea", "[[A07 Menciones y backlinks]]"]
+          }
+        },
+        {
+          "text": "Haz clic en una fila de la lista de backlinks",
+          "hint": "Abre la nota en la línea del enlace",
+          "ids": ["PRV-33"],
+          "check": { "kind": "action", "event": "backlink_open" }
+        }
+      ]
+    },
+    {
+      "id": "A08",
+      "title": "Renombrar sin romper enlaces",
+      "file": "A08 Renombrar sin romper enlaces.md",
+      "steps": [
+        {
+          "text": "Renombra Maleta y acepta actualizar los enlaces",
+          "hint": "La pregunta dice cuántos enlaces y en cuántas notas",
+          "ids": ["LNK-25"],
+          "check": {
+            "kind": "disk",
+            "pred": "other-note-text",
+            "args": ["A08 Renombrar sin romper enlaces", "[[Equipaje]]"]
+          }
+        },
+        {
+          "text": "Enlaza la Maleta de Casa con la ruta delante",
+          "hint": "Con dos notas iguales, el enlace lleva la carpeta",
+          "ids": ["LNK-26"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[[Casa/Maleta]]"] }
+        }
+      ]
+    },
+    {
+      "id": "A09",
+      "title": "Incrustar",
+      "file": "A09 Incrustar.md",
+      "steps": [
+        {
+          "text": "Crea Viaje y incrusta la nota entera",
+          "hint": "Una exclamación delante del enlace trae el contenido",
+          "ids": ["LNK-09"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[Viaje]]"] }
+        },
+        {
+          "text": "Incrusta el título Equipaje de Viaje",
+          "hint": "El # separa la nota de la parte",
+          "ids": ["LNK-10"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[Viaje#Equipaje]]"] }
+        },
+        {
+          "text": "Incrusta el bloque reserva de Viaje",
+          "hint": "El ^ dice que la parte es un bloque, no un título",
+          "ids": ["LNK-11"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[Viaje#^reserva]]"] }
+        },
+        {
+          "text": "Incrusta una imagen del vault",
+          "hint": "La imagen va por su nombre, sin ruta",
+          "ids": ["LNK-12"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[mapa.png]]"] }
+        }
+      ]
+    },
+    {
+      "id": "A10",
+      "title": "Enlaces a archivos y enlaces peligrosos",
+      "file": "A10 Enlaces a archivos y enlaces peligrosos.md",
+      "steps": [
+        {
+          "text": "Enlaza un archivo local y ábrelo",
+          "hint": "Un enlace de Markdown puede apuntar a un PDF o una imagen",
+          "ids": ["LNK-19"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[menú](menu.pdf)"] }
+        },
+        {
+          "text": "Prueba un enlace peligroso y cancela",
+          "hint": "El diálogo llega con Cancelar ya elegido",
+          "ids": ["LNK-20"],
+          "check": { "kind": "action", "event": "link_confirm", "value": "Cancel" }
+        }
+      ]
+    },
+    {
+      "id": "A11",
+      "title": "Grafo local",
+      "file": "A11 Grafo local.md",
+      "steps": [
+        {
+          "text": "Abre el grafo con space g",
+          "hint": ":graph hace lo mismo",
+          "ids": ["GRF-01"],
+          "check": { "kind": "action", "event": "graph_open", "value": "local" }
+        },
+        {
+          "text": "Muévete, abre, acerca y centra",
+          "hint": "h y l, j y k, Enter, + y -, y 0 para centrar",
+          "ids": ["GRF-02"],
+          "check": {
+            "kind": "action",
+            "event": "graph_move",
+            "value": ["hl", "jk", "enter", "zoom", "center"]
+          }
+        },
+        {
+          "text": "Haz clic, rueda y arrastra en el grafo",
+          "hint": "El ratón hace lo mismo que las teclas",
+          "ids": ["GRF-03"],
+          "check": { "kind": "action", "event": "graph_mouse" }
+        },
+        {
+          "text": "Escribe un enlace y mira el grafo actualizarse",
+          "hint": "El grafo se refresca solo",
+          "ids": ["GRF-08"],
+          "check": { "kind": "action", "event": "graph_refresh" }
+        }
+      ]
+    },
+    {
+      "id": "A12",
+      "title": "Grafo global",
+      "file": "A12 Grafo global.md",
+      "steps": [
+        {
+          "text": "Abre el grafo global con space G",
+          "hint": ":graph all y la g del inicio también",
+          "ids": ["GRF-04"],
+          "check": { "kind": "action", "event": "graph_open", "value": "global" }
+        },
+        {
+          "text": "Abre una nota que falta desde un nodo hueco",
+          "hint": "Los nodos huecos son enlaces a notas que no existen",
+          "ids": ["GRF-06"],
+          "check": { "kind": "action", "event": "new_draft", "value": "Maleta" }
+        }
+      ]
+    },
+    {
+      "id": "A13",
+      "title": "Exportar a PDF",
+      "file": "A13 Exportar a PDF.md",
+      "steps": [
+        {
+          "text": "Exporta esta nota con :export",
+          "hint": "El PDF aparece junto a la nota",
+          "ids": ["EXP-01"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["A13 Exportar a PDF.pdf"] }
+        },
+        {
+          "text": "Exporta a una carpeta y con otro nombre",
+          "hint": "Una carpeta acaba en barra; un nombre lleva su extensión",
+          "ids": ["EXP-02"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["informe.pdf"] }
+        },
+        {
+          "text": "Exporta otra nota con space P",
+          "hint": "space P exporta la nota abierta sin escribir nada",
+          "ids": ["EXP-03"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["A00 Avanzado.pdf"] }
+        }
+      ]
+    },
+    {
+      "id": "A14",
+      "title": "Portada",
+      "file": "A14 Portada.md",
+      "steps": [
+        {
+          "text": "Inserta una portada con el menú Cover",
+          "hint": "Escribe cover: con la ruta si no tienes imagen a mano",
+          "ids": ["MD-33"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["cover:"] }
+        },
+        {
+          "text": "Mira la banda de portada en el preview",
+          "hint": "La banda ocupa ocho filas sobre el título",
+          "ids": ["PRV-04"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "cover" }
+        }
+      ]
+    },
+    {
+      "id": "A15",
+      "title": "Formularios: crear y responder",
+      "file": "A15 Formularios, crear y responder.md",
+      "steps": [
+        {
+          "text": "Inserta un formulario con el menú Form",
+          "hint": "El bloque trae un título y dos preguntas",
+          "ids": ["MD-31"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text-fence", "fence": "form", "pattern": "title:" },
+              { "kind": "text-fence", "fence": "form", "pattern": "? Question" }
+            ]
+          }
+        },
+        {
+          "text": "Responde la primera pregunta con 3 días",
+          "hint": "La respuesta se escribe bajo la pregunta, con un igual",
+          "ids": ["PRV-19"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= 3 días" }
+        },
+        {
+          "text": "Haz la segunda pregunta de fecha y elige hoy",
+          "hint": "El tipo (date) abre el calendario y escribe la fecha",
+          "ids": ["PRV-20"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= {today}" }
+        }
+      ]
+    },
+    {
+      "id": "A16",
+      "title": "Formularios: opciones y estrellas",
+      "file": "A16 Formularios, opciones y estrellas.md",
+      "steps": [
+        {
+          "text": "Marca, borra y vuelve a marcar una opción",
+          "hint": "Otro clic en la misma opción borra la respuesta",
+          "ids": ["PRV-21"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= Cabaña" }
+        },
+        {
+          "text": "Marca dos opciones de una pregunta múltiple",
+          "hint": "La respuesta une las opciones con comas",
+          "ids": ["PRV-22"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= Bici, Tren" }
+        },
+        {
+          "text": "Pon tres estrellas a la pregunta de valoración",
+          "hint": "La tercera estrella escribe un 3",
+          "ids": ["PRV-23"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= 3" }
+        }
+      ]
+    },
+    {
+      "id": "A17",
+      "title": "Formularios: editarlos",
+      "file": "A17 Formularios, editarlos.md",
+      "steps": [
+        {
+          "text": "Renombra, cambia, marca, limpia y borra una pregunta",
+          "hint": "El menú de la pregunta guarda el tipo y las opciones",
+          "ids": ["PRV-24"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "Equipaje" }
+        },
+        {
+          "text": "Añade una pregunta nueva con su nombre y tipo",
+          "hint": "El botón de añadir pregunta pide nombre y tipo",
+          "ids": ["PRV-25"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "Traslado" }
+        },
+        {
+          "text": "Cambia el título y la descripción",
+          "hint": "Un clic en cada uno abre su campo",
+          "ids": ["PRV-26"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text-fence", "fence": "form", "pattern": "title: Viaje a la costa" },
+              { "kind": "text-fence", "fence": "form", "pattern": "description: Vuelta al pueblo" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A18",
+      "title": "Mover bloques",
+      "file": "A18 Mover bloques.md",
+      "steps": [
+        {
+          "text": "Arrastra un bloque con el asa de puntos",
+          "hint": "El asa agarra el bloque entero, no una línea",
+          "ids": ["PRV-27"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Total: 900 €"] }
+        },
+        {
+          "text": "Añade un bloque con el + del margen",
+          "hint": "El + abre una línea nueva y el menú",
+          "ids": ["PRV-28"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Cena: 45 €"] }
+        },
+        {
+          "text": "Mira las asas del bloque bajo el cursor",
+          "hint": "Las asas salen al pasar el ratón por el preview",
+          "ids": ["PRV-29"],
+          "check": { "kind": "action", "event": "block_handles", "value": "visible" }
+        }
+      ]
+    },
+    {
+      "id": "A19",
+      "title": "Conflictos y cambios externos",
+      "file": "A19 Conflictos y cambios externos.md",
+      "steps": [
+        {
+          "text": "Cambia la nota desde fuera y guarda",
+          "hint": "La barra dice Both kept: y da el nombre de la copia",
+          "ids": ["EDT-20"],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Borra una nota por fuera y mira el aviso",
+          "hint": "Avisa una vez y pregunta antes de recrearla",
+          "ids": ["EDT-21"],
+          "check": { "kind": "action", "event": "external_change", "value": "confirm" }
+        },
+        {
+          "text": "Provoca un conflicto de sync",
+          "hint": "Necesita dos copias del vault tocando la misma línea",
+          "ids": ["SYNC-09"],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Comprueba que están los dos textos",
+          "hint": "Uno en la nota y el otro en la copia de conflicto",
+          "ids": ["SYNC-10"],
+          "check": { "kind": "none" }
+        }
+      ]
+    },
+    {
+      "id": "A20",
+      "title": "Editar carpetas en el editor",
+      "file": "A20 Editar carpetas en el editor.md",
+      "steps": [
+        {
+          "text": "Abre una carpeta en el editor con m",
+          "hint": "Cada entrada es una línea editable",
+          "ids": ["NOTE-17"],
+          "check": { "kind": "action", "event": "dirbuf_open" }
+        },
+        {
+          "text": "Crea, renombra y borra líneas y confirma",
+          "hint": "Nada se toca hasta que aceptas el plan",
+          "ids": ["NOTE-18"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["Notas/equipaje"] }
+        },
+        {
+          "text": "Abre el editor desde el árbol con i, a y o",
+          "hint": "La tecla llega ya recibida al editor",
+          "ids": ["NOTE-19"],
+          "check": { "kind": "action", "event": "dirbuf_open", "value": ["i", "a", "o"] }
+        },
+        {
+          "text": "Crea un archivo con M y vuelve",
+          "hint": "Misoku relee la carpeta al cerrar mini.files",
+          "ids": ["NOTE-20"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["practica-mini"] }
+        }
+      ]
+    },
+    {
+      "id": "A21",
+      "title": "Desafío Avanzado",
+      "file": "A21 Desafío Avanzado.md",
+      "steps": [
+        {
+          "text": "Crea Proyecto casa con propiedades, estado y portada",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Incrusta el bloque total de Presupuesto",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Renombra Presupuesto y acepta actualizar enlaces",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Exporta a PDF y abre el grafo local",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Convierte una mención sin enlace en enlace",
+          "ids": [],
+          "check": { "kind": "none" }
+        }
+      ]
+    }
+  ]
+}
