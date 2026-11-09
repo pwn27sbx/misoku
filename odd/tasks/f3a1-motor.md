@@ -93,10 +93,10 @@ HOME, config, vault or tutorial folder.
 
 | ID | Spec | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S7 checks, S6 content | inline | done | commit `refactor(tutor): unwrap the placeholder lessons...` |
-| T2 | S8 export | inline | done | commit `feat(core): export WriteFileAtomic` |
-| T3 | S1, S1b, S2, S2b, S3, S3b, S4, S9, S10 | inline | done | commit `feat(tutor): routes, steps, embedded checks and stored progress` |
-| T4 | S5 | inline | done | same commit: the one-time migration lives in `Install` |
+| T1 | S7 checks, S6 content | inline | done | `89275b5` — refactor(tutor): unwrap the placeholder lessons and rename them for route B |
+| T2 | S8 export | inline | done | `c9272ee` — feat(core): export WriteFileAtomic |
+| T3 | S1, S1b, S2, S2b, S3, S3b, S4, S9, S10 | inline | done | `892ab76` — feat(tutor): routes, steps, embedded checks and stored progress |
+| T4 | S5 | inline | done | `892ab76` — the one-time migration lives in `Install` |
 
 ## Log
 
@@ -107,6 +107,9 @@ HOME, config, vault or tutorial folder.
   lesson stay for F3a2.
 - **L3:** `B07` already said reading `space p` / editor `space r` at
   origin/main 40a51fb; the E1 fix is verified, not re-applied.
+- **L8:** `make all` green on `892ab76`: 25 packages, 1951 top-level tests
+  and 774 subtests pass, 0 failures. `go test -race ./internal/tutor/` is
+  green too.
 - **L7:** README and CHANGELOG are left for F3a2/F4: F3a1 changes no key,
   command or setting the player sees, and the tutorial chapter is rewritten
   when Home, feedback and the real lessons land.
