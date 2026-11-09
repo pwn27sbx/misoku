@@ -6,7 +6,7 @@ import (
 	"runtime"
 )
 
-// writeFileAtomic replaces abs with data in one step: it writes a temporary
+// WriteFileAtomic replaces abs with data in one step: it writes a temporary
 // file next to it, flushes it to disk and renames it over the original. A
 // crash or a full disk mid-save leaves the old note intact instead of a
 // truncated one, and programs that already had the file open keep reading the
@@ -15,7 +15,7 @@ import (
 // A symlinked note is written at its target, so the link survives, and an
 // existing file keeps its permissions. On Windows, where a file open in
 // another program cannot be replaced, it falls back to writing in place.
-func writeFileAtomic(abs string, data []byte) error {
+func WriteFileAtomic(abs string, data []byte) error {
 	if target, err := filepath.EvalSymlinks(abs); err == nil {
 		abs = target
 	}
