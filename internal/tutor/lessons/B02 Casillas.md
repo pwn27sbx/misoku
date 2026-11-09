@@ -10,6 +10,6 @@ Para marcar o desmarcar una casilla sin escribir la x: pon el cursor en la líne
 
 ## Tu turno
 
-Escribe una tarea aquí abajo y márcala como hecha (con `Enter` en NORMAL o escribiendo la x).
+Escribe aquí abajo una tarea (`- [ ] comprar pan`) y márcala como hecha (`- [x] comprar pan`).
 
 Siguiente: [[B03 Menú de bloques]]
