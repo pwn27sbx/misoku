@@ -1,0 +1,719 @@
+{
+  "id": "B",
+  "name": "Básico",
+  "index": "B00 Básico.md",
+  "lessons": [
+    {
+      "id": "B01",
+      "title": "Escribe en 30 segundos",
+      "file": "B01 Escribe en 30 segundos.md",
+      "steps": [
+        {
+          "text": "Pulsa i y escribe: Hoy empiezo mi diario de viaje",
+          "ids": ["VIM-02"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Hoy empiezo mi diario de viaje"] }
+        },
+        {
+          "text": "Pulsa Esc: sales de INSERT y el cursor retrocede",
+          "hint": "Esc está arriba a la izquierda",
+          "ids": ["VIM-08", "VIM-01"],
+          "check": { "kind": "action", "event": "mode_changed", "value": "normal" }
+        },
+        {
+          "text": "Guarda la nota con ctrl+s",
+          "hint": "ctrl+s es la tecla de guardar",
+          "ids": ["EDT-02"],
+          "check": { "kind": "disk", "pred": "file-changed", "args": [] }
+        },
+        {
+          "text": "Abre una nota en blanco con space n",
+          "hint": "space n abre pestaña nueva",
+          "ids": ["EDT-01"],
+          "check": { "kind": "action", "event": "new_draft" }
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "title": "Insertar donde quieras",
+      "file": "B02 Insertar donde quieras.md",
+      "steps": [
+        {
+          "text": "Con el cursor en la o de gato, pulsa a y escribe s",
+          "hint": "a inserta después del cursor",
+          "ids": ["VIM-03"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["gatos"] }
+        },
+        {
+          "text": "Pulsa A y escribe · maleta",
+          "hint": "A va al final de la línea",
+          "ids": ["VIM-04"],
+          "check": { "kind": "text", "pred": "line-ends", "args": [" · maleta"] }
+        },
+        {
+          "text": "Pulsa I y escribe 01 ·",
+          "hint": "I va al principio de la línea",
+          "ids": ["VIM-05"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["01 · "] }
+        },
+        {
+          "text": "Pulsa o y escribe lista de equipaje abajo",
+          "hint": "o abre una línea debajo",
+          "ids": ["VIM-06"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["lista de equipaje"] }
+        },
+        {
+          "text": "Pulsa O y escribe — vuelo — arriba",
+          "hint": "O abre una línea encima",
+          "ids": ["VIM-07"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["— vuelo —"] }
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "title": "Borrar sin miedo",
+      "file": "B03 Borrar sin miedo.md",
+      "steps": [
+        {
+          "text": "Pon el cursor en la e de hospedaje y pulsa x",
+          "hint": "x borra la letra del cursor",
+          "ids": ["VIM-15"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["hospdaje"] }
+        },
+        {
+          "text": "Pon el cursor en borrador y pulsa dd",
+          "hint": "dd borra la línea entera",
+          "ids": ["VIM-16"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "absent", "args": ["borrador"] },
+              { "kind": "text", "pred": "line-equals", "args": ["hospdaje"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B04",
+      "title": "Moverte sin ratón",
+      "file": "B04 Moverte sin ratón.md",
+      "steps": [
+        {
+          "text": "Muévete por la lista con h j k l",
+          "ids": ["VIM-09"],
+          "check": { "kind": "action", "event": "motion", "value": "hjkl" }
+        },
+        {
+          "text": "Repite el recorrido con las flechas",
+          "ids": ["VIM-10"],
+          "check": { "kind": "action", "event": "motion", "value": "arrows" }
+        },
+        {
+          "text": "Salta con 0 ^ Home $ End de una línea",
+          "ids": ["VIM-12"],
+          "check": { "kind": "action", "event": "motion", "value": "line-bounds" }
+        },
+        {
+          "text": "Salta al principio y al final con gg y G",
+          "ids": ["VIM-13"],
+          "check": { "kind": "action", "event": "motion", "value": "file-bounds" }
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "title": "Deshacer y rehacer",
+      "file": "B05 Deshacer y rehacer.md",
+      "steps": [
+        {
+          "text": "Escribe prueba, sal con Esc y pulsa u",
+          "hint": "u deshace el último cambio",
+          "ids": ["VIM-23"],
+          "check": { "kind": "text", "pred": "absent", "args": ["prueba"] }
+        },
+        {
+          "text": "Pulsa ctrl+r y recupera la línea",
+          "hint": "ctrl+r rehace",
+          "ids": ["VIM-24"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["prueba"] }
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "title": "Guardar con nombre y cerrar",
+      "file": "B06 Guardar con nombre y cerrar.md",
+      "steps": [
+        {
+          "text": "Pulsa : y ejecuta w lista-viaje",
+          "hint": "escribe :w lista-viaje y Enter",
+          "ids": ["EDT-03"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["lista-viaje"] }
+        },
+        {
+          "text": "Abre una nota con space n y guarda: mira las carpetas",
+          "hint": "el diálogo sugiere carpetas mientras escribes",
+          "ids": ["EDT-04", "NOTE-23"],
+          "check": { "kind": "action", "event": "save_dialog" }
+        },
+        {
+          "text": "Cierra la pestaña con space x",
+          "hint": "space x cierra la pestaña actual",
+          "ids": ["EDT-05"],
+          "check": { "kind": "action", "event": "tab_closed" }
+        }
+      ]
+    },
+    {
+      "id": "B07",
+      "title": "Pestañas",
+      "file": "B07 Pestañas.md",
+      "steps": [
+        {
+          "text": "Con dos notas, pasa con L y vuelve con H",
+          "hint": "con el preview enfocado H y L son del calendario",
+          "ids": ["NEW-02"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "next_tab" },
+              { "kind": "action", "event": "prev_tab" }
+            ]
+          }
+        },
+        {
+          "text": "Prueba también ] [ space tab y space shift+tab",
+          "hint": "] y [ cambian de pestaña",
+          "ids": ["NOTE-11"],
+          "check": { "kind": "action", "event": "next_tab", "value": "]" }
+        },
+        {
+          "text": "Haz clic en una pestaña, ciérrala y crea otra con +",
+          "hint": "el + está a la derecha de las pestañas",
+          "ids": ["NOTE-12"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "tab_closed" },
+              { "kind": "action", "event": "new_draft" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B08",
+      "title": "El explorador y el foco",
+      "file": "B08 El explorador y el foco.md",
+      "steps": [
+        {
+          "text": "Pulsa space e dos veces: abre y cierra el explorador",
+          "hint": "la segunda vez lo cierra y vuelve el editor",
+          "ids": ["NEW-01"],
+          "check": { "kind": "action", "event": "focus_explorer" }
+        },
+        {
+          "text": "Estrecha la ventana y cierra el explorador con Esc",
+          "hint": "en ventana estrecha el explorador se superpone",
+          "ids": ["NOTE-15"],
+          "check": { "kind": "action", "event": "focus_explorer", "value": "overlay" }
+        },
+        {
+          "text": "Mira las tres zonas: explorador, editor y preview",
+          "ids": ["VIEW-01"],
+          "check": { "kind": "action", "event": "split_view" }
+        },
+        {
+          "text": "Arrastra el divisor entre editor y preview",
+          "ids": ["NOTE-14"],
+          "check": { "kind": "action", "event": "pane_resized" }
+        },
+        {
+          "text": "Cambia el foco con tab, shift+tab, ctrl+h y ctrl+l",
+          "hint": "tab recorre los paneles en orden",
+          "ids": ["NOTE-13"],
+          "check": { "kind": "action", "event": "focus_cycle" }
+        }
+      ]
+    },
+    {
+      "id": "B09",
+      "title": "Abrir y crear notas",
+      "file": "B09 Abrir y crear notas.md",
+      "steps": [
+        {
+          "text": "Recorre el árbol con j y k y abre una nota con enter",
+          "ids": ["NOTE-01", "NOTE-02"],
+          "check": { "kind": "action", "event": "note_opened" }
+        },
+        {
+          "text": "Crea una nota con n y el nombre compras",
+          "hint": "n pide el nombre en la carpeta seleccionada",
+          "ids": ["NOTE-07"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["compras"] }
+        },
+        {
+          "text": "Crea una carpeta con n y el nombre ideas/",
+          "hint": "la barra final crea una carpeta",
+          "ids": ["NOTE-07"],
+          "check": { "kind": "disk", "pred": "folder-exists", "args": ["ideas"] }
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "title": "Renombrar y borrar",
+      "file": "B10 Renombrar y borrar.md",
+      "steps": [
+        {
+          "text": "Renombra compras a mercado con r",
+          "hint": "r renombra y reescribe los enlaces",
+          "ids": ["NOTE-09"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "disk", "pred": "no-file", "args": ["compras"] },
+              { "kind": "disk", "pred": "exists", "args": ["mercado"] }
+            ]
+          }
+        },
+        {
+          "text": "Borra mercado con d y confirma",
+          "hint": "d pide confirmación y manda a la Papelera",
+          "ids": ["NOTE-10", "EDT-23"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "disk", "pred": "no-file", "args": ["mercado"] },
+              { "kind": "disk", "pred": "folder-exists", "args": ["ideas"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B11",
+      "title": "Plegar y espiar",
+      "file": "B11 Plegar y espiar.md",
+      "steps": [
+        {
+          "text": "Pliega y despliega con l, h, enter y z",
+          "ids": ["NOTE-04"],
+          "check": { "kind": "action", "event": "tree_state" }
+        },
+        {
+          "text": "Cierra todas las carpetas con W",
+          "hint": "W mayúscula cierra el árbol entero",
+          "ids": ["NOTE-05"],
+          "check": { "kind": "action", "event": "tree_state", "value": "collapsed-all" }
+        },
+        {
+          "text": "Con el explorador enfocado, previsualiza con p",
+          "hint": "p muestra la nota sin abrirla",
+          "ids": ["NOTE-03"],
+          "check": { "kind": "action", "event": "note_previewed" }
+        }
+      ]
+    },
+    {
+      "id": "B12",
+      "title": "El menú /",
+      "file": "B12 El menú barra.md",
+      "steps": [
+        {
+          "text": "En una línea vacía, en INSERT, pulsa /",
+          "hint": "el menú abre al principio de línea o tras un espacio",
+          "ids": ["MD-01"],
+          "check": { "kind": "action", "event": "slash_open" }
+        },
+        {
+          "text": "Filtra con quote y pulsa Enter",
+          "hint": "el filtro busca en el nombre del bloque",
+          "ids": ["MD-01"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["> "] }
+        },
+        {
+          "text": "Abre el menú otra vez y ciérralo con Esc",
+          "ids": ["MD-01"],
+          "check": { "kind": "action", "event": "slash_close" }
+        }
+      ]
+    },
+    {
+      "id": "B13",
+      "title": "Títulos",
+      "file": "B13 Títulos.md",
+      "steps": [
+        {
+          "text": "Escribe un título con /Heading 1",
+          "ids": ["MD-02"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["# "] }
+        },
+        {
+          "text": "Añade /Heading 2 debajo",
+          "ids": ["MD-03"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["## "] }
+        },
+        {
+          "text": "Añade /Heading 3 debajo",
+          "ids": ["MD-04"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["### "] }
+        },
+        {
+          "text": "Añade /Heading 4 debajo",
+          "ids": ["MD-05"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["#### "] }
+        }
+      ]
+    },
+    {
+      "id": "B14",
+      "title": "Listas",
+      "file": "B14 Listas.md",
+      "steps": [
+        {
+          "text": "Escribe una viñeta con /Bulleted list",
+          "ids": ["MD-07"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["- "] }
+        },
+        {
+          "text": "Escribe una lista numerada con /Numbered list",
+          "ids": ["MD-08"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["1. "] }
+        },
+        {
+          "text": "Escribe una tarea con /To-do list",
+          "ids": ["MD-09"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["- [ ] "] }
+        },
+        {
+          "text": "En el ítem, pulsa Tab y luego Shift+Tab",
+          "hint": "Tab anida el ítem dos espacios",
+          "ids": ["EDT-16"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["  "] }
+        }
+      ]
+    },
+    {
+      "id": "B15",
+      "title": "Casillas: marcar",
+      "file": "B15 Casillas, marcar.md",
+      "steps": [
+        {
+          "text": "Escribe [x] delante del texto de la primera tarea",
+          "hint": "queda - [x] y deja de estar pendiente",
+          "ids": ["MD-10"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["- [x] "] }
+        },
+        {
+          "text": "En la segunda tarea, pulsa space o c",
+          "hint": "space o c alterna la casilla",
+          "ids": ["EDT-12"],
+          "check": { "kind": "text", "pred": "n-lines-start", "args": [2, "- [x] "] }
+        },
+        {
+          "text": "Selecciona tres tareas con V y pulsa space o c",
+          "hint": "V selecciona líneas enteras",
+          "ids": ["EDT-13"],
+          "check": { "kind": "text", "pred": "n-lines-start", "args": [3, "- [x] "] }
+        },
+        {
+          "text": "En NORMAL, pulsa Enter sobre la última tarea",
+          "hint": "Enter alterna la casilla de la línea",
+          "ids": ["EDT-15"],
+          "check": { "kind": "text", "pred": "n-lines-start", "args": [6, "- [x] "] }
+        }
+      ]
+    },
+    {
+      "id": "B16",
+      "title": "Casillas: quitar y clic",
+      "file": "B16 Casillas, quitar y clic.md",
+      "steps": [
+        {
+          "text": "En la tarea marcada, pulsa space o C",
+          "hint": "space o C quita la casilla y deja el ítem",
+          "ids": ["EDT-14"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["- Reservar el museo"] }
+        },
+        {
+          "text": "En el preview, haz clic en el cuadro de una tarea",
+          "hint": "solo el cuadro, no el texto",
+          "ids": ["PRV-30", "NEW-12"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["- [x] Regar las plantas"] }
+        }
+      ]
+    },
+    {
+      "id": "B17",
+      "title": "Énfasis",
+      "file": "B17 Énfasis.md",
+      "steps": [
+        {
+          "text": "Escribe reservar hotel en negrita",
+          "ids": ["MD-40"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["**reservar hotel**"] }
+        },
+        {
+          "text": "Escribe playa en cursiva",
+          "ids": ["MD-41"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["*playa*"] }
+        },
+        {
+          "text": "Escribe misoku entre acentos graves",
+          "ids": ["MD-42"],
+          "check": { "kind": "text-raw", "pred": "line-contains", "args": ["`misoku`"] }
+        },
+        {
+          "text": "Escribe cancelado con tachado",
+          "ids": ["MD-43"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["~~cancelado~~"] }
+        }
+      ]
+    },
+    {
+      "id": "B18",
+      "title": "Citas y separador",
+      "file": "B18 Citas y separador.md",
+      "steps": [
+        {
+          "text": "Escribe una cita con /Quote",
+          "ids": ["MD-16"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["> "] }
+        },
+        {
+          "text": "Separa dos secciones con /Divider",
+          "ids": ["MD-21"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["---"] }
+        }
+      ]
+    },
+    {
+      "id": "B19",
+      "title": "Tu primera nota enlazada",
+      "file": "B19 Tu primera nota enlazada.md",
+      "steps": [
+        {
+          "text": "Escribe [[, escribe Compra semanal y pulsa Enter",
+          "hint": "Enter completa el enlace de la lista",
+          "ids": ["LNK-01", "NEW-05"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[[Compra semanal]]"] }
+        },
+        {
+          "text": "Cierra la lista con Esc y escribe [[Mercado]] a mano",
+          "hint": "Esc solo cierra la lista",
+          "ids": ["LNK-02"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[[Mercado]]"] }
+        }
+      ]
+    },
+    {
+      "id": "B20",
+      "title": "Seguir un enlace",
+      "file": "B20 Seguir un enlace.md",
+      "steps": [
+        {
+          "text": "Con el cursor en un enlace, pulsa gd",
+          "ids": ["LNK-13"],
+          "check": { "kind": "action", "event": "followed_link", "value": "gd" }
+        },
+        {
+          "text": "Vuelve y pulsa gx sobre el mismo enlace",
+          "ids": ["LNK-14"],
+          "check": { "kind": "action", "event": "followed_link", "value": "gx" }
+        },
+        {
+          "text": "Pulsa Enter sobre el enlace",
+          "ids": ["VIM-14", "LNK-15"],
+          "check": { "kind": "action", "event": "followed_link", "value": "Enter" }
+        },
+        {
+          "text": "Haz clic en el enlace desde el preview",
+          "ids": ["LNK-16"],
+          "check": { "kind": "action", "event": "followed_link", "value": "mouse" }
+        },
+        {
+          "text": "Escribe [[Lista de playa]] y pulsa gd",
+          "hint": "la nota no existe: se abre un borrador",
+          "ids": ["LNK-21"],
+          "check": { "kind": "action", "event": "new_draft", "value": "Lista de playa" }
+        }
+      ]
+    },
+    {
+      "id": "B21",
+      "title": "Leer sin editar",
+      "file": "B21 Leer sin editar.md",
+      "steps": [
+        {
+          "text": "Pulsa space p: vista de lectura",
+          "ids": ["VIEW-02"],
+          "check": { "kind": "action", "event": "reading_view" }
+        },
+        {
+          "text": "Pulsa space r: solo el Markdown",
+          "ids": ["VIEW-03"],
+          "check": { "kind": "action", "event": "editor_view" }
+        },
+        {
+          "text": "Pulsa otra vez space r: vuelve el split",
+          "hint": "la misma tecla deshace la vista",
+          "ids": ["VIEW-04"],
+          "check": { "kind": "action", "event": "split_view" }
+        },
+        {
+          "text": "En lectura, mira cómo se esconden los marcadores",
+          "hint": "space p otra vez para volver",
+          "ids": ["VIEW-05"],
+          "check": { "kind": "action", "event": "reading_view", "value": "concealed" }
+        },
+        {
+          "text": "Mira el preview: títulos, listas, citas y tablas",
+          "ids": ["PRV-01"],
+          "check": { "kind": "action", "event": "preview_rendered" }
+        }
+      ]
+    },
+    {
+      "id": "B22",
+      "title": "Buscar dentro de la nota",
+      "file": "B22 Buscar dentro de la nota.md",
+      "steps": [
+        {
+          "text": "Pulsa /, escribe hotel y Enter; repite en lectura",
+          "hint": "la búsqueda también va en la vista de lectura",
+          "ids": ["NEW-13"],
+          "check": { "kind": "action", "event": "search_hit", "value": "hotel" }
+        },
+        {
+          "text": "Pulsa n y N para siguiente y anterior",
+          "ids": ["NEW-14"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "search_next" },
+              { "kind": "action", "event": "search_prev" }
+            ]
+          }
+        },
+        {
+          "text": "Busca Hotel con mayúscula",
+          "hint": "la búsqueda distingue mayúsculas",
+          "ids": ["NEW-15"],
+          "check": { "kind": "action", "event": "search_hit", "value": "Hotel" }
+        },
+        {
+          "text": "Busca zzz y lee los dos mensajes",
+          "hint": "sin coincidencias la barra se pone roja",
+          "ids": ["NEW-16"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "search_error" },
+              { "kind": "action", "event": "search_wrap" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B23",
+      "title": "Pegar y equivocarse",
+      "file": "B23 Pegar y equivocarse.md",
+      "steps": [
+        {
+          "text": "Copia un texto y pégalo con ctrl+v",
+          "ids": ["EDT-10"],
+          "check": { "kind": "action", "event": "paste" }
+        },
+        {
+          "text": "Escribe :graph foo y lee el error; ciérralo con Esc",
+          "hint": "la barra roja se cierra con Esc",
+          "ids": ["EDT-19"],
+          "check": { "kind": "action", "event": "error_shown" }
+        }
+      ]
+    },
+    {
+      "id": "B24",
+      "title": "El inicio de Misoku",
+      "file": "B24 El inicio de Misoku.md",
+      "steps": [
+        {
+          "text": "Pulsa space d y mira el inicio",
+          "ids": ["NOTE-25"],
+          "check": { "kind": "action", "event": "home" }
+        },
+        {
+          "text": "Pulsa 1 y luego 2 en el inicio",
+          "hint": "los números abren recientes y proyectos",
+          "ids": ["NOTE-26"],
+          "check": { "kind": "action", "event": "home_open", "value": ["recent", "project"] }
+        },
+        {
+          "text": "Prueba las letras n f e t ? g c s l q y Enter",
+          "hint": "vuelve con space d después de cada una",
+          "ids": ["NOTE-27"],
+          "check": {
+            "kind": "action",
+            "event": "home_key",
+            "value": ["n", "f", "e", "t", "?", "g", "c", "s", "l", "q"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B25",
+      "title": "Salir y volver",
+      "file": "B25 Salir y volver.md",
+      "steps": [
+        {
+          "text": "Con cambios, pulsa :q y mira la pregunta",
+          "hint": "elige Cancel para seguir en la lección",
+          "ids": ["EDT-06"],
+          "check": { "kind": "action", "event": "quit", "value": "confirm" }
+        },
+        {
+          "text": "Pulsa :wq (o :x) para guardar y salir",
+          "ids": ["EDT-07"],
+          "check": { "kind": "disk", "pred": "file-changed", "args": [] }
+        },
+        {
+          "text": "Vuelve a abrir y sal con :q!",
+          "hint": ":q! sale sin guardar",
+          "ids": ["EDT-08"],
+          "check": { "kind": "action", "event": "quit", "value": "discard" }
+        }
+      ]
+    },
+    {
+      "id": "B26",
+      "title": "Desafío Básico",
+      "file": "B26 Desafío Básico.md",
+      "steps": [
+        {
+          "text": "Crea Lista de compras con un título y tres tareas",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Marca una tarea y desmarca otra",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Añade el enlace [[Mercado]] a la nota del mercado",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Pasa a la vista de lectura con space p",
+          "ids": [],
+          "check": { "kind": "none" }
+        }
+      ]
+    }
+  ]
+}
