@@ -61,6 +61,10 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		return m.editorLeaderKey(s, visualLeaderActions)
 	}
 
+	// The preview's own keys win on that pane: H and L shift its calendars
+	// (preview.go), whatever the general actions bind them to.
+	previewCalendarKey := m.focus == focusPreview && (s == "H" || s == "L")
+
 	if !sidebarBusy && !editorBusy {
 		if m.leaderPending {
 			return m.editorLeaderKey(s, generalActions)
@@ -68,10 +72,12 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 		if m.keys.IsLeader(s) {
 			return m.startLeader()
 		}
-		for _, a := range generalActions {
-			if m.keys.Direct(a, s) {
-				m.flushPreview()
-				return m.runAction(a)
+		if !previewCalendarKey {
+			for _, a := range generalActions {
+				if m.keys.Direct(a, s) {
+					m.flushPreview()
+					return m.runAction(a)
+				}
 			}
 		}
 		if s == "esc" && m.focus == focusSidebar && m.explorerOverlay() {

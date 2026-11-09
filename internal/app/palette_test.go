@@ -185,7 +185,7 @@ func TestPaletteFilterIsFuzzy(t *testing.T) {
 	h := openPalette(t)
 	typeQuery(h, "exp")
 	v := h.view()
-	for _, want := range []string{"Export note as PDF", ":export [file]", "Toggle explorer", "Focus explorer"} {
+	for _, want := range []string{"Export note as PDF", ":export [file]", "Toggle explorer", "Focus / close explorer"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("exp should list %q:\n%s", want, v)
 		}

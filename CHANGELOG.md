@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Added
+
+- `H` and `L` switch to the previous and next tab from the editor's NORMAL mode, as `[` and `]` already did. With the preview focused they keep shifting its calendars.
+
+### Changed
+
+- `space e` (`focus_explorer`) now toggles the explorer like LazyVim: it opens and focuses it, and closes it when it already has the focus. With no note open, or on the home screen, it keeps opening it.
+
 ## [0.26.1] - 2026-11-07
 
 ### Fixed
