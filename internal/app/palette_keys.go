@@ -60,6 +60,8 @@ var editorKeys = []fixedKey{
 	{"gd / gx", "Follow the link under the cursor", "Opens the note or the web page the link under the cursor points to."},
 	{"Enter", "Follow [[link]] / toggle box", "In NORMAL mode, follows the [[link]] under the cursor (not inside code; a note that does not exist is not started), toggles the box of a checkbox line, and otherwise moves down a line."},
 	{":", "Command line", "Opens the command line at the bottom of the editor for the commands below; Enter runs it, Esc leaves it."},
+	{"/", "Search in the note", "Opens the search prompt at the bottom: Enter finds the next match of the text from the cursor, and n or N repeat it forward or backward, wrapping around the note. The text is literal, not a regex, and the search ignores case unless it has an upper-case letter; Esc leaves it."},
+	{"n / N", "Next / previous match", "After a search, n goes to the next match and N to the previous one, both wrapping around the note and saying so in the status bar. Without a search they say there is none."},
 }
 
 var previewKeys = []fixedKey{

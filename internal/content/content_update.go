@@ -93,19 +93,25 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		if ok {
 			switch k.String() {
 			case "esc":
-				m.mode = ModeNormal
-				m.cmdInput.Blur()
+				m.closeCommandLine()
 				return m, m.focusTextarea()
 			case "backspace":
 				if m.cmdInput.Value() == "" {
-					m.mode = ModeNormal
-					m.cmdInput.Blur()
+					m.closeCommandLine()
 					return m, m.focusTextarea()
 				}
 			case "enter":
+				if m.search {
+					query := m.cmdInput.Value()
+					m.closeCommandLine()
+					focus := m.focusTextarea()
+					if cmd := m.searchCmd(query); cmd != nil {
+						return m, tea.Batch(focus, cmd)
+					}
+					return m, focus
+				}
 				if op, ok := tableCommands[strings.TrimSpace(m.cmdInput.Value())]; ok {
-					m.mode = ModeNormal
-					m.cmdInput.Blur()
+					m.closeCommandLine()
 					focus := m.focusTextarea()
 					if !m.tableOp(op) {
 						return m, tea.Batch(focus, func() tea.Msg { return core.StatusMsg{Text: "Not in a table", Error: true} })
@@ -113,8 +119,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 					return m, focus
 				}
 				out := parseVimCommand(m.cmdInput.Value(), m.textarea.Value())
-				m.mode = ModeNormal
-				m.cmdInput.Blur()
+				m.closeCommandLine()
 				focus := m.focusTextarea()
 				if out == nil {
 					return m, focus
@@ -176,9 +181,17 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, m.enterInsert()
 	case ":":
 		m.mode = ModeCommand
+		m.search = false
+		m.cmdInput.Prompt = ":"
 		m.cmdInput.SetValue("")
 		m.textarea.Blur()
 		return m, m.cmdInput.Focus()
+	case "/":
+		return m, m.openSearch()
+	case "n":
+		return m, m.repeatCmd(true)
+	case "N":
+		return m, m.repeatCmd(false)
 
 	case "h", "left":
 		ta.CharLeft()

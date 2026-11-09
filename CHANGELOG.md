@@ -18,6 +18,10 @@ version comes from the tag, so nothing else in the tree carries it.
 
 - Clicking the box of a to-do line in the preview toggles it, as the help always said: the box itself is the target, so clicking the text does not toggle, and the change is one `u` undoes.
 
+### Added
+
+- Search inside a note: `/` searches from the cursor, `n` and `N` repeat it forward and backward, wrapping around the note with a status message; the text is literal and case-insensitive unless it has an upper-case letter, a missing match is `E486: Pattern not found`, and it works in the editor and the reading view.
+
 ## [0.26.1] - 2026-11-07
 
 ### Fixed

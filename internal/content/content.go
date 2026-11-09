@@ -22,24 +22,26 @@ import (
 
 // Model represents the Content component state.
 type Model struct {
-	theme    theme.Theme
-	keys     keymap.Map // only for the hints; the app dispatches shortcuts
-	page     core.Page
-	draft    bool
-	textarea textarea.Model
-	cmdInput textinput.Model
-	mode     VimMode
-	pending  string // first key of a two-key Vim command ("g", "d")
-	slash    *slashMenu
-	hl       *hlCache   // shared across copies so View can memoise
-	lv       *liveCache // the live view's memo, shared like hl
-	live     bool       // the live view is on; see SetLive
-	readOnly bool       // keys that edit do nothing; see SetReadOnly
-	hist     *History   // the shown tab's undo history (SetHistory)
-	copies   *atomic.Int64
-	dragging bool
-	dragRow  int
-	dragCol  int
+	theme      theme.Theme
+	keys       keymap.Map // only for the hints; the app dispatches shortcuts
+	page       core.Page
+	draft      bool
+	textarea   textarea.Model
+	cmdInput   textinput.Model
+	mode       VimMode
+	pending    string // first key of a two-key Vim command ("g", "d")
+	slash      *slashMenu
+	search     bool       // the command line is the "/" search prompt
+	lastSearch string     // the text NORMAL's n and N repeat
+	hl         *hlCache   // shared across copies so View can memoise
+	lv         *liveCache // the live view's memo, shared like hl
+	live       bool       // the live view is on; see SetLive
+	readOnly   bool       // keys that edit do nothing; see SetReadOnly
+	hist       *History   // the shown tab's undo history (SetHistory)
+	copies     *atomic.Int64
+	dragging   bool
+	dragRow    int
+	dragCol    int
 	// readImage reads a picture from the clipboard for ctrl+v; nil uses
 	// clipimage. The app installs one so tests never touch a clipboard.
 	readImage  func(context.Context) (core.ClipboardImageMsg, bool, error)
@@ -96,6 +98,9 @@ func (m *Model) SetTheme(th theme.Theme) {
 	value := m.cmdInput.Value()
 	m.cmdInput = createCommandInput(th)
 	m.cmdInput.SetValue(value)
+	if m.search {
+		m.cmdInput.Prompt = "/" // the search prompt keeps its mark
+	}
 	if m.mode == ModeCommand && m.focused {
 		m.cmdInput.Focus()
 	}
@@ -165,7 +170,7 @@ func (m *Model) SetFocused(focused bool) {
 		m.slash = nil
 		m.Blur()
 		if m.mode == ModeCommand {
-			m.mode = ModeNormal
+			m.closeCommandLine()
 		}
 	}
 }

@@ -235,6 +235,7 @@ never use `notes_dir`.
 
   Either key switches straight from the other view.
 - **Fast search** across file names and note contents.
+- **Search inside a note** (`/`, `n`, `N`, in the editor and the reading view): `/` opens a prompt at the bottom, Enter finds the next match of the literal text from the cursor, and `n`/`N` repeat it forward and backward, wrapping around the note (the status bar says `search hit BOTTOM, continuing at TOP`). Case-insensitive unless the text has an upper-case letter; `E486: Pattern not found: text` when there is none. The cursor goes to the match, which is also how the reading view scrolls to it.
 - **Search filters**: in the finder (and the `[[` link picker), `status:active tag:go folder:Zentro docker` narrows the notes before the words match their names and text. `status:` takes `active`, `onhold` (or `on-hold`), `completed`, `dropped`; `tag:go` or `#go` also finds nested tags like `#go/web`; `folder:Zentro` matches that folder anywhere in the path but not `ZentroOld`, and `folder:"My Notes"` holds spaces. Qualifiers combine; anything else, `foo:bar` included, is plain text. Only qualifiers list every matching note, newest first.
 - **Tags**: write `#tag` anywhere in a note (letters, digits, `_`, `-`, `/` for nesting) or list them in the front matter as `tags: a, b`, `[a, b]` or `- a` lines. Tags are highlighted in the editor, the reading view and the preview (never inside code, links, URLs, comments or the front matter); `:tags` lists every tag with its note count and opens the finder on the one you pick (before the notes are indexed it says "Indexing notes…"), and `tag:<name>` (or `#<name>`) filters the finder.
 - **Status filter** (`:status [value]`): opens the finder on `status:<value>`; without a value it opens on `status:` and lists `active · onhold · completed · dropped`.
@@ -369,6 +370,20 @@ keeps its own history, in memory only: up to 200 changes or 8 MB, the oldest
 dropped first; a note over about 4 MB keeps no undo history, and `u` says so.
 Undoing never writes to disk, and a note reloaded because it
 changed on disk starts a new history.
+
+**Search in the note** (editor and reading view, NORMAL mode, not
+configurable)
+
+| Key | What it does |
+| --- | --- |
+| `/` | Opens the search prompt at the bottom; Enter finds the next match from the cursor |
+| `n` / `N` | Next / previous match, wrapping around the note |
+
+The text is literal, not a regex, and the search ignores case unless it has
+an upper-case letter. It wraps around the note and the status bar says
+`search hit BOTTOM, continuing at TOP` (or `… TOP, continuing at BOTTOM`);
+`E486: Pattern not found: text` is the error when there is no match, and
+`Esc` (or Backspace on the empty prompt) cancels. `?` stays the help.
 
 ### Command palette
 
