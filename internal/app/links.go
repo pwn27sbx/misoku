@@ -343,12 +343,6 @@ func (m *Model) followEditorLink(msg core.FollowLinkMsg) tea.Cmd {
 	return nil
 }
 
-// insertWikiLink finishes a "[[" the user typed with the picked note's
-// name, using its path when another note has the same name.
-func (m *Model) insertWikiLink(target core.Page) {
-	m.insertWikiText(m.linkName(target))
-}
-
 // linkName is what a [[link]] to target holds: its name, or its path when
 // another note has the same name.
 func (m *Model) linkName(target core.Page) string {

@@ -23,7 +23,7 @@ func (f *finder) view(m *Model) (string, int, int) {
 
 	// Title + count.
 	title := bg.Foreground(th.Blue).Render(" 󰍉 ") + bg.Foreground(th.Fg).Bold(true).Render(f.title()) + bg.Foreground(th.GreyFg2).Render("  in "+f.root+"/")
-	count := bg.Foreground(th.GreyFg2).Render(fmt.Sprintf("%d results · %d notes ", len(f.matches), len(f.notes)))
+	count := bg.Foreground(th.GreyFg2).Render(fmt.Sprintf("%d results · %d notes ", f.count(), len(f.notes)))
 	rows = append(rows, title+bg.Render(strings.Repeat(" ", max(inner-lipgloss.Width(title)-lipgloss.Width(count), 0)))+count)
 
 	// Prompt.
@@ -36,19 +36,36 @@ func (f *finder) view(m *Model) (string, int, int) {
 	var prevLines []string
 	var prevTitle string
 	prevStart, hitLine := 0, 0
-	if p, ok := f.selected(); ok && g.previewW > 0 {
-		prevLines = f.lines[p.ID]
-		prevTitle = p.ID
-		if hitLine = f.matches[f.sel].line; hitLine > 0 {
-			prevTitle = fmt.Sprintf("%s:%d", p.ID, hitLine)
-			prevStart = max(hitLine-1-(g.listRows-1)/3, 0)
+	switch {
+	case g.previewW == 0:
+	case f.wiki:
+		if s, ok := f.selectedLink(); ok && s.NoteID != "" {
+			prevLines, prevTitle = f.lines[s.NoteID], s.NoteID
+		}
+	default:
+		if p, ok := f.selected(); ok {
+			prevLines = f.lines[p.ID]
+			prevTitle = p.ID
+			if hitLine = f.matches[f.sel].line; hitLine > 0 {
+				prevTitle = fmt.Sprintf("%s:%d", p.ID, hitLine)
+				prevStart = max(hitLine-1-(g.listRows-1)/3, 0)
+			}
 		}
 	}
 	sep := bg.Foreground(th.Line).Render("│")
 	for r := 0; r < g.listRows; r++ {
-		left := f.resultRow(th, f.offset+r, g.listW)
-		if r == 0 && len(f.matches) == 0 {
-			left = ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render("   No matching notes"), g.listW, bg)
+		var left string
+		if f.wiki {
+			left = f.linkRow(th, f.offset+r, g.listW)
+		} else {
+			left = f.resultRow(th, f.offset+r, g.listW)
+		}
+		if r == 0 && f.count() == 0 {
+			empty := "   No matching notes"
+			if f.wiki {
+				empty = "   No matching links"
+			}
+			left = ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render(empty), g.listW, bg)
 		}
 		if g.previewW == 0 {
 			rows = append(rows, left)
@@ -69,7 +86,10 @@ func (f *finder) view(m *Model) (string, int, int) {
 	}
 
 	help := "↑↓ move · Enter open here (jumps to the line) · Ctrl+T new tab · Esc close"
-	if f.statusHint() {
+	switch {
+	case f.wiki:
+		help = linkFinderHelp
+	case f.statusHint():
 		help = statusHintText
 	}
 	rows = append(rows, bg.Foreground(th.GreyFg).Render(" "+ui.Truncate(help, inner-2)))

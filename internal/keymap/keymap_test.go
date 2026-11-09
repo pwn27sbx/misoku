@@ -131,7 +131,7 @@ func TestShiftIsSpelledOutForCapitalsAfterTheLeader(t *testing.T) {
 	if got := m.Label(keymap.Help); got != "? / SPC h / SPC ?" {
 		t.Errorf("only capitals get Shift+: Label(Help) = %q", got)
 	}
-	if got := m.Label(keymap.PrevTab); got != "[ / SPC S-Tab" {
+	if got := m.Label(keymap.PrevTab); got != "[ / SPC S-Tab / H" {
 		t.Errorf("Label(PrevTab) = %q", got)
 	}
 }

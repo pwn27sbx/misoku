@@ -22,24 +22,28 @@ import (
 
 // Model represents the Content component state.
 type Model struct {
-	theme    theme.Theme
-	keys     keymap.Map // only for the hints; the app dispatches shortcuts
-	page     core.Page
-	draft    bool
-	textarea textarea.Model
-	cmdInput textinput.Model
-	mode     VimMode
-	pending  string // first key of a two-key Vim command ("g", "d")
-	slash    *slashMenu
-	hl       *hlCache   // shared across copies so View can memoise
-	lv       *liveCache // the live view's memo, shared like hl
-	live     bool       // the live view is on; see SetLive
-	readOnly bool       // keys that edit do nothing; see SetReadOnly
-	hist     *History   // the shown tab's undo history (SetHistory)
-	copies   *atomic.Int64
-	dragging bool
-	dragRow  int
-	dragCol  int
+	theme      theme.Theme
+	keys       keymap.Map // only for the hints; the app dispatches shortcuts
+	page       core.Page
+	draft      bool
+	textarea   textarea.Model
+	cmdInput   textinput.Model
+	mode       VimMode
+	pending    string // first key of a two-key Vim command ("g", "d")
+	slash      *slashMenu
+	linkList   *linkList       // the inline "[[" suggestions, see linklist.go
+	linkSrc    []core.LinkNote // the notes those suggestions read
+	search     bool            // the command line is the "/" search prompt
+	lastSearch string          // the text NORMAL's n and N repeat
+	hl         *hlCache        // shared across copies so View can memoise
+	lv         *liveCache      // the live view's memo, shared like hl
+	live       bool            // the live view is on; see SetLive
+	readOnly   bool            // keys that edit do nothing; see SetReadOnly
+	hist       *History        // the shown tab's undo history (SetHistory)
+	copies     *atomic.Int64
+	dragging   bool
+	dragRow    int
+	dragCol    int
 	// readImage reads a picture from the clipboard for ctrl+v; nil uses
 	// clipimage. The app installs one so tests never touch a clipboard.
 	readImage  func(context.Context) (core.ClipboardImageMsg, bool, error)
@@ -49,6 +53,12 @@ type Model struct {
 	focused    bool
 	dimmed     bool // greyed out while another pane has the focus
 	realCursor bool // the terminal draws the cursor; see SetRealCursor
+
+	// linkSeq numbers the "[[" triggers and linkPending is the trigger a
+	// source read still waits for: a read that arrives after a close is
+	// dropped, see RequestLinkList.
+	linkSeq     uint64
+	linkPending uint64
 }
 
 // New constructs a Content Model.
@@ -96,6 +106,9 @@ func (m *Model) SetTheme(th theme.Theme) {
 	value := m.cmdInput.Value()
 	m.cmdInput = createCommandInput(th)
 	m.cmdInput.SetValue(value)
+	if m.search {
+		m.cmdInput.Prompt = "/" // the search prompt keeps its mark
+	}
 	if m.mode == ModeCommand && m.focused {
 		m.cmdInput.Focus()
 	}
@@ -150,6 +163,7 @@ func (m *Model) SetBuffer(p core.Page, draft bool) {
 	m.draft = draft
 	m.pending = ""
 	m.slash = nil
+	m.closeLinkList()
 	m.textarea.SetValue(p.Content)
 	m.textarea.GotoTop()
 	m.syncHistory()
@@ -163,9 +177,10 @@ func (m *Model) SetFocused(focused bool) {
 	m.focused = focused
 	if !focused {
 		m.slash = nil
+		m.closeLinkList()
 		m.Blur()
 		if m.mode == ModeCommand {
-			m.mode = ModeNormal
+			m.closeCommandLine()
 		}
 	}
 }
@@ -291,6 +306,7 @@ func (m *Model) ExitInsert() {
 		m.mode = ModeNormal
 	}
 	m.slash = nil
+	m.closeLinkList()
 }
 
 func (m *Model) enterInsert() tea.Cmd {

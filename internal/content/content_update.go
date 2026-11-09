@@ -27,7 +27,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	if mouse, ok := msg.(tea.MouseMsg); ok {
-		return m.handleMouse(mouse)
+		m, cmd := m.handleMouse(mouse)
+		m.refreshLinkList() // a click can move the cursor out of the link
+		return m, cmd
 	}
 	if m.page.ID == "" {
 		return m, nil
@@ -50,6 +52,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	case ModeInsert:
 		k, isKey := msg.(tea.KeyMsg)
+		if isKey && m.linkList != nil {
+			if cmd, handled := m.updateLinkList(k); handled {
+				return m, cmd
+			}
+		}
 		if isKey && m.slash != nil {
 			if cmd, handled := m.updateSlash(k); handled {
 				return m, cmd
@@ -70,6 +77,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		if isKey && k.String() == "esc" {
 			m.mode = ModeNormal
+			m.closeLinkList()
 			m.textarea.CharLeft()
 			return m, m.focusTextarea()
 		}
@@ -77,12 +85,14 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.textarea, cmd = m.textarea.Update(msg)
 		m.textarea.EnsureVisible()
 		if isKey {
+			m.alignTableWhileTyping(k)
+			m.refreshLinkList()
 			if m.slash != nil {
 				m.afterSlashKey()
-			} else {
+			} else if m.linkList == nil {
 				m.maybeOpenSlash(k)
 			}
-			if k.Type == tea.KeyRunes && string(k.Runes) == "[" && strings.HasSuffix(m.textarea.LineBeforeCursor(), "[[") {
+			if m.linkList == nil && k.Type == tea.KeyRunes && string(k.Runes) == "[" && strings.HasSuffix(m.textarea.LineBeforeCursor(), "[[") {
 				return m, tea.Batch(cmd, func() tea.Msg { return core.SlashActionMsg{Action: "wikilink"} })
 			}
 		}
@@ -93,19 +103,25 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		if ok {
 			switch k.String() {
 			case "esc":
-				m.mode = ModeNormal
-				m.cmdInput.Blur()
+				m.closeCommandLine()
 				return m, m.focusTextarea()
 			case "backspace":
 				if m.cmdInput.Value() == "" {
-					m.mode = ModeNormal
-					m.cmdInput.Blur()
+					m.closeCommandLine()
 					return m, m.focusTextarea()
 				}
 			case "enter":
+				if m.search {
+					query := m.cmdInput.Value()
+					m.closeCommandLine()
+					focus := m.focusTextarea()
+					if cmd := m.searchCmd(query); cmd != nil {
+						return m, tea.Batch(focus, cmd)
+					}
+					return m, focus
+				}
 				if op, ok := tableCommands[strings.TrimSpace(m.cmdInput.Value())]; ok {
-					m.mode = ModeNormal
-					m.cmdInput.Blur()
+					m.closeCommandLine()
 					focus := m.focusTextarea()
 					if !m.tableOp(op) {
 						return m, tea.Batch(focus, func() tea.Msg { return core.StatusMsg{Text: "Not in a table", Error: true} })
@@ -113,8 +129,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 					return m, focus
 				}
 				out := parseVimCommand(m.cmdInput.Value(), m.textarea.Value())
-				m.mode = ModeNormal
-				m.cmdInput.Blur()
+				m.closeCommandLine()
 				focus := m.focusTextarea()
 				if out == nil {
 					return m, focus
@@ -176,9 +191,17 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, m.enterInsert()
 	case ":":
 		m.mode = ModeCommand
+		m.search = false
+		m.cmdInput.Prompt = ":"
 		m.cmdInput.SetValue("")
 		m.textarea.Blur()
 		return m, m.cmdInput.Focus()
+	case "/":
+		return m, m.openSearch()
+	case "n":
+		return m, m.repeatCmd(true)
+	case "N":
+		return m, m.repeatCmd(false)
 
 	case "h", "left":
 		ta.CharLeft()
@@ -249,6 +272,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	case tea.MouseButtonLeft:
 		if m.slash != nil && msg.Action == tea.MouseActionPress {
 			if cmd, hit := m.clickSlash(msg.X, msg.Y); hit {
+				return m, cmd
+			}
+		}
+		if m.linkList != nil && msg.Action == tea.MouseActionPress {
+			if cmd, hit := m.clickLinkList(msg.X, msg.Y); hit {
 				return m, cmd
 			}
 		}

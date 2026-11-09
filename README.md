@@ -228,14 +228,15 @@ never use `notes_dir`.
 - **Resizable panes**: drag the dividers between the explorer, editor and preview.
 - **Visible focus**: the dividers next to the pane with the focus take the theme's focus colour, and the text of the other panes turns grey — except the editor and the preview side by side, which keep their colours whichever of the two you are in, so the note stays readable while it takes shape (pictures and block colours in the preview keep theirs anyway). The explorer and the graphs still grey the panes they leave. `tab`, `ctrl+h`/`ctrl+l` (or `ctrl+←`/`ctrl+→`) or a click move the focus.
 - **Dimmed backdrop**: while a dialog, the finder, the command palette or another box that takes the keys is open, the screen behind it turns grey and its pictures hide, so the box is the only thing in colour; closing it brings the colours back. The leader guide and the `/` menu leave the screen as it is.
-- **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. Wider windows keep your last toggle until the width crosses 120 again.
+- **Narrow windows** (under 120 columns): the explorer starts hidden and `toggle_explorer` (`ctrl+b` by default) opens it over the editor, which keeps its width; choosing a note, clicking outside it or `Esc` closes it. `space e` opens and closes it too. Wider windows keep your last toggle until the width crosses 120 again.
 - **Two full-width views**, each toggled by its own key and back to the split of editor and side preview:
   - **Reading view** (`space p`): the note alone at full width, like render-markdown.nvim: line numbers hide and every line is drawn rendered (headings without `#`, bold, italic and code without delimiters, links as their text, boxes, `•` bullets and `▎` quotes; a checked task's text is muted and struck through, as in the preview). Code blocks, front matter and tables stay raw. It is read-only: you move, scroll, select and copy, search and follow links (`Enter`, `gd`), but keys that edit only say how to edit; the statusline says READING.
   - **Editor view** (`space r`): the Markdown editor alone at full width, with line numbers and editable as usual.
 
   Either key switches straight from the other view.
 - **Fast search** across file names and note contents.
-- **Search filters**: in the finder (and the `[[` link picker), `status:active tag:go folder:Zentro docker` narrows the notes before the words match their names and text. `status:` takes `active`, `onhold` (or `on-hold`), `completed`, `dropped`; `tag:go` or `#go` also finds nested tags like `#go/web`; `folder:Zentro` matches that folder anywhere in the path but not `ZentroOld`, and `folder:"My Notes"` holds spaces. Qualifiers combine; anything else, `foo:bar` included, is plain text. Only qualifiers list every matching note, newest first.
+- **Search inside a note** (`/`, `n`, `N`, in the editor and the reading view): `/` opens a prompt at the bottom, Enter finds the next match of the literal text from the cursor, and `n`/`N` repeat it forward and backward, wrapping around the note (the status bar says `search hit BOTTOM, continuing at TOP`). Case-insensitive unless the text has an upper-case letter; `E486: Pattern not found: text` when there is none. The cursor goes to the match, which is also how the reading view scrolls to it.
+- **Search filters**: in the finder, `status:active tag:go folder:Zentro docker` narrows the notes before the words match their names and text. `status:` takes `active`, `onhold` (or `on-hold`), `completed`, `dropped`; `tag:go` or `#go` also finds nested tags like `#go/web`; `folder:Zentro` matches that folder anywhere in the path but not `ZentroOld`, and `folder:"My Notes"` holds spaces. Qualifiers combine; anything else, `foo:bar` included, is plain text. Only qualifiers list every matching note, newest first. In the `[[` link picker (with `link_suggestions` set to `finder`) a leading `#` means headings instead, so tags there are filtered with `tag:`.
 - **Tags**: write `#tag` anywhere in a note (letters, digits, `_`, `-`, `/` for nesting) or list them in the front matter as `tags: a, b`, `[a, b]` or `- a` lines. Tags are highlighted in the editor, the reading view and the preview (never inside code, links, URLs, comments or the front matter); `:tags` lists every tag with its note count and opens the finder on the one you pick (before the notes are indexed it says "Indexing notes…"), and `tag:<name>` (or `#<name>`) filters the finder.
 - **Status filter** (`:status [value]`): opens the finder on `status:<value>`; without a value it opens on `status:` and lists `active · onhold · completed · dropped`.
 - **Live explorer**: notes and folders created, deleted or renamed by other programs (another editor, git, a sync client) show up on their own within a couple of seconds.
@@ -328,7 +329,7 @@ off:
 ```json
 {
   "keys": {
-    "toggle_explorer": ["space e"],
+    "reading_view": ["space p", "space v"],
     "focus_explorer": [],
     "close_tab": ["space q", "ctrl+w"]
   }
@@ -370,6 +371,20 @@ dropped first; a note over about 4 MB keeps no undo history, and `u` says so.
 Undoing never writes to disk, and a note reloaded because it
 changed on disk starts a new history.
 
+**Search in the note** (editor and reading view, NORMAL mode, not
+configurable)
+
+| Key | What it does |
+| --- | --- |
+| `/` | Opens the search prompt at the bottom; Enter finds the next match from the cursor |
+| `n` / `N` | Next / previous match, wrapping around the note |
+
+The text is literal, not a regex, and the search ignores case unless it has
+an upper-case letter. It wraps around the note and the status bar says
+`search hit BOTTOM, continuing at TOP` (or `… TOP, continuing at BOTTOM`);
+`E486: Pattern not found: text` is the error when there is no match, and
+`Esc` (or Backspace on the empty prompt) cancels. `?` stays the help.
+
 ### Command palette
 
 `?` (or `space h`, `space ?`) opens the command palette, which is also the
@@ -398,13 +413,13 @@ The list scrolls when it does not fit, so no row is cut.
 | `save` | `ctrl+s`, `space w` | Save (new notes: pick folder) |
 | `find_note` | `ctrl+p`, `\`, `space f`, `space o f`, `space o g` | Find note (opens in this tab) |
 | `toggle_explorer` | `ctrl+b` | Toggle explorer |
-| `focus_explorer` | `space e` | Focus explorer |
+| `focus_explorer` | `space e` | Focus / close explorer (opens and focuses it; with the focus, closes it and returns to the editor) |
 | `next_pane` | `tab` | Next pane |
 | `prev_pane` | `shift+tab` | Previous pane |
 | `pane_left` | `ctrl+h`, `ctrl+left` | Pane to the left |
 | `pane_right` | `ctrl+l`, `ctrl+right` | Pane to the right |
-| `next_tab` | `]`, `space tab` | Next tab |
-| `prev_tab` | `[`, `space shift+tab` | Previous tab |
+| `next_tab` | `]`, `L`, `space tab` | Next tab |
+| `prev_tab` | `[`, `H`, `space shift+tab` | Previous tab |
 | `close_tab` | `space x` | Close tab |
 | `reading_view` | `space p` | Reading view: the rendered note alone, full width and read-only (`space p` again brings the split back) |
 | `editor_view` | `space r` | Editor view: the Markdown editor alone, full width, with line numbers (`space r` again brings the split back) |
@@ -488,6 +503,7 @@ with render-markdown:
 | `accordion` | `true` (default): opening a folder in the explorer closes its open siblings. `false` keeps several open |
 | `explorer_hide_width` | Terminal width, in columns, below which the explorer hides (default `120`) |
 | `cursor_shape` | `"auto"` (default): the cursor itself shows the mode, a block in NORMAL and VISUAL and a thin bar in INSERT, like LazyVim. `"block"` keeps Misoku's drawn block in every mode |
+| `link_suggestions` | What typing `[[` opens. `"inline"` (default) lists notes under the cursor, and `#`, `Note#` and `^` their headings and blocks; `"finder"` opens the note picker instead |
 | `transparent` | `true` leaves the background of the editor, preview, explorer, tab line and statusline to the terminal, so a terminal with opacity or blur shows through. Popups go clear too, set apart by their border, and heading bands are off; highlights stay painted. `false` (default) paints the theme's background |
 
 ### Transparent background
@@ -513,23 +529,37 @@ catch (a panic or `kill -9`) can leave the shape set until the terminal resets i
 ### Settings menu
 
 `:settings` (or **Settings**, key `c`, on the home screen) opens a menu for
-six of these keys: accordion folders (on or off), the explorer hide width,
+seven of these keys: accordion folders (on or off), the explorer hide width,
 heading icons and bullets (one of the presets Misoku, Numbers, Arrows and
 Plain; Misoku removes both keys), the dialog border, the transparent
-background (on or off; off removes the key), and heading numbers (on or off). A value picked with Enter applies at once and is saved at once
+background (on or off; off removes the key), heading numbers (on or off) and
+link suggestions (Inline or Finder; Inline is the default and removes the
+key). A value picked with Enter applies at once and is saved at once
 in `config.json`: only that key changes, and every other setting stays as you
 wrote it. Esc goes back without saving, and picking the value already in use
 writes nothing. If the file cannot be written, the status bar says why.
 
 ## Links
 
-Type `[[` to link to another note. Click a link in the preview, or press
+Type `[[` to link to another note: a small list opens under the cursor with
+the notes, `#` lists the headings of the note you are in, `Note#` the
+headings of another one, `^` and `Note#^` their block ids. What you type
+stays in the note as you go: `↑`/`↓` move, `Enter` or `Tab` completes the
+link (`]]` included), `Esc` closes the list and leaves the text to write by
+hand. `:settings` → **Link suggestions** → **Finder** brings back the big
+picker instead, where `#`, `Note#` and `^` narrow the list the same way and
+the footer says so; `Esc` there also leaves the typed `[[`.
+Click a link in the preview, or press
 `gd` on it in the editor, to follow it. In NORMAL mode `Enter` on a
 `[[link]]` follows it too, as in the LazyVim companion: a link inside a code
 block or inline `` `code` `` is skipped, and a link to a note that doesn't
 exist says "No note found for this link" instead of starting it (use `gd`
-for that). `Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
-the box; anywhere else it moves down a line. `space o ]` and `space o [`
+for that, or `:e name`, which opens a note by name or path and starts it
+when it does not exist yet, as following a link to a missing note does).
+`Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
+the box; anywhere else it moves down a line. Clicking the box of a to-do
+line in the preview toggles it too, as one change `u` undoes; clicking the
+text of the line does not. `space o ]` and `space o [`
 jump to the next and previous `[[link]]` (the companion's `]o` and `[o`,
 whose `]` and `[` switch tabs in Misoku), skipping the same code.
 

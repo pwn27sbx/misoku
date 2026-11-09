@@ -15,7 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// The settings menu (":settings") changes six settings of the "ui"
+// The settings menu (":settings") changes seven settings of the "ui"
 // section of config.json. Save model: a value picked with Enter (or a
 // digit, or a click) applies at once and is saved at once; Esc only goes
 // back (from a list or the width prompt to the menu, from the menu out)
@@ -53,6 +53,7 @@ const (
 	settingBorder
 	settingTransparent
 	settingHeadingNumbers
+	settingLinkSuggestions
 )
 
 // lookPreset is a choice of heading icons and bullets. Misoku's own look
@@ -94,6 +95,7 @@ func (m *Model) openSettingsAt(highlight int) {
 		row("Dialog border", m.borderName()),
 		row("Transparent background", onOff(s.ui.Transparent)),
 		row("Heading numbers", onOff(s.ui.HeadingNumbersOn())),
+		row("Link suggestions", m.linkSuggestionsName()),
 	}, func(m *Model, i int) tea.Cmd { return m.chooseSetting(i) })
 	m.menuBox.sel = highlight
 	m.leaderPending = false
@@ -126,6 +128,19 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		m.openSettingsAt(row)
 		m.setStatus("Heading numbers: " + onOff(on))
 		return m.saveUI(map[string]any{config.UIHeadingNumbers: on})
+
+	case settingLinkSuggestions:
+		// Inline is the default: choosing it removes the key.
+		if s.ui.LinkSuggestions == config.LinkSuggestionsFinder {
+			s.ui.LinkSuggestions = config.LinkSuggestionsInline
+			m.openSettingsAt(row)
+			m.setStatus("Link suggestions: Inline")
+			return m.saveUI(map[string]any{config.UILinkSuggestions: nil})
+		}
+		s.ui.LinkSuggestions = config.LinkSuggestionsFinder
+		m.openSettingsAt(row)
+		m.setStatus("Link suggestions: Finder")
+		return m.saveUI(map[string]any{config.UILinkSuggestions: config.LinkSuggestionsFinder})
 
 	case settingTransparent:
 		on := !s.ui.Transparent
@@ -245,6 +260,14 @@ func (m *Model) borderName() string {
 		return b
 	}
 	return "rounded" // unset, or a name ui.SetBorder refused
+}
+
+// linkSuggestionsName names what "[[" opens, as the settings menu shows it.
+func (m *Model) linkSuggestionsName() string {
+	if m.prefs().ui.LinkSuggestions == config.LinkSuggestionsFinder {
+		return "Finder"
+	}
+	return "Inline"
 }
 
 // lookSample shows a preset: its first three heading icons and bullets.

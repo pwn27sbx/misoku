@@ -249,8 +249,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "template":
 			return m, m.openTemplatePicker()
 		case "wikilink":
+			if m.inlineLinkSuggestions() {
+				return m, m.openLinkList()
+			}
 			cmd := m.openLinkPicker()
 			m.finder.wiki = true
+			if b := m.activeBuffer(); b != nil {
+				m.finder.current, m.finder.currentText = b.id, m.content.Value()
+			}
+			m.finder.refilter()
 			return m, cmd
 		}
 		if msg.Action == "media:paste" {
@@ -262,6 +269,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case core.ClipboardImageMsg:
 		m.attachPastedImage(msg)
+		return m, nil
+	case linkSourceMsg:
+		m.content.OpenLinkList(msg.notes, msg.request)
 		return m, nil
 	case mediaPickedMsg:
 		switch {
@@ -318,6 +328,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.exportPDF(msg.Path)
 	case core.VimNewBufferMsg:
 		return m, m.newDraft(m.sidebar.ContextParentID())
+	case core.VimEditMsg:
+		// ":e name" opens the note a [[link]] would, and starts it as an
+		// unresolved link does.
+		return m, m.followWikiLink(core.ParseWikiLink(msg.Target))
 	case tea.MouseMsg:
 		return m, m.handleMouse(msg)
 	case fileManagerDoneMsg:

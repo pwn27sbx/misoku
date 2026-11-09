@@ -4,6 +4,28 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Added
+
+- `H` and `L` switch to the previous and next tab from the editor's NORMAL mode, as `[` and `]` already did. With the preview focused they keep shifting its calendars.
+- Search inside a note: `/` searches from the cursor, `n` and `N` repeat it forward and backward, wrapping around the note with a status message; the text is literal and case-insensitive unless it has an upper-case letter, a missing match is `E486: Pattern not found`, and it works in the editor and the reading view.
+- A hint in the statusline while you type in a table cell (`Tab next cell · / add row or column`), so adding a column no longer has to be guessed.
+- Link suggestions understand headings and blocks: after `[[`, `#` lists the headings of the note, `Note#` the headings of another one, and `^`/`Note#^` their block ids, each inserted as `[[#Heading]]`, `[[Note#Heading]]`, `[[#^id]]` or `[[Note#^id]]`. The link picker and the new inline list share one source of suggestions.
+- An inline list of link suggestions, on by default: typing `[[` opens a small list under the cursor while the text stays in the note. `↑`/`↓` move, `Enter` or `Tab` completes, `Esc` closes the list and leaves the text, and clicking an item inserts it.
+- `ui.link_suggestions` (`inline` or `finder`), also in `:settings` as **Link suggestions**, chooses between the inline list and the big picker.
+
+### Changed
+
+- `space e` (`focus_explorer`) now toggles the explorer like LazyVim: it opens and focuses it, and closes it when it already has the focus. With no note open, or on the home screen, it keeps opening it.
+- A table realigns as you type in a cell: the text uses the cell's padding first, so the closing pipes stay put while it fits; when it no longer fits, the whole column widens at once, and deleting gives the padding back. One `u` still undoes the whole run of typing.
+- `[[` now opens the inline list instead of the note picker; the picker is one setting away. In the link picker a leading `#` means headings, so tags there are filtered with `tag:`.
+
+### Fixed
+
+- Clicking the box of a to-do line in the preview toggles it, as the help always said: the box itself is the target, so clicking the text does not toggle, and the change is one `u` undoes.
+- `:e name` and `:edit name` open that note, resolved as a `[[link]]` written in the open note would be (a path such as `Projects/AWS` works); a note that does not exist yet starts unsaved with that name. Bare `:e`, `:enew` and `:new` still open an empty tab.
+
 ## [0.26.1] - 2026-11-07
 
 ### Fixed

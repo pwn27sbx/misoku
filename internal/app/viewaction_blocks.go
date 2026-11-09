@@ -139,6 +139,8 @@ func (m *Model) handleViewHit(h preview.Hit) tea.Cmd {
 		return m.propertyHit(h)
 	case strings.HasPrefix(h.Kind, "link:"):
 		return m.followHit(h)
+	case h.Kind == preview.HitCheckbox:
+		m.previewCheckbox(h)
 	}
 	return nil
 }

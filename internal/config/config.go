@@ -282,6 +282,10 @@ type UI struct {
 	// tab line, statusline) to the terminal, so a terminal with opacity or
 	// blur shows through. Highlights and floating boxes stay painted.
 	Transparent bool `json:"transparent,omitempty"`
+	// LinkSuggestions chooses what typing "[[" opens: "inline" (default, a
+	// small list under the cursor) or "finder" (the note picker). Unset or
+	// unknown means inline; see InlineLinkSuggestions.
+	LinkSuggestions string `json:"link_suggestions,omitempty"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

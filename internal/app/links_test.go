@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,7 +103,7 @@ func TestGdFollowsLinkUnderCursor(t *testing.T) {
 
 func TestTypingDoubleBracketPicksNote(t *testing.T) {
 	store := linkedNotes(t)
-	h := openStart(t, store)
+	h := openStart(t, store, app.WithUI(config.UI{LinkSuggestions: config.LinkSuggestionsFinder}))
 	h.keys("Go")
 	h.keys("See [[")
 	if v := h.view(); !strings.Contains(v, "Link to Note") {

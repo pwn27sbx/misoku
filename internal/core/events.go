@@ -48,6 +48,13 @@ type VimCloseBufferMsg struct {
 // VimNewBufferMsg is emitted by :enew / :new.
 type VimNewBufferMsg struct{}
 
+// VimEditMsg is emitted by ":e name" / ":edit name": open the note the
+// target names, resolved as a [[link]] from the open note, or start it when
+// it does not exist yet.
+type VimEditMsg struct {
+	Target string
+}
+
 // StatusMsg shows a one-line message in the command line row.
 type StatusMsg struct {
 	Text  string

@@ -29,12 +29,16 @@ type finderQuery struct {
 // tag:<tag> or #<tag>, and folder:<folder>, whose value may be quoted
 // (folder:"My Notes"). Their names are read in any letter case; any other
 // "name:value" is plain text.
-func parseFinderQuery(q string) finderQuery {
+func parseFinderQuery(q string) finderQuery { return parseFinderQueryHashes(q, true) }
+
+// parseFinderQueryHashes is parseFinderQuery with "#tag" read as a qualifier
+// or as plain text: the "[[" link picker reads a leading "#" as a heading.
+func parseFinderQueryHashes(q string, hashes bool) finderQuery {
 	q = strings.TrimSpace(q)
 	var fq finderQuery
 	var words []string
 	for _, tok := range splitQuery(q) {
-		if fq.qualifier(tok) {
+		if fq.qualifier(tok, hashes) {
 			fq.qualified = true
 			continue
 		}
@@ -49,10 +53,12 @@ func parseFinderQuery(q string) finderQuery {
 
 // qualifier takes tok into fq when it is a qualifier, and reports whether
 // it was. An empty value ("tag:") is a qualifier that filters nothing yet.
-func (fq *finderQuery) qualifier(tok string) bool {
-	if spans := core.TagSpans(tok); len(spans) == 1 && spans[0] == [2]int{0, len(tok)} {
-		fq.tags = append(fq.tags, strings.ToLower(tok[1:]))
-		return true
+func (fq *finderQuery) qualifier(tok string, hashes bool) bool {
+	if hashes {
+		if spans := core.TagSpans(tok); len(spans) == 1 && spans[0] == [2]int{0, len(tok)} {
+			fq.tags = append(fq.tags, strings.ToLower(tok[1:]))
+			return true
+		}
 	}
 	key, val, ok := strings.Cut(tok, ":")
 	if !ok {

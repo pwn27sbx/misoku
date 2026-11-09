@@ -18,7 +18,21 @@ const (
 	UIBorder            = "border"
 	UITransparent       = "transparent"
 	UIHeadingNumbers    = "heading_numbers"
+	UILinkSuggestions   = "link_suggestions"
 )
+
+// Values of ui.link_suggestions.
+const (
+	// LinkSuggestionsInline is the small list under the cursor, the default.
+	LinkSuggestionsInline = "inline"
+	// LinkSuggestionsFinder is the note picker the "/" menu's Link to page
+	// opens.
+	LinkSuggestionsFinder = "finder"
+)
+
+// InlineLinkSuggestions reports whether "[[" opens the inline list (the
+// default: unset, "inline" or any unknown value), instead of the finder.
+func (u UI) InlineLinkSuggestions() bool { return u.LinkSuggestions != LinkSuggestionsFinder }
 
 // AccordionOn reports whether accordion folders are on (the default).
 func (u UI) AccordionOn() bool { return u.Accordion == nil || *u.Accordion }

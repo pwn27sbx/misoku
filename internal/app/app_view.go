@@ -97,6 +97,11 @@ func (m Model) View() string {
 	case m.menuBox != nil:
 		box, x, y := m.menuBox.view(&m)
 		screen = ui.Overlay(screen, box, x, y)
+	case m.viewMode == viewModeWorkspace && m.focus == focusEditor && m.content.LinkListOpen():
+		if box, x, y, ok := m.content.LinkListView(); ok {
+			l := m.layout()
+			screen = ui.Overlay(screen, box, l.EditorX+x, l.NoteY()+y)
+		}
 	case m.viewMode == viewModeWorkspace && m.focus == focusEditor && m.content.SlashOpen():
 		if box, x, y, ok := m.content.SlashView(); ok {
 			l := m.layout()

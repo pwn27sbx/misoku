@@ -104,6 +104,10 @@ func (m Model) ScrollStatus() string {
 	return fmt.Sprintf("%3.0f%%", pct)
 }
 
+// PageID is the ID of the note the preview shows ("" for none or a draft):
+// a caller that edits the note must check it is still this one.
+func (m Model) PageID() string { return m.pageID }
+
 // SetPage updates both the title and content from a domain Page entity.
 func (m *Model) SetPage(p core.Page) {
 	if p.ID != m.pageID {

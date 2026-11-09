@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,9 +31,9 @@ func tagStore(t *testing.T) *core.Store {
 }
 
 // openStartNote opens start.md in normal mode.
-func openStartNote(t *testing.T, store *core.Store) *harness {
+func openStartNote(t *testing.T, store *core.Store, opts ...app.Option) *harness {
 	t.Helper()
-	h := newHarness(t, store)
+	h := newHarness(t, store, opts...)
 	h.keys("f")
 	h.keys("start")
 	h.key(tea.KeyEnter)
@@ -57,7 +59,7 @@ func TestFinderQualifiersInTheFinder(t *testing.T) {
 // S2: the link picker is the same finder, qualifiers included.
 func TestLinkPickerHonoursQualifiers(t *testing.T) {
 	store := tagStore(t)
-	h := openStartNote(t, store)
+	h := openStartNote(t, store, app.WithUI(config.UI{LinkSuggestions: config.LinkSuggestionsFinder}))
 	h.keys("Go")
 	h.keys("See [[")
 	h.keys("status:onhold")

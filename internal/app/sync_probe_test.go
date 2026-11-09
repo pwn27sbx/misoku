@@ -142,8 +142,11 @@ func TestSyncReloadsACleanNoteInABackgroundTab(t *testing.T) {
 	h.keys("1") // doc.md
 	h.key(tea.KeyEsc)
 	writeOutside(t, vault, "other.md", "other")
-	h.keys(":e other.md")
-	h.key(tea.KeyEnter)
+	h.send(app.CheckWorkspaceMsg{}) // the tree sees the new note
+	h.keys(" e")                    // the explorer, still on doc.md
+	h.keys("j")                     // other.md
+	h.key(tea.KeyEnter)             // opens in a tab of its own
+	h.key(tea.KeyEsc)
 	if v := h.view(); !strings.Contains(v, "other.md") {
 		t.Fatalf("second tab not open:\n%s", v)
 	}

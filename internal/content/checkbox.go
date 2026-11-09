@@ -86,6 +86,13 @@ func RemoveBox(line string) string {
 // reports whether the text changed.
 func (m *Model) ToggleCheckboxes() bool { return m.mapRows(ToggleLine) }
 
+// ToggleLineAt toggles the box of document line row, as one change that u
+// undoes, for the preview's clicks. It reports whether the text changed.
+func (m *Model) ToggleLineAt(row int) (changed bool) {
+	m.edit(func() { changed = m.textarea.MapLines(row, row, ToggleLine) })
+	return changed
+}
+
 // RemoveCheckboxes removes the box of the cursor's line or of the VISUAL
 // selection's lines, as one change. It reports whether the text changed.
 func (m *Model) RemoveCheckboxes() bool { return m.mapRows(RemoveBox) }

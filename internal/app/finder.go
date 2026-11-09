@@ -30,6 +30,13 @@ type finder struct {
 	metas   map[string]finderMeta // status and tags of a note, read once; see meta
 	// templates is the templates folder, left out of status: and tag:.
 	templates string
+	// links are what a typed "[[" can complete in wiki mode, see
+	// refilterLinks; current and currentText are the note being edited and
+	// its text as the editor holds it.
+	links       []core.LinkSuggestion
+	linkSrc     []core.LinkNote
+	current     string
+	currentText string
 }
 
 // maxTextHits caps text matches so huge workspaces stay responsive.
@@ -133,6 +140,10 @@ func isBoundary(b byte) bool {
 // first narrow the notes; the words left then match their names and text.
 // With only qualifiers, every note that passes is listed, newest first.
 func (f *finder) refilter() {
+	if f.wiki {
+		f.refilterLinks()
+		return
+	}
 	fq := parseFinderQuery(f.input.Value())
 	q := fq.text
 	// notes are the ones the search looks at. A plain search looks at every
@@ -194,16 +205,34 @@ func (f *finder) refilter() {
 }
 
 func (f *finder) move(delta, visible int) {
-	if len(f.matches) == 0 {
+	n := f.count()
+	if n == 0 {
 		return
 	}
-	f.sel = (f.sel + delta + len(f.matches)) % len(f.matches)
+	f.sel = (f.sel + delta + n) % n
 	if f.sel < f.offset {
 		f.offset = f.sel
 	}
 	if visible > 0 && f.sel >= f.offset+visible {
 		f.offset = f.sel - visible + 1
 	}
+}
+
+// count is how many results the finder lists: suggestions in wiki mode,
+// matches otherwise.
+func (f *finder) count() int {
+	if f.wiki {
+		return len(f.links)
+	}
+	return len(f.matches)
+}
+
+// selectedLink is the wiki-mode suggestion Enter inserts.
+func (f *finder) selectedLink() (core.LinkSuggestion, bool) {
+	if f.sel < 0 || f.sel >= len(f.links) {
+		return core.LinkSuggestion{}, false
+	}
+	return f.links[f.sel], true
 }
 
 func (f *finder) selected() (core.Page, bool) {
@@ -244,26 +273,16 @@ func finderLayout(W, H int) finderGeom {
 }
 
 func (m *Model) finderOpen(f *finder, newTab bool) tea.Cmd {
-	p, ok := f.selected()
-	if f.wiki && !ok {
-		// No such note yet: link to it anyway; following it starts it.
-		// A query with qualifiers names no note: it links nowhere.
-		if q := strings.TrimSpace(f.input.Value()); q != "" && !parseFinderQuery(q).qualified {
-			m.finder = nil
-			m.insertWikiText(q)
-			return m.focusPane(focusEditor)
-		}
+	if f.wiki {
+		return m.finderOpenLink(f)
 	}
+	p, ok := f.selected()
 	if !ok {
 		return nil
 	}
 	if f.link {
 		m.finder = nil
-		if f.wiki {
-			m.insertWikiLink(p)
-		} else {
-			m.insertLinkTo(p)
-		}
+		m.insertLinkTo(p)
 		return m.focusPane(focusEditor)
 	}
 	line := f.matches[f.sel].line

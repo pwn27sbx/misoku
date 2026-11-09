@@ -37,6 +37,10 @@ func addHit(hs *[]Hit, h Hit) {
 	*hs = append(*hs, h)
 }
 
+// HitCheckbox is the box of a to-do line: clicking it toggles the line of
+// Line. The text of the line is not part of the hit.
+const HitCheckbox = "checkbox"
+
 // CalendarView shifts every calendar block while browsing the preview.
 type CalendarView struct {
 	Shift int  // months forward (negative = back)
