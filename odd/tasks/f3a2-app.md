@@ -70,5 +70,17 @@ under `TMPDIR=/var/tmp`, never the real HOME, config, vault or tutorial folder.
   Scan, Resume, Hint) is removed; the app and cmd use `Store` + `Catalog`.
 - **L5:** Implemented in `7ba9e1a`; `make all` green with 25 packages,
   1964 top-level tests and 792 subtests, 0 failures.
+- **L6:** Review round 1 (reduced candidate, F3a2 against `f8f7158`) found
+  four blockers: disk checks not re-run after saving another note, every step
+  skipped when only the history ones need git, a corrupt progress file
+  handled but not explicitly recovered, and `Ahora no` starting a route. All
+  fixed in `c18969d` with tests. The recovery re-reviewed the corrected
+  candidate and found one more: `--route=` silently ignored, fixed in
+  `c8dc158`.
+- **L7:** The targeted validator approved; the review was acknowledged and
+  its authority burned (`review-f57acce6e1a8c0c4`). The advisory findings
+  (git `add -A` over a pre-existing vault, an existing `.gitignore` left
+  alone, a failed git setup not retried, small readability cleanups) are
+  non-blocking follow-ups, not re-review triggers.
 - **L4:** Git is optional: the skip rule keys off the `history_*` event
   family, so no content is hardcoded; the skip lives in the progress file.
