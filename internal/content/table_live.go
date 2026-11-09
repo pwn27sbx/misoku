@@ -77,22 +77,14 @@ func (m *Model) alignCursorTable() {
 	for i := start; i < end; i++ {
 		rows = append(rows, splitCells(text(i)))
 	}
-	// The separator row declares the table's columns; without one, the
-	// widest other row does, so a delimiter typed in this row is still
-	// undecided.
-	cols := 0
-	if len(rows) > 1 && isSeparator(rows[1]) {
-		cols = len(rows[1])
-	} else {
-		for i, cells := range rows {
-			if i != row-start {
-				cols = max(cols, len(cells))
-			}
-		}
-		if cols == 0 { // a single-row table: its own count
-			cols = len(cells)
-		}
+	// A block of pipe lines with no separator row is not a Markdown table
+	// yet: live alignment does nothing there, and Tab or :tablefmt decide
+	// its shape.
+	if len(rows) < 2 || !isSeparator(rows[1]) {
+		return
 	}
+	// The separator row declares the table's columns.
+	cols := len(rows[1])
 	// More cells than the separator, or a cursor in a cell past its columns,
 	// means the text is outside the table: a "|" was typed there (Tab or
 	// :tablefmt decides that column), or the row's last pipe already closed

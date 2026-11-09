@@ -233,8 +233,29 @@ func TestTableLiveAlignAlignsARowWithoutATrailingPipe(t *testing.T) {
 	}
 }
 
-// A5 without a separator row: the fallback cannot take the edited row as the
-// shape, or the "|" typed there would become a column before Tab decides.
+// A block of pipe lines with no separator row is not a Markdown table yet:
+// live alignment does nothing there, whether the cursor is at the row's end
+// or inside a cell. Tab and :tablefmt still shape it.
+func TestTableLiveAlignLeavesASeparatorlessRowAlone(t *testing.T) {
+	const note = "| a | b |"
+
+	end := newNote(note)
+	end = keys(end, "A")
+	end = keys(end, " x")
+	if end.Value() != note+" x" {
+		t.Fatalf("typing at the end must leave a separator-less row as typed: %q", end.Value())
+	}
+
+	cell := newNote(note)
+	cell = keys(cell, "llli")
+	cell = keys(cell, "z")
+	if cell.Value() != "| az | b |" {
+		t.Fatalf("typing in a cell must leave a separator-less row as typed: %q", cell.Value())
+	}
+}
+
+// A separator-less block is skipped even when a delimiter is typed in it:
+// Tab or :tablefmt decide the new column.
 func TestTableLiveAlignWithoutASeparatorKeepsATypedPipe(t *testing.T) {
 	note := "| a | b |\n| c | d |"
 	c := newNote(note)
