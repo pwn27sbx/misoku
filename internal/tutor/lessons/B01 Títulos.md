@@ -10,6 +10,6 @@ Atajo: el menú `/` también tiene `Heading 2` y `Heading 3`.
 
 ## Tu turno
 
-Escribe aquí abajo una sección `## Viaje` y una subsección `### Día 1`. Con eso superas el nivel.
+Escribe aquí abajo una sección `## Viaje` y, debajo, una subsección `### Día 1`. Con eso superas el nivel.
 
 Siguiente: [[B02 Casillas]]

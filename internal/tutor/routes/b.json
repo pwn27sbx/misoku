@@ -13,7 +13,7 @@
           "check": { "kind": "text", "pred": "heading-exists", "args": ["2", "Viaje"] }
         },
         {
-          "text": "Escribe la subsección `### Día 1`",
+          "text": "Añade debajo la subsección `### Día 1`",
           "check": { "kind": "text", "pred": "heading-exists", "args": ["3", "Día 1"] }
         }
       ]
@@ -24,7 +24,7 @@
       "file": "B02 Casillas.md",
       "steps": [
         {
-          "text": "Marca una tarea con `- [x]` y su texto",
+          "text": "Marca una tarea con `- [x]`",
           "hint": "- [] no es una tarea: falta el espacio → - [ ]",
           "check": { "kind": "text", "pred": "line-starts", "args": ["- [x] "] }
         }
