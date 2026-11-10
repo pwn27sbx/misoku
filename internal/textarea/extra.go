@@ -18,6 +18,7 @@ func (m Model) YOffset() int {
 // View call, so it also works right after SetValue on a long document.
 func (m *Model) EnsureVisible() {
 	m.viewport.YOffset = max(m.offsetShowing(m.viewport.YOffset), 0)
+	m.shownHead = m.head(m.row) + 1
 }
 
 // visualLineCount returns the number of soft-wrapped lines in the buffer.
@@ -69,7 +70,10 @@ func (m *Model) moveToVisual(v, col int) {
 
 // ScrollBy scrolls the view by n visual lines (negative scrolls up) without
 // requiring focus, dragging the cursor along only when it would leave the
-// screen — the same feel as scrolling a Vim window with the mouse.
+// screen — the same feel as scrolling a Vim window with the mouse. A block
+// the scroll cuts counts as leaving it, unless it is taller than the screen:
+// the cursor then goes to the nearest line that is shown whole, so a later
+// EnsureVisible has nothing to scroll back.
 func (m *Model) ScrollBy(n int) {
 	total := m.visualLineCount()
 	maxOff := max(0, total-1)
@@ -80,16 +84,35 @@ func (m *Model) ScrollBy(n int) {
 	}
 	off := clamp(m.viewport.YOffset+n, 0, maxOff)
 	m.viewport.YOffset = off
+	m.shownHead = m.head(m.row) + 1 // the cursor stays in a tall block it is in
 
-	top := off
-	bottom := off + m.viewport.Height - 1
-	first, last := m.cursorRows()
+	if m.offsetShowing(off) == off {
+		return
+	}
+	h := max(m.viewport.Height, 1)
+	first, _ := m.cursorRows()
 	col := m.LineInfo().ColumnOffset
-	switch {
-	case last < top:
-		m.moveToVisual(top, col)
-	case first > bottom:
-		m.moveToVisual(bottom, col)
+	v, step := off, 1 // the cursor is above: the first rows first
+	if first >= off {
+		v, step = off+h-1, -1 // below: the last rows first
+	}
+	landing := -1 // the first line found that shows, hidden or not
+	for i := 0; i < h; i, v = i+1, v+step {
+		m.moveToVisual(v, col)
+		m.shownHead = m.head(m.row) + 1
+		if m.offsetShowing(off) != off {
+			continue
+		}
+		if !m.hidden(m.row) {
+			return
+		}
+		if landing < 0 {
+			landing = v
+		}
+	}
+	if landing >= 0 {
+		m.moveToVisual(landing, col)
+		m.shownHead = m.head(m.row) + 1
 	}
 }
 

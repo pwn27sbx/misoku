@@ -98,18 +98,18 @@ func TestPrettyViewEditsAndShowsTheRealMode(t *testing.T) {
 }
 
 // S1: dd and o edit; since S15 they act on the cursor's whole block, here
-// one-line paragraphs.
+// one-line paragraphs: dd takes the blank line after it and lands on the
+// next block, and o opens a block of its own.
 func TestPrettyViewDeletesAndOpensLines(t *testing.T) {
 	h := openNoteWith(t, "one\n\ntwo\n\nthree")
 	h.keys(" p")
 	h.keys("dd")
-	if got := saved(t, h); got != "\ntwo\n\nthree" {
+	if got := saved(t, h); got != "two\n\nthree" {
 		t.Fatalf("dd left %q", got)
 	}
-	h.keys("j")
 	h.keys("onew")
 	h.key(tea.KeyEsc)
-	if got := saved(t, h); got != "\ntwo\nnew\n\nthree" {
+	if got := saved(t, h); got != "two\n\nnew\n\nthree" {
 		t.Fatalf("o left %q", got)
 	}
 }

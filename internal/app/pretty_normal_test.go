@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -159,4 +160,102 @@ func TestPrettyNormalMouseSelectionReveals(t *testing.T) {
 	h.send(tea.MouseMsg{X: x + 2, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
 	h.send(tea.MouseMsg{X: x + 2, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease})
 	wantOnScreen(t, h.view(), []string{"**one**", "two"}, []string{"**two**", "**end**"})
+}
+
+// S8 (B1): gg onto a block the top edge cuts shows the whole block.
+func TestPrettyGgShowsTheTopOfACutBlock(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("# Title\n\nfirst para\n")
+	for i := range 60 {
+		fmt.Fprintf(&b, "\npara %d\n", i)
+	}
+	h := openNoteWith(t, b.String())
+	h.keys(" p")
+	h.keys("jj")
+	h.m = app.ScrollNoteBy(h.m, 1)
+	h.view()
+	h.keys("gg")
+	v := h.view()
+	if l, _, ok := app.NoteCursor(h.m); l != 1 || !ok || !strings.Contains(v, "Title") {
+		t.Fatalf("gg: line %d on screen %v\n%s", l, ok, v)
+	}
+}
+
+// S8 (B1): k into a block the top edge cuts keeps the cursor on screen.
+func TestPrettyKIntoABlockCutByTheTop(t *testing.T) {
+	var b strings.Builder
+	for i := range 30 {
+		fmt.Fprintf(&b, "para %d\n\n", i)
+		if i%5 == 2 {
+			b.WriteString("| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n| 7 | 8 |\n\n")
+		}
+	}
+	h := openNoteWith(t, b.String()+"end")
+	h.keys(" p")
+	h.keys("G")
+	for i := range 120 {
+		h.keys("k")
+		h.view()
+		if l, _, ok := app.NoteCursor(h.m); !ok {
+			t.Fatalf("k #%d: line %d off screen", i+1, l)
+		}
+	}
+}
+
+// S8: the wheel over a block taller than the screen scrolls through it, the
+// cursor staying on the block, and never bounces back to its top.
+func TestPrettyWheelThroughATallBlock(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("intro\n\n| n | v |\n|---|---|\n")
+	for i := range 80 {
+		fmt.Fprintf(&b, "| r%02d | x |\n", i)
+	}
+	b.WriteString("\nend")
+	h := prettyAt(t, b.String())
+	h.keys("ggj")
+	if l, _, _ := app.NoteCursor(h.m); l != 3 {
+		t.Fatalf("setup: the cursor is on line %d, want the table's 3", l)
+	}
+	x, y := noteTextAt(t, h.view(), "r00")
+	prev := strings.Join(paneRows(h.view()), "\n")
+	for i := range 6 {
+		h.send(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+		h.keys("$") // any key brings the cursor into view again
+		pane := strings.Join(paneRows(h.view()), "\n")
+		if l, _, _ := app.NoteCursor(h.m); l != 3 || pane == prev || strings.Contains(pane, "intro") {
+			t.Fatalf("wheel %d: cursor on line %d, the pane did not move on:\n%s", i+1, l, pane)
+		}
+		prev = pane
+	}
+}
+
+// S15: dd on a block lands on the next block, so a second dd deletes that
+// block, never a blank line; the blocks left stay one blank line apart.
+func TestPrettyDdTwiceDeletesTwoBlocks(t *testing.T) {
+	h := prettyAt(t, prettyNote)
+	h.keys("ggj") // onto the table
+	h.keys("dd")
+	if got, want := app.EditorText(h.m), "# Title\n\n> [!note] Head\n> body\n\nend"; got != want {
+		t.Fatalf("dd on the table left %q, want %q", got, want)
+	}
+	if l, _, ok := app.NoteCursor(h.m); l != 3 || !ok {
+		t.Fatalf("after dd the cursor is on line %d (on screen %v), want the callout's 3", l, ok)
+	}
+	h.keys("dd")
+	if got, want := app.EditorText(h.m), "# Title\n\nend"; got != want {
+		t.Fatalf("a second dd left %q, want %q", got, want)
+	}
+}
+
+// S15: o under a table opens a paragraph of its own, not a table row.
+func TestPrettyOUnderATableOpensAParagraph(t *testing.T) {
+	h := prettyAt(t, prettyNote)
+	h.keys("ggj")
+	h.keys("onew")
+	h.key(tea.KeyEsc)
+	want := "# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nnew\n\n> [!note] Head\n> body\n\nend"
+	if got := app.EditorText(h.m); got != want {
+		t.Fatalf("o under the table left %q, want %q", got, want)
+	}
+	wantOnScreen(t, h.view(), []string{"new", "Head"}, []string{"|---|"})
 }

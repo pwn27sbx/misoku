@@ -285,6 +285,10 @@ type Model struct {
 	// display, when it matches the text, replaces the wrap's geometry for
 	// its lines (see SetDisplay).
 	display *Display
+	// shownHead is 1 + the head line of the cursor's block the last time it
+	// was brought into view, 0 before that: a block taller than the screen
+	// that the cursor stays in may sit wherever the wheel left it.
+	shownHead int
 
 	// focus indicates whether user input focus should be on this input
 	// component. When false, ignore keyboard input and hide the cursor.
@@ -925,6 +929,7 @@ func (m *Model) repositionView() {
 	if off := m.offsetShowing(m.viewport.YOffset); off != m.viewport.YOffset {
 		m.viewport.YOffset = clamp(off, 0, max(m.visualLineCount()-1, 0))
 	}
+	m.shownHead = m.head(m.row) + 1
 }
 
 // Width returns the width of the textarea.

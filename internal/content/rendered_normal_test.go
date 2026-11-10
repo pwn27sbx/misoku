@@ -130,12 +130,14 @@ func TestRenderedNormalMovesBlockByBlock(t *testing.T) {
 	}
 }
 
-// S15: dd deletes the whole block as one undo step and yanks its Markdown.
+// S15: dd deletes the whole block as one undo step and yanks its Markdown;
+// the blank line left over goes with it, and the cursor lands on the next
+// block, or on the previous one at the end of the note.
 func TestRenderedNormalDdDeletesTheBlock(t *testing.T) {
 	c := shown(t, 3)
 	c, cmd := keysShown(t, c, "d", "d")
-	if got := c.Value(); got != "intro\n\n\nend" {
-		t.Fatalf("dd on the table left %q", got)
+	if got := c.Value(); got != "intro\n\nend" || line(c) != 3 {
+		t.Fatalf("dd on the table left %q, the cursor on line %d, want line 3", got, line(c))
 	}
 	if got := copied(cmd); got != rawTable+"\n" {
 		t.Fatalf("dd should yank the table's lines, got %q", got)
@@ -147,8 +149,30 @@ func TestRenderedNormalDdDeletesTheBlock(t *testing.T) {
 
 	c = shown(t, 1)
 	c, cmd = keysShown(t, c, "d", "d")
-	if got := c.Value(); got != "\n"+rawTable+"\n\nend" || copied(cmd) != "intro\n" {
-		t.Fatalf("dd on a one-line paragraph left %q, yanked %q", got, copied(cmd))
+	if got := c.Value(); got != rawTable+"\n\nend" || copied(cmd) != "intro\n" || line(c) != 1 {
+		t.Fatalf("dd on the first paragraph left %q, yanked %q, the cursor on line %d", got, copied(cmd), line(c))
+	}
+
+	c = shown(t, 7)
+	c, _ = keysShown(t, c, "d", "d")
+	if got := c.Value(); got != "intro\n\n"+rawTable || line(c) != 3 {
+		t.Fatalf("dd on the last block left %q, the cursor on line %d, want the table's 3", got, line(c))
+	}
+
+	// Two blank lines after the block: one goes, and the cursor skips the
+	// other for the next block.
+	c = renderedEditor(t, "a\n\nx\n\n\nb")
+	c.GotoLine(3)
+	c.ShowRendered(compiled(1,
+		content.RenderedBlock{Line: 0, End: 1, Rows: []string{"A"}},
+		content.RenderedBlock{Line: 1, End: 2, Rows: []string{""}},
+		content.RenderedBlock{Line: 2, End: 3, Rows: []string{"X"}},
+		content.RenderedBlock{Line: 3, End: 5, Rows: []string{""}},
+		content.RenderedBlock{Line: 5, End: 6, Rows: []string{"B"}},
+	), false)
+	c, _ = press(t, c, "d", "d")
+	if got := c.Value(); got != "a\n\n\nb" || line(c) != 4 {
+		t.Fatalf("dd before two blank lines left %q, the cursor on line %d, want b's 4", got, line(c))
 	}
 }
 
@@ -163,18 +187,21 @@ func TestRenderedNormalYyYanksTheBlock(t *testing.T) {
 	}
 }
 
-// S15: o opens a line below the block's last line, O above its first, from
-// any line of the block, in INSERT.
+// S15: o opens a new block below the rendered block, O above it, from any
+// line of the block, in INSERT: one blank line apart from the block and from
+// what follows, reusing a blank line that is already there, so the new text
+// never becomes a table row or a paragraph's continuation.
 func TestRenderedNormalOpensAroundTheBlock(t *testing.T) {
 	cases := []struct {
 		line int
 		keys string
 		want string
 	}{
-		{3, "o", "intro\n\n" + rawTable + "\nnew\n\nend"},
-		{4, "O", "intro\n\nnew\n" + rawTable + "\n\nend"},
-		{1, "o", "intro\nnew\n\n" + rawTable + "\n\nend"},
-		{1, "O", "new\nintro\n\n" + rawTable + "\n\nend"},
+		{3, "o", "intro\n\n" + rawTable + "\n\nnew\n\nend"},
+		{4, "O", "intro\n\nnew\n\n" + rawTable + "\n\nend"},
+		{1, "o", "intro\n\nnew\n\n" + rawTable + "\n\nend"},
+		{1, "O", "new\n\nintro\n\n" + rawTable + "\n\nend"},
+		{7, "o", tableNote + "\n\nnew"},
 	}
 	for _, tc := range cases {
 		c, _ := keysShown(t, shown(t, tc.line), tc.keys)
@@ -185,11 +212,15 @@ func TestRenderedNormalOpensAroundTheBlock(t *testing.T) {
 		if got := c.Value(); got != tc.want {
 			t.Fatalf("%s on line %d left %q, want %q", tc.keys, tc.line, got, tc.want)
 		}
+		if c, _ = keysShown(t, c, "u"); c.Value() != tableNote {
+			t.Fatalf("one u should undo %s on line %d, got %q", tc.keys, tc.line, c.Value())
+		}
 	}
 }
 
-// S15: p and P paste whole lines below and above the block, as one undo
-// step, whatever the clipboard ends with.
+// S15: p and P paste whole lines as a new block below and above the
+// rendered block, apart from it as o and O open, as one undo step, whatever
+// the clipboard ends with.
 func TestRenderedNormalPastesAroundTheBlock(t *testing.T) {
 	for _, clip := range []string{"X\n", "X"} {
 		restore := content.SetClipboard(func() (string, error) { return clip, nil })
@@ -198,10 +229,11 @@ func TestRenderedNormalPastesAroundTheBlock(t *testing.T) {
 			key  string
 			want string
 		}{
-			{3, "p", "intro\n\n" + rawTable + "\nX\n\nend"},
-			{3, "P", "intro\n\nX\n" + rawTable + "\n\nend"},
-			{1, "p", "intro\nX\n\n" + rawTable + "\n\nend"},
-			{1, "P", "X\nintro\n\n" + rawTable + "\n\nend"},
+			{3, "p", "intro\n\n" + rawTable + "\n\nX\n\nend"},
+			{3, "P", "intro\n\nX\n\n" + rawTable + "\n\nend"},
+			{1, "p", "intro\n\nX\n\n" + rawTable + "\n\nend"},
+			{1, "P", "X\n\nintro\n\n" + rawTable + "\n\nend"},
+			{7, "p", tableNote + "\n\nX"},
 		}
 		for _, tc := range cases {
 			c, _ := keysShown(t, shown(t, tc.line), tc.key)
@@ -216,25 +248,129 @@ func TestRenderedNormalPastesAroundTheBlock(t *testing.T) {
 	}
 }
 
-// S15: >> and << indent and outdent every line of the block, one undo step
-// each.
+// S15: yy then p of a table gives a second table of its own, not rows
+// added to the first.
+func TestRenderedNormalYankAndPasteATable(t *testing.T) {
+	clip := ""
+	restore := content.SetClipboard(func() (string, error) { return clip, nil })
+	defer restore()
+	c, cmd := keysShown(t, shown(t, 3), "y", "y")
+	clip = copied(cmd)
+	c, _ = keysShown(t, c, "p")
+	if got, want := c.Value(), "intro\n\n"+rawTable+"\n\n"+rawTable+"\n\nend"; got != want {
+		t.Fatalf("yy p on the table left %q, want %q", got, want)
+	}
+}
+
+// fmNote is a note with front matter, a blank line and a paragraph.
+const fmNote = "---\ntitle: a\n---\n\nbody"
+
+// fmShown is an editor on fmNote, the cursor on 1-based line, showing a
+// compile where the front matter is one block.
+func fmShown(t *testing.T, line int) content.Model {
+	t.Helper()
+	c := renderedEditor(t, fmNote)
+	c.GotoLine(line)
+	c.ShowRendered(fmCompile(), false)
+	return c
+}
+
+func fmCompile() content.Rendered {
+	return compiled(1,
+		content.RenderedBlock{Line: 0, End: 3, Rows: []string{"PROPS"}},
+		content.RenderedBlock{Line: 3, End: 4, Rows: []string{""}},
+		content.RenderedBlock{Line: 4, End: 5, Rows: []string{"BODY"}},
+	)
+}
+
+// S15: nothing goes above the front matter: O and P on it open and paste
+// below it, as o and p do.
+func TestRenderedNormalNothingAboveTheFrontMatter(t *testing.T) {
+	restore := content.SetClipboard(func() (string, error) { return "X\n", nil })
+	defer restore()
+	for _, k := range []string{"o", "O"} {
+		c := fmShown(t, 2)
+		for _, s := range []string{k, "n", "e", "w", "esc"} {
+			c, _ = c.Update(key(s))
+			c.ShowRendered(fmCompile(), false)
+		}
+		if got, want := c.Value(), "---\ntitle: a\n---\n\nnew\n\nbody"; got != want {
+			t.Fatalf("%s on the front matter left %q, want %q", k, got, want)
+		}
+	}
+	for _, k := range []string{"p", "P"} {
+		c := fmShown(t, 1)
+		c, _ = c.Update(key(k))
+		if got, want := c.Value(), "---\ntitle: a\n---\n\nX\n\nbody"; got != want {
+			t.Fatalf("%s on the front matter left %q, want %q", k, got, want)
+		}
+	}
+}
+
+// S15: >> and << nest and un-nest a list item, every line of it, one undo
+// step each. Any other rendered block keeps its indent, so it stays the
+// same kind of block: a paragraph or table never turns into indented code,
+// and front matter and fenced code never change.
 func TestRenderedNormalIndentsTheBlock(t *testing.T) {
-	c, _ := keysShown(t, shown(t, 3), ">", ">")
-	indented := "intro\n\n  | a | b |\n  |---|---|\n  | 1 | 2 |\n\nend"
-	if got := c.Value(); got != indented {
-		t.Fatalf(">> on the table left %q", got)
+	const list = "- a\n- b\n  more\n\nend"
+	listCompile := func() content.Rendered {
+		return compiled(1,
+			content.RenderedBlock{Line: 0, End: 1, Rows: []string{"A"}},
+			content.RenderedBlock{Line: 1, End: 3, Rows: []string{"B", "MORE"}},
+			content.RenderedBlock{Line: 3, End: 4, Rows: []string{""}},
+			content.RenderedBlock{Line: 4, End: 5, Rows: []string{"END"}},
+		)
 	}
-	c, _ = keysShown(t, c, "<", "<")
-	if got := c.Value(); got != tableNote {
-		t.Fatalf("<< should take the indent back, got %q", got)
+	c := renderedEditor(t, list)
+	c.GotoLine(2)
+	steps := []struct{ keys, want string }{
+		{">>", "- a\n  - b\n    more\n\nend"},
+		{">>", "- a\n    - b\n      more\n\nend"},
+		{"<<", "- a\n  - b\n    more\n\nend"},
+		{"u", "- a\n    - b\n      more\n\nend"},
 	}
-	c, _ = keysShown(t, c, "u")
-	if got := c.Value(); got != indented {
-		t.Fatalf("one u should undo <<, got %q", got)
+	for _, st := range steps {
+		for _, k := range st.keys {
+			c.ShowRendered(listCompile(), false)
+			c, _ = c.Update(key(string(k)))
+		}
+		if got := c.Value(); got != st.want {
+			t.Fatalf("%s on the list item left %q, want %q", st.keys, got, st.want)
+		}
 	}
-	c, _ = keysShown(t, shown(t, 1), ">", ">")
-	if got := c.Value(); got != "  intro\n\n"+rawTable+"\n\nend" {
-		t.Fatalf(">> on a one-line paragraph left %q", got)
+
+	others := []struct {
+		name string
+		c    content.Model
+	}{
+		{"table", shown(t, 3)},
+		{"paragraph", shown(t, 1)},
+		{"front matter", fmShown(t, 1)},
+	}
+	for _, o := range others {
+		before := o.c.Value()
+		c, _ := keysShown(t, o.c, ">", ">", ">", ">", "<", "<")
+		if got := c.Value(); got != before {
+			t.Fatalf(">> and << on the %s changed it to %q", o.name, got)
+		}
+	}
+	c, _ = keysShown(t, shown(t, 1), ">", "j")
+	if line(c) != 3 {
+		t.Fatalf("> on a paragraph should not wait for a second key: j left line %d", line(c))
+	}
+
+	c = renderedEditor(t, "```\ncode\n```\n\nend")
+	fence := compiled(1,
+		content.RenderedBlock{Line: 0, End: 3, Rows: []string{"CODE"}},
+		content.RenderedBlock{Line: 3, End: 4, Rows: []string{""}},
+		content.RenderedBlock{Line: 4, End: 5, Rows: []string{"END"}},
+	)
+	for _, k := range []string{">", ">", "<", "<"} {
+		c.ShowRendered(fence, false)
+		c, _ = c.Update(key(k))
+	}
+	if got := c.Value(); got != "```\ncode\n```\n\nend" {
+		t.Fatalf(">> and << on fenced code changed it to %q", got)
 	}
 }
 

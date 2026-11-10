@@ -124,3 +124,101 @@ func TestDeleteLines(t *testing.T) {
 		t.Fatalf("deleting every line left %q in %d lines", got, m.LineCount())
 	}
 }
+
+// cutDisplay is a three-row screen over "a".."f": the first two lines a
+// block of two rows, the third a tall block of four, the rest raw.
+func cutDisplay(t *testing.T) textarea.Model {
+	t.Helper()
+	m := frameEditor(20, 3, false, "a\nb\nc\nd\ne\nf")
+	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{
+		rendered("A1", "A2"), rowless(0), rendered("C1", "C2", "C3", "C4"), raw(), raw(), raw(),
+	}})
+	return m
+}
+
+// S8 (B1): moving onto a block the top edge cuts brings the whole block on
+// screen, not only the rows still showing.
+func TestDisplayEnsureVisibleShowsABlockCutByTheTop(t *testing.T) {
+	m := cutDisplay(t)
+	m.SetRowCol(3, 0) // d, row 6: rows 4-6 on screen
+	m.ScrollBy(-3)    // rows 1-3, the cursor dragged onto the tall block
+	if off := m.YOffset(); off != 1 {
+		t.Fatalf("setup: YOffset = %d, want 1", off)
+	}
+	m.SetRowCol(1, 0)
+	if off := m.YOffset(); off != 0 {
+		t.Fatalf("YOffset = %d, want 0: the cursor's block starts on row 0", off)
+	}
+	equalRows(t, trimmedRows(m), "A1", "A2", "C1")
+}
+
+// S8 (B1): moving onto a block taller than the screen whose top is cut
+// shows its top.
+func TestDisplayEnsureVisibleShowsTheTopOfATallBlock(t *testing.T) {
+	m := cutDisplay(t)
+	m.SetRowCol(3, 0) // d, row 6: rows 4-6, C3 C4 d
+	m.SetRowCol(2, 0)
+	if off := m.YOffset(); off != 2 {
+		t.Fatalf("YOffset = %d, want 2: the tall block's first row", off)
+	}
+	equalRows(t, trimmedRows(m), "C1", "C2", "C3")
+}
+
+// S8: wheel scrolling over a block taller than the screen does not bounce
+// back once something brings the cursor into view again.
+func TestDisplayWheelOverATallBlockDoesNotBounce(t *testing.T) {
+	m := frameEditor(20, 3, false, "a\nb")
+	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{rendered("1", "2", "3", "4", "5", "6"), raw()}})
+	for want := 1; want <= 3; want++ {
+		m.ScrollBy(1)
+		m.EnsureVisible()
+		if row, _ := m.RowCol(); row != 0 || m.YOffset() != want {
+			t.Fatalf("wheel %d: cursor on %d, YOffset %d, want 0 and %d", want, row, m.YOffset(), want)
+		}
+	}
+	m.ScrollBy(-1)
+	m.EnsureVisible()
+	if m.YOffset() != 2 {
+		t.Fatalf("wheel up: YOffset %d, want 2", m.YOffset())
+	}
+}
+
+// S8: the wheel leaving the cursor's block cut by the top edge moves the
+// cursor to the first block below it that is whole on screen, so nothing
+// scrolls back.
+func TestDisplayWheelCuttingTheCursorsBlockMovesTheCursor(t *testing.T) {
+	m := frameEditor(20, 3, false, "a\nb\nc\nd\ne")
+	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{
+		rendered("A1", "A2"), rowless(0), rendered("C1", "C2"), raw(), raw(),
+	}})
+	m.SetRowCol(1, 0)
+	m.ScrollBy(1)
+	if row, _ := m.RowCol(); row != 2 {
+		t.Fatalf("the wheel left the cursor on line %d, want 2, the next whole block", row)
+	}
+	m.EnsureVisible()
+	if off := m.YOffset(); off != 1 {
+		t.Fatalf("YOffset = %d after EnsureVisible, want 1: no bounce", off)
+	}
+	m.ScrollBy(-1) // row 0-2: A1 A2 C1, C2 cut by the bottom
+	if row, _ := m.RowCol(); row != 0 {
+		t.Fatalf("the wheel up left the cursor on line %d, want 0", row)
+	}
+	m.EnsureVisible()
+	if off := m.YOffset(); off != 0 {
+		t.Fatalf("YOffset = %d after EnsureVisible, want 0", off)
+	}
+}
+
+// S8: the wheel moving the cursor off a cut block skips a hidden line (a
+// blank run in NORMAL) for the next block that is shown whole.
+func TestDisplayWheelSkipsHiddenLines(t *testing.T) {
+	m := frameEditor(20, 3, false, "a\nb\n\nd\ne")
+	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{
+		rendered("A1", "A2"), skipped(0), {Rows: []string{""}, Hidden: true}, rendered("D1"), raw(),
+	}})
+	m.ScrollBy(1) // rows 1-3: A2, the blank row, D1
+	if row, _ := m.RowCol(); row != 3 {
+		t.Fatalf("the wheel left the cursor on line %d, want 3, the block after the blank run", row)
+	}
+}

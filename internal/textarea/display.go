@@ -200,19 +200,24 @@ func (m Model) cursorRows() (first, last int) {
 }
 
 // offsetShowing returns the scroll that brings the cursor's rows on screen
-// from off, moving as little as it can: rows above the top go to the top;
-// rows below the bottom come up until the last is on the bottom row, or the
-// first on the top row for a block taller than the screen.
+// from off, moving as little as it can: rows above the top, or cut by it, go
+// to the top; rows below the bottom, or cut by it, come up until the last is
+// on the bottom row. A block taller than the screen shows its first row,
+// unless the cursor stayed in it since it was last brought into view and some
+// of it is still on screen: the wheel may have left it anywhere.
 func (m Model) offsetShowing(off int) int {
 	h := max(m.viewport.Height, 1)
 	first, last := m.cursorRows()
+	bottom := off + h - 1
 	switch {
-	case last < off:
+	case first >= off && last <= bottom:
+		return off
+	case last-first+1 > h && last >= off && first <= bottom && m.shownHead == m.head(m.row)+1:
+		return off
+	case first < off:
 		return first
-	case first > off && last > off+h-1:
-		return min(first, last-h+1)
 	}
-	return off
+	return min(first, last-h+1)
 }
 
 // bandLine returns the line whose display rows take the cursor-line band,

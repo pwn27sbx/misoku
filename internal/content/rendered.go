@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -245,6 +246,14 @@ func (m Model) blockText(from, to int) string {
 	return b.String()
 }
 
+// shiftable reports whether >> and << act on the rendered block starting at
+// line from: only a list item, which they nest and un-nest. Any other block
+// keeps its indent, since two more spaces either change nothing or, from
+// four, turn it into indented code; front matter and fenced code never move.
+func (m Model) shiftable(from int) bool {
+	return listItem.MatchString(m.textarea.RowText(from))
+}
+
 // shiftBlock indents (in) or outdents every line of [from, to) by two
 // spaces, as Tab nests a list line.
 func (m *Model) shiftBlock(from, to int, in bool) {
@@ -257,6 +266,89 @@ func (m *Model) shiftBlock(from, to int, in bool) {
 		}
 		return l
 	})
+}
+
+// blankAt reports whether line l exists and holds nothing but spaces.
+func (m Model) blankAt(l int) bool {
+	return l >= 0 && l < m.LineCount() && strings.TrimSpace(m.textarea.RowText(l)) == ""
+}
+
+// frontMatter reports whether the rendered block [from, to) is the note's
+// front matter, above which nothing may go.
+func (m Model) frontMatter(from, to int) bool {
+	if from != 0 {
+		return false
+	}
+	lines := make([]string, to)
+	for l := range lines {
+		lines[l] = m.textarea.RowText(l)
+	}
+	return core.FrontMatterEnd(lines) >= 0
+}
+
+// newBlock puts lines in as a block of their own beside the rendered block
+// [from, to): below it, or above it when above is set and the block is not
+// the front matter. A blank line keeps them apart from the block and from
+// what is on their other side, added only where none is there already, so
+// they never join the block or the next one (a table row, a paragraph's
+// continuation). The cursor goes to their first line.
+func (m *Model) newBlock(from, to int, above bool, lines []string) {
+	ta := &m.textarea
+	at := to // the new lines go in before line at
+	if above && !m.frontMatter(from, to) {
+		at = from
+	}
+	var b []string
+	if at > 0 && !m.blankAt(at-1) {
+		b = append(b, "")
+	}
+	start := at + len(b)
+	b = append(b, lines...)
+	if at < m.LineCount() && !m.blankAt(at) {
+		b = append(b, "")
+	}
+	if at < m.LineCount() {
+		ta.SetRowCol(at, 0)
+		ta.OpenLineAbove()
+	} else {
+		ta.SetRowCol(at-1, len(ta.RowText(at-1)))
+		ta.OpenLineBelow()
+	}
+	ta.InsertString(strings.Join(b, "\n"))
+	ta.SetRowCol(start, 0)
+}
+
+// deleteBlock deletes the rendered block [from, to) and one of the blank
+// lines that kept it apart, so the blocks around stay one blank line apart,
+// and puts the cursor on the next block, or on the previous one when none
+// follows: never on a blank line.
+func (m *Model) deleteBlock(from, to int) {
+	blocks := m.rendered.blocks // the old text's; lines before from keep their place
+	ta := &m.textarea
+	ta.DeleteLines(from, to)
+	switch {
+	case m.blankAt(from) && (from == 0 || m.blankAt(from-1)):
+		ta.DeleteLines(from, from+1)
+	case from >= m.LineCount() && m.blankAt(from-1):
+		ta.DeleteLines(from-1, from)
+	}
+	for l := from; l < m.LineCount(); l++ {
+		if !m.blankAt(l) {
+			ta.SetRowCol(l, 0)
+			return
+		}
+	}
+	for l := min(from, m.LineCount()) - 1; l >= 0; l-- {
+		if m.blankAt(l) {
+			continue
+		}
+		i := sort.Search(len(blocks), func(i int) bool { return blocks[i].End > l })
+		if i < len(blocks) && blocks[i].Line <= l {
+			l = blocks[i].Line
+		}
+		ta.SetRowCol(l, 0)
+		return
+	}
 }
 
 // blockLines is the number of lines blocks cover, which are contiguous.

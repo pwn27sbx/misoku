@@ -167,7 +167,7 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		case "dd":
 			if from, to, ok := m.cursorBlock(); ok {
 				text := m.blockText(from, to)
-				ta.DeleteLines(from, to)
+				m.deleteBlock(from, to)
 				return m, copyCmd(text)
 			}
 			ta.DeleteLine()
@@ -178,7 +178,7 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return m, copyCmd(ta.CurrentLine() + "\n")
 		case ">>", "<<":
-			if from, to, ok := m.cursorBlock(); ok {
+			if from, to, ok := m.cursorBlock(); ok && m.shiftable(from) {
 				m.shiftBlock(from, to, combo == ">>")
 			}
 		case "gd", "gx":
@@ -201,17 +201,14 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 	case "I":
 		ta.CursorStart()
 		return m, m.enterInsert()
-	case "o":
-		if _, to, ok := m.cursorBlock(); ok {
-			ta.SetRowCol(to-1, 0) // below the block's last line
+	case "o", "O":
+		if from, to, ok := m.cursorBlock(); ok {
+			m.newBlock(from, to, s == "O", []string{""})
+		} else if s == "o" {
+			ta.OpenLineBelow()
+		} else {
+			ta.OpenLineAbove()
 		}
-		ta.OpenLineBelow()
-		return m, m.enterInsert()
-	case "O":
-		if from, _, ok := m.cursorBlock(); ok {
-			ta.SetRowCol(from, 0) // above the block's first line
-		}
-		ta.OpenLineAbove()
 		return m, m.enterInsert()
 	case ":":
 		m.mode = ModeCommand
@@ -256,8 +253,8 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 	case "g", "d", "y":
 		m.pending = s
 	case ">", "<":
-		if _, _, ok := m.cursorBlock(); ok {
-			m.pending = s // >> and << shift a rendered block
+		if from, _, ok := m.cursorBlock(); ok && m.shiftable(from) {
+			m.pending = s // >> and << nest a rendered list item
 		}
 	case "v", "V":
 		m.mode = ModeVisual
@@ -436,14 +433,11 @@ func (m *Model) paste(before bool) tea.Cmd {
 	}
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if from, to, ok := m.cursorBlock(); ok {
-		// On a rendered block the text goes in as whole lines, below the
-		// block's last line or above its first.
-		text = strings.TrimSuffix(text, "\n") + "\n"
-		if before {
-			m.textarea.SetRowCol(from, 0)
-		} else {
-			m.textarea.SetRowCol(to-1, 0)
-		}
+		// On a rendered block the text goes in as a block of its own, below
+		// the block or above it.
+		m.newBlock(from, to, before, strings.Split(strings.TrimSuffix(text, "\n"), "\n"))
+		m.reportAction("paste", "")
+		return nil
 	}
 	switch {
 	case strings.HasSuffix(text, "\n") && before:
