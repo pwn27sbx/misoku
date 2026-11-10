@@ -288,6 +288,9 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+y":
 		ta.ScrollBy(-1)
 	case "x", "delete":
+		if _, _, ok := m.cursorBlock(); ok {
+			return m, nil // a rendered block hides the column x would delete
+		}
 		ta.DeleteCharForward()
 	}
 	return m, nil

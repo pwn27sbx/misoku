@@ -259,3 +259,35 @@ func TestPrettyOUnderATableOpensAParagraph(t *testing.T) {
 	}
 	wantOnScreen(t, h.view(), []string{"new", "Head"}, []string{"|---|"})
 }
+
+// S15 (L17): x over a rendered fenced block in NORMAL does nothing; it would
+// delete an invisible backtick and break the fence.
+func TestPrettyXOnAFenceChangesNothing(t *testing.T) {
+	const note = "intro\n\n```\ncode\n```\n\nend"
+	h := prettyAt(t, note)
+	h.keys("ggj")
+	if l, _, ok := app.NoteCursor(h.m); l != 3 || !ok {
+		t.Fatalf("setup: the cursor is on line %d (on screen %v), want the fence's 3", l, ok)
+	}
+	h.keys("x")
+	if got := app.EditorText(h.m); got != note {
+		t.Fatalf("x on the fence changed the note to %q", got)
+	}
+	wantOnScreen(t, h.view(), []string{"code"}, []string{"```"})
+}
+
+// S15: in the split and in space r, x deletes the character under the
+// cursor as always.
+func TestSplitAndRawViewXDeletesACharacter(t *testing.T) {
+	h := openNoteWith(t, "# Head\n\nend")
+	h.keys("x")
+	if got := app.EditorText(h.m); got != " Head\n\nend" {
+		t.Fatalf("x in the split should delete the character under the cursor, left %q", got)
+	}
+	h = openNoteWith(t, "# Head\n\nend")
+	h.keys(" r")
+	h.keys("x")
+	if got := app.EditorText(h.m); got != " Head\n\nend" {
+		t.Fatalf("x in space r should delete the character under the cursor, left %q", got)
+	}
+}

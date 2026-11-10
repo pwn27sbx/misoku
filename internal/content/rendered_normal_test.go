@@ -375,7 +375,8 @@ func TestRenderedNormalIndentsTheBlock(t *testing.T) {
 }
 
 // S15, assumption: J does nothing on a block of several lines (joining would
-// break it); x keeps acting on the source column.
+// break it); x does nothing on a rendered block (L17): it would edit a
+// column nobody sees.
 func TestRenderedNormalJoinAndCharacterKeys(t *testing.T) {
 	c := renderedEditor(t, "one\ntwo\n\nend")
 	r := compiled(1,
@@ -390,8 +391,53 @@ func TestRenderedNormalJoinAndCharacterKeys(t *testing.T) {
 	}
 	c.ShowRendered(r, false)
 	c, _ = c.Update(key("x"))
-	if got := c.Value(); got != "ne\ntwo\n\nend" {
-		t.Fatalf("x should delete the source character under the cursor, left %q", got)
+	if got := c.Value(); got != "one\ntwo\n\nend" {
+		t.Fatalf("x on a rendered paragraph should do nothing, left %q", got)
+	}
+}
+
+// S15 (L17): x over a rendered block in NORMAL does nothing: the text stays,
+// no undo step is recorded and nothing is copied. A heading, the opening
+// line of fenced code, a table and a paragraph alike.
+func TestRenderedNormalXDoesNothingOnABlock(t *testing.T) {
+	const note = "# Head\n\n```\ncode\n```\n\n| a | b |\n|---|---|\n\npara"
+	blocks := compiled(1,
+		content.RenderedBlock{Line: 0, End: 1, Rows: []string{"HEAD"}},
+		content.RenderedBlock{Line: 1, End: 2, Rows: []string{""}},
+		content.RenderedBlock{Line: 2, End: 5, Rows: []string{"CODE"}},
+		content.RenderedBlock{Line: 5, End: 6, Rows: []string{""}},
+		content.RenderedBlock{Line: 6, End: 8, Rows: []string{"TABLE1", "TABLE2"}},
+		content.RenderedBlock{Line: 8, End: 9, Rows: []string{""}},
+		content.RenderedBlock{Line: 9, End: 10, Rows: []string{"PARA"}},
+	)
+	for _, at := range []struct {
+		name string
+		line int
+	}{{"heading", 1}, {"fence opening", 3}, {"table", 7}, {"paragraph", 10}} {
+		c := renderedEditor(t, note)
+		c.GotoLine(at.line)
+		c.ShowRendered(blocks, false)
+		c, cmd := c.Update(key("x"))
+		if got := c.Value(); got != note {
+			t.Fatalf("x on the %s changed the note to %q", at.name, got)
+		}
+		if got := copied(cmd); got != "" {
+			t.Fatalf("x on the %s copied %q", at.name, got)
+		}
+		c.ShowRendered(blocks, false)
+		if _, msg := undo(c); msg != "Already at oldest change" {
+			t.Fatalf("x on the %s left an undo step: u said %q", at.name, msg)
+		}
+	}
+}
+
+// S15: without a display (the plain editor, the split, space r) x deletes
+// the character under the cursor as always.
+func TestRawEditorXDeletesACharacter(t *testing.T) {
+	c := renderedEditor(t, "# Head\n\npara")
+	c, _ = c.Update(key("x"))
+	if got := c.Value(); got != " Head\n\npara" {
+		t.Fatalf("x in the raw editor should delete the character under the cursor, left %q", got)
 	}
 }
 
