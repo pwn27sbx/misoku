@@ -53,6 +53,10 @@ func (m *Model) refreshLinks() {
 // followHit opens a link clicked in the preview.
 func (m *Model) followHit(h preview.Hit) tea.Cmd {
 	switch h.Kind {
+	case preview.HitWikiLink, preview.HitURLLink, preview.HitNoteLink:
+		m.tutorBFollowedLink("mouse")
+	}
+	switch h.Kind {
 	case preview.HitWikiLink:
 		return m.followWikiLink(core.ParseWikiLink(h.Arg))
 	case preview.HitURLLink:
@@ -134,6 +138,7 @@ func (m *Model) newLinkedDraft(target string) tea.Cmd {
 		dir = ""
 	}
 	cmd := m.newDraft("")
+	m.tutorBNewDraft(name)
 	if b := m.activeBuffer(); b != nil && b.draft() {
 		b.title, b.dir = name, strings.Trim(dir, "/")
 		m.content.SetBuffer(b.page(), true)
@@ -326,16 +331,19 @@ func (m *Model) followEditorLink(msg core.FollowLinkMsg) tea.Cmd {
 	for _, loc := range editorWikiRe.FindAllStringIndex(msg.Line, -1) {
 		if within(loc) {
 			l, _, _ := core.WikiLinkAt(strings.TrimPrefix(msg.Line[loc[0]:loc[1]], "!"))
+			m.tutorBFollowedLink(msg.Key)
 			return m.followWikiLink(l)
 		}
 	}
 	for _, loc := range editorMdRe.FindAllStringSubmatchIndex(msg.Line, -1) {
 		if within(loc) {
+			m.tutorBFollowedLink(msg.Key)
 			return m.followURL(strings.Trim(msg.Line[loc[2]:loc[3]], "<>"))
 		}
 	}
 	for _, loc := range editorURLRe.FindAllStringIndex(msg.Line, -1) {
 		if within(loc) {
+			m.tutorBFollowedLink(msg.Key)
 			return m.followURL(strings.Trim(msg.Line[loc[0]:loc[1]], "<>"))
 		}
 	}

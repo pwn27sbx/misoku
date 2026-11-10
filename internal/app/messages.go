@@ -1,6 +1,10 @@
 package app
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // maxMessages is how many of the bar's messages `:messages` keeps.
 const maxMessages = 100
@@ -18,6 +22,9 @@ func (m *Model) say(text string, isErr bool) {
 	m.status, m.statusErr = text, isErr
 	if text == "" {
 		return
+	}
+	if isErr && !strings.HasPrefix(text, "Could not save the tutorial's progress") {
+		m.tutorDefer("error_shown", "")
 	}
 	if len(m.messages) == maxMessages {
 		m.messages = append(m.messages[:0], m.messages[1:]...)
@@ -53,6 +60,7 @@ func (m *Model) openMessages() {
 		items[i] = s.at + "  " + s.text
 	}
 	m.menu("Messages", items, func(*Model, int) tea.Cmd { return nil })
+	m.tutorBMessages()
 	d := m.menuBox
 	d.sel = len(d.shown) - 1
 	d.scroll(m)

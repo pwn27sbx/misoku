@@ -55,13 +55,13 @@ func (m *Model) runAction(action string) tea.Cmd {
 	case keymap.FocusExplorer:
 		return m.toggleExplorerFocus()
 	case keymap.NextPane:
-		return m.movePane(1, true)
+		return m.tutorBPaneMove(1, true)
 	case keymap.PrevPane:
-		return m.movePane(-1, true)
+		return m.tutorBPaneMove(-1, true)
 	case keymap.PaneLeft:
-		return m.movePane(-1, false)
+		return m.tutorBPaneMove(-1, false)
 	case keymap.PaneRight:
-		return m.movePane(1, false)
+		return m.tutorBPaneMove(1, false)
 	case keymap.NextTab:
 		return m.cycleBuffer(1)
 	case keymap.PrevTab:
@@ -124,6 +124,10 @@ func (m *Model) editCheckboxes(edit func() bool) tea.Cmd {
 func (m *Model) jumpLink(dir int) {
 	if m.activeBuffer() != nil && !m.content.JumpLink(dir) {
 		m.setStatus("No links in this note")
+		return
+	}
+	if dir > 0 {
+		m.tutorBLinkNext()
 	}
 }
 

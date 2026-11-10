@@ -101,7 +101,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case is(keymap.ExplorerPreview):
 		if hasCurr {
 			if !curr.Page.IsFolder {
-				return m, selectCmd(curr.Page.ID)
+				return m, previewCmd(curr.Page.ID)
 			}
 			return m, m.activate(curr)
 		}

@@ -271,6 +271,7 @@ func (m *Model) clearEditor() {
 
 // openFile opens id in a tab (reusing an existing tab) and focuses the editor.
 func (m *Model) openFile(id string) tea.Cmd {
+	m.tutorBNoteOpened()
 	if i := m.bufferIndex(id); i >= 0 {
 		m.showBuffer(m.buffers[i])
 		return m.focusPane(focusEditor)
@@ -299,6 +300,7 @@ func (m *Model) insertBuffer(b *buffer) {
 // newDraft opens an empty "Untitled-N" tab. Nothing is written to disk
 // until the user saves and picks a location.
 func (m *Model) newDraft(parentID string) tea.Cmd {
+	m.tutorBNewDraft("")
 	m.draftSeq++
 	b := &buffer{
 		id:    fmt.Sprintf("%s%d", draftIDPrefix, m.draftSeq),
@@ -360,6 +362,7 @@ func (m *Model) closeBuffer(id string, force bool) tea.Cmd {
 	if force || !m.isDirty(b) {
 		m.removeBuffer(id)
 		m.refreshModified()
+		m.tutorBTabClosed()
 		return nil
 	}
 	m.confirm = &confirmDialog{
@@ -372,11 +375,13 @@ func (m *Model) closeBuffer(id string, force bool) tea.Cmd {
 				return m.saveBuffer(b, func(m *Model) tea.Cmd {
 					m.removeBuffer(b.id)
 					m.refreshModified()
+					m.tutorBTabClosed()
 					return nil
 				})
 			case 1:
 				m.removeBuffer(b.id)
 				m.refreshModified()
+				m.tutorBTabClosed()
 			}
 			return nil
 		},
@@ -565,8 +570,9 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 	}
 	dirty := m.dirtyBuffers()
 	if force || len(dirty) == 0 {
-		if force && len(dirty) > 0 {
-			// :q! throws the changes away: the title says so.
+		if force {
+			// :q! is the discard form of quitting, changes or none: the
+			// lesson asks the player to leave the note with it.
 			m.tutorDefer("quit", "discard")
 		}
 		return m.tutorQuitCmd()

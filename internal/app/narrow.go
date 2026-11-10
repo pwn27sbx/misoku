@@ -83,6 +83,7 @@ func (m *Model) hitLayout() Layout {
 // closeExplorerOverlay hides the overlay and gives the editor the focus.
 func (m *Model) closeExplorerOverlay() tea.Cmd {
 	m.sidebarOpen = false
+	m.tutorBFocusExplorer("overlay")
 	return m.focusPane(focusEditor)
 }
 

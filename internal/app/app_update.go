@@ -51,6 +51,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.openLeaderGuide(msg)
 		return m, nil
 	case workspaceScannedMsg:
+		m.tutorBTreeScanned(msg.pages)
 		m.applyWorkspaceScan(msg)
 		return m, checkWorkspaceLater()
 	case linkIndexedMsg:
@@ -217,6 +218,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case core.PageSelectedMsg:
+		if msg.Preview {
+			m.tutorBNotePreviewed()
+		}
 		if msg.KeepFocus {
 			keep := m.focus
 			m.openFile(msg.ID)
@@ -281,6 +285,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.finder.current, m.finder.currentText = b.id, m.content.Value()
 			}
 			m.finder.refilter()
+			m.tutorBLinkFooter()
 			return m, cmd
 		}
 		if msg.Action == "media:paste" {
@@ -354,6 +359,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case core.VimEditMsg:
 		// ":e name" opens the note a [[link]] would, and starts it as an
 		// unresolved link does.
+		m.tutorDefer("note_opened", strings.TrimSuffix(msg.Target, ".md"))
 		return m, m.followWikiLink(core.ParseWikiLink(msg.Target))
 	case tea.MouseMsg:
 		return m, m.handleMouse(msg)

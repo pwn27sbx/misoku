@@ -47,6 +47,7 @@ func (m *Model) openPalette() tea.Cmd {
 	p.refilter()
 	m.palette = p
 	m.leaderPending = false
+	m.tutorBPaletteOpen(p.entries)
 	return p.input.Focus()
 }
 
@@ -96,6 +97,7 @@ func (p *palette) update(m *Model, msg tea.Msg) tea.Cmd {
 			if e == nil || e.run == nil {
 				return nil // a key, not a command: the bottom explains it
 			}
+			m.tutorBPaletteRun(e)
 			m.palette = nil
 			return e.run(m)
 		case "down", "ctrl+n", "ctrl+j":

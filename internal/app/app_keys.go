@@ -103,8 +103,11 @@ func (m *Model) handleKeyAction(k tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch m.focus {
 	case focusSidebar:
+		tree := m.tutorBTreeSnapshot()
 		m.sidebar, cmd = m.sidebar.Update(k)
+		m.tutorBTreeKey(tree)
 	case focusPreview:
+		m.tutorBPreviewKey(k)
 		m.preview, cmd = m.preview.Update(k)
 	default:
 		if m.graphActive() {
@@ -191,6 +194,12 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		}
 	}
 	// The letter keys are fixed: they are the ones the home screen shows.
+	// The lesson asks the player to try each one, so the press is the
+	// event even where this vault gives the key nothing to open.
+	switch s {
+	case "n", "f", "e", "t", "?", "g", "c", "s", "l", "q":
+		m.tutorBHomeKey(s)
+	}
 	switch s {
 	case "n":
 		return m.newDraft("")
@@ -236,8 +245,10 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		recent, projects := m.dashboard.RecentPages(), m.dashboard.Projects()
 		switch {
 		case i < len(recent):
+			m.tutorBHomeOpen("recent")
 			return m.openFile(recent[i].ID)
 		case i-len(recent) < len(projects):
+			m.tutorBHomeOpen("project")
 			return m.openProject(projects[i-len(recent)].ID)
 		}
 		return nil
@@ -305,5 +316,6 @@ func (m *Model) followEnterLink(l core.WikiLink) tea.Cmd {
 			return nil
 		}
 	}
+	m.tutorBFollowedLink("Enter")
 	return m.followWikiLink(l)
 }

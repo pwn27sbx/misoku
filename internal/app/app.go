@@ -438,6 +438,7 @@ func (m *Model) toggleSidebar() tea.Cmd {
 // screen keeps opening it, as it did before the toggle.
 func (m *Model) toggleExplorerFocus() tea.Cmd {
 	if m.viewMode != viewModeWorkspace || !m.sidebarOpen || m.focus != focusSidebar {
+		m.tutorBFocusExplorer("")
 		return m.focusPane(focusSidebar)
 	}
 	if m.activeBuffer() == nil {
@@ -446,6 +447,7 @@ func (m *Model) toggleExplorerFocus() tea.Cmd {
 	if m.explorerOverlay() {
 		return m.closeExplorerOverlay()
 	}
+	m.tutorBFocusExplorer("")
 	m.sidebarOpen = false
 	m.updateLayout()
 	return m.focusPane(focusEditor)
@@ -491,6 +493,7 @@ func (m *Model) toggleView(v noteView) tea.Cmd {
 // rendered and refuses edits, the others draw raw Markdown and edit.
 func (m *Model) setNoteView(v noteView) {
 	m.noteView = v
+	m.tutorBView(v)
 	m.content.SetLive(v == viewReading)
 	m.content.SetReadOnly(v == viewReading)
 	if v != viewSplit {
@@ -511,6 +514,7 @@ func (m *Model) leaveReading() {
 func (m *Model) startFind() tea.Cmd { return m.openFinder() }
 
 func (m *Model) goHome() {
+	m.tutorBHome()
 	m.stashActive()
 	m.reloadTree()
 	m.viewMode = viewModeDashboard

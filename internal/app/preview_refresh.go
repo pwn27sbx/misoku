@@ -81,6 +81,7 @@ func (m *Model) flushPreview() {
 // edited note, from the editor's text.
 func (m *Model) syncPreview() {
 	m.preview.SetContent(m.content.Value())
+	m.tutorBRendered(m.content.Value())
 	m.pv.compiles++
 	if m.bufferIndex(graphID) >= 0 {
 		m.liveGraph()

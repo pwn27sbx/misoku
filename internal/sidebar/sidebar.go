@@ -506,6 +506,12 @@ func selectCmd(id string) tea.Cmd {
 	return func() tea.Msg { return core.PageSelectedMsg{ID: id} }
 }
 
+// previewCmd shows a note from the explorer's preview action: the app opens
+// it and reports the preview to the tutorial.
+func previewCmd(id string) tea.Cmd {
+	return func() tea.Msg { return core.PageSelectedMsg{ID: id, Preview: true} }
+}
+
 // openQuietly opens a note but leaves keyboard focus in the explorer, like a
 // single click in VSCode's explorer.
 func openQuietly(id string) tea.Cmd {

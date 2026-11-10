@@ -218,6 +218,12 @@ func (m *Model) FoldAll(fold bool) {
 	m.recompile()
 }
 
+// FoldPending reports whether a "z" waits for its M or R.
+func (m Model) FoldPending() bool { return m.pendingZ }
+
+// Folded reports whether the section or code block keyed key is collapsed.
+func (m Model) Folded(key string) bool { return m.cal.Folded[key] }
+
 // HitMsg reports a click on an interactive part of a view block.
 type HitMsg struct{ Hit Hit }
 

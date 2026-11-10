@@ -57,6 +57,7 @@ func (m *Model) openSaveAs(b *buffer, after func(*Model) tea.Cmd) {
 		dir = strings.TrimSuffix(strings.TrimSuffix(b.id, b.fileName()), "/")
 	}
 
+	m.tutorBSaveDialog()
 	d := &saveAsDialog{buf: b, after: after, dirs: m.store.Dirs(), sel: -1}
 	d.folder = in("/  (workspace root)")
 	d.folder.SetValue(dir)

@@ -77,6 +77,7 @@ func (m *Model) openFinder() tea.Cmd {
 	f.refilter()
 	m.finder = f
 	m.leaderPending = false
+	m.tutorBFinderOpen("")
 	return f.input.Focus()
 }
 
@@ -279,6 +280,9 @@ func (m *Model) finderOpen(f *finder, newTab bool) tea.Cmd {
 	p, ok := f.selected()
 	if !ok {
 		return nil
+	}
+	if newTab {
+		m.tutorBNewTab(p.ID)
 	}
 	if f.link {
 		m.finder = nil

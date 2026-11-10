@@ -35,6 +35,7 @@ func (m *Model) openTagPicker() tea.Cmd {
 		}
 		items[i] = fmt.Sprintf("#%s · %d %s", t, counts[t], unit)
 	}
+	m.tutorBTags()
 	m.searchMenu("Tags", items, 0, func(m *Model, i int) tea.Cmd {
 		return m.openFinderWith("tag:" + finderValue(names[i]))
 	})

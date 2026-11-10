@@ -34,6 +34,7 @@ func (f *finder) update(m *Model, msg tea.Msg) tea.Cmd {
 		f.input, cmd = f.input.Update(msg)
 		if f.input.Value() != before {
 			f.refilter()
+			m.tutorBFinderFilter(f.input.Value())
 		}
 		return cmd
 

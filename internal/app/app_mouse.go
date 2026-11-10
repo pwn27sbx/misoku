@@ -118,7 +118,9 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			break // a padding row holds nothing to click; the press only focuses
 		}
 		local.Y = noteY
+		hit, hasHit := m.preview.HitAt(local.X, local.Y)
 		m.preview, cmd = m.preview.Update(local)
+		m.tutorBPreviewClick(hit, hasHit)
 	}
 	return tea.Batch(append(cmds, cmd)...)
 }
@@ -179,6 +181,7 @@ func (m *Model) dragDivider(x int) {
 		}
 	}
 	m.updateLayout()
+	m.tutorBPaneResized()
 	// Keep the stored position inside the limits the layout applied, so a
 	// drag past the edge doesn't need to travel back before it moves again.
 	l = m.layout()
