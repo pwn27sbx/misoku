@@ -85,6 +85,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
+		if isKey {
+			m.completeTypedBox(k)
+		}
 		m.textarea.EnsureVisible()
 		if isKey {
 			m.alignTableWhileTyping(k)

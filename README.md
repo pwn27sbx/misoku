@@ -574,6 +574,7 @@ block or inline `` `code` `` is skipped, and a link to a note that doesn't
 exist says "No note found for this link" instead of starting it (use `gd`
 for that, or `:e name`, which opens a note by name or path and starts it
 when it does not exist yet, as following a link to a missing note does).
+Typing a space after `- []` in INSERT writes the box as `- [ ] `.
 `Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
 the box; anywhere else it moves down a line. Clicking the box of a to-do
 line in the preview toggles it too, as one change `u` undoes; clicking the

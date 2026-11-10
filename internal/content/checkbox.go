@@ -112,6 +112,26 @@ func (m *Model) mapRows(f func(string) string) (changed bool) {
 	return changed
 }
 
+// completeTypedBox turns "- [] " into the standard "- [ ] " when k is the
+// space that just finished it. It waits for the space, not the "]", because
+// a task always has one there and a link with empty text ("- [](url)") never
+// does. A paste stays as it came: its k.String() is bracketed.
+func (m *Model) completeTypedBox(k tea.KeyMsg) {
+	if k.String() != " " {
+		return
+	}
+	before := m.textarea.LineBeforeCursor()
+	head := listItem.FindString(before)
+	if head == "" || strings.TrimLeft(before[len(head):], " \t") != "[] " {
+		return
+	}
+	if row, _ := m.textarea.RowCol(); inFence(m.textarea.RowText, row) {
+		return
+	}
+	m.textarea.DeleteBefore(len("] "))
+	m.textarea.InsertString(" ] ")
+}
+
 // fenceRun is the character and length of the fence run text opens with,
 // or 0 when text is not a fence.
 func fenceRun(text string) (byte, int) {
