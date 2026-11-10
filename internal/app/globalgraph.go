@@ -62,6 +62,7 @@ func (m *Model) openGlobalGraph() tea.Cmd {
 		m.insertBuffer(b)
 		m.showBuffer(b)
 	}
+	m.tutorDefer("graph_open", "global")
 	return m.focusPane(focusEditor)
 }
 

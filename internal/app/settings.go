@@ -99,6 +99,7 @@ func (m *Model) openSettingsAt(highlight int) {
 	}, func(m *Model, i int) tea.Cmd { return m.chooseSetting(i) })
 	m.menuBox.sel = highlight
 	m.leaderPending = false
+	m.tutorDefer("settings_open", "")
 }
 
 // back returns to the settings menu on row, for a list or prompt closed
@@ -315,6 +316,6 @@ func (m *Model) saveUI(values map[string]any) tea.Cmd {
 		for key := range fresh {
 			s.written[key] = seq
 		}
-		return nil
+		return settingsSavedMsg{}
 	}
 }

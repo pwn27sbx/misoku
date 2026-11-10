@@ -43,6 +43,7 @@ func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
 			m.setError("Could not save theme: " + err.Error())
 			return false
 		}
+		m.tutorDefer("settings_saved", "")
 	}
 	return true
 }
@@ -86,6 +87,7 @@ func (m *Model) openThemePicker() tea.Cmd {
 	p.scrollTo(themeRows(m.height))
 	m.themes = p
 	m.leaderPending = false
+	m.tutorDefer("theme_list", "")
 	return p.input.Focus()
 }
 
@@ -133,10 +135,12 @@ func (p *themePicker) close(m *Model, keep bool) {
 	m.themes = nil
 	if !keep {
 		m.applyTheme(p.original, false)
+		m.tutorDefer("theme_pick", "revert")
 		return
 	}
 	if m.applyTheme(m.baseTheme, true) {
 		m.setStatus("Theme: " + m.theme.Name)
+		m.tutorDefer("theme_pick", "")
 	}
 }
 

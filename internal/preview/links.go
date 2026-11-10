@@ -241,6 +241,10 @@ func (m *Model) SetBacklinks(links []core.Backlink) {
 	m.recompile()
 }
 
+// Backlinks lists the notes linking to the page in use, as it draws them
+// under it.
+func (m Model) Backlinks() []core.Backlink { return m.backlinks }
+
 // SetMentions lists, under the backlinks, the notes that mention note id
 // without linking to it. They show only while id is the page shown, so a
 // scan that ends after another note opened shows nothing there.

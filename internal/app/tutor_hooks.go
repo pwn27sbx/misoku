@@ -27,6 +27,7 @@ func (m *Model) tutorAfterUpdate() tea.Cmd {
 		cmds = append(cmds, m.tutorEvent(a.Name, a.Value))
 	}
 	cmds = append(cmds, g.takeCmds()...)
+	cmds = append(cmds, m.tutorCKeyClash(), m.tutorCCaughtUp())
 	if m.tableHintVisible() && !g.tableHint {
 		g.tableHint = true
 		cmds = append(cmds, m.tutorEvent("table_hint", ""))

@@ -56,7 +56,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			}
 			var cmd tea.Cmd
 			m.preview, cmd = m.preview.Update(local)
-			return cmd
+			return tea.Batch(cmd, m.tutorCHover())
 		}
 		if msg.Action == tea.MouseActionRelease {
 			m.dragging = false
