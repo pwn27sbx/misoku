@@ -165,7 +165,7 @@ jobs:
           - { image: "debian:stable-slim", setup: "apt-get update && apt-get install -y python3 wget" }
           - { image: "fedora:latest", setup: "dnf install -y python3 tar gzip" }
           - { image: "alpine:latest", setup: "apk add --no-cache python3" }
-          - { image: "archlinux:latest", setup: "pacman -Sy --noconfirm python" }
+          - { image: "archlinux:latest", setup: "pacman -Syu --noconfirm python" }
           - { image: "opensuse/tumbleweed", setup: "zypper -n install python3 curl tar gzip" }
     steps:
       - uses: actions/checkout@v7
