@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.31.1] - 2026-11-10
+
+### Fixed
+
+- A selection no longer disappears behind the cursor-line band: the band is off while text is selected, as in Neovim, and the selection takes its colour from the active theme's `one_bg2`.
+
 ## [0.31.0] - 2026-11-10
 
 ### Changed
