@@ -101,3 +101,18 @@ under `mktemp -d`; `GIT_CONFIG_GLOBAL` at an empty temp file.
   with the folder segment the tutor's success line no longer fitted at 140
   columns (`TestTutorShowsTheStepAndThenTheSuccess`). The route folder is the
   same for 97 notes and the explorer already shows it.
+- **L7 (review):** the whole feature as one candidate (229 files) was refused
+  as `lens_context_budget_exceeded`; no authority was created. Split: the
+  commits after the layout (`dca19a4..a6f3ed2`: disk checks, lesson text,
+  README, the log) were reviewed (risk, readability, reliability), approved
+  and acknowledged. Its advisories found a real defect — `no-file` passed with
+  no `Exists` reader — fixed in `8ad6064` and the personal vault path in the
+  log, fixed in `e617540`. The fix delta (`e617540..8ad6064`) was reviewed
+  (readability, reliability), approved and acknowledged; one readability
+  suggestion (the three existence helpers repeat one loop shape) stays as
+  advice.
+- **L8 (review limit):** the layout commit alone (223 files, 4347 lines) also
+  exceeds the native lens budget, so no review authority can be created for
+  the note move. The move is mechanical: `git diff -M --summary` shows 101
+  renames with content edits only in `A09` and `B00`, and `make all` pins the
+  layout.
