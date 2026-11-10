@@ -5,6 +5,9 @@ package core
 type PageSelectedMsg struct {
 	ID        string
 	KeepFocus bool
+	// Preview marks the explorer's "preview" action (p), which shows the
+	// note without it being an "open" the tutorial counts differently.
+	Preview bool
 }
 
 // FindRequestMsg opens the global note finder.
@@ -128,6 +131,9 @@ type StatusFilterMsg struct {
 type FollowLinkMsg struct {
 	Line string
 	Col  int
+	// Key is the key that followed the link under the cursor: "gd", "gx",
+	// or "" for a path that does not name one (the tutorial reports it).
+	Key string
 }
 
 // SyncMsg asks the app to sync the vault now (":sync").

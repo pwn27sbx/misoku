@@ -45,6 +45,11 @@ func (m *Model) repeatCmd(forward bool) tea.Cmd {
 	if m.lastSearch == "" {
 		return errorCmd("E35: No previous regular expression")
 	}
+	if forward {
+		m.reportAction("search_next", "")
+	} else {
+		m.reportAction("search_prev", "")
+	}
 	return m.findCmd(m.lastSearch, forward)
 }
 
@@ -57,12 +62,15 @@ func (m *Model) findCmd(query string, forward bool) tea.Cmd {
 	m.lastSearch = query
 	row, col, wrapped, ok := m.find(query, forward)
 	if !ok {
+		m.reportAction("search_error", query)
 		return errorCmd("E486: Pattern not found: " + query)
 	}
+	m.reportAction("search_hit", query)
 	m.textarea.SetRowCol(row, col) // keeps the cursor visible
 	if !wrapped {
 		return nil
 	}
+	m.reportAction("search_wrap", "")
 	if forward {
 		return statusCmd("search hit BOTTOM, continuing at TOP")
 	}

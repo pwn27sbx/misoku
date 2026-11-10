@@ -1,6 +1,7 @@
 package content
 
 import (
+	"path"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
@@ -96,6 +97,7 @@ func (m *Model) refreshLinkList() {
 	if m.linkList.items == nil || m.linkList.version != m.textarea.Version() {
 		m.linkList.items = core.LinkSuggestions(m.linkSrc, m.page.ID, m.textarea.Value(), q)
 		m.linkList.version = m.textarea.Version()
+		m.reportLinkList()
 	}
 	if n := len(m.linkList.items); m.linkList.sel >= n {
 		m.linkList.sel = max(n-1, 0)
@@ -105,6 +107,36 @@ func (m *Model) refreshLinkList() {
 	}
 	if m.linkList.sel >= m.linkList.offset+linkListMaxRows {
 		m.linkList.offset = m.linkList.sel - linkListMaxRows + 1
+	}
+}
+
+// reportLinkList reports what the inline list is offering: the headings of a
+// note or the block ids of one. The lessons ask the player to look at each.
+func (m Model) reportLinkList() {
+	if m.actions == nil || !m.actions.reporting() || m.linkList == nil {
+		return
+	}
+	headings, blocks := false, false
+	title := ""
+	for _, it := range m.linkList.items {
+		switch it.Kind {
+		case core.LinkKindHeading:
+			headings = true
+		case core.LinkKindBlock:
+			blocks = true
+		}
+		if title == "" && it.NoteID != "" {
+			title = strings.TrimSuffix(path.Base(it.NoteID), ".md")
+		}
+	}
+	if headings {
+		m.reportAction("links_headings", "")
+		if title != "" {
+			m.reportAction("links_headings", title)
+		}
+	}
+	if blocks {
+		m.reportAction("links_blocks", "")
 	}
 }
 

@@ -70,7 +70,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, m.pasteCmd()
 		}
 		if isKey && (k.String() == "tab" || k.String() == "shift+tab") {
-			if !m.nextCell(k.String() == "tab") {
+			if m.nextCell(k.String() == "tab") {
+				m.reportAction("cell_next", "")
+			} else {
 				m.indent(k.String() == "tab")
 			}
 			return m, nil
@@ -152,6 +154,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 	ta := &m.textarea
 	s := k.String()
+	m.reportMotion(s)
 
 	if m.pending != "" {
 		combo := m.pending + s
@@ -159,14 +162,16 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		switch combo {
 		case "gg":
 			ta.GotoTop()
+			m.reportAction("motion", "file-bounds")
 		case "dd":
 			ta.DeleteLine()
 		case "yy":
+			m.reportAction("yank", "line")
 			return m, copyCmd(ta.CurrentLine() + "\n")
 		case "gd", "gx":
 			line := ta.CurrentLine()
 			_, col := ta.RowCol()
-			return m, func() tea.Msg { return core.FollowLinkMsg{Line: line, Col: col} }
+			return m, func() tea.Msg { return core.FollowLinkMsg{Line: line, Col: col, Key: combo} }
 		}
 		return m, nil
 	}
@@ -195,6 +200,7 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		m.cmdInput.Prompt = ":"
 		m.cmdInput.SetValue("")
 		m.textarea.Blur()
+		m.reportAction("cmdline", "")
 		return m, m.cmdInput.Focus()
 	case "/":
 		return m, m.openSearch()
@@ -256,6 +262,33 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		ta.DeleteCharForward()
 	}
 	return m, nil
+}
+
+// reportMotion reports the movement key s, if it moves the cursor: the
+// lessons teach them by groups (hjkl, arrows, words, …). gg is reported where
+// its two keys complete.
+func (m Model) reportMotion(s string) {
+	if m.actions == nil || !m.actions.reporting() {
+		return // the tutorial is not playing: nothing to classify
+	}
+	switch s {
+	case "h", "j", "k", "l":
+		m.reportAction("motion", "hjkl")
+	case "left", "right", "up", "down":
+		m.reportAction("motion", "arrows")
+	case "0", "^", "home", "$", "end":
+		m.reportAction("motion", "line-bounds")
+	case "G":
+		m.reportAction("motion", "file-bounds")
+	case "w", "b":
+		m.reportAction("motion", "words")
+	case "ctrl+d", "ctrl+u":
+		m.reportAction("motion", "half-page")
+	case "pgdown", "ctrl+f", "pgup":
+		m.reportAction("motion", "page")
+	case "ctrl+e", "ctrl+y":
+		m.reportAction("motion", "scroll-line")
+	}
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
@@ -372,6 +405,7 @@ func (m *Model) paste() tea.Cmd {
 		m.textarea.InsertString(text)
 	}
 	m.textarea.EnsureVisible()
+	m.reportAction("paste", "")
 	return nil
 }
 
@@ -419,6 +453,7 @@ func (m Model) pasteCmd() tea.Cmd {
 		defer cancel()
 		img, ok, err := read(ctx)
 		if ok {
+			m.reportAction("paste", "")
 			return img
 		}
 		// No picture: paste text exactly as before. The clipboard of the text
@@ -429,6 +464,9 @@ func (m Model) pasteCmd() tea.Cmd {
 			if _, failed := msg.(error); failed || msg == nil {
 				return core.StatusMsg{Text: "Paste image needs " + pasteHint(), Error: true}
 			}
+		}
+		if _, refused := msg.(core.StatusMsg); !refused {
+			m.reportAction("paste", "")
 		}
 		return msg
 	}

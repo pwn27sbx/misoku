@@ -124,6 +124,11 @@ func (m *Model) maybeOpenSlash(k tea.KeyMsg) {
 	}
 	row, _ := m.textarea.RowCol()
 	m.slash = &slashMenu{row: row, col: n - 1}
+	if m.InTable() {
+		m.reportAction("slash_open", "in-table")
+	} else {
+		m.reportAction("slash_open", "")
+	}
 }
 
 // updateSlash handles a key while the menu is open. handled=false lets the
@@ -133,6 +138,7 @@ func (m *Model) updateSlash(k tea.KeyMsg) (tea.Cmd, bool) {
 	switch k.String() {
 	case "esc":
 		m.slash = nil
+		m.reportAction("slash_close", "")
 		return nil, true
 	case "up", "ctrl+p", "ctrl+k":
 		if len(items) > 0 {
