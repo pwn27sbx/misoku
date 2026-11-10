@@ -42,3 +42,11 @@ Branch `integ/tutor-content` in `~/Projects/misoku-yolo-worktrees/f3a-motor`
   the JSON to strings rather than loosening the engine's `[]string` schema.
   I11's `columns` fence was missing from the engine's fence list; added it.
   B13/B15 moved to the E15 predicates as E16 asks.
+
+- **L3:** `make all` green with 25 packages, 1968 top-level tests and 792
+  subtests. The baseline run is 97 lessons / 316 steps with no step passing
+  untouched; the routes use 80 distinct action events, all known. The
+  F3-INT review (17 files, 361 lines, medium) approved and was acknowledged
+  (authority burned). Its non-blocking advisories: restore a completability
+  answer test for the content lessons, assert the 316-step total, and small
+  test-comment cleanups.
