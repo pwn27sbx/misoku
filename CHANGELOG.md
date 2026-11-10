@@ -4,18 +4,20 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
-## [Unreleased]
+## [0.28.0] - 2026-11-09
 
 ### Added
 
-- The tutorial now has routes (Básico, Intermedio, Avanzado, Experto) and lessons made of steps: every form a lesson teaches is a step, and Misoku checks the note's text, a file, a folder, a setting or an editor action. The home screen shows one entry per route (`Learn · Básico 3/26`), `l` opens the first unfinished one, and `misoku tutor --route I` opens a route directly.
+- The tutorial now has four routes (Básico, Intermedio, Avanzado, Experto) with 97 lessons made of steps: every form a lesson teaches is a step, and Misoku checks the note's text, a file, a folder, a setting or an editor action. The home screen shows one entry per route (`Learn · Básico 3/26`), `l` opens the first unfinished one, and `misoku tutor --route I` opens a route directly.
+- Each route's lessons live in their own folder of the tutorial vault (`1 Básico/`, `2 Intermedio/`, `3 Avanzado/`, `4 Experto/`), so the explorer shows them in learning order instead of one long list.
+- Lessons credit the actions that leave no trace in a note: moving, switching tabs, opening the finder, the palette, the graph, the history, settings, themes, sync and more, only once the action really happened.
 - The statusline follows the lesson: `B03 · Paso 2/4 · <step>`, `✓ Paso 2`, `✓ B03 superado · siguiente: <lesson>` and `🏆 Ruta Básico completa`, with a hint for the common mistake. Progress is stored in `.misoku-tutor.json`, so actions that leave no trace in a note count too, and a failed write is reported.
-- `misoku tutor` resumes the last route played at its first unfinished step, and the first-run dialog's `Ya tengo experiencia` offers the Intermedio route (Básico until it has lessons).
+- `misoku tutor` resumes the last route played at its first unfinished step, and the first-run dialog's `Ya tengo experiencia` offers the Intermedio route.
 - The tutorial vault becomes a git repository with one initial commit of the lessons when git is installed, for the `:history` lessons; without git those steps say so and count as skipped. The tutorial also ships a small map image.
 
 ### Changed
 
-- The tutorial's levels are now lessons grouped in routes, with the existing seven levels re-expressed as the Básico placeholders until the full lessons land.
+- The tutorial's seven levels are replaced by the routes. The old level notes are moved to the trash once, with a notice; run `misoku tutor --reset` to start the new tutorial from scratch.
 
 ## [0.27.0] - 2026-11-09
 
