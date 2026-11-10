@@ -20,8 +20,9 @@ var (
 // Env answers the questions a check asks about the vault and the app without
 // the engine doing IO itself. The app supplies it from what it already knows;
 // a nil callback fails the check that needs it. LessonFile is the note the
-// check belongs to (for file-changed); Today is AAAA-MM-DD for {today} paths
-// (empty uses the local date).
+// check belongs to, vault-relative (for file-changed), and LessonDir is the
+// route's folder: a disk path is looked for there first and at the vault root
+// second. Today is AAAA-MM-DD for {today} paths (empty uses the local date).
 type Env struct {
 	Exists        func(name string) bool
 	FolderExists  func(name string) bool
@@ -30,6 +31,7 @@ type Env struct {
 	Config        func(key string) (string, bool)
 	ConfigChanged func(key string) bool
 	LessonFile    string
+	LessonDir     string
 	Today         string
 	// full is the note's text before the original's lines were ignored, so
 	// a heading or block the lesson already has can still be the target of
@@ -49,9 +51,6 @@ func (e Env) date() string {
 // expand replaces the {today} token with the local date as AAAA-MM-DD. It is
 // used in vault paths and in text and fence patterns alike (E14).
 func (e Env) expand(s string) string { return strings.ReplaceAll(s, "{today}", e.date()) }
-
-// path expands the {today} token in a vault path.
-func (e Env) path(p string) string { return e.expand(p) }
 
 // Pass reports whether the check holds for text, a note's content. It is pure
 // given env: text and fence checks read text, disk checks call env, and an
@@ -302,6 +301,33 @@ func fenceMatches(info, want string) bool {
 	return first == strings.ToLower(want)
 }
 
+// vaultPaths are the vault-relative places a disk path may name. While a
+// lesson is open the explorer has its note selected, so most actions write
+// inside the route's folder; some (`:w name`, a template, the daily note)
+// write at the root. The route folder is tried first, then the root.
+func (e Env) vaultPaths(p string) []string {
+	if e.LessonDir == "" {
+		return []string{p}
+	}
+	return []string{e.LessonDir + "/" + p, p}
+}
+
+// anyPath reports whether a note or a folder exists at any of p's places.
+func anyPath(env Env, p string, folder bool) bool {
+	for _, path := range env.vaultPaths(p) {
+		if folder {
+			if env.FolderExists != nil && env.FolderExists(path) {
+				return true
+			}
+			continue
+		}
+		if env.Exists != nil && env.Exists(path) {
+			return true
+		}
+	}
+	return false
+}
+
 // disk applies a disk predicate through env.
 func (c Check) disk(env Env) bool {
 	arg := func(i int) string {
@@ -312,23 +338,24 @@ func (c Check) disk(env Env) bool {
 	}
 	switch c.Pred {
 	case "exists":
-		p := env.path(arg(0))
-		return env.Exists != nil && env.Exists(p)
+		return anyPath(env, arg(0), false)
 	case "no-file":
-		p := env.path(arg(0))
-		return env.Exists != nil && !env.Exists(p)
+		return !anyPath(env, arg(0), false)
 	case "folder-exists":
-		p := env.path(arg(0))
-		return env.FolderExists != nil && env.FolderExists(p)
+		return anyPath(env, arg(0), true)
 	case "file-changed":
 		return env.Changed != nil && env.Changed(env.LessonFile)
 	case "other-note-text":
-		note := env.path(arg(0))
 		if env.NoteText == nil {
 			return false
 		}
-		text, ok := env.NoteText(note)
-		return ok && strings.Contains(text, arg(1))
+		for _, p := range env.vaultPaths(arg(0)) {
+			text, ok := env.NoteText(p)
+			if ok {
+				return strings.Contains(text, arg(1))
+			}
+		}
+		return false
 	case "config-key":
 		if env.Config == nil {
 			return false

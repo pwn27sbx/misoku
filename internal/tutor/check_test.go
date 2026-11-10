@@ -144,6 +144,107 @@ func TestTodayInTextPatterns(t *testing.T) {
 	}
 }
 
+// vaultEnv answers from two maps, recording every path it is asked about.
+func vaultEnv(lessonDir string, notes map[string]string, folders map[string]bool) (tutor.Env, *[]string) {
+	var tried []string
+	return tutor.Env{
+		LessonDir: lessonDir,
+		Exists: func(n string) bool {
+			tried = append(tried, n)
+			_, ok := notes[n]
+			return ok
+		},
+		FolderExists: func(n string) bool {
+			tried = append(tried, n)
+			return folders[n]
+		},
+		NoteText: func(n string) (string, bool) {
+			tried = append(tried, n)
+			s, ok := notes[n]
+			return s, ok
+		},
+	}, &tried
+}
+
+// S5/G5: a disk path is looked for inside the lesson's route folder first and
+// at the vault root second, for notes, folders and another note's text. The
+// action puts the file in one of the two places, so both must pass.
+func TestDiskPathsTryTheRouteFolderThenTheRoot(t *testing.T) {
+	cases := []struct {
+		name      string
+		check     tutor.Check
+		notes     map[string]string
+		folders   map[string]bool
+		want      bool
+		firstPath string
+	}{
+		{"exists in the route folder", diskCheck("exists", "compras"),
+			map[string]string{"1 Básico/compras": "x"}, nil, true, "1 Básico/compras"},
+		{"exists at the root", diskCheck("exists", "compras"),
+			map[string]string{"compras": "x"}, nil, true, "1 Básico/compras"},
+		{"exists nowhere", diskCheck("exists", "compras"), nil, nil, false, "1 Básico/compras"},
+		{"no-file with a root copy", diskCheck("no-file", "compras"),
+			map[string]string{"compras": "x"}, nil, false, "1 Básico/compras"},
+		{"no-file with a route copy", diskCheck("no-file", "compras"),
+			map[string]string{"1 Básico/compras": "x"}, nil, false, "1 Básico/compras"},
+		{"no-file with neither", diskCheck("no-file", "compras"), nil, nil, true, "1 Básico/compras"},
+		{"folder in the route folder", diskCheck("folder-exists", "ideas"),
+			nil, map[string]bool{"1 Básico/ideas": true}, true, "1 Básico/ideas"},
+		{"folder at the root", diskCheck("folder-exists", "Plantillas"),
+			nil, map[string]bool{"Plantillas": true}, true, "1 Básico/Plantillas"},
+		{"another note in the route folder", diskCheck("other-note-text", "Plan", "[[Viaje#Equipaje]]"),
+			map[string]string{"1 Básico/Plan": "[[Viaje#Equipaje]]"}, nil, true, "1 Básico/Plan"},
+		{"another note at the root", diskCheck("other-note-text", "Plan", "[[Viaje#Equipaje]]"),
+			map[string]string{"Plan": "[[Viaje#Equipaje]]"}, nil, true, "1 Básico/Plan"},
+		{"another note missing", diskCheck("other-note-text", "Plan", "[[Viaje#Equipaje]]"), nil, nil, false, "1 Básico/Plan"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env, tried := vaultEnv("1 Básico", c.notes, c.folders)
+			if got := c.check.Pass("", env); got != c.want {
+				t.Fatalf("Pass = %v, want %v (tried %v)", got, c.want, *tried)
+			}
+			if len(*tried) == 0 || (*tried)[0] != c.firstPath {
+				t.Fatalf("first path tried = %v, want %q", *tried, c.firstPath)
+			}
+		})
+	}
+}
+
+// A fixture lesson at the vault root keeps its paths as written.
+func TestDiskPathsWithoutAFolder(t *testing.T) {
+	env, tried := vaultEnv("", map[string]string{"compras": "x"}, nil)
+	if !diskCheck("exists", "compras").Pass("", env) {
+		t.Fatal("a root lesson did not find its note")
+	}
+	if len(*tried) != 1 || (*tried)[0] != "compras" {
+		t.Fatalf("tried %v, want [compras]", *tried)
+	}
+}
+
+// S5: {today} expands inside the route folder too.
+func TestTodayTokenInTheRouteFolder(t *testing.T) {
+	env, tried := vaultEnv("2 Intermedio", nil, nil)
+	env.Today = "2026-11-09"
+	if diskCheck("exists", "Diario/{today}").Pass("", env) {
+		t.Fatal("the note does not exist")
+	}
+	if len(*tried) != 2 || (*tried)[0] != "2 Intermedio/Diario/2026-11-09" || (*tried)[1] != "Diario/2026-11-09" {
+		t.Fatalf("tried %v", *tried)
+	}
+}
+
+// S5: file-changed reads the lesson's own full path.
+func TestFileChangedUsesTheLessonPath(t *testing.T) {
+	check := diskCheck("file-changed")
+	env := tutor.Env{LessonFile: "3 Avanzado/A09 Incrustar.md", Changed: func(f string) bool {
+		return f == "3 Avanzado/A09 Incrustar.md"
+	}}
+	if !check.Pass("", env) {
+		t.Fatal("file-changed did not use the lesson's path")
+	}
+}
+
 // S1b: {today} expands to Env.Today in a disk path.
 func TestCheckTodayToken(t *testing.T) {
 	var got string

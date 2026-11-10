@@ -361,6 +361,7 @@ func (s *Store) recheck(l Lesson, text string, env Env, want wantKind) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	env.LessonFile = l.Path()
+	env.LessonDir = l.dir
 	env.full = text
 	text = withoutOriginal(l.Path(), text)
 	changed := false
