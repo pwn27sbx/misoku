@@ -2,7 +2,7 @@
 
 Branch `feat/tutor-folders` in `~/Projects/misoku-yolo-worktrees/f5-carpetas`,
 from `integ/tutor-content` at `83408e0`. Brief:
-`MisokuVault/Misoku/2026-11-09-tutorial-rutas/F5-carpetas.md` (with
+`<vault>/Misoku/2026-11-09-tutorial-rutas/F5-carpetas.md` (with
 Amendments G1-G10, which override the sections above). Test runner
 `go test ./...`; `make all` = fmt + vet + test + build; temp HOME/XDG/`TMPDIR`
 under `mktemp -d`; `GIT_CONFIG_GLOBAL` at an empty temp file.
@@ -77,7 +77,7 @@ under `mktemp -d`; `GIT_CONFIG_GLOBAL` at an empty temp file.
 ## Log
 
 - **L1 (owner, verbatim):** "New task: implement
-  /home/pwnsxb/Documents/MisokuVault/Misoku/2026-11-09-tutorial-rutas/F5-carpetas.md
+  <vault>/Misoku/2026-11-09-tutorial-rutas/F5-carpetas.md
   (read it fully, including Amendments G1-G10, which override the sections
   above; read README.md in that folder first). You are already in the worktree
   ~/Projects/misoku-yolo-worktrees/f5-carpetas on branch feat/tutor-folders at
