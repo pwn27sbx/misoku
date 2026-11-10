@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.28.1] - 2026-11-10
+
+### Fixed
+
+- Folder editor: in an empty folder, `i`, `I`, `a` and `A` now start a new line like `o`, instead of doing nothing and losing what was typed next.
+
 ## [0.28.0] - 2026-11-09
 
 ### Added
