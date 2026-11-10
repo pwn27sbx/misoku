@@ -254,7 +254,13 @@ type Model struct {
 
 	// SelectionStyle paints selected text (misoku addition).
 	SelectionStyle lipgloss.Style
-	selecting      bool
+
+	// HideBandWhileSelecting draws no cursor-line band while a selection
+	// exists, so the band cannot hide it, as Neovim's 'cursorline' does in
+	// Visual mode (misoku addition).
+	HideBandWhileSelecting bool
+
+	selecting bool
 	// SelectLinewise extends the selection to whole lines (Vim's V).
 	SelectLinewise bool
 	anchorRow      int
@@ -1151,7 +1157,7 @@ func (m Model) View() string {
 	if empty && m.row == 0 && m.col == 0 && m.Placeholder != "" {
 		return m.placeholderView()
 	}
-	m.Cursor.TextStyle = m.style.computedCursorLine()
+	m.Cursor.TextStyle = m.cursorRowStyle()
 
 	// The full content would be every text row, m.height end-of-buffer rows
 	// and the empty string after the final newline. Reproduce how the
@@ -1180,7 +1186,7 @@ func (m Model) View() string {
 		wrappedLines := m.memoizedWrap(line, m.width)
 
 		if m.row == l {
-			style = m.style.computedCursorLine()
+			style = m.cursorRowStyle()
 		} else {
 			style = m.style.computedText()
 		}
@@ -1284,6 +1290,27 @@ func (m Model) View() string {
 	return m.style.Base.Render(cut.View())
 }
 
+// bandHidden reports whether the cursor-line band is off for this frame.
+func (m Model) bandHidden() bool { return m.HideBandWhileSelecting && m.selecting }
+
+// cursorRowStyle is the style of the cursor's row: the cursor-line band, or
+// plain text when the band is hidden.
+func (m Model) cursorRowStyle() lipgloss.Style {
+	if m.bandHidden() {
+		return m.style.computedText()
+	}
+	return m.style.computedCursorLine()
+}
+
+// cursorRowNumberStyle is the current line number's style. It keeps its
+// highlight when the band is hidden, without the band behind it.
+func (m Model) cursorRowNumberStyle() lipgloss.Style {
+	if m.bandHidden() {
+		return m.style.computedCursorLineNumber().UnsetBackground()
+	}
+	return m.style.computedCursorLineNumber()
+}
+
 // lineNumberCell renders the line-number gutter of wrapped segment wl of
 // logical line l: the number on the first segment, blank on the rest.
 func (m Model) lineNumberCell(style lipgloss.Style, l, wl int) string {
@@ -1292,7 +1319,7 @@ func (m Model) lineNumberCell(style lipgloss.Style, l, wl int) string {
 		x = l + 1
 	}
 	if m.row == l {
-		return style.Render(m.style.computedCursorLineNumber().Render(m.formatLineNumber(x)))
+		return style.Render(m.cursorRowNumberStyle().Render(m.formatLineNumber(x)))
 	}
 	return style.Render(m.style.computedLineNumber().Render(m.formatLineNumber(x)))
 }
@@ -1357,8 +1384,8 @@ func (m Model) placeholderView() string {
 		lineStyle := m.style.computedPlaceholder()
 		lineNumberStyle := m.style.computedLineNumber()
 		if len(plines) > i {
-			lineStyle = m.style.computedCursorLine()
-			lineNumberStyle = m.style.computedCursorLineNumber()
+			lineStyle = m.cursorRowStyle()
+			lineNumberStyle = m.cursorRowNumberStyle()
 		}
 
 		// render prompt

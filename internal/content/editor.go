@@ -37,7 +37,7 @@ func configureTextareaStyles(ta *textarea.Model, th theme.Theme) {
 	ta.BlurredStyle.LineNumber = lipgloss.NewStyle().Foreground(th.Grey)
 	ta.BlurredStyle.CursorLineNumber = lipgloss.NewStyle().Foreground(th.GreyFg2)
 	ta.BlurredStyle.EndOfBuffer = lipgloss.NewStyle().Foreground(th.Line)
-	ta.SelectionStyle = lipgloss.NewStyle().Background(th.OneBg3).Foreground(th.Fg)
+	ta.SelectionStyle = lipgloss.NewStyle().Background(th.OneBg2).Foreground(th.Fg)
 }
 
 // parseVimCommand turns an ex command line into a domain message. It returns
