@@ -4,6 +4,19 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.32.0] - 2026-11-10
+
+### Changed
+
+- The reading view (`space p`) now draws the note exactly as the preview does, full width, and is editable: the block under the cursor shows its Markdown and every other block stays rendered, like Obsidian's Live Preview. Tables, callouts, code, math, pictures, embeds, boards, calendars, timelines, charts, forms, flows, columns, properties and cover all appear as in the preview.
+- Everything clickable in the preview works in the reading view (links, checkboxes, folds, calendar, board, timeline, chart, form and table controls), and so do the hover `+` and `⠿` handles and dragging blocks.
+- Creating a note, a new entry or a block from the block menu stays in the reading view.
+
+### Fixed
+
+- A note with backlinks or mentions no longer loses its pictures in the preview.
+- Dragging a folded section moves the whole section, including its blank lines.
+
 ## [0.31.2] - 2026-11-10
 
 ### Fixed
