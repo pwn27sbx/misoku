@@ -133,7 +133,7 @@ var Actions = []Info{
 	{Action: CloseTab, Section: "general", Group: GroupNote, Help: "Close tab",
 		Long: "Closes the tab of this note. With unsaved changes it asks whether to save them first.", defaults: []string{"space x"}},
 	{Action: ReadingView, Section: "general", Group: GroupView, Help: "Reading view: rendered and editable, full width",
-		Long: "Shows only the note at full width, without line numbers, drawn as the side preview draws it. It stays editable: the block under the cursor shows its Markdown and every other block stays rendered, every editing key works, and what is clickable in the preview works here too. The same key goes back to the split; the editor view key shows all the Markdown with line numbers.", defaults: []string{"space p"}},
+		Long: "Shows only the note at full width, without line numbers, drawn as the side preview draws it. It stays editable: in NORMAL every block stays rendered, the cursor's block under the cursor-line band, j/k move block by block and dd, yy, o, O, p, P, >> and << act on the whole block; INSERT shows the cursor's block as Markdown and a selection shows the blocks it touches; every editing key works, and what is clickable in the preview works here too. The same key goes back to the split; the editor view key shows all the Markdown with line numbers.", defaults: []string{"space p"}},
 	{Action: EditorView, Section: "general", Group: GroupView, Help: "Editor view: Markdown full width",
 		Long: "Shows only the Markdown editor at full width, with line numbers and without the side preview; the note edits as usual. The same key goes back to the split.", defaults: []string{"space r"}},
 	{Action: ExportPDF, Section: "general", Group: GroupNote, Help: "Export note as PDF",

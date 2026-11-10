@@ -570,7 +570,7 @@
         },
         {
           "text": "En lectura, mira cómo se esconden los marcadores",
-          "hint": "space p otra vez; el bloque del cursor enseña su Markdown",
+          "hint": "space p otra vez; el bloque del cursor también queda dibujado",
           "ids": ["VIEW-05"],
           "check": { "kind": "action", "event": "reading_view", "value": "concealed" }
         },
