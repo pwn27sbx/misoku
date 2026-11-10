@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.30.0] - 2026-11-10
+
+### Added
+
+- `ctrl+o` (`go_back`) returns to the previous note of the tab, at the line the cursor was on.
+
+### Changed
+
+- `Enter` on a `[[link]]` and a click on a link in the preview open the note in a new tab. `gd` keeps opening it in the same tab.
+
 ## [0.29.0] - 2026-11-10
 
 ### Added
