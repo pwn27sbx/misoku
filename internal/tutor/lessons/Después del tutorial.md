@@ -20,7 +20,7 @@ El sync con git, sus conflictos y los avisos de llegada necesitan dos equipos o 
 
 ## Lo que solo se ve
 
-Algunas cosas son solo visuales: el punto del tab con cambios sin guardar, el contador de palabras, `Ln N, Col M`, los colores de foco, el resaltado de sintaxis del preview y la numeración de títulos. Se aprenden mirando, no con un paso.
+Algunas cosas son solo visuales: el punto del tab con cambios sin guardar, el contador de palabras, `Ln N, Col M`, los colores de foco y el resaltado de sintaxis del preview. Se aprenden mirando, no con un paso.
 
 ## Seguir aprendiendo
 

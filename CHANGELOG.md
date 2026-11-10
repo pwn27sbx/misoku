@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.31.2] - 2026-11-10
+
+### Fixed
+
+- The tutorial now says which link keys open a new tab, teaches `ctrl+o` to go back, and mentions that `- []` plus a space completes itself.
+
 ## [0.31.1] - 2026-11-10
 
 ### Fixed

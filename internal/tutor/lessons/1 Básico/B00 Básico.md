@@ -39,7 +39,7 @@ Misoku usa los modos de vim. En NORMAL cada letra es un comando; para escribir e
 17. [[B17 Énfasis]] — negrita, cursiva, código y tachado
 18. [[B18 Citas y separador]] — `>` y `---`
 19. [[B19 Tu primera nota enlazada]] — `[[`
-20. [[B20 Seguir un enlace]] — `gd`, `gx`, `Enter` y el ratón
+20. [[B20 Seguir un enlace]] — `gd`, `gx`, `Enter`, el ratón y `ctrl+o` para volver
 21. [[B21 Leer sin editar]] — `space p` y `space r`
 22. [[B22 Buscar dentro de la nota]] — `/`, `n`, `N`
 23. [[B23 Pegar y equivocarse]] — `ctrl+v` y los errores

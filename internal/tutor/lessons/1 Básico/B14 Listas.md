@@ -2,7 +2,7 @@
 
 **Vas a aprender:** viñetas, listas numeradas, tareas y a anidar un ítem con `Tab`.
 
-`- ` empieza una viñeta, `1. ` una lista numerada y `- [ ] ` una tarea con casilla; el menú `/` escribe las tres por ti. `Tab` en un ítem lo anida un nivel y `Shift+Tab` lo devuelve. En el preview, la lista sale con sus puntos, números y casillas. Cada ítem va en su propia línea y el menú deja el cursor listo para escribir el texto.
+`- ` empieza una viñeta, `1. ` una lista numerada y `- [ ] ` una tarea con casilla; el menú `/` escribe las tres por ti. Si escribes `- []` y luego un espacio, se completa solo a `- [ ] `. `Tab` en un ítem lo anida un nivel y `Shift+Tab` lo devuelve. En el preview, la lista sale con sus puntos, números y casillas. Cada ítem va en su propia línea y el menú deja el cursor listo para escribir el texto.
 
 ## Tu turno
 
