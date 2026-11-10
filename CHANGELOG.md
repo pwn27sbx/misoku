@@ -4,6 +4,16 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.31.0] - 2026-11-10
+
+### Changed
+
+- The preview shows a heading as its text alone: no level icon and no number by default. Numbers are now opt-in (`ui.heading_numbers` or `:settings`), and `ui.heading_icons` still draws icons for the levels it names.
+
+### Fixed
+
+- The continuation lines of a long heading align with its first line and no longer exceed the pane.
+
 ## [0.30.0] - 2026-11-10
 
 ### Added
