@@ -330,6 +330,26 @@ func sectionLength(lines []string, i, level int) int {
 	return n
 }
 
+// sectionEnd is the line after heading i's section: the next heading of the
+// same or a higher level outside a code fence, or the end of the note.
+func sectionEnd(lines []string, i, level int) int {
+	fence := ""
+	for j := i + 1; j < len(lines); j++ {
+		t := strings.TrimSpace(lines[j])
+		switch {
+		case fence != "":
+			if strings.HasPrefix(t, fence) {
+				fence = ""
+			}
+		case isFenceOpen(t):
+			fence = t[:3]
+		case headingRegex.MatchString(t) && len(headingRegex.FindStringSubmatch(t)[1]) <= level:
+			return j
+		}
+	}
+	return len(lines)
+}
+
 func splitRow(line string) []string {
 	line = strings.TrimSpace(line)
 	line = strings.TrimPrefix(line, "|")

@@ -100,8 +100,9 @@ type compiler struct {
 // Block is one top-level piece of the note (paragraph, heading, list item,
 // table, fenced block …) that can be dragged to a new place.
 type Block struct {
-	Row, H    int // rows in the compiled output
-	Line, End int // document lines [Line, End)
+	Row, H    int  // rows in the compiled output
+	Line, End int  // document lines [Line, End)
+	Folded    bool // a folded heading: the block's other lines are not drawn
 }
 
 // openBlock starts a block covering document lines [line, end) of the
@@ -115,7 +116,7 @@ func (c *compiler) closeBlocks(line int) {
 	keep := c.pending[:0]
 	for _, b := range c.pending {
 		if b.End <= c.lineOffset+line {
-			c.addBlock(b.Line, b.End, b.Row, len(c.out))
+			c.addBlock(b, len(c.out))
 		} else {
 			keep = append(keep, b)
 		}
@@ -123,8 +124,9 @@ func (c *compiler) closeBlocks(line int) {
 	c.pending = keep
 }
 
-// addBlock records a block drawn on rows [r0, r1), without blank edge rows.
-func (c *compiler) addBlock(line, end, r0, r1 int) {
+// addBlock records block b, drawn on rows [b.Row, r1), without blank edge rows.
+func (c *compiler) addBlock(b Block, r1 int) {
+	r0 := b.Row
 	for r0 < r1 && c.out[r0] == "" {
 		r0++
 	}
@@ -132,7 +134,8 @@ func (c *compiler) addBlock(line, end, r0, r1 int) {
 		r1--
 	}
 	if r1 > r0 {
-		c.blocks = append(c.blocks, Block{Row: r0, H: r1 - r0, Line: line, End: end})
+		b.Row, b.H = r0, r1-r0
+		c.blocks = append(c.blocks, b)
 	}
 }
 
@@ -249,7 +252,7 @@ func (c *compiler) flushPara() {
 	c.para = nil
 	row := len(c.out)
 	c.emit(c.wrapIndent(c.inline(text, c.st.text), "", "")...)
-	c.addBlock(c.lineOffset+c.paraLine, c.lineOffset+c.paraEnd, row, len(c.out))
+	c.addBlock(Block{Row: row, Line: c.lineOffset + c.paraLine, End: c.lineOffset + c.paraEnd}, len(c.out))
 }
 
 // Compile parses raw Markdown text and returns a styled ANSI string using the
@@ -280,12 +283,19 @@ func CompileHits(input string, th theme.Theme, contentWidth int, baseDir string,
 // CompileBlocks is CompileHits that also returns the note's draggable
 // blocks, sorted by row (a list item's children follow it).
 func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block) {
+	out, hits, blocks, _ = compileBlocks(input, th, look, contentWidth, baseDir, cal)
+	return out, hits, blocks
+}
+
+// compileBlocks is CompileBlocks that also reports whether the compile
+// panicked, in which case out is the error's text.
+func compileBlocks(input string, th theme.Theme, look Look, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block, failed bool) {
 	endImages := beginImageRender()
 	defer endImages()
 	defer func() {
 		if r := recover(); r != nil {
 			out = fmt.Sprintf("Error rendering preview: %v", r)
-			hits, blocks = nil, nil
+			hits, blocks, failed = nil, nil, true
 		}
 	}()
 	if contentWidth < 10 {
@@ -310,7 +320,7 @@ func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, ba
 		}
 		return c.blocks[a].H > c.blocks[b].H
 	})
-	return strings.Join(c.out, "\n"), c.hits, c.blocks
+	return strings.Join(c.out, "\n"), c.hits, c.blocks, false
 }
 
 // compile renders a whole note (or, for an embed, part of one) into c.out.
@@ -333,29 +343,10 @@ func (c *compiler) compile(input string) {
 		numbers = headingNumbers(lines)
 	}
 
-	skipLevel := 0 // >0 while inside a collapsed heading's section
-	skipFence := ""
 	for i := 0; i < len(lines); i++ {
 		c.closeBlocks(i)
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
-
-		if skipLevel > 0 {
-			switch {
-			case skipFence != "":
-				if strings.HasPrefix(trimmed, skipFence) {
-					skipFence = ""
-				}
-				continue
-			case isFenceOpen(trimmed):
-				skipFence = trimmed[:3]
-				continue
-			case headingRegex.MatchString(trimmed) && len(headingRegex.FindStringSubmatch(trimmed)[1]) <= skipLevel:
-				skipLevel = 0
-			default:
-				continue
-			}
-		}
 
 		// Fenced code blocks.
 		if isFenceOpen(trimmed) {
@@ -482,14 +473,15 @@ func (c *compiler) compile(input string) {
 			heading := c.wrapIndent(c.inline(m[2], st), st.Render(prefix), rest)
 			end := i + 1
 			if folded {
-				end += sectionLength(lines, i, level)
+				end = sectionEnd(lines, i, level)
 			}
-			c.openBlock(i, min(end, len(lines)))
+			c.openBlock(i, end)
 			if folded {
+				c.pending[len(c.pending)-1].Folded = true
 				hidden := sectionLength(lines, i, level)
 				heading[len(heading)-1] += c.st.muted.Render(fmt.Sprintf("  … %d lines", hidden))
 				c.emit(heading...)
-				skipLevel = level
+				i = end - 1 // the section's lines draw nothing
 				continue
 			}
 			if c.st.look.HeadingBackground {

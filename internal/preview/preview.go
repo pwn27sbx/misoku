@@ -38,6 +38,8 @@ type Model struct {
 	mentions    []core.UnlinkedMention
 	mentionsFor string
 
+	display Display // the last compile, cut by source line
+
 	blocks   []Block
 	hover    int  // block under the mouse, -1 if none
 	drag     int  // block being dragged, -1 if none
@@ -160,6 +162,9 @@ func (m *Model) SetFocused(focused bool) {
 
 // recompile parses the current rawContent with the compiler.
 func (m *Model) recompile() {
+	// One image scope for the body and the footer's snippets: a footer compile
+	// of its own would release the pictures the body just drew.
+	defer beginImageRender()()
 	vpWidth := m.viewport.Width
 	if vpWidth <= 0 {
 		vpWidth = m.width - 2*m.margin
@@ -174,7 +179,8 @@ func (m *Model) recompile() {
 			return m.notes(target)
 		}
 	}
-	compiled, hits, blocks := CompileBlocks(m.rawContent, m.theme, m.look, vpWidth, m.baseDir, cal)
+	compiled, hits, blocks, failed := compileBlocks(m.rawContent, m.theme, m.look, vpWidth, m.baseDir, cal)
+	bodyRows := len(compiledRows(compiled))
 	if len(m.backlinks) > 0 {
 		compiled, hits = m.appendBacklinks(compiled, hits, vpWidth)
 	}
@@ -182,6 +188,7 @@ func (m *Model) recompile() {
 		compiled, hits = m.appendMentions(compiled, hits, vpWidth)
 	}
 	m.hits, m.blocks = hits, blocks
+	m.display = newDisplay(m.rawContent, m.pageID, failed, compiledRows(compiled), bodyRows, blocks)
 	if m.hover >= len(blocks) {
 		m.hover = -1
 	}
@@ -229,15 +236,7 @@ type HitMsg struct{ Hit Hit }
 
 // HitAt returns the view element under pane coordinates (x, y).
 func (m Model) HitAt(x, y int) (Hit, bool) {
-	row := m.viewport.YOffset + y
-	col := x - m.margin
-	for i := len(m.hits) - 1; i >= 0; i-- {
-		h := m.hits[i]
-		if row >= h.Row && row < h.Row+h.H && col >= h.X0 && col < h.X1 {
-			return h, true
-		}
-	}
-	return Hit{}, false
+	return m.HitAtRow(m.viewport.YOffset+y, x-m.margin)
 }
 
 // click handles calendar navigation itself and reports everything else.
@@ -246,6 +245,11 @@ func (m *Model) click(x, y int) tea.Cmd {
 	if !ok {
 		return nil
 	}
+	return m.press(h)
+}
+
+// press acts on a hit: calendar buttons and folds here, the rest is reported.
+func (m *Model) press(h Hit) tea.Cmd {
 	switch h.Kind {
 	case "cal:prev":
 		m.ShiftCalendars(-1, false)
