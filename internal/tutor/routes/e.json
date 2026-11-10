@@ -1,0 +1,824 @@
+{
+  "id": "E",
+  "name": "Experto",
+  "index": "E00 Experto.md",
+  "lessons": [
+    {
+      "id": "E01",
+      "title": "El mapa de atajos",
+      "file": "E01 El mapa de atajos.md",
+      "steps": [
+        {
+          "text": "Pulsa space y espera la guía",
+          "hint": "Pulsa space y espera 400 ms",
+          "ids": [
+            "SRCH-07"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "leader_guide"
+          }
+        },
+        {
+          "text": "Pulsa space o para ver la segunda página",
+          "hint": "space o abre el submenú de misoku",
+          "ids": [
+            "SRCH-08"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "leader_guide",
+            "value": "subpage"
+          }
+        },
+        {
+          "text": "Abre la paleta y compara las teclas",
+          "hint": "Pulsa ? o space h",
+          "ids": [
+            "SRCH-06"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "palette_open",
+            "value": "configured-keys"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E02",
+      "title": "Cambiar tus atajos",
+      "file": "E02 Cambiar tus atajos.md",
+      "steps": [
+        {
+          "text": "Da otra tecla a reading_view en config.json",
+          "hint": "keys: reading_view: [space p, z]",
+          "ids": [
+            "SET-08",
+            "SRCH-09"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "keys.reading_view"
+            ]
+          }
+        },
+        {
+          "text": "Vacía la lista de teclas de export_pdf",
+          "hint": "Una lista vacía desasigna la acción",
+          "ids": [
+            "SRCH-09"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "keys.export_pdf",
+              "[]"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E03",
+      "title": "Avisos y nombres viejos",
+      "file": "E03 Avisos y nombres viejos.md",
+      "steps": [
+        {
+          "text": "Repite una tecla en dos acciones y reinicia",
+          "hint": "El aviso sale al arrancar y en :messages",
+          "ids": [
+            "SRCH-10"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "key_clash"
+          }
+        },
+        {
+          "text": "Usa reading_mode y toggle_preview en keys",
+          "hint": "Los nombres viejos siguen funcionando",
+          "ids": [
+            "SRCH-11"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "disk",
+                "pred": "config-key",
+                "args": [
+                  "keys.reading_mode"
+                ]
+              },
+              {
+                "kind": "disk",
+                "pred": "config-key",
+                "args": [
+                  "keys.toggle_preview"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E04",
+      "title": "El menú :settings",
+      "file": "E04 El menú settings.md",
+      "steps": [
+        {
+          "text": "Abre :settings y cambia una fila",
+          "hint": "También con c desde el inicio",
+          "ids": [
+            "SET-01"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "action",
+                "event": "settings_open"
+              },
+              {
+                "kind": "action",
+                "event": "settings_saved"
+              }
+            ]
+          }
+        },
+        {
+          "text": "Cambia el ancho al que se esconde el explorador",
+          "hint": "De 1 a 1000; de fábrica 120",
+          "ids": [
+            "SET-03"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "ui.explorer_hide_width"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E05",
+      "title": "Iconos y bordes",
+      "file": "E05 Iconos y bordes.md",
+      "steps": [
+        {
+          "text": "Prueba los cuatro presets y termina en Numbers",
+          "hint": "La fila Icons & bullets",
+          "ids": [
+            "SET-04"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.bullets"
+            ]
+          }
+        },
+        {
+          "text": "Cambia el borde a single y déjalo ahí",
+          "hint": "La fila Dialog border",
+          "ids": [
+            "SET-05"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.border",
+              "single"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E06",
+      "title": "Fondo transparente",
+      "file": "E06 Fondo transparente.md",
+      "steps": [
+        {
+          "text": "Activa y apaga la fila Transparent background",
+          "hint": "Está en :settings",
+          "ids": [
+            "SET-06"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Escribe ui.transparent a mano en config.json",
+          "hint": "Dentro de ui, con valor true",
+          "ids": [
+            "VIEW-10"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.transparent",
+              "true"
+            ]
+          }
+        },
+        {
+          "text": "Añade ui.checkbox.todo con tu glifo y reinicia",
+          "hint": "Sin glifo, [-] es texto normal",
+          "ids": [
+            "SET-09"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.checkbox.todo"
+            ]
+          }
+        },
+        {
+          "text": "Escribe aquí una tarea - [-] llamar al hotel",
+          "ids": [
+            "MD-11"
+          ],
+          "check": {
+            "kind": "text",
+            "pred": "line-starts",
+            "args": [
+              "- [-] "
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E07",
+      "title": "Números y cursor",
+      "file": "E07 Números y cursor.md",
+      "steps": [
+        {
+          "text": "Enciende y apaga Heading numbers y déjalo apagado",
+          "hint": "La fila del menú :settings",
+          "ids": [
+            "SET-07"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "ui.heading_numbers"
+            ]
+          }
+        },
+        {
+          "text": "Mira el cursor en NORMAL y en INSERT",
+          "hint": "Con ui.cursor_shape en auto",
+          "ids": [
+            "VIEW-11"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "cursor_shape",
+            "value": [
+              "block",
+              "bar"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E08",
+      "title": "El selector de temas",
+      "file": "E08 El selector de temas.md",
+      "steps": [
+        {
+          "text": "Prueba un tema y consérvalo con Enter",
+          "hint": "space t o :colo sin nombre",
+          "ids": [
+            "VIEW-06"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "action",
+                "event": "theme_pick"
+              },
+              {
+                "kind": "action",
+                "event": "settings_saved"
+              }
+            ]
+          }
+        },
+        {
+          "text": "Abre el selector y sal con Esc",
+          "hint": "El tema vuelve al anterior",
+          "ids": [
+            "VIEW-06"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "theme_pick",
+            "value": "revert"
+          }
+        },
+        {
+          "text": "Recorre la lista completa de 97 paletas",
+          "hint": "Van ordenadas por nombre",
+          "ids": [
+            "VIEW-08"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "theme_list"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E09",
+      "title": "Tema por nombre y temas propios",
+      "file": "E09 Tema por nombre y temas propios.md",
+      "steps": [
+        {
+          "text": "Ejecuta :colo con un nombre y reinicia",
+          "hint": "Por ejemplo :colo catppuccin",
+          "ids": [
+            "VIEW-07"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "theme"
+            ]
+          }
+        },
+        {
+          "text": "Copia un tema JSON en themes y ábrelo",
+          "hint": "Aparece sin reiniciar",
+          "ids": [
+            "VIEW-09"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "theme_list"
+          }
+        },
+        {
+          "text": "Cambia themes_dir a otra carpeta",
+          "hint": "Una carpeta de paletas o un archivo",
+          "ids": [
+            "SET-13"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "themes_dir"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E10",
+      "title": "Carpetas en config.json",
+      "file": "E10 Carpetas en config.json.md",
+      "steps": [
+        {
+          "text": "Cambia notes_dir y abre Misoku sin argumentos",
+          "hint": "Ruta absoluta o que empiece por ~",
+          "ids": [
+            "SET-10"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "notes_dir"
+            ]
+          }
+        },
+        {
+          "text": "Pon daily_dir en una carpeta dentro del vault",
+          "hint": "Una ruta de fuera no se acepta",
+          "ids": [
+            "SET-11",
+            "DAY-02"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "daily_dir"
+            ]
+          }
+        },
+        {
+          "text": "Pon templates_dir en Plantillas",
+          "hint": "Relativa al vault, no absoluta",
+          "ids": [
+            "SET-12"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "templates_dir"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E11",
+      "title": "Sync en config.json",
+      "file": "E11 Sync en config.json.md",
+      "steps": [
+        {
+          "text": "Añade un vault a sync.vaults",
+          "hint": "La ruta como clave del objeto",
+          "ids": [
+            "SET-14"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "sync.vaults"
+            ]
+          }
+        },
+        {
+          "text": "Mira learn_offered después del diálogo",
+          "hint": "Vale true cuando ya respondiste",
+          "ids": [
+            "SET-15"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "learn_offered",
+              "true"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E12",
+      "title": "Sincronizar",
+      "file": "E12 Sincronizar.md",
+      "steps": [
+        {
+          "text": "Pulsa space s y espera el final",
+          "hint": "O ejecuta :sync",
+          "ids": [
+            "SYNC-01"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "ok"
+          }
+        },
+        {
+          "text": "Reabre un vault de la lista y mira el sync",
+          "hint": "Sincroniza al abrir",
+          "ids": [
+            "SYNC-02"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "on-open"
+          }
+        },
+        {
+          "text": "Espera el sync periódico o baja interval",
+          "hint": "Cinco minutos por defecto",
+          "ids": [
+            "SYNC-03"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "timed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E13",
+      "title": "Qué hace el sync",
+      "file": "E13 Qué hace el sync.md",
+      "steps": [
+        {
+          "text": "Guarda una nota y espera el commit local",
+          "hint": "Unos segundos, sin red",
+          "ids": [
+            "SYNC-04"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Cierra Misoku y mira el push de la salida",
+          "hint": "Hasta diez segundos tras cerrar",
+          "ids": [
+            "SYNC-05"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "on-quit"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E14",
+      "title": "El estado del sync",
+      "file": "E14 El estado del sync.md",
+      "steps": [
+        {
+          "text": "Ejecuta :sync status y lee todos los campos",
+          "hint": "Estado, remoto, rama, pendientes",
+          "ids": [
+            "SYNC-06"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_status"
+          }
+        },
+        {
+          "text": "Mira la lista de archivos que quedan fuera",
+          "hint": "Grandes, ignorados o nombres ilegales",
+          "ids": [
+            "SYNC-17"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_status",
+            "value": "left-out"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E15",
+      "title": "Cuando se detiene",
+      "file": "E15 Cuando se detiene.md",
+      "steps": [
+        {
+          "text": "Provoca un freno, lee el diálogo y usa Check again",
+          "hint": "El diálogo, en palabras llanas",
+          "ids": [
+            "SYNC-11"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "action",
+                "event": "sync_stop_dialog"
+              },
+              {
+                "kind": "action",
+                "event": "sync_run"
+              }
+            ]
+          }
+        },
+        {
+          "text": "Deja un candado y acepta quitarlo y sincronizar",
+          "hint": "Remove the lock and sync",
+          "ids": [
+            "SYNC-13"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Con el remoto caducado acepta gh auth login",
+          "hint": "La oferta sale en el diálogo",
+          "ids": [
+            "SYNC-12"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_auth_offer"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E16",
+      "title": "Notas que llegan",
+      "file": "E16 Notas que llegan.md",
+      "steps": [
+        {
+          "text": "Mira los cuatro estados en la barra",
+          "hint": "syncing, synced, conflicts, offline",
+          "ids": [
+            "SYNC-07"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_indicator"
+          }
+        },
+        {
+          "text": "Haz que llegue una nota y lee el aviso",
+          "hint": "Tres nombres en la barra",
+          "ids": [
+            "SYNC-08"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_arrival"
+          }
+        },
+        {
+          "text": "Abre una segunda ventana sobre el mismo vault",
+          "hint": "Solo una sincroniza",
+          "ids": [
+            "SYNC-18"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_indicator",
+            "value": "other-window"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E17",
+      "title": "Montar el sync",
+      "file": "E17 Montar el sync.md",
+      "steps": [
+        {
+          "text": "Ejecuta :sync setup y responde",
+          "hint": "O pulsa s en el inicio",
+          "ids": [
+            "SYNC-14"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "disk",
+                "pred": "folder-exists",
+                "args": [
+                  ".git"
+                ]
+              },
+              {
+                "kind": "disk",
+                "pred": "config-key",
+                "args": [
+                  "sync.vaults"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "text": "Ejecuta misoku sync init con una URL",
+          "hint": "En una carpeta nueva, fuera de la app",
+          "ids": [
+            "SYNC-15"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E18",
+      "title": "Grafo global a fondo",
+      "file": "E18 Grafo global a fondo.md",
+      "steps": [
+        {
+          "text": "Recorre el grafo global con sus teclas",
+          "hint": "hjkl, n/N, Enter, +/-, 0, Esc, o, u",
+          "ids": [
+            "GRF-05"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "graph_move"
+          }
+        },
+        {
+          "text": "Pulsa / y comprueba que filtra el grafo",
+          "hint": "No busca dentro de una nota",
+          "ids": [
+            "NEW-17"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "graph_filter"
+          }
+        },
+        {
+          "text": "Ejecuta :graph foo y lee el error",
+          "hint": "E488: Trailing characters",
+          "ids": [
+            "GRF-07"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "command_error",
+            "value": "E488"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E19",
+      "title": "Vim de precisión",
+      "file": "E19 Vim de precisión.md",
+      "steps": [
+        {
+          "text": "Desplaza una línea con ctrl+e y ctrl+y",
+          "hint": "El cursor no se mueve",
+          "ids": [
+            "VIM-27"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "motion",
+            "value": "scroll-line"
+          }
+        },
+        {
+          "text": "Edita en una pestaña, cambia y pulsa u",
+          "hint": "El historial es por pestaña",
+          "ids": [
+            "VIM-29"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "undo_empty"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E20",
+      "title": "Desafío Experto",
+      "file": "E20 Desafío Experto.md",
+      "steps": [
+        {
+          "text": "Reasigna una tecla y úsala",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Cambia de tema y consérvalo",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Ejecuta un sync y lee :sync status",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Abre la guía y ejecuta algo desde la paleta",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        }
+      ]
+    }
+  ]
+}
