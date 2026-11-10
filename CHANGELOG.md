@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.29.0] - 2026-11-10
+
+### Added
+
+- Typing a space after `- []` completes it into the standard task `- [ ] `. Links such as `- [](url)`, code blocks and pasted text are left alone.
+
 ## [0.28.1] - 2026-11-10
 
 ### Fixed
