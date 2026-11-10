@@ -189,8 +189,13 @@ func (m *Model) tutorDiskEnv(l tutor.Lesson) tutor.Env {
 	today := m.clock().Format("2006-01-02")
 	return tutor.Env{
 		Exists: func(name string) bool {
-			_, ok := core.ResolveNote(notes, name, l.Path())
-			return ok
+			if _, ok := core.ResolveNote(notes, name, l.Path()); ok {
+				return true
+			}
+			// An export or another real file: DiskFileName leaves its
+			// extension alone, so the PDF the lesson asks for counts.
+			st, err := os.Stat(filepath.Join(root, filepath.FromSlash(tutor.DiskFileName(name))))
+			return err == nil && !st.IsDir()
 		},
 		FolderExists: func(name string) bool {
 			st, err := os.Stat(filepath.Join(root, filepath.FromSlash(name)))

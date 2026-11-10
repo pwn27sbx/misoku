@@ -1,6 +1,8 @@
 package tutor_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/tutor"
@@ -243,6 +245,75 @@ func TestFileChangedUsesTheLessonPath(t *testing.T) {
 	}}
 	if !check.Pass("", env) {
 		t.Fatal("file-changed did not use the lesson's path")
+	}
+}
+
+// A ".md" argument names the note, with or without the extension, and is
+// never suffixed twice; a real file keeps its own extension.
+func TestDiskFileName(t *testing.T) {
+	cases := map[string]string{
+		"compras":           "compras.md",
+		"compras.md":        "compras.md",
+		"informe.pdf":       "informe.pdf",
+		"Viaje/Día 1":       "Viaje/Día 1.md",
+		"Plantillas/diario": "Plantillas/diario.md",
+	}
+	for arg, want := range cases {
+		if got := tutor.DiskFileName(arg); got != want {
+			t.Errorf("DiskFileName(%q) = %q, want %q", arg, got, want)
+		}
+	}
+}
+
+// A ".md" argument finds its note through the public reader, exactly like the
+// bare name the lessons use.
+func TestDiskExistsAcceptsAnMDSuffix(t *testing.T) {
+	dir := t.TempDir()
+	note := filepath.Join(dir, "1 Básico", "compras.md")
+	if err := os.MkdirAll(filepath.Dir(note), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(note, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := tutor.DirEnv(dir)
+	env.LessonDir = "1 Básico"
+	for _, arg := range []string{"compras", "compras.md"} {
+		if !diskCheck("exists", arg).Pass("", env) {
+			t.Errorf("exists %q did not find the note", arg)
+		}
+		if diskCheck("no-file", arg).Pass("", env) {
+			t.Errorf("no-file %q passed with the note there", arg)
+		}
+	}
+}
+
+// A note whose title holds a dot is still a note: the exact file and the note
+// are both tried, so "release.v2" finds "release.v2.md", while "informe.pdf"
+// finds the exported file.
+func TestDiskExistsFindsADottedNoteTitle(t *testing.T) {
+	dir := t.TempDir()
+	note := filepath.Join(dir, "1 Básico", "release.v2.md")
+	if err := os.MkdirAll(filepath.Dir(note), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(note, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pdf := filepath.Join(dir, "1 Básico", "informe.pdf")
+	if err := os.WriteFile(pdf, []byte("pdf"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := tutor.DirEnv(dir)
+	env.LessonDir = "1 Básico"
+	if !diskCheck("exists", "release.v2").Pass("", env) {
+		t.Fatal("exists missed a note titled release.v2")
+	}
+	if diskCheck("no-file", "release.v2").Pass("", env) {
+		t.Fatal("no-file passed with the dotted note there")
+	}
+	if !diskCheck("exists", "informe.pdf").Pass("", env) {
+		t.Fatal("exists missed the exported PDF")
 	}
 }
 

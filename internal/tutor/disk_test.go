@@ -22,6 +22,11 @@ type diskPlace struct {
 // for and where that action writes today.
 func TestEveryDiskCheckPassesWithTheLessonsActions(t *testing.T) {
 	places := map[string]diskPlace{
+		// :export writes the PDF next to the note; space P exports the open
+		// note (A00 lives in the same route folder).
+		"A13#1": {notes: map[string]string{"3 Avanzado/A13 Exportar a PDF.pdf": "pdf"}},
+		"A13#2": {notes: map[string]string{"3 Avanzado/informe.pdf": "pdf"}},
+		"A13#3": {notes: map[string]string{"3 Avanzado/A00 Avanzado.pdf": "pdf"}},
 		// space n while the lesson is open: the route folder.
 		"A07#3": {notes: map[string]string{"3 Avanzado/Idea": "[[A07 Menciones y backlinks]]"}},
 		// r on the lesson note rewrites its own link in place.
@@ -55,12 +60,6 @@ func TestEveryDiskCheckPassesWithTheLessonsActions(t *testing.T) {
 		"I27#2": {notes: map[string]string{"Plantillas/diario": "x"}, folders: []string{"Plantillas"}},
 	}
 
-	// A13 exports PDFs, which the disk checker cannot see: exists/no-file only
-	// understand note names (they add ".md"), so these three steps fail on the
-	// base too. F5 keeps their paths and reports the gap; it does not change
-	// what exists means.
-	knownGaps := map[string]bool{"A13#1": true, "A13#2": true, "A13#3": true}
-
 	cat := tutor.Default()
 	pathPreds := map[string]bool{
 		"exists": true, "no-file": true, "folder-exists": true, "other-note-text": true,
@@ -92,13 +91,6 @@ func TestEveryDiskCheckPassesWithTheLessonsActions(t *testing.T) {
 						changedLeaves++
 					case pathPreds[c.Pred]:
 						pathLeaves++
-						if knownGaps[key] {
-							env, _ := vaultEnv(r.Dir, nil, nil)
-							if c.Pass("", env) {
-								t.Errorf("%s now passes; the PDF gap is fixed, drop it from knownGaps", key)
-							}
-							return
-						}
 						p, ok := places[key]
 						if !ok {
 							t.Fatalf("%s is a disk path check with no place in the table", key)

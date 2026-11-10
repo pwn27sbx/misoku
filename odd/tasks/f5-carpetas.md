@@ -92,11 +92,10 @@ under `mktemp -d`; `GIT_CONFIG_GLOBAL` at an empty temp file.
 - **L4 (G6 count):** the embed holds 102 notes, not 101: 97 lessons + 4
   indexes (101) plus `Después del tutorial.md`. The tests assert 102 and say
   so in their message.
-- **L5 (F3 gap found):** A13's three `exists` checks look for PDFs, but
-  `exists`/`no-file` only understand note names (they add `.md`, and
-  `core.ResolveNote` trims only `.md`). Those three steps fail at `83408e0`
-  too. F5 keeps their paths and pins the gap in `disk_test.go`; fixing what
-  `exists` means is outside this unit.
+- **L5 (F3 gap found, fixed in L9):** A13's three `exists` checks look for
+  PDFs, but `exists`/`no-file` only understood note names (they add `.md`, and
+  `core.ResolveNote` trims only `.md`), so those steps failed at `83408e0`
+  too. F5 kept their paths and pinned the gap in `disk_test.go`.
 - **L6:** The statusline hides the note's folder during a tutorial session:
   with the folder segment the tutor's success line no longer fitted at 140
   columns (`TestTutorShowsTheStepAndThenTheSuccess`). The route folder is the
@@ -116,3 +115,15 @@ under `mktemp -d`; `GIT_CONFIG_GLOBAL` at an empty temp file.
   the note move. The move is mechanical: `git diff -M --summary` shows 101
   renames with content edits only in `A09` and `B00`, and `make all` pins the
   layout.
+
+- **L9 (follow-up, owner):** fix the A13 gap before the owner plays that
+  lesson. `tutor.DiskFileName` gives a disk path its file: a bare name gets
+  ".md", and a path with its own extension (".md", ".pdf") is used as written.
+  `DirEnv` and the app `Env` both build their `Exists` on it (the app still
+  resolves notes by name first), so `exists`/`no-file` read an exported PDF in
+  the route folder or at the root. A13's lesson text already matches: step 2
+  exports `informe.pdf` with a name, which the app writes in the note's
+  folder. Tests: `TestExportStepsPassWithRealPDFs` exports the three PDFs with
+  the real writer and requires each step to fail before and pass after;
+  `TestDiskFileName`, `TestDiskExistsAcceptsAnMDSuffix` and the app/DirEnv
+  agreement table pin the `.md` and `.pdf` forms.

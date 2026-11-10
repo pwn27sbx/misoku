@@ -2,6 +2,7 @@ package tutor
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -312,22 +313,54 @@ func (e Env) vaultPaths(p string) []string {
 	return []string{e.LessonDir + "/" + p, p}
 }
 
-// noteExists reports whether a note named p is inside the lesson's route
-// folder or at the vault root, with the route folder tried first. Without a
-// reader there is no evidence, so the check fails.
-func (e Env) noteExists(p string) bool {
+// firstNote returns the text of the first note among p's places that exists:
+// a note with the same name at the root never shadows the route folder's.
+func (e Env) firstNote(p string) (string, bool) {
+	if e.NoteText == nil {
+		return "", false
+	}
+	for _, name := range diskNames(p) {
+		for _, place := range e.vaultPaths(name) {
+			if text, ok := e.NoteText(place); ok {
+				return text, true
+			}
+		}
+	}
+	return "", false
+}
+
+// diskNames are the names a disk path may hand the reader at one place. A
+// bare name stays as written (the reader adds ".md"); a path with an
+// extension is the exact file, and a note title that holds a dot
+// ("release.v2") also tries its ".md" name, so a dotted title keeps working
+// as a note.
+func diskNames(p string) []string {
+	names := []string{p}
+	if ext := path.Ext(p); ext != "" && !strings.EqualFold(ext, ".md") {
+		names = append(names, p+".md")
+	}
+	return names
+}
+
+// existsIn reports whether the disk path p exists inside the lesson's route
+// folder or at the vault root. diskNames decides what files p may name, so an
+// export's PDF counts and a dotted note title keeps working as a note.
+func (e Env) existsIn(p string) bool {
 	if e.Exists == nil {
 		return false
 	}
-	for _, path := range e.vaultPaths(p) {
-		if e.Exists(path) {
-			return true
+	for _, name := range diskNames(p) {
+		for _, place := range e.vaultPaths(name) {
+			if e.Exists(place) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// folderExists is noteExists for a folder.
+// folderExists reports whether a folder named p is inside the lesson's route
+// folder or at the vault root. Without a reader there is no evidence.
 func (e Env) folderExists(p string) bool {
 	if e.FolderExists == nil {
 		return false
@@ -340,20 +373,6 @@ func (e Env) folderExists(p string) bool {
 	return false
 }
 
-// firstNote returns the text of the first note among p's places that exists:
-// a note with the same name at the root never shadows the route folder's.
-func (e Env) firstNote(p string) (string, bool) {
-	if e.NoteText == nil {
-		return "", false
-	}
-	for _, path := range e.vaultPaths(p) {
-		if text, ok := e.NoteText(path); ok {
-			return text, true
-		}
-	}
-	return "", false
-}
-
 // disk applies a disk predicate through env.
 func (c Check) disk(env Env) bool {
 	arg := func(i int) string {
@@ -364,11 +383,11 @@ func (c Check) disk(env Env) bool {
 	}
 	switch c.Pred {
 	case "exists":
-		return env.noteExists(arg(0))
+		return env.existsIn(arg(0))
 	case "no-file":
 		// No reader means no evidence: the step never passes on a missing
 		// callback.
-		return env.Exists != nil && !env.noteExists(arg(0))
+		return env.Exists != nil && !env.existsIn(arg(0))
 	case "folder-exists":
 		return env.folderExists(arg(0))
 	case "file-changed":
@@ -582,18 +601,29 @@ func run(s string, i int) int {
 	return n
 }
 
+// DiskFileName is the file a disk path names. A bare note name gets ".md"
+// ("compras" → "compras.md"); a path that already carries an extension is
+// used as written (".md" stays a note, and "informe.pdf" is the exported
+// file). Both disk readers build their lookups on it, so they agree.
+func DiskFileName(name string) string {
+	if path.Ext(name) != "" {
+		return name
+	}
+	return name + ".md"
+}
+
 // DirEnv answers disk checks from a tutorial folder, for the scan that runs
 // before the program starts. Paths are relative to the tutorial vault; note
 // names leave out ".md".
 func DirEnv(dir string) Env {
-	note := func(name string) string { return filepath.Join(dir, name+".md") }
+	note := func(name string) string { return filepath.Join(dir, filepath.FromSlash(DiskFileName(name))) }
 	return Env{
 		Exists: func(name string) bool {
-			_, err := os.Stat(note(name))
-			return err == nil
+			st, err := os.Stat(note(name))
+			return err == nil && !st.IsDir()
 		},
 		FolderExists: func(name string) bool {
-			st, err := os.Stat(filepath.Join(dir, name))
+			st, err := os.Stat(filepath.Join(dir, filepath.FromSlash(name)))
 			return err == nil && st.IsDir()
 		},
 		NoteText: func(name string) (string, bool) {

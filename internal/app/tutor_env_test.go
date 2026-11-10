@@ -28,6 +28,9 @@ func TestTutorDiskEnvAgreesWithDirEnv(t *testing.T) {
 	write("1 Básico/Plan.md", "[[Viaje#Equipaje]]\n")
 	write("Plantillas/diario.md", "Plan del día\n")
 	write("Viaje.md", "nota de otra ruta\n")
+	write("1 Básico/informe.pdf", "pdf\n")
+	write("otro.pdf", "pdf\n")
+	write("1 Básico/release.v2.md", "x\n")
 
 	store, err := core.NewStore(root)
 	if err != nil {
@@ -63,6 +66,13 @@ func TestTutorDiskEnvAgreesWithDirEnv(t *testing.T) {
 		{"another note at the root", tutor.Check{Kind: tutor.KindDisk, Pred: "other-note-text", Args: []string{"Viaje", "otra ruta"}}, true},
 		{"another note's missing text", tutor.Check{Kind: tutor.KindDisk, Pred: "other-note-text", Args: []string{"Plan", "no está"}}, false},
 		{"no-file for a gone note", tutor.Check{Kind: tutor.KindDisk, Pred: "no-file", Args: []string{"mercado"}}, true},
+		{"pdf exported in the route folder", tutor.Check{Kind: tutor.KindDisk, Pred: "exists", Args: []string{"informe.pdf"}}, true},
+		{"pdf exported at the root", tutor.Check{Kind: tutor.KindDisk, Pred: "exists", Args: []string{"otro.pdf"}}, true},
+		{"missing pdf", tutor.Check{Kind: tutor.KindDisk, Pred: "exists", Args: []string{"nada.pdf"}}, false},
+		{"no-file for an exported pdf", tutor.Check{Kind: tutor.KindDisk, Pred: "no-file", Args: []string{"informe.pdf"}}, false},
+		{"no-file for a missing pdf", tutor.Check{Kind: tutor.KindDisk, Pred: "no-file", Args: []string{"nada.pdf"}}, true},
+		{"note name with .md", tutor.Check{Kind: tutor.KindDisk, Pred: "exists", Args: []string{"compras.md"}}, true},
+		{"note title with a dot", tutor.Check{Kind: tutor.KindDisk, Pred: "exists", Args: []string{"release.v2"}}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
