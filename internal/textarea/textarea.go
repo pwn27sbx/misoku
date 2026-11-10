@@ -293,6 +293,10 @@ type Model struct {
 	version uint64
 	index   *rowIndex
 
+	// display, when it matches the text, replaces the wrap's geometry for
+	// its lines (see SetDisplay).
+	display *Display
+
 	// focus indicates whether user input focus should be on this input
 	// component. When false, ignore keyboard input and hide the cursor.
 	focus bool
@@ -528,9 +532,12 @@ func (m *Model) CursorDown() {
 	charOffset := max(m.lastCharOffset, li.CharOffset)
 	m.lastCharOffset = charOffset
 
-	if li.RowOffset+1 >= li.Height && m.row < len(m.value)-1 {
-		m.row++
+	next, drawn := m.nextShownLine(m.row, 1), m.displayed(m.row) != nil
+	if next >= 0 && (drawn || li.RowOffset+1 >= li.Height) {
+		m.row = next
 		m.col = 0
+	} else if drawn {
+		return // misoku: no wrapped segments to walk on a display's line
 	} else {
 		// Move the cursor to the start of the next line so that we can get
 		// the line information. We need to add 2 columns to account for the
@@ -562,9 +569,12 @@ func (m *Model) CursorUp() {
 	charOffset := max(m.lastCharOffset, li.CharOffset)
 	m.lastCharOffset = charOffset
 
-	if li.RowOffset <= 0 && m.row > 0 {
-		m.row--
+	prev, drawn := m.nextShownLine(m.row, -1), m.displayed(m.row) != nil
+	if prev >= 0 && (drawn || li.RowOffset <= 0) {
+		m.row = prev
 		m.col = len(m.value[m.row])
+	} else if drawn {
+		return // misoku: no wrapped segments to walk on a display's line
 	} else {
 		// Move the cursor to the end of the previous line.
 		// This can be done by moving the cursor to the start of the line and
@@ -864,7 +874,20 @@ func (m *Model) capitalizeRight() {
 
 // LineInfo returns the number of characters from the start of the
 // (soft-wrapped) line and the (soft-wrapped) line width.
+//
+// misoku: on a line a display draws, the rows are the display's: the height is
+// theirs and the cursor is on the first. The columns stay the raw wrap's, so
+// the goal column survives crossing the line.
 func (m Model) LineInfo() LineInfo {
+	li := m.wrapLineInfo()
+	if d := m.displayed(m.row); d != nil {
+		li.Height, li.RowOffset = len(d.Rows), 0
+	}
+	return li
+}
+
+// wrapLineInfo is LineInfo according to the soft-wrap alone.
+func (m Model) wrapLineInfo() LineInfo {
 	grid := m.memoizedWrap(m.value[m.row], m.width)
 
 	// Find out which line we are currently on. This can be determined by the
@@ -912,10 +935,10 @@ func (m *Model) repositionView() {
 	minimum := m.viewport.YOffset
 	maximum := minimum + m.viewport.Height - 1
 
-	if row := m.cursorLineNumber(); row < minimum {
-		m.viewport.YOffset = max(row, 0)
-	} else if row > maximum {
-		m.viewport.YOffset = min(row-m.viewport.Height+1, max(m.visualLineCount()-1, 0))
+	if first, last := m.cursorRows(); last < minimum {
+		m.viewport.YOffset = max(first, 0)
+	} else if first > maximum {
+		m.viewport.YOffset = min(first-m.viewport.Height+1, max(m.visualLineCount()-1, 0))
 	}
 }
 
@@ -1180,8 +1203,18 @@ func (m Model) View() string {
 		lineInfo = m.LineInfo()
 	)
 
-	textEnd := min(bottom, total)
+	textRows := starts[len(m.value)] // misoku: total also counts the footer
+	textEnd := min(bottom, textRows)
 	for l := m.lineAtRow(top); l < len(m.value) && starts[l] < textEnd; l++ {
+		if d := m.displayed(l); d != nil {
+			for wl, row := range d.Rows {
+				if v := starts[l] + wl; v >= top && v < textEnd {
+					m.writeDisplayRow(&s, v, m.displayCell(l, wl), row)
+				}
+			}
+			continue
+		}
+
 		line := m.value[l]
 		wrappedLines := m.memoizedWrap(line, m.width)
 
@@ -1253,6 +1286,12 @@ func (m Model) View() string {
 			}
 			s.WriteString(style.Render(strings.Repeat(" ", max(0, padding))))
 			s.WriteRune('\n')
+		}
+	}
+
+	if d := m.activeDisplay(); d != nil {
+		for v := max(top, textRows); v < min(bottom, total); v++ {
+			m.writeDisplayRow(&s, v, m.displayCell(-1, 0), d.Footer[v-textRows])
 		}
 	}
 

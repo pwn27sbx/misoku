@@ -16,12 +16,14 @@ import (
 // edited apart never end up with the same version for different text.
 var versions atomic.Uint64
 
-// rowIndex holds, for the text version and width it was built for, the first
-// visual row of every logical line; the last element is the total row count.
+// rowIndex holds, for the text version, width and display it was built for,
+// the first visual row of every logical line, then the row past the text; the
+// last element is the total row count, which a display's footer adds to.
 type rowIndex struct {
-	version uint64
-	width   int
-	starts  []int
+	version    uint64
+	width      int
+	generation uint64
+	starts     []int
 }
 
 // touch records that the text changed. Every write to m.value must call it
@@ -32,25 +34,34 @@ func (m *Model) touch() { m.version = versions.Add(1) }
 // the same while only the cursor or the view moves.
 func (m Model) Version() uint64 { return m.version }
 
-// rows returns the row index for the current text and width, rebuilding it
-// only when either changed since it was last built.
+// rows returns the row index for the current text, width and display,
+// rebuilding it only when one changed since it was last built.
 func (m Model) rows() []int {
 	idx := m.index
 	if idx == nil {
 		idx = &rowIndex{}
 	}
-	if idx.starts != nil && idx.version == m.version && idx.width == m.width {
+	generation := m.displayGeneration()
+	if idx.starts != nil && idx.version == m.version && idx.width == m.width && idx.generation == generation {
 		return idx.starts
 	}
 	// A fresh slice, so a caller still holding the old one is unaffected.
-	starts := make([]int, 0, len(m.value)+1)
+	starts := make([]int, 0, len(m.value)+2)
 	acc := 0
-	for _, l := range m.value {
+	for i, l := range m.value {
 		starts = append(starts, acc)
-		acc += len(m.memoizedWrap(l, m.width))
+		if d := m.displayed(i); d != nil {
+			acc += len(d.Rows)
+		} else {
+			acc += len(m.memoizedWrap(l, m.width))
+		}
 	}
-	idx.starts = append(starts, acc)
-	idx.version, idx.width = m.version, m.width
+	starts = append(starts, acc)
+	if d := m.activeDisplay(); d != nil && len(d.Footer) > 0 {
+		starts = append(starts, acc+len(d.Footer))
+	}
+	idx.starts = starts
+	idx.version, idx.width, idx.generation = m.version, m.width, generation
 	return idx.starts
 }
 

@@ -19,11 +19,10 @@ func (m Model) YOffset() int {
 func (m *Model) EnsureVisible() {
 	off := m.viewport.YOffset
 	h := max(m.viewport.Height, 1)
-	row := m.cursorLineNumber()
-	if row < off {
-		off = row
-	} else if row > off+h-1 {
-		off = row - h + 1
+	if first, last := m.cursorRows(); last < off {
+		off = first
+	} else if first > off+h-1 {
+		off = first - h + 1
 	}
 	m.viewport.YOffset = max(off, 0)
 }
@@ -46,8 +45,14 @@ func (m *Model) moveToVisual(v, col int) {
 	r := m.lineAtRow(v)
 	if r >= len(m.value) {
 		// Past the end: last character of the buffer.
-		m.row = len(m.value) - 1
+		m.row = m.lastShownLine()
 		m.col = len(m.value[m.row])
+		return
+	}
+	if m.displayed(r) != nil {
+		// A display's rows are not the wrap's segments; the line is all
+		// that can be told from them.
+		m.row, m.col = r, 0
 		return
 	}
 	l := m.value[r]
@@ -75,17 +80,22 @@ func (m *Model) moveToVisual(v, col int) {
 func (m *Model) ScrollBy(n int) {
 	total := m.visualLineCount()
 	maxOff := max(0, total-1)
+	if d := m.activeDisplay(); d != nil && len(d.Footer) > 0 {
+		// The cursor cannot sit in the footer, so the last text row stays on
+		// screen unless the footer needs the room to be read to its end.
+		maxOff = max(0, m.rows()[len(m.value)]-1, total-m.viewport.Height)
+	}
 	off := clamp(m.viewport.YOffset+n, 0, maxOff)
 	m.viewport.YOffset = off
 
 	top := off
 	bottom := off + m.viewport.Height - 1
-	cur := m.cursorLineNumber()
+	first, last := m.cursorRows()
 	col := m.LineInfo().ColumnOffset
 	switch {
-	case cur < top:
+	case last < top:
 		m.moveToVisual(top, col)
-	case cur > bottom:
+	case first > bottom:
 		m.moveToVisual(bottom, col)
 	}
 }
@@ -213,6 +223,9 @@ func (m Model) CursorScreen() (x, y int, ok bool) {
 	y = m.cursorLineNumber() - m.viewport.YOffset
 	if y < 0 || y >= m.viewport.Height {
 		return 0, 0, false
+	}
+	if m.displayed(m.row) != nil {
+		return gutter, y, true // misoku: the display's rows have no columns
 	}
 	return gutter + m.LineInfo().CharOffset, y, true
 }
