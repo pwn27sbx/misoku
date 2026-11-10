@@ -82,6 +82,7 @@ func TestCheckPass(t *testing.T) {
 		{"disk exists", diskCheck("exists", "Mi nota"), "", tutor.Env{Exists: onlyMiNota}, true},
 		{"disk exists missing", diskCheck("exists", "Mi nota"), "", tutor.Env{Exists: none}, false},
 		{"disk no-file", diskCheck("no-file", "Otra"), "", tutor.Env{Exists: onlyMiNota}, true},
+		{"disk no-file with no reader", diskCheck("no-file", "Otra"), "", tutor.Env{}, false},
 		{"disk folder", diskCheck("folder-exists", "Diario"), "", tutor.Env{FolderExists: func(n string) bool { return n == "Diario" }}, true},
 		{"disk file changed", diskCheck("file-changed"), "", tutor.Env{Changed: func(f string) bool { return f == "B01 Uno.md" }, LessonFile: "B01 Uno.md"}, true},
 		{"disk file changed no reader", diskCheck("file-changed"), "", tutor.Env{LessonFile: "B01 Uno.md"}, false},

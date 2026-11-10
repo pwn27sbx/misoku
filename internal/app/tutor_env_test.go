@@ -43,6 +43,8 @@ func TestTutorDiskEnvAgreesWithDirEnv(t *testing.T) {
 	m := New(store, WithTutor(&tutor.Store{}, cat, root, true))
 
 	appEnv := m.tutorDiskEnv(cat.Routes[0].Lessons[0])
+	// The catalog is built by hand here, so its lesson has no folder: set the
+	// route folder on both readers to compare the path policy itself.
 	appEnv.LessonDir = "1 Básico"
 	dirEnv := tutor.DirEnv(root)
 	dirEnv.LessonDir = "1 Básico"

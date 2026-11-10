@@ -312,20 +312,46 @@ func (e Env) vaultPaths(p string) []string {
 	return []string{e.LessonDir + "/" + p, p}
 }
 
-// anyPath reports whether a note or a folder exists at any of p's places.
-func anyPath(env Env, p string, folder bool) bool {
-	for _, path := range env.vaultPaths(p) {
-		if folder {
-			if env.FolderExists != nil && env.FolderExists(path) {
-				return true
-			}
-			continue
-		}
-		if env.Exists != nil && env.Exists(path) {
+// noteExists reports whether a note named p is inside the lesson's route
+// folder or at the vault root, with the route folder tried first. Without a
+// reader there is no evidence, so the check fails.
+func (e Env) noteExists(p string) bool {
+	if e.Exists == nil {
+		return false
+	}
+	for _, path := range e.vaultPaths(p) {
+		if e.Exists(path) {
 			return true
 		}
 	}
 	return false
+}
+
+// folderExists is noteExists for a folder.
+func (e Env) folderExists(p string) bool {
+	if e.FolderExists == nil {
+		return false
+	}
+	for _, path := range e.vaultPaths(p) {
+		if e.FolderExists(path) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstNote returns the text of the first note among p's places that exists:
+// a note with the same name at the root never shadows the route folder's.
+func (e Env) firstNote(p string) (string, bool) {
+	if e.NoteText == nil {
+		return "", false
+	}
+	for _, path := range e.vaultPaths(p) {
+		if text, ok := e.NoteText(path); ok {
+			return text, true
+		}
+	}
+	return "", false
 }
 
 // disk applies a disk predicate through env.
@@ -338,24 +364,18 @@ func (c Check) disk(env Env) bool {
 	}
 	switch c.Pred {
 	case "exists":
-		return anyPath(env, arg(0), false)
+		return env.noteExists(arg(0))
 	case "no-file":
-		return !anyPath(env, arg(0), false)
+		// No reader means no evidence: the step never passes on a missing
+		// callback.
+		return env.Exists != nil && !env.noteExists(arg(0))
 	case "folder-exists":
-		return anyPath(env, arg(0), true)
+		return env.folderExists(arg(0))
 	case "file-changed":
 		return env.Changed != nil && env.Changed(env.LessonFile)
 	case "other-note-text":
-		if env.NoteText == nil {
-			return false
-		}
-		for _, p := range env.vaultPaths(arg(0)) {
-			text, ok := env.NoteText(p)
-			if ok {
-				return strings.Contains(text, arg(1))
-			}
-		}
-		return false
+		text, ok := env.firstNote(arg(0))
+		return ok && strings.Contains(text, arg(1))
 	case "config-key":
 		if env.Config == nil {
 			return false
