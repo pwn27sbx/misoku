@@ -50,6 +50,16 @@ type buffer struct {
 	// it belongs to: a reload that drops the history drops the replay.
 	relinkedFrom string
 	relinkedHist *content.History
+	// back holds the notes this tab showed before, the latest last; go_back
+	// walks it. See openInCurrentBuffer.
+	back []backEntry
+}
+
+// backEntry is a note a tab showed, and the 1-based line its cursor was on
+// when another note took its place.
+type backEntry struct {
+	id   string
+	line int
 }
 
 // history returns b's undo history, starting an empty one if it has none.
@@ -646,6 +656,9 @@ func (m *Model) remapBuffers(oldID, newID string) {
 			b.id = nid
 			b.history().Rename(nid)
 			b.title = strings.TrimSuffix(path.Base(nid), ".md")
+		}
+		for i := range b.back {
+			b.back[i].id = remap(b.back[i].id)
 		}
 	}
 }

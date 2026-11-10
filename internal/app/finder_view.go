@@ -172,7 +172,14 @@ func previewLine(th theme.Theme, l string, width int) string {
 // openInCurrentBuffer shows id in the active tab instead of adding a new one
 // (Telescope / ":e" behaviour). An already-open file is simply focused, and a
 // tab with unsaved changes is never replaced — the file opens next to it.
+// The note it replaces is what go_back returns to.
 func (m *Model) openInCurrentBuffer(id string) tea.Cmd {
+	return m.showInCurrentBuffer(id, true)
+}
+
+// showInCurrentBuffer is openInCurrentBuffer; record says whether the note
+// it replaces goes on the tab's back stack.
+func (m *Model) showInCurrentBuffer(id string, record bool) tea.Cmd {
 	if i := m.bufferIndex(id); i >= 0 {
 		m.showBuffer(m.buffers[i])
 		return m.focusPane(focusEditor)
@@ -189,6 +196,10 @@ func (m *Model) openInCurrentBuffer(id string) tea.Cmd {
 	if err != nil || p.IsFolder {
 		m.setError("Cannot open " + id)
 		return nil
+	}
+	if record && !cur.draft() {
+		line, _ := m.content.CursorPosition()
+		cur.back = append(cur.back, backEntry{id: cur.id, line: line})
 	}
 	cur.id, cur.title, cur.dir = p.ID, p.Title, ""
 	cur.setSaved(p.Content)

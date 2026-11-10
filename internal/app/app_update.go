@@ -368,7 +368,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ":e name" opens the note a [[link]] would, and starts it as an
 		// unresolved link does.
 		m.tutorDefer("note_opened", strings.TrimSuffix(msg.Target, ".md"))
-		return m, m.followWikiLink(core.ParseWikiLink(msg.Target))
+		return m, m.followWikiLink(core.ParseWikiLink(msg.Target), m.openInCurrentBuffer)
 	case tea.MouseMsg:
 		return m, m.handleMouse(msg)
 	case fileManagerDoneMsg:

@@ -379,3 +379,23 @@ func TestOldViewActionNamesMapToTheViews(t *testing.T) {
 		t.Errorf("reading_view should win over reading_mode, got %v", got)
 	}
 }
+
+func TestGoBackIsAGeneralActionOnCtrlO(t *testing.T) {
+	m, warnings := keymap.New(nil)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings: %v", warnings)
+	}
+	if !m.Direct("go_back", "ctrl+o") {
+		t.Fatal("go_back should default to ctrl+o")
+	}
+	for _, a := range keymap.Actions {
+		if a.Action != "go_back" {
+			continue
+		}
+		if a.Section != "general" || a.Group != keymap.GroupGo || a.Help == "" || a.Long == "" {
+			t.Fatalf("go_back is not described as a general GO action: %+v", a)
+		}
+		return
+	}
+	t.Fatal("go_back is not in Actions")
+}

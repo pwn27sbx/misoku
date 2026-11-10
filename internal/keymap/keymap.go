@@ -29,6 +29,7 @@ const (
 	PaneRight      = "pane_right"
 	NextTab        = "next_tab"
 	PrevTab        = "prev_tab"
+	GoBack         = "go_back"
 	CloseTab       = "close_tab"
 	ReadingView    = "reading_view"
 	EditorView     = "editor_view"
@@ -127,6 +128,8 @@ var Actions = []Info{
 		Long: "Shows the next open note in the tab bar, wrapping around after the last.", defaults: []string{"]", "space tab", "L"}},
 	{Action: PrevTab, Section: "general", Group: GroupGo, Help: "Previous tab",
 		Long: "Shows the previous open note in the tab bar, wrapping around before the first.", defaults: []string{"[", "space shift+tab", "H"}},
+	{Action: GoBack, Section: "general", Group: GroupGo, Help: "Back to the previous note of this tab",
+		Long: "Returns this tab to the note it showed before gd, the finder or :e replaced it, at the line the cursor was on. Press it again to go further back.", defaults: []string{"ctrl+o"}},
 	{Action: CloseTab, Section: "general", Group: GroupNote, Help: "Close tab",
 		Long: "Closes the tab of this note. With unsaved changes it asks whether to save them first.", defaults: []string{"space x"}},
 	{Action: ReadingView, Section: "general", Group: GroupView, Help: "Reading view: read-only, full width",

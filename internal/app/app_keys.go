@@ -307,10 +307,10 @@ func (m *Model) openProject(id string) tea.Cmd {
 	return cmd
 }
 
-// followEnterLink follows the [[link]] Enter was pressed on, as gd does,
-// except that a link naming no note says so instead of starting a draft, as
-// the LazyVim companion's Enter does. A link to a section of this note
-// ([[#Heading]]) jumps there.
+// followEnterLink follows the [[link]] Enter was pressed on in a new tab,
+// where gd stays in this one. A link naming no note says so instead of
+// starting a draft, as the LazyVim companion's Enter does. A link to a
+// section of this note ([[#Heading]]) jumps there.
 func (m *Model) followEnterLink(l core.WikiLink) tea.Cmd {
 	if l.Target != "" {
 		if _, ok := core.ResolveNote(m.notes, l.Target, m.currentNoteID()); !ok {
@@ -319,5 +319,5 @@ func (m *Model) followEnterLink(l core.WikiLink) tea.Cmd {
 		}
 	}
 	m.tutorBFollowedLink("Enter")
-	return m.followWikiLink(l)
+	return m.followWikiLink(l, m.openFile)
 }

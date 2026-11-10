@@ -438,6 +438,7 @@ The list scrolls when it does not fit, so no row is cut.
 | `pane_right` | `ctrl+l`, `ctrl+right` | Pane to the right |
 | `next_tab` | `]`, `L`, `space tab` | Next tab |
 | `prev_tab` | `[`, `H`, `space shift+tab` | Previous tab |
+| `go_back` | `ctrl+o` | Back to the previous note of this tab, at the line the cursor was on (not in INSERT) |
 | `close_tab` | `space x` | Close tab |
 | `reading_view` | `space p` | Reading view: the rendered note alone, full width and read-only (`space p` again brings the split back) |
 | `editor_view` | `space r` | Editor view: the Markdown editor alone, full width, with line numbers (`space r` again brings the split back) |
@@ -567,13 +568,18 @@ link (`]]` included), `Esc` closes the list and leaves the text to write by
 hand. `:settings` → **Link suggestions** → **Finder** brings back the big
 picker instead, where `#`, `Note#` and `^` narrow the list the same way and
 the footer says so; `Esc` there also leaves the typed `[[`.
-Click a link in the preview, or press
-`gd` on it in the editor, to follow it. In NORMAL mode `Enter` on a
-`[[link]]` follows it too, as in the LazyVim companion: a link inside a code
-block or inline `` `code` `` is skipped, and a link to a note that doesn't
-exist says "No note found for this link" instead of starting it (use `gd`
-for that, or `:e name`, which opens a note by name or path and starts it
-when it does not exist yet, as following a link to a missing note does).
+Click a link in the preview, or press `Enter` on a `[[link]]` in NORMAL mode,
+to open its note in a new tab (a note that is already open just gets the
+focus). Press `gd` on a link instead to open it in the same tab, like Neovim
+(a tab with unsaved changes is kept and the note opens next to it), and
+`ctrl+o` to go back to the previous note of that tab, at the line the cursor
+was on; each press goes further back. There is no forward key: `ctrl+i` is the
+same key as `tab` in a terminal. `Enter` works as in the LazyVim companion: a
+link inside a code block or inline `` `code` `` is skipped, and a link to a
+note that doesn't exist says "No note found for this link" instead of starting
+it (use `gd` for that, or `:e name`, which opens a note by name or path and
+starts it when it does not exist yet, as following a link to a missing note
+does).
 Typing a space after `- []` in INSERT writes the box as `- [ ] `.
 `Enter` on a checkbox line (`- [ ]`, `- [x]`, `- [-]`) toggles
 the box; anywhere else it moves down a line. Clicking the box of a to-do

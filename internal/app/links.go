@@ -59,9 +59,9 @@ func (m *Model) followHit(h preview.Hit) tea.Cmd {
 	}
 	switch h.Kind {
 	case preview.HitWikiLink:
-		return m.followWikiLink(core.ParseWikiLink(h.Arg))
+		return m.followWikiLink(core.ParseWikiLink(h.Arg), m.openFile)
 	case preview.HitURLLink:
-		return m.followURL(h.Arg)
+		return m.followURL(h.Arg, m.openFile)
 	case preview.HitNoteLink:
 		row := m.tutorCNoteRow(h.Arg) // before the note becomes the open one
 		keep := m.focus
@@ -77,10 +77,11 @@ func (m *Model) followHit(h preview.Hit) tea.Cmd {
 	return nil
 }
 
-// followWikiLink opens the note a [[link]] names at its heading or block.
-// A link to a note that doesn't exist yet opens a new draft with that
-// name; nothing is written until it is saved.
-func (m *Model) followWikiLink(l core.WikiLink) tea.Cmd {
+// followWikiLink opens the note a [[link]] names at its heading or block,
+// with open: openFile for a new tab, openInCurrentBuffer for this one. A link
+// to a note that doesn't exist yet opens a new draft with that name; nothing
+// is written until it is saved.
+func (m *Model) followWikiLink(l core.WikiLink, open func(string) tea.Cmd) tea.Cmd {
 	keep := m.focus
 	if l.Target == "" {
 		m.jumpToSection(l)
@@ -97,7 +98,7 @@ func (m *Model) followWikiLink(l core.WikiLink) tea.Cmd {
 	if !ok {
 		return m.newLinkedDraft(l.Target)
 	}
-	cmd := m.openInCurrentBuffer(p.ID)
+	cmd := open(p.ID)
 	if m.active != p.ID {
 		return cmd
 	}
@@ -150,9 +151,10 @@ func (m *Model) newLinkedDraft(target string) tea.Cmd {
 	return cmd
 }
 
-// followURL opens a Markdown link: a note (optionally at "#heading"), a web
-// address in the browser, or any other local file with its default app.
-func (m *Model) followURL(u string) tea.Cmd {
+// followURL opens a Markdown link: a note (optionally at "#heading") with
+// open, as in followWikiLink, a web address in the browser, or any other
+// local file with its default app.
+func (m *Model) followURL(u string, open func(string) tea.Cmd) tea.Cmd {
 	u = strings.TrimSpace(u)
 	if strings.Contains(u, "://") || strings.HasPrefix(u, "mailto:") {
 		return m.openExternal(u)
@@ -181,7 +183,7 @@ func (m *Model) followURL(u string) tea.Cmd {
 	if strings.HasSuffix(strings.ToLower(id), ".md") {
 		if _, err := m.store.Get(id); err == nil {
 			keep := m.focus
-			cmd := m.openInCurrentBuffer(id)
+			cmd := open(id)
 			if m.active == id {
 				m.jumpToSection(l)
 			}
@@ -335,22 +337,44 @@ func (m *Model) followEditorLink(msg core.FollowLinkMsg) tea.Cmd {
 		if within(loc) {
 			l, _, _ := core.WikiLinkAt(strings.TrimPrefix(msg.Line[loc[0]:loc[1]], "!"))
 			m.tutorBFollowedLink(msg.Key)
-			return m.followWikiLink(l)
+			return m.followWikiLink(l, m.openInCurrentBuffer)
 		}
 	}
 	for _, loc := range editorMdRe.FindAllStringSubmatchIndex(msg.Line, -1) {
 		if within(loc) {
 			m.tutorBFollowedLink(msg.Key)
-			return m.followURL(strings.Trim(msg.Line[loc[2]:loc[3]], "<>"))
+			return m.followURL(strings.Trim(msg.Line[loc[2]:loc[3]], "<>"), m.openInCurrentBuffer)
 		}
 	}
 	for _, loc := range editorURLRe.FindAllStringIndex(msg.Line, -1) {
 		if within(loc) {
 			m.tutorBFollowedLink(msg.Key)
-			return m.followURL(strings.Trim(msg.Line[loc[0]:loc[1]], "<>"))
+			return m.followURL(strings.Trim(msg.Line[loc[0]:loc[1]], "<>"), m.openInCurrentBuffer)
 		}
 	}
 	m.setError("No link under the cursor")
+	return nil
+}
+
+// goBack returns the active tab to the note it showed before, at the line
+// its cursor was on. Notes that no longer exist are skipped; a tab with
+// unsaved changes keeps them, as in openInCurrentBuffer.
+func (m *Model) goBack() tea.Cmd {
+	b := m.activeBuffer()
+	for b != nil && len(b.back) > 0 {
+		last := b.back[len(b.back)-1]
+		b.back = b.back[:len(b.back)-1]
+		if p, err := m.store.Get(last.id); err != nil || p.IsFolder {
+			continue
+		}
+		cmd := m.showInCurrentBuffer(last.id, false)
+		if m.active == last.id {
+			m.content.GotoLine(last.line)
+			m.preview.ScrollToLine(last.line - 1)
+		}
+		return cmd
+	}
+	m.setStatus("No previous note in this tab")
 	return nil
 }
 
