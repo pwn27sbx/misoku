@@ -177,6 +177,13 @@ func (m *Model) pressRendered(msg tea.MouseMsg, wheel bool) (tea.Cmd, bool) {
 	if !ok || (hit.Kind == "fold" && col-hit.X0 >= foldArrowW) {
 		return nil, false
 	}
+	// The press ends INSERT, as the same press in the split does by taking
+	// the focus to the preview: the typed text is one change, the control's
+	// edit another.
+	if m.content.Mode() == content.ModeInsert {
+		m.content.ExitInsert()
+		m.content.CommitChange()
+	}
 	cmd, _ := m.preview.PressRow(row, col)
 	m.tutorBPreviewClick(hit, true)
 	return cmd, true

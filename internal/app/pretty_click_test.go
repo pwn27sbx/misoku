@@ -259,3 +259,38 @@ func TestPrettyGotoIntoAFoldUnfoldsIt(t *testing.T) {
 		t.Fatalf("G should unfold Sec:\n%s", v)
 	}
 }
+
+// S6: a press on a control during INSERT closes the typed text as its own
+// change before the control edits, so one u undoes only the control.
+func TestPrettyClickInInsertIsItsOwnUndoStep(t *testing.T) {
+	look := preview.DefaultLook()
+	h := openNoteWith(t, "- [ ] alpha\n\nend")
+	h.keys(" p")
+	h.keys("G")
+	h.keys("A typed")
+	x, y := noteTextAt(t, h.view(), look.Unchecked)
+	h.click(x, y)
+	h.key(tea.KeyEsc)
+	if got := saved(t, h); got != "- [x] alpha\n\nend typed" {
+		t.Fatalf("setup %q", got)
+	}
+	h.keys("u")
+	if got := saved(t, h); got != "- [ ] alpha\n\nend typed" {
+		t.Fatalf("one u should undo only the box, got %q", got)
+	}
+}
+
+// S6: a press on a control ends INSERT, as the same press in the split does
+// by moving the focus to the preview.
+func TestPrettyClickInInsertReturnsToNormal(t *testing.T) {
+	look := preview.DefaultLook()
+	h := openNoteWith(t, "- [ ] alpha\n\nend")
+	h.keys(" p")
+	h.keys("G")
+	h.keys("A typed")
+	x, y := noteTextAt(t, h.view(), look.Unchecked)
+	h.click(x, y)
+	if got := mode(h.view()); got != "NORMAL" {
+		t.Fatalf("a press on a control should leave INSERT, mode %q", got)
+	}
+}

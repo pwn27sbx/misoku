@@ -426,3 +426,58 @@ func TestPrettyViewWheelDuringDragUnfreezesTheReveal(t *testing.T) {
 	h.send(tea.MouseMsg{X: x + 1, Y: y, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress})
 	wantOnScreen(t, h.view(), []string{"**one**", "two"}, []string{"**two**"})
 }
+
+// goToLine walks the cursor down with j until it reaches line n.
+func goToLine(h *harness, n int) {
+	h.t.Helper()
+	h.keys("gg")
+	for i := 0; i < 4*n; i++ {
+		if l, _, _ := app.NoteCursor(h.m); l >= n {
+			break
+		}
+		h.keys("j")
+	}
+	if l, _, _ := app.NoteCursor(h.m); l != n {
+		h.t.Fatalf("goto %d landed on %d", n, l)
+	}
+}
+
+// S8: with the cursor on the last line of a raw code block whose top is above
+// the screen, j twice renders the block again above the top; the rows below
+// it keep their screen rows.
+func TestPrettyViewRevealAboveTheTopDoesNotJump(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(&b, "para %d\n\n```go\na%d := 1\nb := 2\nc := 3\nd := 4\n```\nafter %d\n\n", i, i, i)
+	}
+	b.WriteString("end")
+	h := openNoteWith(t, b.String())
+	h.keys(" p")
+	goToLine(h, 3*10+7) // the last "d := 4" of section 3
+	for i := 0; i < 60; i++ {
+		if y, _ := app.NoteCursorY(h.m); y <= 0 {
+			break
+		}
+		h.m = app.ScrollNoteBy(h.m, 1)
+		h.send(nil)
+	}
+	before := paneRows(h.view())
+	h.keys("j") // onto the closing fence: same block, still raw
+	h.keys("j") // onto "after 3": the code block renders above the top
+	after := paneRows(h.view())
+	find := func(rows []string, s string) int {
+		for i, r := range rows {
+			if strings.Contains(r, s) {
+				return i
+			}
+		}
+		return -1
+	}
+	if fb, fa := find(before, "para 4"), find(after, "para 4"); fb < 0 || fb != fa {
+		t.Fatalf("para 4 moved from row %d to %d\nbefore:\n%s\nafter:\n%s", fb, fa,
+			strings.Join(before, "\n"), strings.Join(after, "\n"))
+	}
+	if _, _, ok := app.NoteCursor(h.m); !ok {
+		t.Fatalf("the cursor should stay on screen:\n%s", h.view())
+	}
+}

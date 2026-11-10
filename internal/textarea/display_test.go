@@ -334,6 +334,29 @@ func TestDisplayTopAnchorWhenALineAboveShrinks(t *testing.T) {
 	}
 }
 
+// When the top line goes to zero rows, the first line on screen that keeps
+// rows stays on its screen row.
+func TestDisplayTopAnchorWhenTheTopLineLosesItsRows(t *testing.T) {
+	m := frameEditor(20, 4, false, numbered(8))
+	m.SetRowCol(6, 0)
+	m.SetRowCol(3, 0) // LD at the top row
+	lines := make([]textarea.DisplayLine, 8)
+	for i := range lines {
+		lines[i] = raw()
+	}
+	m.SetDisplay(&textarea.Display{Lines: lines})
+	equalRows(t, trimmedRows(m), "LD", "LE", "LF", "LG")
+
+	block := append([]textarea.DisplayLine(nil), lines...)
+	block[1] = rendered("1", "2", "3")
+	block[2], block[3], block[4] = rendered(), rendered(), rendered()
+	m.SetRowCol(5, 0)
+	m.SetDisplay(&textarea.Display{Lines: block})
+	if got := trimmedRows(m)[2]; got != "LF" {
+		t.Fatalf("row 2 = %q, want LF where it was (all rows %q)", got, trimmedRows(m))
+	}
+}
+
 func TestDisplayCursorVisibleAfterSetDisplay(t *testing.T) {
 	m := frameEditor(20, 3, false, numbered(6))
 	m.SetRowCol(5, 0)

@@ -10,6 +10,6 @@
 2. Pulsa `space r`: solo el Markdown, con números de línea.
 3. Pulsa otra vez `space r`: vuelve el split.
 4. Pulsa `space p` otra vez y mira cómo se esconden los marcadores, salvo en el bloque del cursor.
-5. Mira el preview: títulos, listas, citas y tablas dibujados.
+5. Mira la nota en la vista de lectura: títulos, listas, citas y tablas dibujados.
 
 Siguiente: [[B22 Buscar dentro de la nota]]

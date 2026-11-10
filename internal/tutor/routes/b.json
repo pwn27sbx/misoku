@@ -575,7 +575,7 @@
           "check": { "kind": "action", "event": "reading_view", "value": "concealed" }
         },
         {
-          "text": "Mira el preview: títulos, listas, citas y tablas",
+          "text": "En lectura, mira títulos, listas, citas y tablas",
           "ids": ["PRV-01"],
           "check": { "kind": "action", "event": "preview_rendered" }
         }

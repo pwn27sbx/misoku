@@ -190,3 +190,25 @@ func ShowInPreview(tm tea.Model, p core.Page) tea.Model {
 	m.preview.SetPage(p)
 	return m
 }
+
+// NoteCursor returns the editor cursor's 1-based line and column and whether
+// it is on screen.
+func NoteCursor(tm tea.Model) (line, col int, onScreen bool) {
+	m := tm.(Model)
+	line, col = m.content.CursorPosition()
+	_, _, onScreen = m.content.CursorScreen()
+	return line, col, onScreen
+}
+
+// NoteCursorY returns the editor cursor's pane row.
+func NoteCursorY(tm tea.Model) (int, bool) {
+	_, y, ok := tm.(Model).content.CursorScreen()
+	return y, ok
+}
+
+// ScrollNoteBy scrolls the note by n lines without moving the cursor.
+func ScrollNoteBy(tm tea.Model, n int) tea.Model {
+	m := tm.(Model)
+	m.content.ScrollBy(n)
+	return m
+}

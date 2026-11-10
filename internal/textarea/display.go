@@ -31,7 +31,8 @@ type Display struct {
 }
 
 // SetDisplay installs d, or goes back to the plain wrap when d is nil. The
-// text at the top of the viewport stays there: the offset moves by the height
+// text at the top of the viewport stays there: the first line on screen that
+// still has rows keeps its screen row, so the offset moves by the height
 // change of the lines above it. Then the cursor is brought into view.
 //
 // SetDisplay stamps d.Generation, so a display built twice from the same
@@ -52,13 +53,32 @@ func (m *Model) SetDisplay(d *Display) {
 
 	after := m.rows()
 	if top < len(m.value) {
-		within = clamp(within, 0, max(after[top+1]-after[top]-1, 0))
-		off = after[top] + within
+		anchor := m.survivingLine(before, after, top, off+max(m.viewport.Height, 1))
+		if anchor == top {
+			within = clamp(within, 0, max(after[top+1]-after[top]-1, 0))
+			off = after[top] + within
+		} else {
+			// The top line lost its rows: the first line that keeps some
+			// stays on the screen row it had.
+			off = after[anchor] - (before[anchor] - off)
+		}
 	} else {
 		off = after[len(m.value)] + within
 	}
 	m.viewport.YOffset = clamp(off, 0, max(after[len(after)-1]-1, 0))
 	m.EnsureVisible()
+}
+
+// survivingLine returns the first line from top, starting above row end in
+// the old geometry before, that has rows in both before and after: the line
+// whose screen row SetDisplay keeps. It returns top when none does.
+func (m Model) survivingLine(before, after []int, top, end int) int {
+	for l := top; l < len(m.value) && before[l] < end; l++ {
+		if before[l+1] > before[l] && after[l+1] > after[l] {
+			return l
+		}
+	}
+	return top
 }
 
 // DisplayRowAt maps visual row v to its logical line and the row within it. A
