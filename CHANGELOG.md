@@ -4,6 +4,17 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.33.0] - 2026-11-10
+
+### Changed
+
+- In the reading view (`space p`), NORMAL keeps every block rendered, including the one under the cursor; Markdown shows only while typing (INSERT) or selecting. The cursor's block carries the cursor-line band, and `j`/`k` move block by block.
+- In the reading view's NORMAL, `dd`, `yy`, `o`, `O`, `p` and `P` act on the whole block, and new lines start a block of their own; `>>` and `<<` nest or un-nest a list item. Each is one undo step.
+
+### Fixed
+
+- Leaving INSERT in the reading view of a long note draws the block with its new text at once.
+
 ## [0.32.0] - 2026-11-10
 
 ### Changed
