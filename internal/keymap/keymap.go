@@ -132,8 +132,8 @@ var Actions = []Info{
 		Long: "Returns this tab to the note it showed before gd, the finder or :e replaced it, at the line the cursor was on. Press it again to go further back.", defaults: []string{"ctrl+o"}},
 	{Action: CloseTab, Section: "general", Group: GroupNote, Help: "Close tab",
 		Long: "Closes the tab of this note. With unsaved changes it asks whether to save them first.", defaults: []string{"space x"}},
-	{Action: ReadingView, Section: "general", Group: GroupView, Help: "Reading view: read-only, full width",
-		Long: "Shows only the rendered note at full width, without line numbers and with every Markdown marker hidden. It is read-only: move, scroll, search and follow links as usual, but keys that edit do nothing. The same key goes back to the split; the editor view key opens the note for editing.", defaults: []string{"space p"}},
+	{Action: ReadingView, Section: "general", Group: GroupView, Help: "Reading view: rendered and editable, full width",
+		Long: "Shows only the note at full width, without line numbers, drawn as the side preview draws it. It stays editable: the block under the cursor shows its Markdown and every other block stays rendered, every editing key works, and what is clickable in the preview works here too. The same key goes back to the split; the editor view key shows all the Markdown with line numbers.", defaults: []string{"space p"}},
 	{Action: EditorView, Section: "general", Group: GroupView, Help: "Editor view: Markdown full width",
 		Long: "Shows only the Markdown editor at full width, with line numbers and without the side preview; the note edits as usual. The same key goes back to the split.", defaults: []string{"space r"}},
 	{Action: ExportPDF, Section: "general", Group: GroupNote, Help: "Export note as PDF",
@@ -280,9 +280,9 @@ func New(user map[string][]string) (Map, []string) {
 }
 
 // renamed maps action names of older config files to today's actions.
-// reading_mode was the full-width rendered view, now the read-only reading
-// view; toggle_preview hid the side preview and left the editor alone, now
-// the editor view.
+// reading_mode was the full-width rendered view, now the reading view;
+// toggle_preview hid the side preview and left the editor alone, now the
+// editor view.
 var renamed = map[string]string{"reading_mode": ReadingView, "toggle_preview": EditorView}
 
 // sameAction pairs an explorer action with the general action that does the
