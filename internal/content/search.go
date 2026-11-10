@@ -45,36 +45,46 @@ func (m *Model) repeatCmd(forward bool) tea.Cmd {
 	if m.lastSearch == "" {
 		return errorCmd("E35: No previous regular expression")
 	}
-	if forward {
-		m.reportAction("search_next", "")
-	} else {
-		m.reportAction("search_prev", "")
+	cmd, found := m.findCmdResult(m.lastSearch, forward)
+	if found {
+		if forward {
+			m.reportAction("search_next", "")
+		} else {
+			m.reportAction("search_prev", "")
+		}
 	}
-	return m.findCmd(m.lastSearch, forward)
+	return cmd
 }
 
 // findCmd moves the cursor to the next match of query and reports a wrap
 // around the note.
 func (m *Model) findCmd(query string, forward bool) tea.Cmd {
+	cmd, _ := m.findCmdResult(query, forward)
+	return cmd
+}
+
+// findCmdResult is findCmd, and it also reports whether the query matched:
+// a repeat that finds nothing is not a step the lesson credits.
+func (m *Model) findCmdResult(query string, forward bool) (tea.Cmd, bool) {
 	if query == "" {
-		return nil
+		return nil, false
 	}
 	m.lastSearch = query
 	row, col, wrapped, ok := m.find(query, forward)
 	if !ok {
 		m.reportAction("search_error", query)
-		return errorCmd("E486: Pattern not found: " + query)
+		return errorCmd("E486: Pattern not found: " + query), false
 	}
 	m.reportAction("search_hit", query)
 	m.textarea.SetRowCol(row, col) // keeps the cursor visible
 	if !wrapped {
-		return nil
+		return nil, true
 	}
 	m.reportAction("search_wrap", "")
 	if forward {
-		return statusCmd("search hit BOTTOM, continuing at TOP")
+		return statusCmd("search hit BOTTOM, continuing at TOP"), true
 	}
-	return statusCmd("search hit TOP, continuing at BOTTOM")
+	return statusCmd("search hit TOP, continuing at BOTTOM"), true
 }
 
 // find looks for the next (forward) or previous occurrence of query from the

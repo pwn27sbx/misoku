@@ -271,9 +271,9 @@ func (m *Model) clearEditor() {
 
 // openFile opens id in a tab (reusing an existing tab) and focuses the editor.
 func (m *Model) openFile(id string) tea.Cmd {
-	m.tutorBNoteOpened()
 	if i := m.bufferIndex(id); i >= 0 {
 		m.showBuffer(m.buffers[i])
+		m.tutorBNoteOpened()
 		return m.focusPane(focusEditor)
 	}
 	p, err := m.store.Get(id)
@@ -281,6 +281,7 @@ func (m *Model) openFile(id string) tea.Cmd {
 		m.setError("Cannot open " + id)
 		return nil
 	}
+	m.tutorBNoteOpened()
 	b := &buffer{id: p.ID, title: p.Title, saved: p.Content, text: p.Content}
 	m.insertBuffer(b)
 	m.showBuffer(b)
