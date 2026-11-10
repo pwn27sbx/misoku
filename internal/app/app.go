@@ -101,6 +101,9 @@ type Model struct {
 	modifiedMark   string             // config ui.modified_mark: before a dirty tab name
 	settings       *settingsState     // the settings menu's values and saves, see settings.go
 	themeStamp     string             // user theme files as last seen, see syncUserTheme
+	keyClash       bool               // the keymap warned of a key bound twice at startup, see tutorCKeyClash
+	syncOpen       bool               // the sync this window started by opening the vault, see syncOnOpen
+	tutorCSeen     string             // the lesson whose look-only state was already caught up, see tutorCCaughtUp
 	treeGen        uint64             // bumps on every applyTree, see workspaceScannedMsg
 	scanning       bool               // a workspace scan is in flight, see CheckWorkspaceMsg
 	leavingEditor  bool               // the folder editor's batch was asked for on leaving, see settleEditor

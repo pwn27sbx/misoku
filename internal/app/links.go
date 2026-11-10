@@ -47,6 +47,7 @@ func (m *Model) refreshLinks() {
 		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
+	m.tutorCBacklinks(back)
 	m.requestMentions(false)
 }
 
@@ -58,13 +59,14 @@ func (m *Model) followHit(h preview.Hit) tea.Cmd {
 	case preview.HitURLLink:
 		return m.followURL(h.Arg)
 	case preview.HitNoteLink:
+		row := m.tutorCNoteRow(h.Arg) // before the note becomes the open one
 		keep := m.focus
 		cmd := m.openInCurrentBuffer(h.Arg)
 		if m.active == h.Arg && h.Index > 0 {
 			m.content.GotoLine(h.Index)
 			m.preview.ScrollToLine(h.Index - 1)
 		}
-		return tea.Batch(cmd, m.focusPane(keep))
+		return tea.Batch(cmd, m.focusPane(keep), row)
 	case preview.HitMentionLink:
 		return m.askLinkMentions(h.Arg)
 	}
@@ -215,6 +217,7 @@ func (m *Model) openExternal(target string) tea.Cmd {
 				return m.openExternalNow(target)
 			},
 		}
+		m.tutorDefer("link_confirm", "Cancel")
 		return nil
 	}
 	return m.openExternalNow(target)

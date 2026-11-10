@@ -43,6 +43,7 @@ func (m *Model) openGraph() tea.Cmd {
 		m.insertBuffer(b)
 		m.showBuffer(b)
 	}
+	m.tutorDefer("graph_open", "local")
 	return m.focusPane(focusEditor)
 }
 
@@ -117,6 +118,7 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 	if m.bufferIndex(globalGraphID) >= 0 {
 		m.global.wanted = true
 	}
+	m.tutorCGraphRefreshed()
 	if m.graphActive() {
 		m.previewNote(m.graphSelected())
 		return
@@ -126,6 +128,7 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
+	m.tutorCBacklinks(back)
 	// The notes changed on disk: their mentions may have too.
 	m.requestMentions(true)
 }
@@ -140,6 +143,7 @@ func (m *Model) applyStatuses() {
 	}
 	m.sidebar.SetStatuses(statuses)
 	m.dashboard.SetStatuses(statuses)
+	m.tutorCStatusGlyphs(statuses)
 }
 
 // linkIndexOutOfDate reports whether pages, as a workspace scan listed
@@ -259,11 +263,12 @@ func (m *Model) editorPaneUpdate(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
 	case m.globalGraphActive():
+		typing := m.globalGraph.Typing()
 		m.globalGraph, cmd = m.globalGraph.Update(msg)
-		return cmd
+		return tea.Batch(cmd, m.tutorCGraphInput(msg, typing))
 	case m.graphActive():
 		m.graph, cmd = m.graph.Update(msg)
-		return cmd
+		return tea.Batch(cmd, m.tutorCGraphInput(msg, false))
 	}
 	m.content, cmd = m.content.Update(msg)
 	return cmd

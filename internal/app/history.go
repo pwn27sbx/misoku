@@ -61,9 +61,11 @@ func (m *Model) requestHistory() tea.Cmd {
 	switch {
 	case b == nil || b.isGraph():
 		m.setError("History needs an open note")
+		m.tutorDefer("history_error", "")
 		return nil
 	case b.draft():
 		m.setError("This note was never saved, so it has no history yet")
+		m.tutorDefer("history_error", "")
 		return nil
 	}
 	m.setStatus("Reading the history of " + b.id + "…")
@@ -103,17 +105,22 @@ func (m *Model) showHistory(msg historyListedMsg) tea.Cmd {
 	switch {
 	case errors.Is(msg.err, gitsync.ErrNoGit):
 		m.setError("History needs git, and git is not installed")
+		m.tutorDefer("history_error", "")
 		return nil
 	case errors.Is(msg.err, gitsync.ErrNotARepo):
 		m.setError("No history: this vault is not a git repository")
+		m.tutorDefer("history_error", "")
 		return nil
 	case msg.err != nil:
 		m.setError("Could not read the history: " + msg.err.Error())
+		m.tutorDefer("history_error", "")
 		return nil
 	case len(msg.versions) == 0:
 		m.setError(msg.id + " is not in git yet: it was never committed")
+		m.tutorDefer("history_error", "")
 		return nil
 	}
+	m.tutorDefer("history_open", "commits")
 	m.clearStatus()
 	d := &historyDialog{id: msg.id, versions: msg.versions, cache: map[string]historyText{}}
 	m.history = d
@@ -168,6 +175,7 @@ func (d *historyDialog) selectAt(m *Model, i, rows int) tea.Cmd {
 	if d.sel >= d.offset+rows {
 		d.offset = d.sel - rows + 1
 	}
+	m.tutorDefer("history_preview", "")
 	return d.load(m)
 }
 

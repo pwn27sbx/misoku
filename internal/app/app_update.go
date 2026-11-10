@@ -71,7 +71,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case relinksAppliedMsg:
 		m.finishRelinks(msg)
 		return m, m.settleEditor(msg)
-	case SyncNowMsg, core.SyncMsg:
+	case SyncNowMsg:
+		// Opening a listed vault is the only sender: the sync it starts is
+		// the on-open one the tutorial waits for (E12).
+		m.syncOpen = true
+		return m, m.requestSync()
+	case core.SyncMsg:
 		return m, m.requestSync()
 	case syncDoneMsg:
 		return m, m.finishSync(msg)
@@ -111,6 +116,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.setError("Could not save the tutorial's progress: " + msg.err.Error())
 		}
+		return m, nil
+	case settingsSavedMsg:
+		m.tutorDefer("settings_saved", "")
 		return m, nil
 	case tutorOpenMsg:
 		if m.tutor == nil || !m.tutor.hasCurrent || m.tutor.current.ID != msg.lesson {
