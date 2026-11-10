@@ -422,10 +422,10 @@ func TestSyncParseTooShortIntervalWarnsAndUsesTheDefault(t *testing.T) {
 	}
 }
 
-// ui.heading_numbers is on when unset and off only when written false.
-func TestHeadingNumbersOnByDefault(t *testing.T) {
+// ui.heading_numbers is off when unset and on only when written true.
+func TestHeadingNumbersOffByDefault(t *testing.T) {
 	for raw, want := range map[string]bool{
-		`{}`:                                 true,
+		`{}`:                                 false,
 		`{"ui": {"heading_numbers": true}}`:  true,
 		`{"ui": {"heading_numbers": false}}`: false,
 	} {

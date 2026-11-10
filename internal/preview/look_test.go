@@ -37,7 +37,7 @@ func lineWith(s, sub string) string {
 
 func TestDefaultLookIsUnchanged(t *testing.T) {
 	_, v := render(t, nil)
-	for _, want := range []string{"󰉫 Title", "󰉬 Sub", "● item", "○ nested", "󰄱 open", "󰄲 done"} {
+	for _, want := range []string{"▾ Title", "▾ Sub", "● item", "○ nested", "󰄱 open", "󰄲 done"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("default preview should show %q:\n%s", want, v)
 		}

@@ -37,9 +37,9 @@ func (u UI) InlineLinkSuggestions() bool { return u.LinkSuggestions != LinkSugge
 // AccordionOn reports whether accordion folders are on (the default).
 func (u UI) AccordionOn() bool { return u.Accordion == nil || *u.Accordion }
 
-// HeadingNumbersOn reports whether the preview numbers headings (the
-// default).
-func (u UI) HeadingNumbersOn() bool { return u.HeadingNumbers == nil || *u.HeadingNumbers }
+// HeadingNumbersOn reports whether the preview numbers headings: only when
+// heading_numbers is written true.
+func (u UI) HeadingNumbersOn() bool { return u.HeadingNumbers != nil && *u.HeadingNumbers }
 
 // HideWidth is the explorer's hide width, DefaultExplorerHideWidth when
 // unset.

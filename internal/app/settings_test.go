@@ -263,25 +263,37 @@ func TestSettingsIconsAndBulletsApplyLiveAndAreSaved(t *testing.T) {
 	assertOnlyUIChanged(t, path, nil)
 }
 
-// Heading numbers are on by default; the sixth row turns them off at once
-// and saves only heading_numbers.
+// Heading numbers are off by default. From an unset key the sixth row turns
+// them on and then off, at once, and always writes the literal boolean: the
+// tutorial's step E07 checks the key on disk.
 func TestSettingsHeadingNumbersApplyLiveAndAreSaved(t *testing.T) {
 	path := tempConfig(t, userConfig)
 	// main always passes the ui section; an empty one is every default.
 	h := settingsHarness(t, path, app.WithUI(config.UI{}))
 	h.keys("o## Sub")
 	h.key(tea.KeyEsc)
-	if p := h.preview(); !strings.Contains(p, "1 Sub") || strings.Contains(p, "󰉬 Sub") {
-		t.Fatalf("headings are numbered by default:\n%s", p)
+	if p := h.preview(); !strings.Contains(p, "▾ Sub") {
+		t.Fatalf("headings are plain text by default:\n%s", p)
 	}
+	h.openSettings()
+	h.keys("6")
+	if v := h.view(); !strings.Contains(v, "Heading numbers") || !strings.Contains(v, "on") {
+		t.Fatalf("the row should read on:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
+	if p := h.preview(); !strings.Contains(p, "▾ 1 Sub") {
+		t.Fatalf("numbers on should number the heading:\n%s", p)
+	}
+	assertOnlyUIChanged(t, path, map[string]any{"heading_numbers": true})
+
 	h.openSettings()
 	h.keys("6")
 	if v := h.view(); !strings.Contains(v, "Heading numbers") || !strings.Contains(v, "off") {
 		t.Fatalf("the row should read off:\n%s", v)
 	}
 	h.key(tea.KeyEsc)
-	if p := h.preview(); !strings.Contains(p, "󰉬 Sub") || strings.Contains(p, "1 Sub") {
-		t.Fatalf("numbers off brings the level icon back:\n%s", p)
+	if p := h.preview(); !strings.Contains(p, "▾ Sub") {
+		t.Fatalf("numbers off should leave the heading's text alone:\n%s", p)
 	}
 	assertOnlyUIChanged(t, path, map[string]any{"heading_numbers": false})
 }

@@ -129,11 +129,35 @@ func TestUIConfigReachesThePreview(t *testing.T) {
 	if !strings.Contains(v, "① Title") || !strings.Contains(v, "󰥔 doing") {
 		t.Fatalf("the preview should use the configured glyphs:\n%s", v)
 	}
-	// Levels not given keep their default icon.
+	// Levels not given draw no icon.
 	h.keys("o## Sub")
 	h.key(tea.KeyEsc)
-	if v := h.view(); !strings.Contains(v, "󰉬 Sub") {
-		t.Fatalf("level 2 keeps its default icon:\n%s", v)
+	if v := h.view(); !strings.Contains(v, "▾ Sub") {
+		t.Fatalf("level 2 has no icon configured, so it draws none:\n%s", v)
+	}
+}
+
+// Headings are numbered only when ui.heading_numbers is written true.
+func TestHeadingNumbersNeedAnExplicitTrue(t *testing.T) {
+	on := true
+	for name, c := range map[string]struct {
+		ui   config.UI
+		want string
+	}{
+		"unset": {config.UI{}, "▾ Sub"},
+		"true":  {config.UI{HeadingNumbers: &on}, "▾ 1 Sub"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store := newTestStore(t)
+			if _, err := store.SaveAs("", "doc", "## Sub\n"); err != nil {
+				t.Fatal(err)
+			}
+			h := newHarness(t, store, app.WithUI(c.ui))
+			h.keys("1")
+			if v := h.view(); !strings.Contains(v, c.want) {
+				t.Fatalf("the preview should show %q:\n%s", c.want, v)
+			}
+		})
 	}
 }
 

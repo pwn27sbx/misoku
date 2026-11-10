@@ -2,7 +2,7 @@
 
 **Vas a aprender:** numerar los títulos y cambiar la forma del cursor.
 
-"Heading numbers" numera los títulos del preview como un índice: el primer título de nivel uno es `1`, sus hijos `1.1` y `1.2`, el siguiente `2`. Sustituye a los iconos de nivel, así que si tenías Numbers en Icons & bullets, verás la numeración en su lugar. Sin la clave, la numeración está encendida; apagarla escribe `"heading_numbers": false` dentro de `ui` y encenderla la deja en `true`.
+"Heading numbers" numera los títulos del preview como un índice: el primer título de nivel uno es `1`, sus hijos `1.1` y `1.2`, el siguiente `2`. Sustituye a los iconos de nivel, así que si tenías Numbers en Icons & bullets, verás la numeración en su lugar. Sin la clave, la numeración está apagada y cada título muestra solo su texto; encenderla escribe `"heading_numbers": true` dentro de `ui` y apagarla la deja en `false`.
 
 `ui.cursor_shape: auto` hace que el cursor dibujado siga al modo, como en Neovim: bloque en NORMAL y en VISUAL, barra fina en INSERT. Con `block`, el cursor es siempre un bloque. La variable de entorno `MISOKU_CURSOR_SHAPE`, si existe, manda sobre el archivo; es una de esas cosas que se ajustan antes de abrir la app.
 

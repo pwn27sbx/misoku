@@ -2,7 +2,7 @@
 
 **Vas a aprender:** el aspecto de las listas y de los diálogos.
 
-"Icons & bullets" cambia dos cosas del preview: los iconos que van delante de los títulos y las viñetas de las listas. Trae cuatro presets. Misoku es el de fábrica y no escribe nada: borra las claves. Numbers usa `①` y `②` delante de los títulos y viñetas como `•` y `◦`. Arrows usa `▶` y `▷` con flechas en las listas. Plain deja los marcadores Markdown tal cual, con `#` y `-`.
+"Icons & bullets" cambia dos cosas del preview: los iconos que van delante de los títulos y las viñetas de las listas. Trae cuatro presets. Misoku es el de fábrica: no dibuja ningún icono delante de los títulos y no escribe nada, borra las claves. Numbers usa `①` y `②` delante de los títulos y viñetas como `•` y `◦`. Arrows usa `▶` y `▷` con flechas en las listas. Plain deja los marcadores Markdown tal cual, con `#` y `-`.
 
 Esos iconos se ven cuando la numeración de títulos está apagada, porque Heading numbers ocupa su sitio en el preview; lo practicas en la lección E07. El preset se aplica al instante y se guarda en `config.json`: Icons & bullets escribe `ui.heading_icons` y `ui.bullets`, y Misoku las borra para volver a los valores de fábrica.
 

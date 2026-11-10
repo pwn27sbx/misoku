@@ -238,7 +238,7 @@ func safeDevice(name string) string {
 // UI is the "ui" section of config.json.
 type UI struct {
 	// HeadingIcons go before headings of level 1, 2, … (up to 6), e.g.
-	// ["① ", "② "]. Missing levels keep their default icon.
+	// ["① ", "② "]. A missing level or an empty string draws no icon.
 	HeadingIcons []string `json:"heading_icons,omitempty"`
 	// HeadingBackground paints headings on a full-width band of their color,
 	// like render-markdown's "full" style in Neovim.
@@ -272,7 +272,7 @@ type UI struct {
 	// folder closes its open siblings. Unset means on; see AccordionOn.
 	Accordion *bool `json:"accordion,omitempty"`
 	// HeadingNumbers numbers the preview's headings like an outline (1,
-	// 1.1, 2) in place of their level icons. Unset means on; see
+	// 1.1, 2) in place of their level icons. Unset means off; see
 	// HeadingNumbersOn.
 	HeadingNumbers *bool `json:"heading_numbers,omitempty"`
 	// ExplorerHideWidth is the terminal width, in columns, below which the

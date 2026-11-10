@@ -2,7 +2,7 @@
 
 **Vas a aprender:** los cuatro niveles de título que ofrece el menú: de `/Heading 1` a `/Heading 4`.
 
-Un título empieza por `#` y un espacio; cuantos más `#`, más pequeño es el nivel. En el editor se ven los `#`, y en el preview y en la vista de lectura se dibujan como títulos de verdad, con tamaño y numeración. Los títulos también son destinos de enlace: `[[Nota#Título]]` salta a ellos. Cada título va en su propia línea, y el menú deja el cursor después de los `#` para que escribas el texto.
+Un título empieza por `#` y un espacio; cuantos más `#`, más pequeño es el nivel. En el editor se ven los `#`, y en el preview y en la vista de lectura se dibujan como títulos de verdad: solo su texto, en negrita y con el color de su nivel. Los títulos también son destinos de enlace: `[[Nota#Título]]` salta a ellos. Cada título va en su propia línea, y el menú deja el cursor después de los `#` para que escribas el texto.
 
 ## Tu turno
 

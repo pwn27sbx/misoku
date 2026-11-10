@@ -123,3 +123,77 @@ func TestHeadingNumbersLeaveALoneTitleUnnumbered(t *testing.T) {
 	plain, _ = numbered(t, numbersLook(true), "# One\n\n## A\n\n# Two\n", nil)
 	wantHeadings(t, plain, "1 One", "1.1 A", "2 Two")
 }
+
+// By default a heading of any level is its fold arrow and its text.
+func TestHeadingsAreOnlyTheirTextByDefault(t *testing.T) {
+	for level := 1; level <= 6; level++ {
+		md := strings.Repeat("#", level) + " Fase 2\n"
+		plain, _ := numbered(t, preview.DefaultLook(), md, nil)
+		if line := strings.TrimSpace(lineWith(plain, "Fase 2")); line != "▾ Fase 2" {
+			t.Errorf("level %d should read only its text, got %q:\n%s", level, line, plain)
+		}
+	}
+}
+
+// Configured icons still draw; a level left empty draws none.
+func TestHeadingIconsDrawOnlyWhereConfigured(t *testing.T) {
+	look := preview.DefaultLook()
+	look.HeadingIcons = [6]string{"① ", "", "③ "}
+	plain, _ := numbered(t, look, "# One\n\n## Two\n\n### Three\n\n#### Four\n", nil)
+	wantHeadings(t, plain, "① One", "Two", "③ Three", "Four")
+}
+
+// With no icon configured, a lone first "#" is still the unnumbered title.
+func TestHeadingNumbersLoneTitleWithoutIconIsItsText(t *testing.T) {
+	look := preview.DefaultLook()
+	look.HeadingNumbers = true
+	plain, _ := numbered(t, look, "# Title\n\n## A\n\n## B\n", nil)
+	wantHeadings(t, plain, "Title", "1 A", "2 B")
+}
+
+// A long heading's continuation lines start under its first line's text,
+// whatever the prefix's width, and none of its lines exceeds the pane.
+func TestLongHeadingContinuationAlignsAndFits(t *testing.T) {
+	const width = 30
+	const long = "wordone wordtwo wordthree wordfour wordfive wordsix wordseven"
+	withIcon := preview.DefaultLook()
+	withIcon.HeadingIcons[1] = "① "
+	withNumbers := preview.DefaultLook()
+	withNumbers.HeadingNumbers = true
+	for name, c := range map[string]struct {
+		look   preview.Look
+		md     string
+		prefix string
+	}{
+		"no icon": {preview.DefaultLook(), "## " + long + "\n", "▾ "},
+		"icon":    {withIcon, "## " + long + "\n", "▾ ① "},
+		"number":  {withNumbers, "## A\n\n### " + long + "\n", "▾ 1.1 "},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out, _, _ := preview.CompileBlocks(c.md, theme.DefaultTheme(), c.look, width, "", preview.CalendarView{})
+			var lines []string
+			for _, l := range strings.Split(ansi.Strip(out), "\n") {
+				if strings.Contains(l, "word") {
+					lines = append(lines, l)
+				}
+			}
+			if len(lines) < 2 {
+				t.Fatalf("the heading should wrap, got %q", lines)
+			}
+			if !strings.HasPrefix(lines[0], c.prefix+"wordone") {
+				t.Errorf("first line should start with %q: %q", c.prefix, lines[0])
+			}
+			column := ansi.StringWidth(c.prefix)
+			for _, l := range lines {
+				if w := ansi.StringWidth(l); w > width {
+					t.Errorf("line is %d columns wide, the pane has %d: %q", w, width, l)
+				}
+			}
+			for _, l := range lines[1:] {
+				if indent := len(l) - len(strings.TrimLeft(l, " ")); indent != column {
+					t.Errorf("continuation starts at column %d, want %d: %q", indent, column, l)
+				}
+			}
+		})
+	}
+}

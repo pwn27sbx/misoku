@@ -510,8 +510,8 @@ with render-markdown:
 
 | Key | What it does |
 | --- | --- |
-| `heading_icons` | Icon before headings of level 1 to 6; missing levels keep the default |
-| `heading_numbers` | `true` (default): the preview numbers headings `1`, `1.1`, `2` in place of their level icon. A single `#` that is the note's first heading is its title and keeps its icon. Only the preview changes, never the note. `false` shows the icons |
+| `heading_icons` | Icon before headings of level 1 to 6. A missing level or `""` draws no icon, and by default a heading shows only its text |
+| `heading_numbers` | `true`: the preview numbers headings `1`, `1.1`, `2` in place of their level icon. A single `#` that is the note's first heading is its title and takes no number. Only the preview changes, never the note. `false` or unset (the default): no numbers |
 | `heading_background` | Paints each heading on a full-width band of its color (the H1 underline is then left out) |
 | `bullets` | List bullets by depth, cycling |
 | `checkbox.unchecked`, `checkbox.checked` | Marks for `- [ ]` and `- [x]` |
@@ -551,7 +551,8 @@ catch (a panic or `kill -9`) can leave the shape set until the terminal resets i
 seven of these keys: accordion folders (on or off), the explorer hide width,
 heading icons and bullets (one of the presets Misoku, Numbers, Arrows and
 Plain; Misoku removes both keys), the dialog border, the transparent
-background (on or off; off removes the key), heading numbers (on or off) and
+background (on or off; off removes the key), heading numbers (off by default;
+on or off is always written as `true` or `false`) and
 link suggestions (Inline or Finder; Inline is the default and removes the
 key). A value picked with Enter applies at once and is saved at once
 in `config.json`: only that key changes, and every other setting stays as you

@@ -8,9 +8,11 @@ import (
 )
 
 // Look holds the configurable glyphs of the preview (the "ui" section of
-// config.json). Empty fields fall back to DefaultLook.
+// config.json). Empty fields fall back to DefaultLook, except HeadingIcons,
+// where an empty level simply draws no icon.
 type Look struct {
-	// HeadingIcons go before headings of level 1 to 6.
+	// HeadingIcons go before headings of level 1 to 6. An empty level draws
+	// none, which is the default: a heading is its text.
 	HeadingIcons [6]string
 	// HeadingBackground paints each heading on a band of its own color that
 	// runs the width of the pane (render-markdown's "full" style); the H1
@@ -32,21 +34,15 @@ type Look struct {
 // DefaultLook is Misoku's own look.
 func DefaultLook() Look {
 	return Look{
-		HeadingIcons: [6]string{"󰉫 ", "󰉬 ", "󰉭 ", "󰉮 ", "󰉯 ", "󰉰 "},
-		Bullets:      []string{"●", "○", "◆", "◇"},
-		Unchecked:    "󰄱",
-		Checked:      "󰄲",
+		Bullets:   []string{"●", "○", "◆", "◇"},
+		Unchecked: "󰄱",
+		Checked:   "󰄲",
 	}
 }
 
 // withDefaults fills empty fields from DefaultLook.
 func (l Look) withDefaults() Look {
 	d := DefaultLook()
-	for i := range l.HeadingIcons {
-		if l.HeadingIcons[i] == "" {
-			l.HeadingIcons[i] = d.HeadingIcons[i]
-		}
-	}
 	if len(l.Bullets) == 0 {
 		l.Bullets = d.Bullets
 	}

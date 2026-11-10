@@ -477,7 +477,9 @@ func (c *compiler) compile(input string) {
 			if c.depth == 0 {
 				c.hits = append(c.hits, Hit{Row: len(c.out), H: 1, X1: c.width, Kind: "fold", Arg: key, Line: -1})
 			}
-			heading := c.wrapIndent(c.inline(m[2], st), st.Render(prefix), "    ")
+			// Continuation lines start under the first line's text.
+			rest := strings.Repeat(" ", ansi.StringWidth(prefix))
+			heading := c.wrapIndent(c.inline(m[2], st), st.Render(prefix), rest)
 			end := i + 1
 			if folded {
 				end += sectionLength(lines, i, level)
