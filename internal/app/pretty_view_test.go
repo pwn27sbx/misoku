@@ -97,27 +97,30 @@ func TestPrettyViewEditsAndShowsTheRealMode(t *testing.T) {
 	}
 }
 
-// S1: dd and o edit.
+// S1: dd and o edit; since S15 they act on the cursor's whole block, here
+// one-line paragraphs.
 func TestPrettyViewDeletesAndOpensLines(t *testing.T) {
-	h := openNoteWith(t, "one\ntwo\nthree")
+	h := openNoteWith(t, "one\n\ntwo\n\nthree")
 	h.keys(" p")
 	h.keys("dd")
-	if got := saved(t, h); got != "two\nthree" {
+	if got := saved(t, h); got != "\ntwo\n\nthree" {
 		t.Fatalf("dd left %q", got)
 	}
+	h.keys("j")
 	h.keys("onew")
 	h.key(tea.KeyEsc)
-	if got := saved(t, h); got != "two\nnew\nthree" {
+	if got := saved(t, h); got != "\ntwo\nnew\n\nthree" {
 		t.Fatalf("o left %q", got)
 	}
 }
 
-// S1: u restores the text.
+// S1: u restores the text. Since S15 dd takes the cursor's whole block:
+// both lines of the paragraph.
 func TestPrettyViewUndoRestores(t *testing.T) {
 	h := openNoteWith(t, "one\ntwo")
 	h.keys(" p")
 	h.keys("dd")
-	if got := saved(t, h); got != "two" {
+	if got := saved(t, h); got != "" {
 		t.Fatalf("dd left %q", got)
 	}
 	h.keys("u")
@@ -145,11 +148,13 @@ func TestPrettyViewDrawsBlocksAsThePreviewDoes(t *testing.T) {
 	wantOnScreen(t, v, []string{"end"}, []string{"# Title", "|---|", "[!note]"})
 }
 
-// S3: moving into a table draws all of it raw, one row per source line.
+// S3: INSERT in a table draws all of it raw, one row per source line (since
+// S15 NORMAL keeps it rendered).
 func TestPrettyViewTableRevealsWhole(t *testing.T) {
 	h := prettyAt(t, prettyNote)
 	h.keys("gg")
-	h.keys("jj")
+	h.keys("j") // block by block: onto the table
+	h.keys("i")
 	v := h.view()
 	wantOnScreen(t, v, []string{"| a | b |", "|---|---|", "| 1 | 2 |", "Head"}, []string{"# Title", "[!note]"})
 	_, top, _ := textAt(t, v, "| a | b |")
@@ -160,13 +165,16 @@ func TestPrettyViewTableRevealsWhole(t *testing.T) {
 	}
 }
 
-// S3: a blank line holding the cursor is one raw row and reveals nothing else.
+// S3: a blank line holding the cursor in INSERT is one raw row and reveals
+// nothing else. NORMAL's j steps over blank lines (S15): ↓ in INSERT goes
+// there.
 func TestPrettyViewBlankLineIsRawAlone(t *testing.T) {
 	h := openNoteWith(t, "**one**\n\n**two**\n\n**three**")
 	h.keys(" p")
-	h.keys("j")
+	h.keys("i")
+	h.key(tea.KeyDown)
 	wantOnScreen(t, h.view(), []string{"one", "two", "three"}, []string{"**one**", "**two**", "**three**"})
-	h.keys("ix")
+	h.keys("x")
 	h.key(tea.KeyEsc)
 	if got := saved(t, h); got != "**one**\nx\n**two**\n\n**three**" {
 		t.Fatalf("the blank line should take the typing, got %q", got)
@@ -220,7 +228,7 @@ func TestPrettyViewEnterKeepsTheScreenAndTheDisplay(t *testing.T) {
 	}
 	b.WriteString("end")
 	h := prettyAt(t, b.String())
-	h.keys(strings.Repeat("k", 18)) // up three sections, onto a paragraph
+	h.keys(strings.Repeat("k", 6)) // block by block, up three sections, onto a paragraph
 	h.keys("A")
 	before := paneRows(h.view())
 	h.key(tea.KeyEnter)
@@ -443,8 +451,9 @@ func goToLine(h *harness, n int) {
 }
 
 // S8: with the cursor on the last line of a raw code block whose top is above
-// the screen, j twice renders the block again above the top; the rows below
-// it keep their screen rows.
+// the screen, ↓ twice renders the block again above the top; the rows below
+// it keep their screen rows. The block is raw in INSERT (S15), where the
+// arrows go line by line.
 func TestPrettyViewRevealAboveTheTopDoesNotJump(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < 8; i++ {
@@ -453,7 +462,11 @@ func TestPrettyViewRevealAboveTheTopDoesNotJump(t *testing.T) {
 	b.WriteString("end")
 	h := openNoteWith(t, b.String())
 	h.keys(" p")
-	goToLine(h, 3*10+7) // the last "d := 4" of section 3
+	goToLine(h, 3*10+3) // the fence opening section 3's code block
+	h.keys("i")
+	for range 4 {
+		h.key(tea.KeyDown) // onto its "d := 4"
+	}
 	for i := 0; i < 60; i++ {
 		if y, _ := app.NoteCursorY(h.m); y <= 0 {
 			break
@@ -462,8 +475,8 @@ func TestPrettyViewRevealAboveTheTopDoesNotJump(t *testing.T) {
 		h.send(nil)
 	}
 	before := paneRows(h.view())
-	h.keys("j") // onto the closing fence: same block, still raw
-	h.keys("j") // onto "after 3": the code block renders above the top
+	h.key(tea.KeyDown) // onto the closing fence: same block, still raw
+	h.key(tea.KeyDown) // onto "after 3": the code block renders above the top
 	after := paneRows(h.view())
 	find := func(rows []string, s string) int {
 		for i, r := range rows {

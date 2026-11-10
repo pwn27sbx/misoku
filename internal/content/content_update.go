@@ -165,10 +165,22 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 			ta.GotoTop()
 			m.reportAction("motion", "file-bounds")
 		case "dd":
+			if from, to, ok := m.cursorBlock(); ok {
+				text := m.blockText(from, to)
+				ta.DeleteLines(from, to)
+				return m, copyCmd(text)
+			}
 			ta.DeleteLine()
 		case "yy":
 			m.reportAction("yank", "line")
+			if from, to, ok := m.cursorBlock(); ok {
+				return m, copyCmd(m.blockText(from, to))
+			}
 			return m, copyCmd(ta.CurrentLine() + "\n")
+		case ">>", "<<":
+			if from, to, ok := m.cursorBlock(); ok {
+				m.shiftBlock(from, to, combo == ">>")
+			}
 		case "gd", "gx":
 			line := ta.CurrentLine()
 			_, col := ta.RowCol()
@@ -190,9 +202,15 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		ta.CursorStart()
 		return m, m.enterInsert()
 	case "o":
+		if _, to, ok := m.cursorBlock(); ok {
+			ta.SetRowCol(to-1, 0) // below the block's last line
+		}
 		ta.OpenLineBelow()
 		return m, m.enterInsert()
 	case "O":
+		if from, _, ok := m.cursorBlock(); ok {
+			ta.SetRowCol(from, 0) // above the block's first line
+		}
 		ta.OpenLineAbove()
 		return m, m.enterInsert()
 	case ":":
@@ -229,9 +247,18 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 	case "$", "end":
 		ta.CursorEnd()
 	case "G":
-		ta.GotoBottom()
+		if l, ok := m.lastBlockLine(); ok {
+			ta.SetRowCol(l, 0)
+			ta.EnsureVisible()
+		} else {
+			ta.GotoBottom()
+		}
 	case "g", "d", "y":
 		m.pending = s
+	case ">", "<":
+		if _, _, ok := m.cursorBlock(); ok {
+			m.pending = s // >> and << shift a rendered block
+		}
 	case "v", "V":
 		m.mode = ModeVisual
 		if s == "V" {
@@ -240,7 +267,11 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		ta.SelectLinewise = s == "V"
 		ta.StartSelection()
 	case "p":
-		return m, m.paste()
+		return m, m.paste(false)
+	case "P":
+		if _, _, ok := m.cursorBlock(); ok {
+			return m, m.paste(true)
+		}
 	case "u":
 		return m, m.undo()
 	case "ctrl+r":
@@ -395,18 +426,33 @@ func (m Model) handleVisualKey(k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// paste inserts the system clipboard after the cursor (Vim's p); text
-// ending in a newline is pasted as whole lines below.
-func (m *Model) paste() tea.Cmd {
+// paste puts the clipboard after the cursor (Vim's p), or before it when
+// before is set (P, which only a rendered block offers): a text ending in a
+// newline as whole lines, anything else into the line.
+func (m *Model) paste(before bool) tea.Cmd {
 	text, err := readClipboard()
 	if err != nil || text == "" {
 		return func() tea.Msg { return core.StatusMsg{Text: "Clipboard is empty or unavailable", Error: err != nil} }
 	}
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	if strings.HasSuffix(text, "\n") {
+	if from, to, ok := m.cursorBlock(); ok {
+		// On a rendered block the text goes in as whole lines, below the
+		// block's last line or above its first.
+		text = strings.TrimSuffix(text, "\n") + "\n"
+		if before {
+			m.textarea.SetRowCol(from, 0)
+		} else {
+			m.textarea.SetRowCol(to-1, 0)
+		}
+	}
+	switch {
+	case strings.HasSuffix(text, "\n") && before:
+		m.textarea.OpenLineAbove()
+		m.textarea.InsertString(strings.TrimSuffix(text, "\n"))
+	case strings.HasSuffix(text, "\n"):
 		m.textarea.OpenLineBelow()
 		m.textarea.InsertString(strings.TrimSuffix(text, "\n"))
-	} else {
+	default:
 		m.textarea.CharRight()
 		m.textarea.InsertString(text)
 	}

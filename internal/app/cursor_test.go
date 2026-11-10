@@ -324,17 +324,25 @@ func TestTheStartScreenKeepsTheRealCursorHidden(t *testing.T) {
 	}
 }
 
-// Both full-width views edit, and the block under the cursor is raw, so the
-// real cursor shows in each.
+// Both full-width views edit, so the real cursor shows in each where the
+// line under it is raw: the reading view's INSERT (S15: its NORMAL draws the
+// block rendered, without the cursor) and the editor view.
 func TestReadingModeShowsTheRealCursor(t *testing.T) {
 	out, opt := newCursorOut()
 	h := openWithCursor(t, "hello", opt)
 	h.keys(" p")
 	out.buf.Reset()
 	h.m.View()
-	if got := cupPattern.FindAllString(out.all(), -1); len(got) == 0 {
-		t.Fatalf("the reading view did not place the real cursor: %q", out.all())
+	if got := cupPattern.FindAllString(out.all(), -1); len(got) != 0 {
+		t.Fatalf("the reading view's NORMAL placed the real cursor on a rendered block: %q", out.all())
 	}
+	h.keys("i")
+	out.buf.Reset()
+	h.m.View()
+	if got := cupPattern.FindAllString(out.all(), -1); len(got) == 0 {
+		t.Fatalf("the reading view's INSERT did not place the real cursor: %q", out.all())
+	}
+	h.key(tea.KeyEsc)
 	h.keys(" r")
 	out.buf.Reset()
 	h.m.View()

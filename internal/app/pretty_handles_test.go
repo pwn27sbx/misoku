@@ -43,23 +43,21 @@ func TestPrettyHoverShowsTheHandles(t *testing.T) {
 	}
 }
 
-// S14: the raw block has no handles, hovered or once the cursor reaches the
-// hovered block.
-func TestPrettyNoHandlesOnTheRawBlock(t *testing.T) {
-	h := prettyAt(t, handlesNote) // the cursor is on Third: it is raw
+// S14, S15: in NORMAL the cursor's block is rendered and shows its handles
+// when hovered, and keeps them when the cursor comes onto the hovered block.
+// (The raw block of INSERT has none: TestPrettyNoHandlesInInsert.)
+func TestPrettyHandlesOnTheCursorsBlock(t *testing.T) {
+	h := prettyAt(t, handlesNote) // the cursor is on Third, rendered
 	x, y, _ := textAt(t, h.view(), "Third")
 	h.sendFiltered(motionAt(x+2, y))
-	if v := h.view(); gripsShown(v) {
-		t.Fatalf("the raw block should have no handles:\n%s", v)
+	if v := h.view(); runeAt(v, x-2, y) != "⠿" {
+		t.Fatalf("the cursor's block should show its handles:\n%s", v)
 	}
 	x, y, _ = textAt(t, h.view(), "Second")
 	h.sendFiltered(motionAt(x+2, y))
-	if v := h.view(); !gripsShown(v) {
-		t.Fatalf("hovering Second should show its handles:\n%s", v)
-	}
-	h.keys("kk") // onto Second, which goes raw under the pointer
-	if v := h.view(); gripsShown(v) {
-		t.Fatalf("a block the cursor reveals should lose its handles:\n%s", v)
+	h.keys("k") // onto Second, under the pointer
+	if v := h.view(); runeAt(v, x-2, y) != "⠿" {
+		t.Fatalf("the hovered block should keep its handles under the cursor:\n%s", v)
 	}
 }
 
@@ -81,8 +79,9 @@ func TestPrettyNoHandlesInInsert(t *testing.T) {
 	}
 }
 
-// S14: moving off the block, onto the raw block or out of the pane, clears
-// the handles.
+// S14: moving off the block takes the handles with the pointer, to the
+// next block (since S15 the cursor's block is rendered and shows them too),
+// and out of the pane clears them.
 func TestPrettyHandlesClearWhenTheMouseLeaves(t *testing.T) {
 	h := prettyAt(t, handlesNote)
 	v := h.view()
@@ -90,8 +89,8 @@ func TestPrettyHandlesClearWhenTheMouseLeaves(t *testing.T) {
 	tx, ty, _ := textAt(t, v, "Third")
 	h.sendFiltered(motionAt(sx+2, sy))
 	h.sendFiltered(motionAt(tx+2, ty))
-	if v := h.view(); gripsShown(v) {
-		t.Fatalf("moving onto the raw block should clear the handles:\n%s", v)
+	if v := h.view(); runeAt(v, tx-2, ty) != "⠿" || runeAt(v, sx-2, sy) == "⠿" {
+		t.Fatalf("moving onto Third should move the handles there:\n%s", v)
 	}
 	h.sendFiltered(motionAt(sx+2, sy))
 	h.sendFiltered(motionAt(2, sy)) // the explorer
@@ -146,7 +145,8 @@ func TestPrettyPlusOpensTheBlockMenu(t *testing.T) {
 }
 
 // S14: during a block drag the reveal stays as it was, even when a wheel
-// scroll moves the cursor into another block.
+// scroll moves the cursor into another block. Since S15 NORMAL reveals
+// nothing, before, during or after the drag.
 func TestPrettyBlockDragFreezesTheReveal(t *testing.T) {
 	var b strings.Builder
 	for i := range 40 {
@@ -154,7 +154,7 @@ func TestPrettyBlockDragFreezesTheReveal(t *testing.T) {
 	}
 	b.WriteString("end")
 	h := prettyAt(t, b.String())
-	h.keys("gg") // p0 raw
+	h.keys("gg") // p0 rendered, under the band
 	x, y, _ := textAt(t, h.view(), "p2")
 	h.sendFiltered(motionAt(x+1, y), leftAt(x-2, y, tea.MouseActionPress))
 	for range 6 {
@@ -164,7 +164,7 @@ func TestPrettyBlockDragFreezesTheReveal(t *testing.T) {
 		t.Fatalf("the block drag should keep the reveal where it was:\n%s", v)
 	}
 	h.sendFiltered(leftAt(x-2, y, tea.MouseActionRelease))
-	if v := h.view(); !strings.Contains(strings.Join(paneRows(v), "\n"), "**") {
-		t.Fatalf("the release should reveal the cursor's block again:\n%s", v)
+	if v := h.view(); strings.Contains(strings.Join(paneRows(v), "\n"), "**") {
+		t.Fatalf("NORMAL should still draw the cursor's block rendered after the release:\n%s", v)
 	}
 }

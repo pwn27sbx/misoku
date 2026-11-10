@@ -226,6 +226,10 @@ func (m Model) CursorScreen() (x, y int, ok bool) {
 	return x, y, true
 }
 
+// CursorOnRendered reports whether the cursor is on a block the view draws
+// rendered, where the terminal shows no cursor: the band marks the block.
+func (m Model) CursorOnRendered() bool { return m.textarea.CursorRendered() }
+
 // Blur blurs inputs.
 func (m *Model) Blur() {
 	m.textarea.Blur()

@@ -89,8 +89,9 @@ func saved(t *testing.T, h *harness) string {
 	return got.Content
 }
 
-// S1: space p shows the note alone, full width, without line numbers, and
-// the block holding the cursor raw; space p again restores the split exactly.
+// S1, S15: space p shows the note alone, full width, without line numbers,
+// and in NORMAL the block holding the cursor rendered too; space p again
+// restores the split exactly.
 func TestReadingViewShowsOnlyTheRenderedNoteAndRestoresTheSplit(t *testing.T) {
 	h := openNoteWith(t, "# Heading\nintro")
 	div := dividers(h.view(), bodyRow)
@@ -110,8 +111,8 @@ func TestReadingViewShowsOnlyTheRenderedNoteAndRestoresTheSplit(t *testing.T) {
 	if got := dividers(v, bodyRow); len(got) != 1 || got[0] != app.SidebarWidth {
 		t.Fatalf("only the explorer divider should remain, got %v:\n%s", got, v)
 	}
-	if !strings.Contains(v, "# Heading") {
-		t.Fatalf("the block holding the cursor should be raw:\n%s", v)
+	if strings.Contains(v, "# Heading") || !strings.Contains(v, "Heading") {
+		t.Fatalf("the block holding the cursor should be rendered in NORMAL:\n%s", v)
 	}
 	if x, _, paneX := textAt(t, v, "intro"); x == paneX+6 {
 		t.Fatalf("the reading view should have no line-number gutter:\n%s", v)

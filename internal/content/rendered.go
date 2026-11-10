@@ -1,6 +1,7 @@
 package content
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/textarea"
@@ -10,9 +11,12 @@ import (
 )
 
 // The rendered view: every block of the note is drawn from the preview's
-// compile, except the block holding the cursor or the selection, which stays
-// Markdown and edits like any editor line. The app hands the compile over
-// after every event (ShowRendered); this package does not import the preview.
+// compile. Only while typing (INSERT) does the cursor's block show its
+// Markdown, and with a selection every block it touches does, so they edit
+// and select like any editor line; in NORMAL the cursor's block stays
+// rendered under the cursor-line band, and j/k step from block to block. The
+// app hands the compile over after every event (ShowRendered); this package
+// does not import the preview.
 
 // RenderedBlock is one source range of the note and the compiled rows it owns.
 type RenderedBlock struct {
@@ -48,14 +52,17 @@ type renderedState struct {
 	row        int  // the cursor's line after the last call
 	off        int  // the textarea's scroll after the last call
 	from, to   int  // the raw lines [from, to)
+	blockwise  bool // j/k step over every line but a block's first
 	dim        bool
 }
 
-// ShowRendered draws the note from r, the block under the cursor or selection
-// raw and the others rendered, greyed when dim is set. It is cheap to call
-// after every event: unless the compile, the text's lines, the raw range or
-// dim changed, it leaves the display alone. A failed compile, or one of
-// another note, draws the lines raw.
+// ShowRendered draws the note from r, greyed when dim is set: every block
+// rendered, except in INSERT the cursor's block and with a selection the
+// blocks it touches, which are raw. It is cheap to call after every event:
+// unless the compile, the text's lines, the raw range, the mode's kind or dim
+// changed, it leaves the display alone, so a NORMAL cursor move redraws
+// nothing but the band. A failed compile, or one of another note, draws the
+// lines raw.
 func (m *Model) ShowRendered(r Rendered, dim bool) {
 	if r.Failed || r.PageID != m.page.ID {
 		m.ClearRendered()
@@ -88,14 +95,18 @@ func (m *Model) ShowRendered(r Rendered, dim bool) {
 		return
 	}
 
+	revealing := m.mode == ModeInsert || m.textarea.HasSelection()
 	from, to := s.from, s.to
 	if (!m.dragging && !r.Frozen) || !s.on { // a drag keeps the rows still under the pointer
-		from, to = m.revealRange(s.blocks, row)
+		from, to = 0, 0
+		if revealing {
+			from, to = m.revealRange(s.blocks, row)
+		}
 	}
 	from, to = min(from, n), min(to, n)
-	if !s.on || changed || from != s.from || to != s.to || dim != s.dim {
-		s.from, s.to, s.dim = from, to, dim
-		m.textarea.SetDisplay(s.display(n, m.theme.Grey))
+	if !s.on || changed || from != s.from || to != s.to || dim != s.dim || s.blockwise == revealing {
+		s.from, s.to, s.dim, s.blockwise = from, to, dim, !revealing
+		m.textarea.SetDisplay(s.display(n, m.theme.Grey, m.blankLines))
 		if resized {
 			m.keepScroll(s.off)
 		}
@@ -157,8 +168,10 @@ func (m Model) blankLines(b RenderedBlock) bool {
 	return true
 }
 
-// display builds the textarea's display for n lines.
-func (s renderedState) display(n int, grey lipgloss.Color) *textarea.Display {
+// display builds the textarea's display for n lines. Every line of a block
+// names the block's first line as its Head, which holds the rows. Blockwise,
+// j/k skip every other line of a block and the whole of a blank run.
+func (s renderedState) display(n int, grey lipgloss.Color, blank func(RenderedBlock) bool) *textarea.Display {
 	paint := func(rows []string) []string {
 		if !s.dim {
 			return rows
@@ -171,15 +184,79 @@ func (s renderedState) display(n int, grey lipgloss.Color) *textarea.Display {
 	}
 	lines := make([]textarea.DisplayLine, n)
 	for _, b := range s.blocks {
+		skip := s.blockwise && blank(b)
 		for l := b.Line; l < b.End; l++ {
 			lines[l].Raw = l >= s.from && l < s.to
-			lines[l].Hidden = b.Folded && l > b.Line && !lines[l].Raw
+			lines[l].Head = b.Line
+			lines[l].Hidden = !lines[l].Raw && (b.Folded && l > b.Line || s.blockwise && l > b.Line || skip)
 		}
 		if !lines[b.Line].Raw {
 			lines[b.Line].Rows = paint(b.Rows)
 		}
 	}
 	return &textarea.Display{Lines: lines, Footer: paint(s.footer)}
+}
+
+// cursorBlock returns the source lines [from, to) of the rendered block the
+// cursor is on, for the NORMAL commands that act on the whole block. A raw
+// line, a blank run and the editor without a display report false: there
+// the commands keep acting on the line.
+func (m Model) cursorBlock() (from, to int, ok bool) {
+	s := m.rendered
+	row, _ := m.textarea.RowCol()
+	if !s.on || m.mode != ModeNormal || s.lines != m.LineCount() || (row >= s.from && row < s.to) {
+		return 0, 0, false
+	}
+	i := sort.Search(len(s.blocks), func(i int) bool { return s.blocks[i].End > row })
+	if i == len(s.blocks) || s.blocks[i].Line > row || m.blankLines(s.blocks[i]) {
+		return 0, 0, false
+	}
+	return s.blocks[i].Line, s.blocks[i].End, true
+}
+
+// lastBlockLine is where G lands while j/k go by block: the first line of
+// the last block that is not a blank run, or the last line of its body when
+// that block is a folded section, which then opens as a goto into it does.
+func (m Model) lastBlockLine() (int, bool) {
+	s := m.rendered
+	if !s.on || !s.blockwise || s.lines != m.LineCount() {
+		return 0, false
+	}
+	for i := len(s.blocks) - 1; i >= 0; i-- {
+		switch b := s.blocks[i]; {
+		case m.blankLines(b):
+		case b.Folded:
+			return b.End - 1, true
+		default:
+			return b.Line, true
+		}
+	}
+	return 0, false
+}
+
+// blockText is the Markdown of lines [from, to), each ending in a newline:
+// what a linewise yank of them holds.
+func (m Model) blockText(from, to int) string {
+	var b strings.Builder
+	for l := from; l < to; l++ {
+		b.WriteString(m.textarea.RowText(l))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// shiftBlock indents (in) or outdents every line of [from, to) by two
+// spaces, as Tab nests a list line.
+func (m *Model) shiftBlock(from, to int, in bool) {
+	m.textarea.MapLines(from, to-1, func(l string) string {
+		if in {
+			return "  " + l
+		}
+		for range 2 {
+			l = strings.TrimPrefix(l, " ")
+		}
+		return l
+	})
 }
 
 // blockLines is the number of lines blocks cover, which are contiguous.

@@ -130,6 +130,10 @@ func (m *Model) handleKeyAction(k tea.KeyMsg) tea.Cmd {
 					m.flushPreview() // only typing can wait: this view draws the compile
 				}
 			}
+			if m.noteView == viewReading && typing && m.content.Mode() != content.ModeInsert {
+				// Leaving INSERT draws the block rendered: from its new text.
+				m.flushPreview()
+			}
 		}
 	}
 	return cmd

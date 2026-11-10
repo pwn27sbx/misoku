@@ -35,7 +35,9 @@ func TestSearchMovesTheEditorToTheMatch(t *testing.T) {
 
 // S2: the reading view searches too, scrolling the rendered note to it.
 func TestReadingViewSearchScrollsToTheMatch(t *testing.T) {
-	h := openWith(t, needleNote())
+	// Paragraphs of their own: one paragraph of every line renders in a few
+	// rows, the needle on screen (S15 draws the cursor's block rendered).
+	h := openWith(t, strings.ReplaceAll(needleNote(), "\n", "\n\n"))
 	h.keys(" ")
 	h.keys("p") // reading view
 	if strings.Contains(h.view(), "the needle line") {

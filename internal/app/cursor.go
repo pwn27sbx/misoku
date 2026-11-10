@@ -58,8 +58,8 @@ func (m Model) cursorCell(l Layout) (x, y int, shape cursor.Shape, visible bool)
 		return 0, 0, shape, false
 	}
 	cx, cy, ok := m.content.CursorScreen()
-	if !ok {
-		return 0, 0, shape, false
+	if !ok || m.content.CursorOnRendered() {
+		return 0, 0, shape, false // a rendered block has no column to show
 	}
 	return l.EditorX + cx, l.NoteY() + cy, shape, true
 }

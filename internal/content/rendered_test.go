@@ -86,8 +86,9 @@ func TestRenderedAnotherNoteIsNeverApplied(t *testing.T) {
 	}
 }
 
-// S3, S8: a folded section hides its body; the cursor on the heading keeps it
-// folded, and the cursor on the body shows the whole section raw.
+// S3, S8, S15: a folded section hides its body. NORMAL draws every block
+// rendered; in INSERT the cursor on the heading shows it raw and keeps the
+// body folded, and the cursor on the body shows the whole section raw.
 func TestRenderedFoldedSection(t *testing.T) {
 	c := renderedEditor(t, "top\n# H\nb1\nb2\nend")
 	r := compiled(1,
@@ -95,19 +96,32 @@ func TestRenderedFoldedSection(t *testing.T) {
 		content.RenderedBlock{Line: 1, End: 4, Rows: []string{"FOLD"}, Folded: true},
 		content.RenderedBlock{Line: 4, End: 5, Rows: []string{"END"}},
 	)
-	c.ShowRendered(r, false)
-	if got := plainView(c); got[0] != "top" || got[1] != "FOLD" || got[2] != "END" {
-		t.Fatalf("cursor on line 0: %q", got[:3])
+	insert := func(line int) []string {
+		t.Helper()
+		c.GotoLine(line)
+		c.ShowRendered(r, false)
+		c, _ = press(t, c, "i")
+		c.ShowRendered(r, false)
+		got := plainView(c)
+		c, _ = press(t, c, "esc")
+		c.ShowRendered(r, false)
+		return got
 	}
-	c.GotoLine(2) // the heading
 	c.ShowRendered(r, false)
-	if got := plainView(c); got[0] != "TOP" || got[1] != "# H" || got[2] != "END" {
-		t.Fatalf("cursor on the folded heading: %q", got[:3])
+	if got := plainView(c); got[0] != "TOP" || got[1] != "FOLD" || got[2] != "END" {
+		t.Fatalf("NORMAL on line 0: %q", got[:3])
 	}
-	c.GotoLine(3) // the body
-	c.ShowRendered(r, false)
-	if got := plainView(c); got[1] != "# H" || got[2] != "b1" || got[3] != "b2" || got[4] != "END" {
-		t.Fatalf("cursor on the folded body: %q", got[:5])
+	if got := insert(1); got[0] != "top" || got[1] != "FOLD" || got[2] != "END" {
+		t.Fatalf("INSERT on line 0: %q", got[:3])
+	}
+	if got := insert(2); got[0] != "TOP" || got[1] != "# H" || got[2] != "END" {
+		t.Fatalf("INSERT on the folded heading: %q", got[:3])
+	}
+	if got := plainView(c); got[1] != "FOLD" {
+		t.Fatalf("NORMAL on the folded heading: %q", got[:3])
+	}
+	if got := insert(3); got[1] != "# H" || got[2] != "b1" || got[3] != "b2" || got[4] != "END" {
+		t.Fatalf("INSERT on the folded body: %q", got[:5])
 	}
 }
 

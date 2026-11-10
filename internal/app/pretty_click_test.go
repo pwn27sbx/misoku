@@ -176,6 +176,7 @@ func TestPrettyClickAnswersAForm(t *testing.T) {
 }
 
 // S9: a click while a typed edit's compile waits acts on the current text.
+// The click comes in INSERT: since S15, Esc compiles a waiting edit itself.
 func TestPrettyClickFlushesAPendingCompile(t *testing.T) {
 	look := preview.DefaultLook()
 	h := openNoteWith(t, longNote("first\n\n- [ ] alpha"))
@@ -183,7 +184,6 @@ func TestPrettyClickFlushesAPendingCompile(t *testing.T) {
 	h.keys("A")
 	compiles := app.PreviewCompiles(h.m)
 	h.key(tea.KeyEnter)
-	h.key(tea.KeyEsc)
 	if got := app.PreviewCompiles(h.m); got != compiles {
 		t.Fatalf("setup: the Enter should wait for its compile")
 	}
@@ -208,6 +208,8 @@ func TestPrettyDragSelectsFromTheMappedColumn(t *testing.T) {
 }
 
 // S8: a wheel scroll that leaves the cursor on screen keeps its block raw.
+// Since S15 only INSERT shows the cursor's block raw, so the wheel turns in
+// INSERT.
 func TestPrettyWheelKeepsTheReveal(t *testing.T) {
 	var b strings.Builder
 	for i := range 60 {
@@ -216,7 +218,8 @@ func TestPrettyWheelKeepsTheReveal(t *testing.T) {
 	b.WriteString("end")
 	h := prettyAt(t, b.String())
 	h.keys("gg")
-	h.keys(strings.Repeat("j", 20)) // well inside the screen
+	h.keys(strings.Repeat("j", 10)) // block by block, well inside the screen
+	h.keys("i")
 	v := h.view()
 	x, y := noteTextAt(t, v, "**")
 	raw := []rune(strings.Split(v, "\n")[y])[x : x+7] // "**pXy**"
@@ -249,7 +252,14 @@ func TestPrettySearchIntoAFoldUnfoldsIt(t *testing.T) {
 func TestPrettyGotoIntoAFoldUnfoldsIt(t *testing.T) {
 	h := prettyAt(t, "# Top\n\nfirst\n\n# Sec\n\nlast line")
 	h.keys("gg")
-	clickTextAt(t, h, "▾", 0) // Top is raw: the arrow is Sec's
+	// Top is rendered too since S15: press the arrow on Sec's row.
+	v := h.view()
+	_, y := noteTextAt(t, v, "Sec")
+	x := strings.IndexRune(strings.Split(v, "\n")[y], '▾')
+	if x < 0 {
+		t.Fatalf("setup: no fold arrow on Sec's row:\n%s", v)
+	}
+	h.click(len([]rune(strings.Split(v, "\n")[y][:x])), y)
 	if v := h.view(); strings.Contains(v, "last line") {
 		t.Fatalf("setup: Sec should fold:\n%s", v)
 	}
