@@ -28,6 +28,7 @@ type Rendered struct {
 	PageID     string
 	Failed     bool                   // the compile panicked: the note draws raw
 	Current    bool                   // false while a typed edit waits for its compile
+	Frozen     bool                   // a block drag: the raw lines stay as they are
 	Blocks     func() []RenderedBlock // read only for a new Generation
 	Footer     []string               // rows after the last line
 	FooterRow  int                    // the compile's row of Footer[0]
@@ -88,7 +89,7 @@ func (m *Model) ShowRendered(r Rendered, dim bool) {
 	}
 
 	from, to := s.from, s.to
-	if !m.dragging || !s.on { // a drag keeps the rows still under the pointer
+	if (!m.dragging && !r.Frozen) || !s.on { // a drag keeps the rows still under the pointer
 		from, to = m.revealRange(s.blocks, row)
 	}
 	from, to = min(from, n), min(to, n)

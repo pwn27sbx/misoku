@@ -506,6 +506,7 @@ func (m *Model) toggleView(v noteView) tea.Cmd {
 // its compile, the others draw raw Markdown. All of them edit.
 func (m *Model) setNoteView(v noteView) {
 	m.noteView = v
+	m.preview.ClearHover() // the handles belong to the view the mouse was over
 	m.tutorBView(v)
 	m.content.SetLive(v == viewReading)
 	if v == viewEditor {

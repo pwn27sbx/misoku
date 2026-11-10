@@ -59,6 +59,60 @@ func (m Model) RenderedCell(x, y int) (row, col int, ok bool) {
 	return b.Row + off, col, true
 }
 
+// RenderedRow returns the compile's row on pane row y, as RenderedCell does,
+// whatever the column: the block handles sit in the margin.
+func (m Model) RenderedRow(y int) (int, bool) {
+	row, _, ok := m.RenderedCell(m.margin, y)
+	return row, ok
+}
+
+// DragRowAt returns the compile's row a block dragged over pane row y points
+// at: the rendered row there, or on a raw line the first row of its block.
+func (m Model) DragRowAt(y int) (int, bool) {
+	if row, ok := m.RenderedRow(y); ok {
+		return row, true
+	}
+	s := m.rendered
+	if !s.on || !s.current {
+		return 0, false
+	}
+	line, _, footer := m.textarea.DisplayRowAt(m.textarea.YOffset() + y)
+	if footer {
+		return s.footerRow, true
+	}
+	i := sort.Search(len(s.blocks), func(i int) bool { return s.blocks[i].End > line })
+	if i == len(s.blocks) {
+		return 0, false
+	}
+	return s.blocks[i].Row, true
+}
+
+// RenderedY returns the pane row showing the compile's row row, when it is on
+// screen in a rendered block or the footer. Raw blocks show none of theirs.
+func (m Model) RenderedY(row int) (int, bool) {
+	s := m.rendered
+	if !s.on || !s.current {
+		return 0, false
+	}
+	line, off := m.LineCount(), row-s.footerRow
+	if row < s.footerRow {
+		i := sort.Search(len(s.blocks), func(i int) bool { return s.blocks[i].Row+len(s.blocks[i].Rows) > row })
+		if i == len(s.blocks) || row < s.blocks[i].Row {
+			return 0, false
+		}
+		b := s.blocks[i]
+		if b.Line >= s.from && b.Line < s.to {
+			return 0, false
+		}
+		line, off = b.Line, row-b.Row
+	} else if off >= len(s.footer) {
+		return 0, false
+	}
+	first, _ := m.textarea.LineRows(line)
+	y := first + off - m.textarea.YOffset()
+	return y, y >= 0 && y < m.textarea.Height()
+}
+
 // renderedBlock returns the block drawn rendered whose rows start on line,
 // when it has a row off.
 func (s renderedState) renderedBlock(line, off int) (RenderedBlock, bool) {

@@ -11,7 +11,8 @@ import (
 //
 // Motion passes only while it can change something: a drag in the editor
 // (text selection, panning the graph), of a divider or of a preview block;
-// over the preview, where the block handles follow the mouse; or when the
+// over the preview, or a rendered block of the reading view, where the block
+// handles follow the mouse; or when the
 // handles are still showing and the next move must hide them. Every other
 // message passes unchanged.
 //
@@ -44,5 +45,12 @@ func (m *Model) motionMatters(msg tea.MouseMsg) bool {
 		return false // the dashboard only reacts to clicks
 	}
 	return m.resizing != dividerNone || m.dragging || m.preview.Dragging() ||
-		m.preview.Hovering() || m.layout().overPreview(msg.X, msg.Y)
+		m.preview.Hovering() || m.layout().overPreview(msg.X, msg.Y) || m.renderedHoverMatters(msg)
+}
+
+// renderedHoverMatters reports whether motion over the reading view's note
+// would hover another block.
+func (m *Model) renderedHoverMatters(msg tea.MouseMsg) bool {
+	row, ok := m.renderedHoverRow(m.layout(), msg.X, msg.Y)
+	return ok && m.preview.HoverChanges(row)
 }

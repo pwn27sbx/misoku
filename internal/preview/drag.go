@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Blocks can be dragged by the "⠿" handle that appears in the left margin
@@ -67,37 +68,64 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 			} else if msg.Y >= m.viewport.Height-1 {
 				m.ScrollBy(1)
 			}
-			m.updateDrop(m.viewport.YOffset + msg.Y)
-		} else {
-			m.hover = m.blockAt(row)
 		}
+		m.MoveRow(m.viewport.YOffset + msg.Y)
 		return nil, true
 	case tea.MouseActionRelease:
 		if m.drag < 0 {
 			return nil, false
 		}
-		cmd := m.drop()
-		m.drag, m.dropRow = -1, -1
-		m.hover = m.blockAt(row)
-		return cmd, true
+		return m.ReleaseRow(row), true
 	case tea.MouseActionPress:
 		if msg.Button != tea.MouseButtonLeft {
 			return nil, false
 		}
-		plus, grip := m.handleCols()
-		b := m.blockAt(row)
-		if b < 0 || row != m.blocks[b].Row || (msg.X != grip && msg.X != plus) || grip < 0 {
-			return nil, false
-		}
-		if msg.X == plus {
-			after := m.blocks[b].End
-			return func() tea.Msg { return AddBlockMsg{After: after} }, true
-		}
-		m.drag, m.hover = b, b
-		m.updateDrop(row)
-		return nil, true
+		return m.PressHandleRow(row, msg.X)
 	}
 	return nil, false
+}
+
+// The row-based entry points below are the drag and the handles for a view
+// that draws the compiled rows itself: rows are absolute compiled rows,
+// whatever the viewport's scroll, and x counts from the pane's left edge,
+// margin included.
+
+// MoveRow follows the mouse to compiled row row: it moves the drop target
+// during a drag, else it hovers the block there (none for a row outside).
+func (m *Model) MoveRow(row int) {
+	if m.drag >= 0 {
+		m.updateDrop(row)
+		return
+	}
+	m.hover = m.blockAt(row)
+}
+
+// HoverChanges reports whether MoveRow(row) would hover another block.
+func (m Model) HoverChanges(row int) bool { return m.drag < 0 && m.blockAt(row) != m.hover }
+
+// ReleaseRow ends a drag on compiled row row and returns the move it makes.
+func (m *Model) ReleaseRow(row int) tea.Cmd {
+	cmd := m.drop()
+	m.drag, m.dropRow = -1, -1
+	m.hover = m.blockAt(row)
+	return cmd
+}
+
+// PressHandleRow presses column x of compiled row row: the "+" adds a block
+// below, the grip starts a drag. It reports false off the handles.
+func (m *Model) PressHandleRow(row, x int) (tea.Cmd, bool) {
+	plus, grip := m.handleCols()
+	b := m.blockAt(row)
+	if b < 0 || row != m.blocks[b].Row || (x != grip && x != plus) || grip < 0 {
+		return nil, false
+	}
+	if x == plus {
+		after := m.blocks[b].End
+		return func() tea.Msg { return AddBlockMsg{After: after} }, true
+	}
+	m.drag, m.hover = b, b
+	m.updateDrop(row)
+	return nil, true
 }
 
 // updateDrop picks the gap nearest to content row row as the drop target.
@@ -141,11 +169,20 @@ func (m *Model) drop() tea.Cmd {
 // decorate draws the handles and the drop line onto the visible rows
 // (already prefixed with the margin).
 func (m Model) decorate(lines []string) {
+	top := m.viewport.YOffset
+	m.DecorateRows(lines, func(row int) (int, bool) {
+		return row - top, row >= top && row-top < len(lines)
+	})
+}
+
+// DecorateRows draws the handles and the drop line onto lines, whose first
+// margin cells are the page margin. rowY returns the line showing compiled
+// row row, false when none does.
+func (m Model) DecorateRows(lines []string, rowY func(row int) (int, bool)) {
 	th := m.theme
 	plus, grip := m.handleCols()
-	top := m.viewport.YOffset
 	if grip >= 0 && m.hover >= 0 && m.hover < len(m.blocks) {
-		if r := m.blocks[m.hover].Row - top; r >= 0 && r < len(lines) {
+		if r, ok := rowY(m.blocks[m.hover].Row); ok {
 			st := lipgloss.NewStyle().Foreground(th.GreyFg2)
 			if m.drag >= 0 {
 				st = st.Foreground(th.Blue)
@@ -155,12 +192,12 @@ func (m Model) decorate(lines []string) {
 				margin[plus] = '+'
 			}
 			margin[grip] = '⠿'
-			lines[r] = st.Render(string(margin)) + strings.TrimPrefix(lines[r], strings.Repeat(" ", m.margin))
+			lines[r] = st.Render(string(margin)) + ansi.TruncateLeft(lines[r], m.margin, "")
 		}
 	}
 	if m.drag >= 0 && m.dropRow >= 0 {
-		r := m.dropRow - top
-		if r < 0 || r >= len(lines) {
+		r, ok := rowY(m.dropRow)
+		if !ok {
 			return
 		}
 		blue := lipgloss.NewStyle().Foreground(th.Blue)
@@ -168,8 +205,8 @@ func (m Model) decorate(lines []string) {
 		if m.dropGap {
 			lines[r] = pad + blue.Render(strings.Repeat("━", m.viewport.Width))
 		} else if m.margin >= 1 {
-			lines[r+min(1, len(lines)-1-r)] = blue.Render(strings.Repeat(" ", m.margin-1)+"▸") +
-				strings.TrimPrefix(lines[r+min(1, len(lines)-1-r)], pad)
+			next := r + min(1, len(lines)-1-r)
+			lines[next] = blue.Render(strings.Repeat(" ", m.margin-1)+"▸") + ansi.TruncateLeft(lines[next], m.margin, "")
 		}
 	}
 }

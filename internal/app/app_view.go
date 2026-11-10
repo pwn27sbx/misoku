@@ -48,7 +48,7 @@ func (m Model) View() string {
 			case m.graphActive():
 				cols = append(cols, m.graph.View())
 			default:
-				cols = append(cols, padNote(m.content.View(), l.EditorW, l.PadY))
+				cols = append(cols, padNote(m.noteRows(), l.EditorW, l.PadY))
 			}
 			if l.PreviewW > 0 {
 				cols = append(cols, div(dividerPreview))
@@ -124,6 +124,17 @@ func (m Model) View() string {
 // guide is a passing hint while a key chord is typed and the slash menu a
 // completion attached to the cursor: neither dims what the user is working on.
 func (m Model) dimsBackdrop() bool { return m.modalOpen() && !m.leaderGuideOpen() }
+
+// noteRows is the editor's view, with the block handles of the reading view.
+func (m Model) noteRows() string {
+	v := m.content.View()
+	if !m.handlesLive() || (!m.preview.Hovering() && !m.preview.Dragging()) {
+		return v
+	}
+	lines := strings.Split(v, "\n")
+	m.preview.DecorateRows(lines, m.content.RenderedY)
+	return ui.Fit(strings.Join(lines, "\n"), lipgloss.Width(v), len(lines), lipgloss.NewStyle())
+}
 
 // padNote adds pad blank rows above and below a note pane's view of width w.
 // They are plain spaces, so the frame's paint gives them the pane's

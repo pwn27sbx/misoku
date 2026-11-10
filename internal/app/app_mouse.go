@@ -1,6 +1,8 @@
 package app
 
 import (
+	"github.com/pwn27sbx/misoku/internal/content"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -39,6 +41,9 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	// Drags that start in the editor keep going there (text selection).
 	if msg.Action == tea.MouseActionMotion || msg.Action == tea.MouseActionRelease {
 		if !m.dragging {
+			if m.noteView == viewReading && !m.graphActive() {
+				return m.renderedBlockMouse(msg, l)
+			}
 			// Hover shows the preview's block handles; a block drag keeps
 			// going wherever the mouse goes.
 			if !overPreview && !m.preview.Dragging() {
@@ -114,6 +119,10 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		if !wheel && m.noteView == viewReading {
 			local.Y = m.flushUnder(local.Y)
 		}
+		if pressed, ok := m.pressHandle(local, wheel); ok {
+			cmd = pressed // a block's "+" or grip
+			break
+		}
 		if pressed, ok := m.pressRendered(local, wheel); ok {
 			cmd = pressed // what the preview acts on: no cursor, no selection
 			break
@@ -171,6 +180,72 @@ func (m *Model) pressRendered(msg tea.MouseMsg, wheel bool) (tea.Cmd, bool) {
 	cmd, _ := m.preview.PressRow(row, col)
 	m.tutorBPreviewClick(hit, true)
 	return cmd, true
+}
+
+// handlesLive reports whether the reading view shows the block handles: on
+// the note, outside INSERT and outside a text selection drag.
+func (m *Model) handlesLive() bool {
+	return m.noteView == viewReading && !m.graphActive() && m.activeBuffer() != nil &&
+		m.content.Mode() != content.ModeInsert && !m.dragging
+}
+
+// renderedBlockMouse is the reading view's motion and release outside a text
+// selection drag: the preview's hover and block drag, by compiled row.
+func (m *Model) renderedBlockMouse(msg tea.MouseMsg, l Layout) tea.Cmd {
+	r, _ := l.noteRow(msg.Y)
+	if m.preview.Dragging() {
+		if msg.Action == tea.MouseActionMotion {
+			// Scroll when dragging against the top or bottom edge.
+			if r <= 0 {
+				m.content.ScrollBy(-1)
+			} else if r >= l.NoteH()-1 {
+				m.content.ScrollBy(1)
+			}
+		}
+		row, ok := m.content.DragRowAt(r)
+		if msg.Action == tea.MouseActionRelease {
+			if !ok {
+				row = -1
+			}
+			return m.preview.ReleaseRow(row)
+		}
+		if ok {
+			m.preview.MoveRow(row)
+		}
+		return nil
+	}
+	if msg.Action != tea.MouseActionMotion {
+		return nil
+	}
+	if row, ok := m.renderedHoverRow(l, msg.X, msg.Y); ok {
+		m.preview.MoveRow(row)
+		return m.tutorCHover()
+	}
+	m.preview.ClearHover()
+	return nil
+}
+
+// renderedHoverRow returns the compiled row under screen cell (x, y) whose
+// block may show handles: a rendered row of the reading view's note.
+func (m *Model) renderedHoverRow(l Layout, x, y int) (int, bool) {
+	r, onText := l.noteRow(y)
+	if !m.handlesLive() || !onText || x < l.EditorX || x >= l.EditorX+l.EditorW {
+		return 0, false
+	}
+	return m.content.RenderedRow(r)
+}
+
+// pressHandle presses a block's "+" or grip in the reading view, at pane
+// cell (msg.X, msg.Y). It reports false off the handles.
+func (m *Model) pressHandle(msg tea.MouseMsg, wheel bool) (tea.Cmd, bool) {
+	if wheel || !m.handlesLive() {
+		return nil, false
+	}
+	row, ok := m.content.RenderedRow(msg.Y)
+	if !ok {
+		return nil, false
+	}
+	return m.preview.PressHandleRow(row, msg.X)
 }
 
 // noteRow maps screen row y to the row of the editor's or the preview's text

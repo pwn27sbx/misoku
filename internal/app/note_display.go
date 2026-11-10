@@ -23,6 +23,7 @@ func (m *Model) syncNoteDisplay() {
 		PageID:     d.PageID,
 		Failed:     d.Failed,
 		Current:    !m.pv.pending,
+		Frozen:     m.preview.Dragging(),
 		Footer:     d.Footer,
 		FooterRow:  d.FooterRow,
 		Blocks: func() []content.RenderedBlock {
