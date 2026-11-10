@@ -38,7 +38,7 @@ func (m *Model) tutorCWantsAny(events ...string) bool {
 			continue // the step is done: no event is needed for it
 		}
 		for _, event := range events {
-			if checkWants(g.current.Steps[i].Check, event) {
+			if tutorCCheckWants(g.current.Steps[i].Check, event) {
 				return true
 			}
 		}
@@ -46,13 +46,13 @@ func (m *Model) tutorCWantsAny(events ...string) bool {
 	return false
 }
 
-// checkWants reports whether c, or a check inside it, waits for event.
-func checkWants(c tutor.Check, event string) bool {
+// tutorCCheckWants reports whether c, or a check inside it, waits for event.
+func tutorCCheckWants(c tutor.Check, event string) bool {
 	if c.Kind == tutor.KindAction && c.Event == event {
 		return true
 	}
 	for i := range c.Checks {
-		if checkWants(c.Checks[i], event) {
+		if tutorCCheckWants(c.Checks[i], event) {
 			return true
 		}
 	}
