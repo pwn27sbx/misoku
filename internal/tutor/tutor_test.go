@@ -79,6 +79,31 @@ func TestInstall(t *testing.T) {
 	}
 }
 
+// S1/G1: Install copies the route folders, not only files at the root.
+func TestInstallCopiesRouteFolders(t *testing.T) {
+	fsys := fstest.MapFS{
+		"1 Básico/B01 Uno.md":     {Data: []byte("uno")},
+		"2 Intermedio/I01 Dos.md": {Data: []byte("dos")},
+		"mapa.png":                {Data: []byte("png")},
+	}
+	dir := filepath.Join(t.TempDir(), "tutor")
+	if err := Install(fsys, dir, false); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		"1 Básico/B01 Uno.md":     "uno",
+		"2 Intermedio/I01 Dos.md": "dos",
+	} {
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
+		if err != nil || string(b) != want {
+			t.Errorf("%s not installed: %q, %v", path, b, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mapa.png")); err != nil {
+		t.Errorf("the root file was not installed: %v", err)
+	}
+}
+
 func TestInstallRefusesEmptyDir(t *testing.T) {
 	if err := Install(fstest.MapFS{}, "", true); err == nil {
 		t.Fatal("Install with an empty dir must fail")

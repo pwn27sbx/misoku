@@ -59,7 +59,7 @@ func passLevel(t *testing.T, dir, file string) {
 		t.Fatal(err)
 	}
 	answer := map[string]string{
-		"B13 Títulos.md": "\n# Viaje\n\n## Equipaje\n\n### Día 1\n\n#### Detalle\n",
+		"1 Básico/B13 Títulos.md": "\n# Viaje\n\n## Equipaje\n\n### Día 1\n\n#### Detalle\n",
 	}[file]
 	if answer == "" {
 		t.Fatalf("no fixture answer for %s", file)
@@ -86,7 +86,7 @@ func fakeTutorial(got **exec.Cmd, err error, during func()) app.Option {
 // without the tutorial (also inside a tutorial session).
 func TestLearnEntryShowsTheTutorialProgress(t *testing.T) {
 	dir := tutorialVault(t)
-	passLevel(t, dir, "B13 Títulos.md")
+	passLevel(t, dir, "1 Básico/B13 Títulos.md")
 	store := newTestStore(t)
 
 	h := newHarness(t, store, app.WithLearn(tutorialLearn(t, dir)))
@@ -153,7 +153,7 @@ func TestTutorialReturnRescansAndEnablesTheMouse(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)),
-		fakeTutorial(&got, nil, func() { passLevel(t, dir, "B13 Títulos.md") }))
+		fakeTutorial(&got, nil, func() { passLevel(t, dir, "1 Básico/B13 Títulos.md") }))
 	h.keys("l")
 	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/26") {
 		t.Fatalf("the entry should count the level the tutorial passed:\n%s", v)
@@ -173,7 +173,7 @@ func TestTutorialReturnReportsAFailedExit(t *testing.T) {
 	dir := tutorialVault(t)
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)),
-		fakeTutorial(&got, errors.New("exit status 2"), func() { passLevel(t, dir, "B13 Títulos.md") }))
+		fakeTutorial(&got, errors.New("exit status 2"), func() { passLevel(t, dir, "1 Básico/B13 Títulos.md") }))
 	h.keys("l")
 	if s := app.StatusText(h.m); !strings.Contains(s, "exit status 2") {
 		t.Fatalf("the failed tutorial should be reported, status %q", s)

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // The catalog is data ("Amendment E12"): the lessons are written in parallel
@@ -39,6 +41,9 @@ type Route struct {
 	ID string `json:"id"`
 	// Name is the route's name as shown to the player ("Básico").
 	Name string `json:"name"`
+	// Dir is the route's folder in the tutorial vault ("1 Básico"). Its
+	// number keeps the routes in learning order in the explorer.
+	Dir string `json:"dir"`
 	// Index is the note that introduces the route ("B00 Básico.md"). It has
 	// no steps and is not part of Lessons.
 	Index string `json:"index"`
@@ -52,10 +57,32 @@ type Lesson struct {
 	ID string `json:"id"`
 	// Title is the lesson's name as shown to the player.
 	Title string `json:"title"`
-	// File is the note's file name inside the tutorial vault.
+	// File is the note's file name inside the route's folder.
 	File string `json:"file"`
 	// Steps are the lesson's steps in play order.
 	Steps []Step `json:"steps"`
+
+	// dir is the route's folder (Route.Dir), set when the catalog loads. It
+	// is empty for a fixture lesson that lives at the vault root.
+	dir string
+}
+
+// Path is the note's vault-relative path, the route's folder and the file
+// ("1 Básico/B01 Escribe en 30 segundos.md"). A fixture lesson with no folder
+// is its file.
+func (l Lesson) Path() string {
+	if l.dir == "" {
+		return l.File
+	}
+	return l.dir + "/" + l.File
+}
+
+// IndexPath is the route index's vault-relative path, with the route's folder.
+func (r Route) IndexPath() string {
+	if r.Dir == "" {
+		return r.Index
+	}
+	return r.Dir + "/" + r.Index
 }
 
 // Step is one thing the player does, with the check that proves it.
@@ -202,6 +229,10 @@ var actionEvents = map[string]bool{
 	"error_shown": true,
 }
 
+// dirRe is a route folder's name: the same characters as a lesson file name,
+// without ".md" and without "/", so it is one entry at the vault root.
+var dirRe = regexp.MustCompile(`^[\p{L}\p{N} ,.\-]+$`)
+
 // fileRe is L1's slug: letters (accents and ñ included), digits, spaces and
 // ", - ." only (go:embed refuses “`” and “:”, and “/” makes a folder).
 var fileRe = regexp.MustCompile(`^[\p{L}\p{N} ,.\-]+\.md$`)
@@ -249,6 +280,12 @@ func loadBundled() (Catalog, error) {
 	sort.SliceStable(cat.Routes, func(i, j int) bool {
 		return routeRank(cat.Routes[i].ID) < routeRank(cat.Routes[j].ID)
 	})
+	for i := range cat.Routes {
+		r := &cat.Routes[i]
+		for j := range r.Lessons {
+			r.Lessons[j].dir = r.Dir
+		}
+	}
 	if err := cat.validate(); err != nil {
 		return Catalog{}, err
 	}
@@ -283,6 +320,7 @@ func (c Catalog) validate() error {
 	lessonIDs := map[string]bool{}
 	files := map[string]bool{}
 	indexes := map[string]bool{}
+	dirs := map[string]bool{}
 	for _, r := range c.Routes {
 		if !routeNames[r.ID] {
 			return fmt.Errorf("tutor: unknown route id %q", r.ID)
@@ -293,6 +331,16 @@ func (c Catalog) validate() error {
 		routeIDs[r.ID] = true
 		if strings.TrimSpace(r.Name) == "" {
 			return fmt.Errorf("tutor: route %s has no name", r.ID)
+		}
+		if err := checkDirName(r.Dir); err != nil {
+			return fmt.Errorf("tutor: route %s folder: %w", r.ID, err)
+		}
+		if dirs[r.Dir] {
+			return fmt.Errorf("tutor: duplicate folder %q", r.Dir)
+		}
+		dirs[r.Dir] = true
+		if want := strconv.Itoa(routeRank(r.ID)+1) + " "; !strings.HasPrefix(r.Dir, want) {
+			return fmt.Errorf("tutor: route %s folder %q must start with %q", r.ID, r.Dir, want)
 		}
 		if err := checkFileName(r.Index); err != nil {
 			return fmt.Errorf("tutor: route %s index: %w", r.ID, err)
@@ -341,6 +389,15 @@ func (c Catalog) validate() error {
 func checkFileName(name string) error {
 	if !fileRe.MatchString(name) {
 		return fmt.Errorf("file name %q must use letters, digits, spaces and , - . and end in .md", name)
+	}
+	return nil
+}
+
+// checkDirName checks a route's folder name: the file alphabet, one folder
+// deep, never an empty name.
+func checkDirName(name string) error {
+	if !dirRe.MatchString(name) {
+		return fmt.Errorf("folder name %q must use letters, digits, spaces and , - . and no /", name)
 	}
 	return nil
 }
@@ -551,12 +608,16 @@ func argc(pred string, args []string, n int) error {
 }
 
 // Lesson returns the lesson whose note is file (a vault-relative path with or
-// without ".md"). The route index is not a lesson.
+// without ".md"). The route index is not a lesson; a note with the lesson's
+// name in another folder is not it either.
 func (c Catalog) Lesson(file string) (Lesson, bool) {
 	name := lessonFile(file)
+	if name == "" {
+		return Lesson{}, false
+	}
 	for _, r := range c.Routes {
 		for _, l := range r.Lessons {
-			if l.File == name {
+			if l.Path() == name {
 				return l, true
 			}
 		}
@@ -580,12 +641,15 @@ func (c Catalog) LessonByID(id string) (Lesson, bool) {
 // lesson.
 func (c Catalog) RouteOf(file string) (Route, bool) {
 	name := lessonFile(file)
+	if name == "" {
+		return Route{}, false
+	}
 	for _, r := range c.Routes {
-		if r.Index == name {
+		if r.IndexPath() == name {
 			return r, true
 		}
 		for _, l := range r.Lessons {
-			if l.File == name {
+			if l.Path() == name {
 				return r, true
 			}
 		}
@@ -597,11 +661,14 @@ func (c Catalog) RouteOf(file string) (Route, bool) {
 // not a lesson).
 func (r Route) LessonCount() int { return len(r.Lessons) }
 
-// lessonFile normalises a vault-relative path to a lesson file name. Lessons
-// live at the vault root, so a path inside a folder never matches.
+// lessonFile normalises a vault-relative note path to the form the catalog
+// compares: slash separated, NFC (macOS writes decomposed accents), with
+// ".md". The route's folder stays part of it, because that is where the lesson
+// lives.
 func lessonFile(file string) string {
-	f := filepath.ToSlash(file)
-	if strings.Contains(f, "/") {
+	f := norm.NFC.String(filepath.ToSlash(strings.TrimSpace(file)))
+	f = strings.TrimPrefix(f, "./")
+	if f == "" {
 		return ""
 	}
 	if !strings.HasSuffix(f, ".md") {

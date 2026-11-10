@@ -16,7 +16,10 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-//go:embed lessons/*.md lessons/*.png
+// The whole folder, subfolders included: each route keeps its lessons in its
+// own folder, so a pattern of files at the root would leave them out.
+//
+//go:embed lessons
 var lessons embed.FS
 
 // Bundled returns the embedded lesson notes, rooted at the lessons folder.

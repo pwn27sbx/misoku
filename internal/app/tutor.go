@@ -189,7 +189,7 @@ func (m *Model) tutorDiskEnv(l tutor.Lesson) tutor.Env {
 	today := m.clock().Format("2006-01-02")
 	return tutor.Env{
 		Exists: func(name string) bool {
-			_, ok := core.ResolveNote(notes, name, l.File)
+			_, ok := core.ResolveNote(notes, name, l.Path())
 			return ok
 		},
 		FolderExists: func(name string) bool {
@@ -223,7 +223,7 @@ func (m *Model) tutorEnv(l tutor.Lesson) tutor.Env {
 	notes := m.notes
 	return tutor.Env{
 		Exists: func(name string) bool {
-			_, ok := core.ResolveNote(notes, name, l.File)
+			_, ok := core.ResolveNote(notes, name, l.Path())
 			return ok
 		},
 		Today: m.clock().Format("2006-01-02"),
@@ -247,7 +247,7 @@ func (m *Model) tutorEdited() tea.Cmd {
 		return nil
 	}
 	id := m.currentNoteID()
-	if id == "" || id != g.current.File {
+	if id == "" || id != g.current.Path() {
 		return nil
 	}
 	l := g.current
@@ -270,7 +270,7 @@ func (m *Model) tutorSaved(b *buffer, text string) tea.Cmd {
 	// save it): re-run the current lesson's disk checks even when the saved
 	// tab is another note.
 	cmds := []tea.Cmd{m.tutorDiskCmd(l)}
-	if b.id == l.File {
+	if b.id == l.Path() {
 		before := m.tutorPassed(l)
 		if g.store.RecordSave(l, g.openedText, text) {
 			cmds = append(cmds, m.tutorChanged(l, before))
@@ -313,7 +313,7 @@ func (m *Model) tutorChanged(l tutor.Lesson, before []bool) tea.Cmd {
 	}
 	if g.store.LessonDone(l) {
 		for _, b := range m.buffers {
-			if b.id == l.File && m.isDirty(b) {
+			if b.id == l.Path() && m.isDirty(b) {
 				cmds = append(cmds, m.saveBuffer(b, nil))
 				break
 			}

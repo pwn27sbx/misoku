@@ -321,17 +321,21 @@ func TestScanDir(t *testing.T) {
 // own lines do.
 func TestScanDirIgnoresTheOriginal(t *testing.T) {
 	dir := t.TempDir()
-	data, err := fs.ReadFile(Bundled(), "B13 Títulos.md")
+	data, err := fs.ReadFile(Bundled(), "1 Básico/B13 Títulos.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "B13 Títulos.md"), data, 0o644); err != nil {
+	note := filepath.Join(dir, "1 Básico", "B13 Títulos.md")
+	if err := os.MkdirAll(filepath.Dir(note), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(note, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cat := Default()
 	s := &Store{}
 	s.ScanDir(cat, dir, Env{})
-	l, ok := cat.Lesson("B13 Títulos.md")
+	l, ok := cat.Lesson("1 Básico/B13 Títulos.md")
 	if !ok {
 		t.Fatal("B13 is not in the catalog")
 	}
@@ -339,12 +343,42 @@ func TestScanDirIgnoresTheOriginal(t *testing.T) {
 		t.Fatal("the untouched lesson passed a step")
 	}
 	answer := "\n# Viaje\n\n## Equipaje\n\n### Día 1\n\n#### Detalle\n"
-	if err := os.WriteFile(filepath.Join(dir, "B13 Títulos.md"), append(data, []byte(answer)...), 0o644); err != nil {
+	if err := os.WriteFile(note, append(data, []byte(answer)...), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.ScanDir(cat, dir, Env{})
 	if !s.LessonDone(l) {
 		t.Fatalf("the player's own headings should pass the lesson (next %d)", s.NextStep(l))
+	}
+}
+
+// S4/G2: a freshly installed lesson in a route folder passes no step: its own
+// shipped text is the original, folder included.
+func TestInstalledOriginalPassesNothing(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "tutor")
+	if err := Install(Bundled(), dir, false); err != nil {
+		t.Fatal(err)
+	}
+	cat := Default()
+	env := DirEnv(dir)
+	lessons := 0
+	for _, r := range cat.Routes {
+		for _, l := range r.Lessons {
+			lessons++
+			data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(l.Path())))
+			if err != nil {
+				t.Errorf("%s: %v", l.Path(), err)
+				continue
+			}
+			s := &Store{}
+			s.Recheck(l, string(data), env)
+			if got := s.NextStep(l); got != 1 {
+				t.Errorf("%s (in %q) starts passed at step %d", l.Path(), r.Dir, got)
+			}
+		}
+	}
+	if lessons != 97 {
+		t.Errorf("checked %d lessons, want 97", lessons)
 	}
 }
 

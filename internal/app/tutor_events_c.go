@@ -145,7 +145,7 @@ func (m *Model) tutorCHover() tea.Cmd {
 // the current lesson's note.
 func (m *Model) tutorCBacklinks(back []core.Backlink) {
 	g := m.tutor
-	if len(back) == 0 || !m.tutorCWants("backlinks") || m.currentNoteID() != g.current.File {
+	if len(back) == 0 || !m.tutorCWants("backlinks") || m.currentNoteID() != g.current.Path() {
 		return
 	}
 	m.tutorDefer("backlinks", "")
@@ -160,7 +160,7 @@ func (m *Model) tutorCCaughtUp() tea.Cmd {
 	if g == nil || !g.hasCurrent || m.tutorCSeen == g.current.ID {
 		return nil
 	}
-	if len(m.preview.Backlinks()) == 0 || !m.tutorCWants("backlinks") || m.currentNoteID() != g.current.File {
+	if len(m.preview.Backlinks()) == 0 || !m.tutorCWants("backlinks") || m.currentNoteID() != g.current.Path() {
 		return nil
 	}
 	m.tutorCSeen = g.current.ID

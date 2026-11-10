@@ -77,6 +77,19 @@ func statusOf(view string) string {
 	return lines[len(lines)-1]
 }
 
+// S7/G9: starting on a lesson expands its route's folder in the explorer, so
+// the lesson's row, and its siblings, are already in view.
+func TestTutorExpandsTheRouteFolderAtStart(t *testing.T) {
+	h, _, _ := tutorHarness(t, "1 Básico/B13 Títulos.md")
+	v := h.view()
+	if !strings.Contains(v, "1 Básico") {
+		t.Fatalf("the route folder is not in the explorer:\n%s", v)
+	}
+	if !strings.Contains(v, "B26 Desafío Básico.md") {
+		t.Fatalf("the route folder is not expanded:\n%s", v)
+	}
+}
+
 // D5: a passed step is written to its note and its progress at once, so a
 // quit that discards everything else keeps both.
 func TestTutorSavesAPassedLevelAtOnce(t *testing.T) {
@@ -136,7 +149,7 @@ func TestTutorSavesAPassedLevelAtOnce(t *testing.T) {
 // D5: the step line is persistent, the success line replaces it, and the
 // badge counts the route.
 func TestTutorShowsTheStepAndThenTheSuccess(t *testing.T) {
-	h, _, _ := tutorHarness(t, "B13 Títulos.md")
+	h, _, _ := tutorHarness(t, "1 Básico/B13 Títulos.md")
 	if s := statusOf(h.view()); !strings.Contains(s, "B13 · Paso 1/4") {
 		t.Fatalf("the statusline should show the step in play:\n%s", s)
 	}
@@ -158,7 +171,7 @@ func TestTutorShowsTheStepAndThenTheSuccess(t *testing.T) {
 // E5: the hint of the current step shows once while the lesson is
 // current.
 func TestTutorHintsTheMissingSpace(t *testing.T) {
-	h, _, _ := tutorHarness(t, "B15 Casillas, marcar.md")
+	h, _, _ := tutorHarness(t, "1 Básico/B15 Casillas, marcar.md")
 	h.keys("x")
 	hint := "queda - [x] y deja de estar pendiente"
 	if v := h.view(); !strings.Contains(v, hint) {
@@ -371,7 +384,7 @@ func TestNoTutorLeavesTheStatuslineAsItWas(t *testing.T) {
 	if got := statusOf(h.view()); got != baseStatusline {
 		t.Fatalf("statusline changed without the tutor:\n got %q\nwant %q", got, baseStatusline)
 	}
-	m, cmd := app.OpenInCurrentBuffer(h.m, "B01 Escribe en 30 segundos.md")
+	m, cmd := app.OpenInCurrentBuffer(h.m, "1 Básico/B01 Escribe en 30 segundos.md")
 	h.m = m
 	h.send(cmdMsg(cmd)...)
 	h.keys("Go- [x] hecho")

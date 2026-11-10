@@ -66,7 +66,7 @@ func TestInstallRetiresOldNotesOnce(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "Mi nota.md")); err != nil {
 		t.Errorf("the player's note was touched: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "B01 Escribe en 30 segundos.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "1 Básico", "B01 Escribe en 30 segundos.md")); err != nil {
 		t.Errorf("the renamed lesson was not installed: %v", err)
 	}
 	store, err := tutor.Load(dir)
@@ -129,8 +129,55 @@ func TestInstallRetiresDecomposedNames(t *testing.T) {
 			t.Fatalf("%s is still there", e.Name())
 		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, "B01 Escribe en 30 segundos.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "1 Básico", "B01 Escribe en 30 segundos.md")); err != nil {
 		t.Errorf("the new lesson was not installed: %v", err)
+	}
+}
+
+// S8/F6: a 0.27 tutorial upgrades straight to the folder layout: the old notes
+// go to the Trash, the lessons arrive inside their route's folder, and nothing
+// but the reference note and the image stays at the root.
+func TestInstallUpgradesTheOldTutorialToFolders(t *testing.T) {
+	tempHome(t)
+	dir := filepath.Join(t.TempDir(), "tutor")
+	mustWrite(t, dir, "00 Empieza aquí.md", "viejo")
+	mustWrite(t, dir, "07 Explorador.md", "viejo")
+
+	notice, err := tutor.InstallWithNotice(tutor.Bundled(), dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if notice == "" {
+		t.Fatal("the upgrade should report the migration notice")
+	}
+	for _, r := range tutor.Default().Routes {
+		if r.Dir == "" {
+			t.Fatalf("route %s has no folder", r.ID)
+		}
+		if st, err := os.Stat(filepath.Join(dir, r.Dir)); err != nil || !st.IsDir() {
+			t.Errorf("route folder %q missing: %v", r.Dir, err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(r.IndexPath()))); err != nil {
+			t.Errorf("%s was not installed: %v", r.IndexPath(), err)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		switch {
+		case e.IsDir(), e.Name() == "mapa.png", e.Name() == "Después del tutorial.md", e.Name() == ".misoku-tutor.json":
+		case strings.HasSuffix(e.Name(), ".md"):
+			t.Errorf("%s was left at the tutorial root", e.Name())
+		}
+	}
+	store, err := tutor.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !store.Migrated() {
+		t.Fatal("the upgrade did not record the migration")
 	}
 }
 

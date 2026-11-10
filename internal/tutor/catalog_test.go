@@ -5,12 +5,14 @@ import (
 	"io/fs"
 	"strings"
 	"testing"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // validCatalog is a minimal catalog every validation case starts from.
 func validCatalog() Catalog {
 	return Catalog{Routes: []Route{{
-		ID: "B", Name: "Básico", Index: "B00 Básico.md",
+		ID: "B", Name: "Básico", Dir: "1 Básico", Index: "B00 Básico.md",
 		Lessons: []Lesson{{
 			ID: "B01", Title: "Títulos", File: "B01 Títulos.md",
 			Steps: []Step{{Text: "Haz algo", Check: Check{Kind: KindNone}}},
@@ -51,9 +53,21 @@ func TestBundledRoutes(t *testing.T) {
 		}
 	}
 	want := map[string]int{"B": 26, "I": 30, "A": 21, "E": 20}
+	dirs := map[string]string{"B": "1 Básico", "I": "2 Intermedio", "A": "3 Avanzado", "E": "4 Experto"}
 	for _, r := range cat.Routes {
 		if n, ok := want[r.ID]; !ok || n != len(r.Lessons) {
 			t.Errorf("route %s has %d lessons, want %d", r.ID, len(r.Lessons), want[r.ID])
+		}
+		if r.Dir != dirs[r.ID] {
+			t.Errorf("route %s folder = %q, want %q", r.ID, r.Dir, dirs[r.ID])
+		}
+		if got, want := r.IndexPath(), r.Dir+"/"+r.Index; got != want {
+			t.Errorf("route %s index path = %q, want %q", r.ID, got, want)
+		}
+		for _, l := range r.Lessons {
+			if got, want := l.Path(), r.Dir+"/"+l.File; got != want {
+				t.Errorf("lesson %s path = %q, want %q", l.ID, got, want)
+			}
 		}
 		delete(want, r.ID)
 	}
@@ -63,7 +77,8 @@ func TestBundledRoutes(t *testing.T) {
 }
 
 // S7/D8: every embedded note is an index, a lesson or the final reference
-// note, and every index and lesson is embedded.
+// note, and every index and lesson is embedded. The embed is walked with its
+// folders: the lessons live one folder per route.
 func TestEmbeddedFilesCovered(t *testing.T) {
 	cat, err := BundledRoutes()
 	if err != nil {
@@ -71,28 +86,74 @@ func TestEmbeddedFilesCovered(t *testing.T) {
 	}
 	described := map[string]bool{ReferenceNote: true}
 	for _, r := range cat.Routes {
-		described[r.Index] = true
+		described[r.IndexPath()] = true
 		for _, l := range r.Lessons {
-			described[l.File] = true
+			described[l.Path()] = true
 		}
 	}
-	entries, err := fs.ReadDir(Bundled(), ".")
+	notes := 0
+	err = fs.WalkDir(Bundled(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		notes++
+		if !described[path] {
+			t.Errorf("%s is embedded but not in the catalog", path)
+		}
+		delete(described, path)
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		if !described[e.Name()] {
-			t.Errorf("%s is embedded but not in the catalog", e.Name())
-		}
-		delete(described, e.Name())
+	if notes != 102 {
+		t.Errorf("embedded notes = %d, want 102 (97 lessons + 4 indexes + the reference note)", notes)
 	}
 	for name := range described {
 		if _, err := fs.Stat(Bundled(), name); err != nil {
 			t.Errorf("%s is in the catalog but not embedded", name)
 		}
+	}
+}
+
+// S3/G3: a lesson is the note at its vault-relative path, folder included. A
+// bare name or a copy in another folder is not the lesson, and an index is
+// never one.
+func TestLessonIdentity(t *testing.T) {
+	cat := Default()
+	l, ok := cat.Lesson("1 Básico/B01 Escribe en 30 segundos.md")
+	if !ok || l.ID != "B01" {
+		t.Fatalf("Lesson = %+v, %v", l, ok)
+	}
+	if _, ok := cat.Lesson("B01 Escribe en 30 segundos.md"); ok {
+		t.Fatal("a bare name passed as the lesson")
+	}
+	if _, ok := cat.Lesson("2 Intermedio/B01 Escribe en 30 segundos.md"); ok {
+		t.Fatal("a lesson copied into another route passed")
+	}
+	if _, ok := cat.Lesson("1 Básico/B00 Básico.md"); ok {
+		t.Fatal("a route index passed as a lesson")
+	}
+	if _, ok := cat.Lesson("1 Básico/B01 Escribe en 30 segundos"); !ok {
+		t.Fatal("a path without .md did not resolve")
+	}
+	nfd := norm.NFD.String("1 Básico/B13 Títulos.md")
+	if _, ok := cat.Lesson(nfd); !ok {
+		t.Fatal("a decomposed note name did not resolve")
+	}
+	if _, ok := cat.Lesson(""); ok {
+		t.Fatal("an empty path resolved")
+	}
+	r, ok := cat.RouteOf("1 Básico/B00 Básico.md")
+	if !ok || r.ID != "B" {
+		t.Fatalf("RouteOf(index) = %+v, %v", r, ok)
+	}
+	r, ok = cat.RouteOf("3 Avanzado/A09 Incrustar.md")
+	if !ok || r.ID != "A" {
+		t.Fatalf("RouteOf(lesson) = %+v, %v", r, ok)
 	}
 }
 
@@ -103,6 +164,18 @@ func TestCatalogValidation(t *testing.T) {
 	}{
 		{"unknown route", func(c *Catalog) { c.Routes[0].ID = "X" }},
 		{"index prefix", func(c *Catalog) { c.Routes[0].Index = "C00 Básico.md" }},
+		{"no dir", func(c *Catalog) { c.Routes[0].Dir = "" }},
+		{"dir with a slash", func(c *Catalog) { c.Routes[0].Dir = "1/Básico" }},
+		{"dir with the wrong number", func(c *Catalog) { c.Routes[0].Dir = "2 Básico" }},
+		{"duplicate dir", func(c *Catalog) {
+			c.Routes = append(c.Routes, Route{
+				ID: "I", Name: "Intermedio", Dir: "1 Básico", Index: "I00 Intermedio.md",
+				Lessons: []Lesson{{
+					ID: "I01", Title: "Uno", File: "I01 Uno.md",
+					Steps: []Step{{Text: "Haz algo", Check: Check{Kind: KindNone}}},
+				}},
+			})
+		}},
 		{"duplicate lesson", func(c *Catalog) {
 			c.Routes[0].Lessons = append(c.Routes[0].Lessons, c.Routes[0].Lessons[0])
 		}},
@@ -183,7 +256,7 @@ func TestValidCatalogPasses(t *testing.T) {
 
 // L4/E13: a text check ignores every line the embedded lesson already has.
 func TestWithoutOriginal(t *testing.T) {
-	data, err := fs.ReadFile(Bundled(), "B13 Títulos.md")
+	data, err := fs.ReadFile(Bundled(), "1 Básico/B13 Títulos.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,11 +265,11 @@ func TestWithoutOriginal(t *testing.T) {
 	if !ownHeading.Pass(original, Env{}) {
 		t.Fatal("fixture: the original has its own ## Tu turno")
 	}
-	if ownHeading.Pass(withoutOriginal("B13 Títulos.md", original), Env{}) {
+	if ownHeading.Pass(withoutOriginal("1 Básico/B13 Títulos.md", original), Env{}) {
 		t.Fatal("a lesson passed on its own text")
 	}
 	wanted := Check{Kind: KindText, Pred: "heading-exists", Args: []string{"2", "Viaje"}}
-	if !wanted.Pass(withoutOriginal("B13 Títulos.md", original+"\n## Viaje\n"), Env{}) {
+	if !wanted.Pass(withoutOriginal("1 Básico/B13 Títulos.md", original+"\n## Viaje\n"), Env{}) {
 		t.Fatal("the player's own heading should pass")
 	}
 }

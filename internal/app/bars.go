@@ -312,7 +312,10 @@ func (m *Model) statusLeft(b *buffer, nameMax int, folder bool) string {
 		left += light.Foreground(th.Yellow).Render("unsaved ")
 	}
 	left += lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.LightBg).Render("")
-	if folder && b != nil && !b.draft() {
+	// A tutorial session keeps the folder out: every lesson of a route lives in
+	// the same one, and its place is the tutorial line's job, which needs the
+	// room.
+	if folder && b != nil && !b.draft() && m.tutor == nil {
 		if dir := filepath.Dir(b.id); dir != "." {
 			left += fill.Foreground(th.GreyFg).Render("  󰉋 " + ui.Truncate(dir, 30))
 		}

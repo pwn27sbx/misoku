@@ -84,25 +84,33 @@ func isBlockLine(line string) bool {
 	return false
 }
 
-// bundledLessons lists the embedded lesson files, sorted.
+// bundledLessons lists the embedded note files, vault-relative paths
+// included, sorted by WalkDir. The lessons live one folder per route.
 func bundledLessons(t *testing.T) []string {
 	t.Helper()
-	entries, err := fs.ReadDir(Bundled(), ".")
+	var names []string
+	err := fs.WalkDir(Bundled(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".md") {
+			names = append(names, path)
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	var names []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-			names = append(names, e.Name())
-		}
 	}
 	return names
 }
 
 // S7: every bundled lesson keeps one paragraph per line.
 func TestLessonsAreNotHardWrapped(t *testing.T) {
-	for _, name := range bundledLessons(t) {
+	names := bundledLessons(t)
+	if len(names) != 102 {
+		t.Fatalf("bundled notes = %d, want 102 (97 lessons + 4 indexes + the reference note)", len(names))
+	}
+	for _, name := range names {
 		data, err := fs.ReadFile(Bundled(), name)
 		if err != nil {
 			t.Errorf("%s: %v", name, err)

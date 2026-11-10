@@ -360,9 +360,9 @@ func (s *Store) recheck(l Lesson, text string, env Env, want wantKind) bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	env.LessonFile = l.File
+	env.LessonFile = l.Path()
 	env.full = text
-	text = withoutOriginal(l.File, text)
+	text = withoutOriginal(l.Path(), text)
 	changed := false
 	for i := range l.Steps {
 		c := l.Steps[i].Check
@@ -514,7 +514,7 @@ func (s *Store) ScanDir(cat Catalog, dir string, env Env) bool {
 	changed := false
 	for _, r := range cat.Routes {
 		for _, l := range r.Lessons {
-			data, err := os.ReadFile(filepath.Join(dir, l.File))
+			data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(l.Path())))
 			if err != nil {
 				continue
 			}
@@ -549,7 +549,9 @@ func valueKey(base, path string, i int) string {
 
 // originals caches the lines of every embedded lesson, so a text check can
 // ignore what the lesson itself already says (the player's note starts as a
-// copy of it).
+// copy of it). The keys are the lessons' vault-relative paths, folders
+// included: the embed walks its subfolders, or a lesson in a route folder
+// would have no original to subtract.
 var (
 	originalOnce   sync.Once
 	originalByFile = map[string]map[string]bool{}
@@ -557,24 +559,22 @@ var (
 
 func originals() map[string]map[string]bool {
 	originalOnce.Do(func() {
-		entries, err := fs.ReadDir(lessons, "lessons")
-		if err != nil {
-			return
-		}
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-				continue
+		_ = fs.WalkDir(lessons, "lessons", func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+				return nil
 			}
-			data, err := fs.ReadFile(lessons, "lessons/"+e.Name())
+			data, err := fs.ReadFile(lessons, path)
 			if err != nil {
-				continue
+				return nil
 			}
+			rel := strings.TrimPrefix(path, "lessons/")
 			set := map[string]bool{}
 			for _, l := range strings.Split(string(data), "\n") {
 				set[strings.TrimRight(l, "\r")] = true
 			}
-			originalByFile[e.Name()] = set
-		}
+			originalByFile[rel] = set
+			return nil
+		})
 	})
 	return originalByFile
 }

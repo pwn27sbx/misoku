@@ -20,12 +20,12 @@ func ResumeNote(cat Catalog, s *Store, route string) string {
 		return ""
 	}
 	if explicit && !s.RouteStarted(r) {
-		return r.Index
+		return r.IndexPath()
 	}
 	for _, l := range r.Lessons {
 		if s.NextStep(l) != 0 {
-			return l.File
+			return l.Path()
 		}
 	}
-	return r.Index
+	return r.IndexPath()
 }
