@@ -149,6 +149,7 @@ func (m *Model) undo() tea.Cmd {
 		return statusCmd(fmt.Sprintf("Note too large to keep undo history (limit %d MB)", undoMaxBytes>>20))
 	}
 	if h == nil || h.pos == 0 {
+		m.reportAction("undo_empty", "")
 		return statusCmd("Already at oldest change")
 	}
 	n := h.dropped + h.pos

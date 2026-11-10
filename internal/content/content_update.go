@@ -129,6 +129,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 					return m, focus
 				}
 				out := parseVimCommand(m.cmdInput.Value(), m.textarea.Value())
+				m.reportCommandError(out)
 				m.closeCommandLine()
 				focus := m.focusTextarea()
 				if out == nil {

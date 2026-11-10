@@ -409,6 +409,7 @@ func (m *Model) saveBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 				return nil
 			},
 		}
+		m.tutorDefer("external_change", "confirm")
 		return nil
 	}
 	if disk, err := m.store.Get(b.id); err == nil && disk.Content != b.saved && disk.Content != m.liveText(b) {

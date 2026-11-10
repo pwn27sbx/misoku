@@ -1,6 +1,11 @@
 package content
 
-import "sync"
+import (
+	"strings"
+	"sync"
+
+	"github.com/pwn27sbx/misoku/internal/core"
+)
 
 // Action is one activity the player confirmed in the editor, reported while
 // the tutorial runs (F3b/F3c): the event's name and its value, "" when the
@@ -75,4 +80,27 @@ func (m Model) reportAction(name, value string) {
 		return
 	}
 	m.actions.append(Action{Name: name, Value: value})
+}
+
+// reportCommandError reports the command line error out names ("E488:
+// Trailing characters…"), with the error's code as its value (GRF-07).
+// Anything else a command returned is not a command line error.
+func (m Model) reportCommandError(out any) {
+	msg, ok := out.(core.StatusMsg)
+	if !ok || !msg.Error {
+		return
+	}
+	code := msg.Text
+	if i := strings.IndexByte(code, ':'); i >= 0 {
+		code = code[:i]
+	}
+	if len(code) < 2 || code[0] != 'E' {
+		return
+	}
+	for _, r := range code[1:] {
+		if r < '0' || r > '9' {
+			return
+		}
+	}
+	m.reportAction("command_error", code)
 }

@@ -220,6 +220,7 @@ func (m *Model) autoSync() tea.Cmd {
 	}
 	now := m.clock()
 	if every := m.syncVault.Interval; every > 0 && now.Sub(m.syncBase) >= every {
+		m.tutorDefer("sync_run", "timed")
 		return m.startSync(false, true)
 	}
 	if m.commitDue && now.Sub(m.lastSave) >= saveCommitDelay {
@@ -234,6 +235,7 @@ func (m *Model) startSync(local, auto bool) tea.Cmd {
 	m.syncing, m.commitDue = true, false
 	if !local {
 		m.syncBase = m.clock()
+		m.tutorDefer("sync_indicator", "syncing")
 	}
 	run := &syncRun{done: make(chan struct{}), local: local}
 	m.syncRun = run
@@ -323,6 +325,14 @@ func (m *Model) finishSync(msg syncDoneMsg) tea.Cmd {
 	}
 	kind, lastErr := m.sync.kind, m.sync.lastErr
 	m.recordSync(msg)
+	m.tutorCSyncIndicator(kind)
+	if !msg.local && msg.res.Outcome == gitsync.Synced {
+		m.tutorDefer("sync_run", "ok")
+	}
+	if m.syncOpen && !msg.local {
+		m.syncOpen = false
+		m.tutorDefer("sync_run", "on-open")
+	}
 	text, isErr := syncSummary(msg, m.syncKey())
 	summary := text
 	arrived := arrivedNotes(msg.res)
@@ -390,6 +400,7 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	}
 	now := m.clock()
 	if arrived := arrivedNotes(msg.res); len(arrived) > 0 {
+		m.tutorDefer("sync_arrival", strings.Join(arrived, ", "))
 		s.arrivedHead, s.arrived, s.arrivedAt = arrivalHead(msg.res), arrived, now
 		s.noticeLong = arrivalLine(s.arrivedHead, arrived)
 		s.noticeCompact = arrivalCompact(msg.res)
@@ -705,6 +716,7 @@ func (m *Model) offerLockRemoval(l gitsync.LeftoverLock, lines []string) {
 		"It may belong to a git command still running, for example a commit in a terminal:",
 		"remove it only if no git command is running.",
 	)
+	m.tutorDefer("sync_stop_dialog", "")
 	m.confirm = &confirmDialog{
 		title:    "Sync status",
 		message:  m.wrapLines(lines),
@@ -869,6 +881,7 @@ func (m *Model) explainStop() {
 		why = []string{"Origin did not let this computer in.", m.sync.lastErr}
 	}
 	lines := append(slices.Clone(why), "Nothing was changed, and your notes are safe here.", "Once it is sorted out, choose Check again.")
+	m.tutorDefer("sync_stop_dialog", "")
 	m.stopDialog(title, lines, []string{"Check again", "Close"}, 1, func(m *Model) tea.Cmd { return m.askSync() })
 }
 
@@ -881,6 +894,7 @@ func (m *Model) offerSignIn() {
 		"Sign in: gh shows a one-time code and opens your browser. gh keeps the access; Misoku never sees it.",
 		"Sync runs once you are back.",
 	}
+	m.tutorDefer("sync_auth_offer", "")
 	m.stopDialog("Sign in to GitHub", lines, []string{"Sign in", "Cancel"}, 1, func(m *Model) tea.Cmd {
 		return m.execOutside(s.SignInCommand(), func(error) tea.Msg {
 			// gh said how it went on the terminal. This runs on the Update
@@ -1072,6 +1086,7 @@ func (m *Model) openSyncStatus(lines []string) {
 		m.setStatus(lines[0])
 		return
 	}
+	m.tutorCSyncStatus()
 	m.confirm = &confirmDialog{
 		title:    "Sync status",
 		message:  m.wrapLines(lines),

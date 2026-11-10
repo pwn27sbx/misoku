@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -437,4 +438,177 @@ func TestTutorKeyClashEvent(t *testing.T) {
 	}
 	h.key(tea.KeyEsc)
 	passed(t, progress, l, 1)
+}
+
+// A19.2: saving a note deleted outside asks before recreating it.
+func TestTutorExternalChangeEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("external_change", "confirm"), "# A01\n\ncuerpo\n", nil)
+	h.keys("i")
+	h.keys("x")
+	h.key(tea.KeyEsc)
+	if err := os.Remove(filepath.Join(h.store.Root(), eventLessonFile)); err != nil {
+		t.Fatal(err)
+	}
+	h.ex("w")
+	passed(t, progress, l, 1)
+}
+
+// E19.2: undo with nothing to undo is its own event (the history is per
+// tab: the new tab has none).
+func TestTutorUndoEmptyEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("undo_empty"), "# A01\n\ncuerpo\n", map[string]string{"Otra": "otra\n"})
+	h.keys("\\")
+	h.keys("otra")
+	h.key(tea.KeyEnter)
+	h.key(tea.KeyEsc)
+	h.keys("u")
+	passed(t, progress, l, 1)
+}
+
+// E18.3: an error of the command line reports its code.
+func TestTutorCommandErrorEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("command_error", "E488"), "# A01\n\ncuerpo\n", nil)
+	h.ex("graph foo")
+	passed(t, progress, l, 1)
+}
+
+// ---------------------------------------------------------------------------
+// Sync (E12-E16)
+
+// syncedTutor plays the lesson in a vault cloned from a local remote, with
+// the folder listed in sync.vaults.
+func syncedTutor(t *testing.T, cat tutor.Catalog, cfg func(*testing.T, string) string, opts ...app.Option) (*harness, *tutor.Store, tutor.Lesson, string, string) {
+	t.Helper()
+	remote, vault := syncedVault(t)
+	writeOutside(t, vault, eventLessonFile, "# A01\n\ncuerpo\n")
+	gitIn(t, vault, "add", "-A")
+	gitIn(t, vault, "commit", "-q", "-m", "lesson")
+	progress := &tutor.Store{}
+	all := append([]app.Option{app.WithTutor(progress, cat, vault, true)}, opts...)
+	h := window(t, vault, cfg(t, vault), all...)
+	m, cmd := app.OpenInCurrentBuffer(h.m, eventLessonFile)
+	h.m = m
+	sendCmd(t, h, cmd)
+	h.key(tea.KeyEsc)
+	l, _ := cat.Lesson(eventLessonFile)
+	return h, progress, l, remote, vault
+}
+
+// E12.1: a sync asked for from the key reports it ran.
+func TestTutorSyncRunOKEvent(t *testing.T) {
+	h, progress, l, _, _ := syncedTutor(t, eventLesson("sync_run", "ok"), syncConfig)
+	h.finish(pressSync(h))
+	passed(t, progress, l, 1)
+}
+
+// E12.2: the sync a listed vault starts on opening reports itself.
+func TestTutorSyncRunOnOpenEvent(t *testing.T) {
+	h, progress, l, _, _ := syncedTutor(t, eventLesson("sync_run", "on-open"), syncConfig)
+	h.finish(h.update(app.SyncNowMsg{}))
+	passed(t, progress, l, 1)
+}
+
+// E12.3: the timed sync reports itself.
+func TestTutorSyncRunTimedEvent(t *testing.T) {
+	cat := eventLesson("sync_run", "timed")
+	clock := newTestClock()
+	h, progress, l, _, _ := syncedTutor(t, cat, func(t *testing.T, vault string) string {
+		return intervalConfig(t, vault, "2m")
+	}, app.WithClock(clock.Now))
+	clock.add(3 * 60 * 1e9)
+	if n := poll(h); n == 0 {
+		t.Fatal("a timed sync should run")
+	}
+	passed(t, progress, l, 1)
+}
+
+// E14.1 / E14.2: the status screen reports itself and the files it leaves
+// out.
+func TestTutorSyncStatusEvent(t *testing.T) {
+	cat := eventLessonSteps([]tutor.Step{
+		{Text: "Abre :sync status", Check: tutor.Check{Kind: tutor.KindAction, Event: "sync_status"}},
+		{Text: "Lee los archivos que quedan fuera", Check: tutor.Check{Kind: tutor.KindAction, Event: "sync_status", Value: tutor.Values{"left-out"}}},
+	})
+	h, progress, l, _, vault := syncedTutor(t, cat, syncConfig)
+	// A folder that is a repository of its own cannot sync as plain files.
+	nested := filepath.Join(vault, "otro")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, nested, "init", "-q")
+	h.finish(pressSync(h))
+	h.ex("sync status")
+	passed(t, progress, l, 1)
+	passed(t, progress, l, 2)
+}
+
+// E15.1: the sync key answers a stop with a dialog.
+func TestTutorSyncStopDialogEvent(t *testing.T) {
+	cat := eventLesson("sync_stop_dialog")
+	h, progress, l, _, vault := syncedTutor(t, cat, syncConfig)
+	leftoverLock(t, vault)
+	h.finish(pressSync(h))
+	atNote(h)
+	h.finish(pressSync(h))
+	passed(t, progress, l, 1)
+}
+
+// E16.1: the sync indicator reports its new state.
+func TestTutorSyncIndicatorEvent(t *testing.T) {
+	h, progress, l, _, _ := syncedTutor(t, eventLesson("sync_indicator"), syncConfig)
+	h.finish(pressSync(h))
+	passed(t, progress, l, 1)
+}
+
+// E16.3: a second window on the same vault reports "other window".
+func TestTutorSyncIndicatorOtherWindowEvent(t *testing.T) {
+	cat := eventLesson("sync_indicator", "other-window")
+	_, vault := syncedVault(t)
+	writeOutside(t, vault, eventLessonFile, "# A01\n\ncuerpo\n")
+	gitIn(t, vault, "add", "-A")
+	gitIn(t, vault, "commit", "-q", "-m", "lesson")
+	cfg := syncConfig(t, vault)
+	// The first window takes the vault's lock.
+	first := window(t, vault, cfg)
+	first.finish(first.update(app.SyncNowMsg{}))
+
+	progress := &tutor.Store{}
+	second := window(t, vault, cfg, app.WithTutor(progress, cat, vault, true))
+	m, cmd := app.OpenInCurrentBuffer(second.m, eventLessonFile)
+	second.m = m
+	sendCmd(t, second, cmd)
+	second.key(tea.KeyEsc)
+	l, _ := cat.Lesson(eventLessonFile)
+	second.finish(second.update(app.SyncNowMsg{}))
+	passed(t, progress, l, 1)
+}
+
+// E16.2: notes a sync brings are reported.
+func TestTutorSyncArrivalEvent(t *testing.T) {
+	h, progress, l, remote, _ := syncedTutor(t, eventLesson("sync_arrival"), syncConfig)
+	pushFromDesk(t, remote, "llegada.md", "viene de camino")
+	h.finish(pressSync(h))
+	passed(t, progress, l, 1)
+}
+
+// ---------------------------------------------------------------------------
+// Nothing outside the tutorial
+
+// Nothing is reported when the same actions run without a tutorial.
+func TestTutorEventsOutsideTheTutorialDoNothing(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "cuerpo\n"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store)
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	h.keys(" g")
+	h.keys("h")
+	h.key(tea.KeyEsc)
+	h.keys("u")
+	h.ex("graph foo")
+	if v := h.view(); strings.Contains(v, "Paso") || strings.Contains(v, "Tutor") {
+		t.Fatalf("no tutorial, no tutorial line:\n%s", v)
+	}
 }
