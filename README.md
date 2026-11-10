@@ -276,15 +276,18 @@ first route you have not finished, and each entry starts
 `misoku tutor --route <route>` on that route.
 
 The tutorial is a vault of its own, opened in the normal app, with the routes
-Básico, Intermedio, Avanzado and Experto in Spanish. Each lesson is one note
-of two to four minutes with numbered steps; every form it teaches is a step
-you do, and Misoku checks it as you go: the note's text (code and the
-lesson's own examples never count), a file, a folder or a setting on disk, or
-an action in the editor such as leaving INSERT or switching tabs. The
-statusline follows you: `B03 · Paso 2/4 · <what to do>`, a short `✓ Paso 2`
-when a step passes, `✓ B03 superado · siguiente: <lesson>` when the lesson
-does, and `🏆 Ruta Básico completa` at the end. A hint explains the common
-mistake, and the badge counts the route: `Tutor 3/26`.
+Básico, Intermedio, Avanzado and Experto in Spanish. Each route keeps its
+lessons in its own folder — `1 Básico`, `2 Intermedio`, `3 Avanzado`,
+`4 Experto` — so the explorer shows four groups in learning order;
+`Después del tutorial.md` and `mapa.png` stay at the tutorial's root. Each
+lesson is one note of two to four minutes with numbered steps; every form it
+teaches is a step you do, and Misoku checks it as you go: the note's text
+(code and the lesson's own examples never count), a file, a folder or a
+setting on disk, or an action in the editor such as leaving INSERT or
+switching tabs. The statusline follows you: `B03 · Paso 2/4 · <what to do>`, a
+short `✓ Paso 2` when a step passes, `✓ B03 superado · siguiente: <lesson>`
+when the lesson does, and `🏆 Ruta Básico completa` at the end. A hint
+explains the common mistake, and the badge counts the route: `Tutor 3/26`.
 
 Progress is stored in `.misoku-tutor.json` in the tutorial vault, so actions
 that leave no trace in a note still count; editing a note's text still

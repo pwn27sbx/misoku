@@ -6,7 +6,7 @@ Un enlace normal lleva a otra nota. Si le pones una exclamación delante, el con
 
 El molde es el de siempre: `![[Nota#parte]]`. El `#` separa la nota de la parte, y `^` dice que la parte es un bloque y no un título. Por eso `![[Viaje#Equipaje]]` trae la sección bajo ese título y `![[Viaje#^reserva]]` trae solo la línea marcada con `^reserva`. En la misma nota se omite el nombre: `![[#^reserva]]`. Sin el `#`, `[[^reserva]]` sería una nota llamada `^reserva`, y por eso el `#` no es opcional: es la frontera entre la nota y la parte.
 
-Con una imagen pasa lo mismo: `![[mapa.png]]` la dibuja por su nombre, sin ruta. Es la forma de tener una foto o un plano dentro de la nota sin depender de dónde esté el archivo.
+Con una imagen pasa lo mismo: `![[mapa.png]]` la dibuja por su nombre, sin ruta. Es la forma de tener una foto o un plano dentro de la nota sin depender de dónde esté el archivo. Esta lección vive en `3 Avanzado/` y `mapa.png` se queda en la raíz del tutorial: el enlace lo encuentra igual, porque busca por nombre y no por carpeta.
 
 ## Tu turno
 

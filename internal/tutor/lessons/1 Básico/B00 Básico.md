@@ -2,6 +2,8 @@
 
 Bienvenido al tutorial de Misoku. Esta ruta no asume nada: empiezas con la primera lección abierta y escribes en los primeros treinta segundos.
 
+Cada ruta vive en su carpeta en el explorador (`1 Básico`, `2 Intermedio`, `3 Avanzado`, `4 Experto`), así que sus lecciones quedan juntas y en el orden en que se aprenden. `Después del tutorial.md` y `mapa.png` están en la raíz del tutorial.
+
 Si llegaste desde el diálogo de primera vez, esto es lo que elegiste. **Soy nuevo** abre esta ruta; **Ya tengo experiencia** te lleva directo a Intermedio; **Ahora no** te deja en tus notas. Ese diálogo solo decide por dónde entras, y puedes cambiar de ruta cuando quieras desde la entrada **Learn** del inicio.
 
 ## Cómo se juega
