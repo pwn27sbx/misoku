@@ -2,10 +2,12 @@ package app_test
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
@@ -315,5 +317,124 @@ func TestTutorStatusGlyphNoneEvent(t *testing.T) {
 	h.keys("x")
 	h.key(tea.KeyEsc)
 	h.ex("w")
+	passed(t, progress, l, 1)
+}
+
+// ---------------------------------------------------------------------------
+// Settings, themes and the cursor (E04, E07, E08)
+
+// E04.1: opening :settings reports the menu.
+func TestTutorSettingsOpenEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("settings_open"), "# A01\n\ncuerpo\n", nil)
+	h.ex("settings")
+	passed(t, progress, l, 1)
+}
+
+// E04.1: a row changed and saved reports the save.
+func TestTutorSettingsSavedEvent(t *testing.T) {
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	if err := config.Save(cfg, config.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	h, progress, l := eventHarness(t, eventLesson("settings_saved"), "# A01\n\ncuerpo\n", nil, app.WithConfigPath(cfg))
+	h.ex("settings")
+	h.key(tea.KeyEnter) // the first row: accordion folders, applied and saved
+	passed(t, progress, l, 1)
+}
+
+// E08.3: opening the picker shows the whole list.
+func TestTutorThemeListEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("theme_list"), "# A01\n\ncuerpo\n", nil)
+	h.keys(" t")
+	passed(t, progress, l, 1)
+}
+
+// E08.1: Enter keeps the theme the picker previewed.
+func TestTutorThemePickEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("theme_pick"), "# A01\n\ncuerpo\n", nil)
+	h.keys(" t")
+	h.key(tea.KeyEnter)
+	passed(t, progress, l, 1)
+}
+
+// E08.2: Esc puts the theme back and reports it as a revert; no settings are
+// written, so a cancelled pick never credits the save (E08.1).
+func TestTutorThemeRevertEvent(t *testing.T) {
+	cat := eventLessonSteps([]tutor.Step{
+		{Text: "Sal con Esc", Check: tutor.Check{Kind: tutor.KindAction, Event: "theme_pick", Value: tutor.Values{"revert"}}},
+		{Text: "Guarda", Check: tutor.Check{Kind: tutor.KindAction, Event: "settings_saved"}},
+	})
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	if err := config.Save(cfg, config.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	h, progress, l := eventHarness(t, cat, "# A01\n\ncuerpo\n", nil, app.WithConfigPath(cfg))
+	h.keys(" t")
+	h.key(tea.KeyEsc)
+	passed(t, progress, l, 1)
+	notPassed(t, progress, l, 2)
+}
+
+// E07.2: the terminal cursor takes a bar in INSERT and a block in NORMAL.
+func TestTutorCursorShapeEvent(t *testing.T) {
+	_, cursorOpt := newCursorOut()
+	h, progress, l := eventHarness(t, eventLesson("cursor_shape", "block", "bar"), "# A01\n\ncuerpo\n", nil, cursorOpt)
+	h.keys("i")
+	h.key(tea.KeyEsc)
+	passed(t, progress, l, 1)
+}
+
+// ---------------------------------------------------------------------------
+// Explorer, quit-time changes and vim (A19, A20, E19)
+
+// A20.1: m opens the folder editor.
+func TestTutorDirbufOpenEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("dirbuf_open"), "# A01\n\ncuerpo\n", nil)
+	h.keys(" e") // focus the explorer
+	h.keys("m")
+	passed(t, progress, l, 1)
+}
+
+// A20.3: i, a and o open the folder editor on the selected note.
+func TestTutorDirbufInsertKeysEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("dirbuf_open", "i", "a", "o"), "# A01\n\ncuerpo\n", nil)
+	h.keys(" e")
+	for _, k := range []string{"i", "a", "o"} {
+		h.keys(k)
+		h.key(tea.KeyEsc) // leaves the name being edited
+		h.key(tea.KeyEsc) // closes the folder editor
+	}
+	passed(t, progress, l, 1)
+}
+
+// ---------------------------------------------------------------------------
+// Keys and the leader (E01, E03)
+
+// E01.1 / E01.2: the guide and its second page.
+func TestTutorLeaderGuideEvent(t *testing.T) {
+	cat := eventLessonSteps([]tutor.Step{
+		{Text: "Espera la guía", Check: tutor.Check{Kind: tutor.KindAction, Event: "leader_guide"}},
+		{Text: "Abre la página de misoku", Check: tutor.Check{Kind: tutor.KindAction, Event: "leader_guide", Value: tutor.Values{"subpage"}}},
+	})
+	h, progress, l := eventHarness(t, cat, "# A01\n\ncuerpo\n", nil)
+	h.keys(" ")
+	tickGuide(h)
+	h.key(tea.KeyEsc)
+	h.keys(" ")
+	h.keys("o")
+	tickGuide(h)
+	passed(t, progress, l, 1)
+	passed(t, progress, l, 2)
+}
+
+// E03.1: a key bound twice at startup warns, and the warning is credited.
+func TestTutorKeyClashEvent(t *testing.T) {
+	h, progress, l := eventHarness(t, eventLesson("key_clash"), "# A01\n\ncuerpo\n", nil,
+		app.WithKeys(map[string][]string{"toggle_explorer": {"space e"}}))
+	h.ex("messages")
+	if v := h.view(); !strings.Contains(v, "bound to both") {
+		t.Fatalf("the clash should be in :messages:\n%s", v)
+	}
+	h.key(tea.KeyEsc)
 	passed(t, progress, l, 1)
 }

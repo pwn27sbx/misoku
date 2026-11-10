@@ -75,6 +75,7 @@ func (m *Model) endLeader() {
 func (m *Model) openLeaderGuide(msg leaderGuideMsg) {
 	if msg.seq == m.leaderSeq {
 		m.leaderGuide = true
+		m.tutorCLeaderGuide()
 	}
 }
 

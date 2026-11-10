@@ -18,6 +18,7 @@ func WithKeys(user map[string][]string) Option {
 		m.content.SetKeys(km)
 		if len(warnings) > 0 {
 			m.setError(strings.Join(warnings, "; "))
+			m.keyClash = true
 		}
 	}
 }

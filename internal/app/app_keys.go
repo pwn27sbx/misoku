@@ -21,7 +21,7 @@ func (m *Model) handleKey(k tea.KeyMsg) tea.Cmd {
 	before := m.content.Mode()
 	cmd := m.handleKeyAction(k)
 	if m.content.Mode() != before {
-		return tea.Batch(cmd, m.tutorEvent("mode_changed", modeValue(m.content.Mode())))
+		return tea.Batch(cmd, m.tutorEvent("mode_changed", modeValue(m.content.Mode())), m.tutorCCursorShape(m.content.Mode()))
 	}
 	return cmd
 }
@@ -103,7 +103,9 @@ func (m *Model) handleKeyAction(k tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch m.focus {
 	case focusSidebar:
+		editing := m.sidebar.IsEditing()
 		m.sidebar, cmd = m.sidebar.Update(k)
+		cmd = tea.Batch(cmd, m.tutorCDirbuf(k.String(), editing))
 	case focusPreview:
 		m.preview, cmd = m.preview.Update(k)
 	default:
