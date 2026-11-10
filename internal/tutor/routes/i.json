@@ -86,7 +86,7 @@
           "text": "Pulsa p: la línea aparece dos veces seguidas",
           "hint": "p pega debajo y el cursor baja a la copia",
           "ids": ["VIM-18"],
-          "check": { "kind": "text", "pred": "n-lines-start", "args": [2, "lista de playa"] }
+          "check": { "kind": "text", "pred": "n-lines-start", "args": ["2", "lista de playa"] }
         }
       ]
     },
@@ -192,7 +192,7 @@
           "text": "Inserta /Table",
           "hint": "Nace con dos columnas, su fila de guiones y una fila vacía",
           "ids": ["MD-18"],
-          "check": { "kind": "text", "pred": "table-shape", "args": [2] }
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
         },
         {
           "text": "Rellena dos celdas y pasa con Tab y Shift+Tab",
@@ -223,25 +223,25 @@
           "text": "Con el cursor en la tabla, ejecuta :addrow o :tr",
           "hint": "Añade una fila debajo de la fila del cursor",
           "ids": ["TBL-02"],
-          "check": { "kind": "text", "pred": "n-lines-start", "args": [4, "|"] }
+          "check": { "kind": "text", "pred": "n-lines-start", "args": ["4", "|"] }
         },
         {
           "text": "Ejecuta :addcol o :tc: aparece una columna",
           "hint": "La columna nueva entra a la derecha de la actual",
           "ids": ["TBL-03"],
-          "check": { "kind": "text", "pred": "table-shape", "args": [3] }
+          "check": { "kind": "text", "pred": "table-shape", "args": ["3"] }
         },
         {
           "text": "Ejecuta :delrow: la tabla pierde una fila",
           "hint": "Se va la fila del cursor",
           "ids": ["TBL-04"],
-          "check": { "kind": "text", "pred": "n-lines-start", "args": [3, "|"] }
+          "check": { "kind": "text", "pred": "n-lines-start", "args": ["3", "|"] }
         },
         {
           "text": "Ejecuta :delcol: cada fila pierde una celda",
           "hint": "Se va la columna del cursor en todas las filas",
           "ids": ["TBL-05"],
-          "check": { "kind": "text", "pred": "table-shape", "args": [2] }
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
         }
       ]
     },
@@ -254,7 +254,7 @@
           "text": "Ejecuta :tablefmt o :tf",
           "hint": "Rellena las celdas para que todas las barras caigan igual",
           "ids": ["TBL-06"],
-          "check": { "kind": "text", "pred": "table-shape", "args": [2] }
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
         },
         {
           "text": "Escribe Playa dentro de una celda con relleno",
@@ -263,7 +263,7 @@
           "check": {
             "kind": "all",
             "checks": [
-              { "kind": "text", "pred": "table-shape", "args": [2] },
+              { "kind": "text", "pred": "table-shape", "args": ["2"] },
               { "kind": "text", "pred": "line-contains", "args": ["Playa"] }
             ]
           }
@@ -294,8 +294,8 @@
           "check": {
             "kind": "all",
             "checks": [
-              { "kind": "text", "pred": "n-lines-start", "args": [4, "|"] },
-              { "kind": "text", "pred": "table-shape", "args": [3] }
+              { "kind": "text", "pred": "n-lines-start", "args": ["4", "|"] },
+              { "kind": "text", "pred": "table-shape", "args": ["3"] }
             ]
           }
         },
@@ -599,7 +599,7 @@
             "kind": "all",
             "checks": [
               { "kind": "text", "pred": "line-contains", "args": ["[[#Equipaje]]"] },
-              { "kind": "text", "pred": "heading-exists", "args": [2, "Equipaje"] }
+              { "kind": "text", "pred": "heading-exists", "args": ["2", "Equipaje"] }
             ]
           }
         },

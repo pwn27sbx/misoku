@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,6 +11,16 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// isolateHome keeps the tutorial lookup out of the real HOME when a test
+// starts a fake tutorial.
+func isolateHome(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+}
 
 // fixtureRoutes is a catalog with two routes, for the home screen tests.
 func fixtureRoutes() (tutor.Catalog, *tutor.Store) {
@@ -37,6 +48,7 @@ func TestLearnEntriesPerRoute(t *testing.T) {
 
 // D6/E10: l opens the first route not complete; an entry carries its route.
 func TestLearnKeyOpensTheFirstIncompleteRoute(t *testing.T) {
+	isolateHome(t)
 	cat, progress := fixtureRoutes()
 	progress.Mark(cat.Routes[0].Lessons[0], 1)
 	progress.Mark(cat.Routes[0].Lessons[1], 1)
@@ -59,6 +71,7 @@ func TestLearnKeyOpensTheFirstIncompleteRoute(t *testing.T) {
 
 // E10: each home entry starts its own route.
 func TestLearnEntryStartsItsRoute(t *testing.T) {
+	isolateHome(t)
 	cat, progress := fixtureRoutes()
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(progress, cat), fakeTutorial(&got, nil, nil))
@@ -77,6 +90,7 @@ func TestLearnEntryStartsItsRoute(t *testing.T) {
 // D6/E10: Ya tengo experiencia opens Intermedio, and falls back to Básico
 // while Intermedio has no lessons.
 func TestExperienceOffersIntermedioOrBasico(t *testing.T) {
+	isolateHome(t)
 	cat, progress := fixtureRoutes()
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(progress, cat), app.WithLearnOffer(true),
@@ -118,6 +132,7 @@ func TestTutorRouteCompleteLine(t *testing.T) {
 
 // E10: "Ahora no" goes to the notes even when the home has Learn entries.
 func TestLearnNowDoesNotStartTheTutorial(t *testing.T) {
+	isolateHome(t)
 	cat, progress := fixtureRoutes()
 	var got *exec.Cmd
 	h := newHarness(t, newTestStore(t), app.WithLearn(progress, cat), app.WithLearnOffer(true),

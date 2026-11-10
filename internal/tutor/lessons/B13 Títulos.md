@@ -6,10 +6,10 @@ Un título empieza por `#` y un espacio; cuantos más `#`, más pequeño es el n
 
 ## Tu turno
 
-1. En la zona de pruebas escribe un título con `/Heading 1`.
-2. Debajo, añade `/Heading 2`.
-3. Debajo, añade `/Heading 3`.
-4. Debajo, añade `/Heading 4`.
+1. En la zona de pruebas escribe `# Viaje` con `/Heading 1`.
+2. Debajo, añade `## Equipaje` con `/Heading 2`.
+3. Debajo, añade `### Día 1` con `/Heading 3`.
+4. Debajo, añade `#### Detalle` con `/Heading 4`.
 
 ## Tu zona de pruebas
 

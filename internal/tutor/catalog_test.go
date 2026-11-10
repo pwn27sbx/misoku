@@ -1,6 +1,7 @@
 package tutor
 
 import (
+	"fmt"
 	"io/fs"
 	"strings"
 	"testing"
@@ -37,17 +38,27 @@ func TestBundledRoutes(t *testing.T) {
 	if b.Index != "B00 Básico.md" {
 		t.Errorf("index = %q", b.Index)
 	}
-	if len(b.Lessons) != 7 {
-		t.Fatalf("route B has %d lessons, want the 7 placeholders", len(b.Lessons))
+	if len(b.Lessons) != 26 {
+		t.Fatalf("route B has %d lessons, want 26", len(b.Lessons))
 	}
 	for i, l := range b.Lessons {
-		wantID := "B0" + string(rune('1'+i))
+		wantID := fmt.Sprintf("B%02d", i+1)
 		if l.ID != wantID {
 			t.Errorf("lesson %d = %q, want %q", i, l.ID, wantID)
 		}
 		if len(l.Steps) == 0 {
 			t.Errorf("%s has no steps", l.ID)
 		}
+	}
+	want := map[string]int{"B": 26, "I": 30, "A": 21, "E": 20}
+	for _, r := range cat.Routes {
+		if n, ok := want[r.ID]; !ok || n != len(r.Lessons) {
+			t.Errorf("route %s has %d lessons, want %d", r.ID, len(r.Lessons), want[r.ID])
+		}
+		delete(want, r.ID)
+	}
+	if len(want) != 0 {
+		t.Errorf("missing routes: %v", want)
 	}
 }
 
@@ -172,7 +183,7 @@ func TestValidCatalogPasses(t *testing.T) {
 
 // L4/E13: a text check ignores every line the embedded lesson already has.
 func TestWithoutOriginal(t *testing.T) {
-	data, err := fs.ReadFile(Bundled(), "B01 Títulos.md")
+	data, err := fs.ReadFile(Bundled(), "B13 Títulos.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,11 +192,11 @@ func TestWithoutOriginal(t *testing.T) {
 	if !ownHeading.Pass(original, Env{}) {
 		t.Fatal("fixture: the original has its own ## Tu turno")
 	}
-	if ownHeading.Pass(withoutOriginal("B01 Títulos.md", original), Env{}) {
+	if ownHeading.Pass(withoutOriginal("B13 Títulos.md", original), Env{}) {
 		t.Fatal("a lesson passed on its own text")
 	}
 	wanted := Check{Kind: KindText, Pred: "heading-exists", Args: []string{"2", "Viaje"}}
-	if !wanted.Pass(withoutOriginal("B01 Títulos.md", original+"\n## Viaje\n"), Env{}) {
+	if !wanted.Pass(withoutOriginal("B13 Títulos.md", original+"\n## Viaje\n"), Env{}) {
 		t.Fatal("the player's own heading should pass")
 	}
 }

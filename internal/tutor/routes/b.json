@@ -347,24 +347,24 @@
       "file": "B13 Títulos.md",
       "steps": [
         {
-          "text": "Escribe un título con /Heading 1",
+          "text": "Escribe `# Viaje` con `/Heading 1`",
           "ids": ["MD-02"],
-          "check": { "kind": "text", "pred": "line-starts", "args": ["# "] }
+          "check": { "kind": "text", "pred": "heading-exists", "args": ["1", "Viaje"] }
         },
         {
-          "text": "Añade /Heading 2 debajo",
+          "text": "Añade `## Equipaje` debajo",
           "ids": ["MD-03"],
-          "check": { "kind": "text", "pred": "line-starts", "args": ["## "] }
+          "check": { "kind": "text", "pred": "heading-under", "args": ["1", "Viaje", "2", "Equipaje"] }
         },
         {
-          "text": "Añade /Heading 3 debajo",
+          "text": "Añade `### Día 1` debajo",
           "ids": ["MD-04"],
-          "check": { "kind": "text", "pred": "line-starts", "args": ["### "] }
+          "check": { "kind": "text", "pred": "heading-under", "args": ["2", "Equipaje", "3", "Día 1"] }
         },
         {
-          "text": "Añade /Heading 4 debajo",
+          "text": "Añade `#### Detalle` debajo",
           "ids": ["MD-05"],
-          "check": { "kind": "text", "pred": "line-starts", "args": ["#### "] }
+          "check": { "kind": "text", "pred": "heading-under", "args": ["3", "Día 1", "4", "Detalle"] }
         }
       ]
     },
@@ -402,28 +402,32 @@
       "file": "B15 Casillas, marcar.md",
       "steps": [
         {
-          "text": "Escribe [x] delante del texto de la primera tarea",
+          "text": "Marca `Comprar pan` con `[x]`",
           "hint": "queda - [x] y deja de estar pendiente",
           "ids": ["MD-10"],
-          "check": { "kind": "text", "pred": "line-starts", "args": ["- [x] "] }
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "Comprar pan"] }
         },
         {
-          "text": "En la segunda tarea, pulsa space o c",
+          "text": "Marca `Llamar al hotel` con `space o c`",
           "hint": "space o c alterna la casilla",
           "ids": ["EDT-12"],
-          "check": { "kind": "text", "pred": "n-lines-start", "args": [2, "- [x] "] }
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "Llamar al hotel"] }
         },
         {
-          "text": "Selecciona tres tareas con V y pulsa space o c",
+          "text": "Marca las tres tareas con `V`",
           "hint": "V selecciona líneas enteras",
           "ids": ["EDT-13"],
-          "check": { "kind": "text", "pred": "n-lines-start", "args": [3, "- [x] "] }
+          "check": { "kind": "all", "checks": [
+            { "kind": "text", "pred": "task-status", "args": ["done", "Reservar el museo"] },
+            { "kind": "text", "pred": "task-status", "args": ["done", "Hacer la maleta"] },
+            { "kind": "text", "pred": "task-status", "args": ["done", "Cargar el móvil"] }
+          ] }
         },
         {
-          "text": "En NORMAL, pulsa Enter sobre la última tarea",
+          "text": "Marca `Regar las plantas` con Enter",
           "hint": "Enter alterna la casilla de la línea",
           "ids": ["EDT-15"],
-          "check": { "kind": "text", "pred": "n-lines-start", "args": [6, "- [x] "] }
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "Regar las plantas"] }
         }
       ]
     },

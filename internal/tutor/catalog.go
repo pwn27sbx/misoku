@@ -162,6 +162,7 @@ var diskPreds = map[string]bool{
 var fenceKinds = map[string]bool{
 	"board": true, "calendar": true, "timeline": true, "chart": true,
 	"form": true, "flow": true, "math": true, "code": true,
+	"columns": true,
 }
 
 // actionEvents are the event names the curriculum's "Necesidades del motor"

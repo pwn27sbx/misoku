@@ -15,7 +15,7 @@ func TestInitTutorialGit(t *testing.T) {
 		t.Skip("git is not installed")
 	}
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "B01 Títulos.md"), []byte("# Nivel\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "B01 Uno.md"), []byte("# Nivel\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, ".misoku-tutor.json"), []byte("{}\n"), 0o644); err != nil {
@@ -37,7 +37,7 @@ func TestInitTutorialGit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(files), "B01 Títulos.md") {
+	if !strings.Contains(string(files), "B01 Uno.md") {
 		t.Fatalf("the lesson is not committed:\n%s", files)
 	}
 	if strings.Contains(string(files), ".misoku-tutor.json") {

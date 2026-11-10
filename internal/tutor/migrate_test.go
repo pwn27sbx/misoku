@@ -66,7 +66,7 @@ func TestInstallRetiresOldNotesOnce(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "Mi nota.md")); err != nil {
 		t.Errorf("the player's note was touched: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "B01 Títulos.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "B01 Escribe en 30 segundos.md")); err != nil {
 		t.Errorf("the renamed lesson was not installed: %v", err)
 	}
 	store, err := tutor.Load(dir)
@@ -129,7 +129,7 @@ func TestInstallRetiresDecomposedNames(t *testing.T) {
 			t.Fatalf("%s is still there", e.Name())
 		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, "B01 Títulos.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "B01 Escribe en 30 segundos.md")); err != nil {
 		t.Errorf("the new lesson was not installed: %v", err)
 	}
 }

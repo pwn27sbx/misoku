@@ -15,8 +15,8 @@
           "check": {
             "kind": "all",
             "checks": [
-              { "kind": "text", "pred": "heading-exists", "args": [5, "Presupuesto"] },
-              { "kind": "text", "pred": "heading-exists", "args": [6, "Detalle"] }
+              { "kind": "text", "pred": "heading-exists", "args": ["5", "Presupuesto"] },
+              { "kind": "text", "pred": "heading-exists", "args": ["6", "Detalle"] }
             ]
           }
         },

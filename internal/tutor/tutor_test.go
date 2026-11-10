@@ -10,8 +10,8 @@ import (
 
 func TestInstall(t *testing.T) {
 	fsys := fstest.MapFS{
-		"B01 Títulos.md":  {Data: []byte("original")},
-		"B02 Casillas.md": {Data: []byte("dos")},
+		"B01 Uno.md": {Data: []byte("original")},
+		"B02 Dos.md": {Data: []byte("dos")},
 	}
 	dir := filepath.Join(t.TempDir(), "tutor")
 	if err := Install(fsys, dir, false); err != nil {
@@ -25,14 +25,14 @@ func TestInstall(t *testing.T) {
 		}
 		return string(b)
 	}
-	if got := read("B01 Títulos.md"); got != "original" {
+	if got := read("B01 Uno.md"); got != "original" {
 		t.Fatalf("installed %q", got)
 	}
-	if got := read("B02 Casillas.md"); got != "dos" {
+	if got := read("B02 Dos.md"); got != "dos" {
 		t.Fatalf("installed %q", got)
 	}
 
-	path := filepath.Join(dir, "B01 Títulos.md")
+	path := filepath.Join(dir, "B01 Uno.md")
 	if err := os.WriteFile(path, []byte("editado"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -40,16 +40,16 @@ func TestInstall(t *testing.T) {
 	if err := os.WriteFile(extra, []byte("mía"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(filepath.Join(dir, "B02 Casillas.md")); err != nil {
+	if err := os.Remove(filepath.Join(dir, "B02 Dos.md")); err != nil {
 		t.Fatal(err)
 	}
 	if err := Install(fsys, dir, false); err != nil {
 		t.Fatal(err)
 	}
-	if got := read("B01 Títulos.md"); got != "editado" {
+	if got := read("B01 Uno.md"); got != "editado" {
 		t.Fatalf("second Install overwrote an edited lesson: %q", got)
 	}
-	if got := read("B02 Casillas.md"); got != "dos" {
+	if got := read("B02 Dos.md"); got != "dos" {
 		t.Fatalf("second Install did not restore a missing lesson: %q", got)
 	}
 
@@ -59,7 +59,7 @@ func TestInstall(t *testing.T) {
 	if err := Install(fsys, dir, true); err != nil {
 		t.Fatal(err)
 	}
-	if got := read("B01 Títulos.md"); got != "original" {
+	if got := read("B01 Uno.md"); got != "original" {
 		t.Fatalf("reset did not restore the lesson: %q", got)
 	}
 	if _, err := os.Stat(extra); !os.IsNotExist(err) {
@@ -70,7 +70,7 @@ func TestInstall(t *testing.T) {
 		"linux":  filepath.Join(home, ".local", "share", "Trash", "files"),
 	}[runtime.GOOS]
 	if trash != "" {
-		for name, want := range map[string]string{"Mi nota.md": "mía", "B01 Títulos.md": "editado"} {
+		for name, want := range map[string]string{"Mi nota.md": "mía", "B01 Uno.md": "editado"} {
 			b, err := os.ReadFile(filepath.Join(trash, "tutor", name))
 			if err != nil || string(b) != want {
 				t.Errorf("reset did not move %s to the Trash: %q, %v", name, b, err)

@@ -317,32 +317,34 @@ func TestScanDir(t *testing.T) {
 	}
 }
 
-// L4: ScanDir never passes the untouched installed lesson.
+// L4: ScanDir never passes the untouched installed lesson, and the player's
+// own lines do.
 func TestScanDirIgnoresTheOriginal(t *testing.T) {
 	dir := t.TempDir()
-	data, err := fs.ReadFile(Bundled(), "B01 Títulos.md")
+	data, err := fs.ReadFile(Bundled(), "B13 Títulos.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "B01 Títulos.md"), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "B13 Títulos.md"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cat := Default()
 	s := &Store{}
 	s.ScanDir(cat, dir, Env{})
-	l, ok := cat.Lesson("B01 Títulos.md")
+	l, ok := cat.Lesson("B13 Títulos.md")
 	if !ok {
-		t.Fatal("B01 is not in the catalog")
+		t.Fatal("B13 is not in the catalog")
 	}
 	if s.NextStep(l) != 1 {
 		t.Fatal("the untouched lesson passed a step")
 	}
-	if err := os.WriteFile(filepath.Join(dir, "B01 Títulos.md"), append(data, []byte("\n## Viaje\n\n### Día 1\n")...), 0o644); err != nil {
+	answer := "\n# Viaje\n\n## Equipaje\n\n### Día 1\n\n#### Detalle\n"
+	if err := os.WriteFile(filepath.Join(dir, "B13 Títulos.md"), append(data, []byte(answer)...), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.ScanDir(cat, dir, Env{})
 	if !s.LessonDone(l) {
-		t.Fatal("the player's own headings should pass the lesson")
+		t.Fatalf("the player's own headings should pass the lesson (next %d)", s.NextStep(l))
 	}
 }
 
