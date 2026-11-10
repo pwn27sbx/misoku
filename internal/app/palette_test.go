@@ -207,7 +207,7 @@ func TestPaletteEnterRunsARunnableEntry(t *testing.T) {
 	h := openPalette(t)
 	typeQuery(h, "reading view")
 	h.key(tea.KeyEnter)
-	if v := h.view(); strings.Contains(v, paletteTitle) || mode(v) != "READING" {
+	if v := h.view(); strings.Contains(v, paletteTitle) || !inReadingView(v) {
 		t.Fatalf("Enter on Reading mode should close the palette and run it:\n%s", v)
 	}
 

@@ -317,7 +317,7 @@ func (m *Model) updateLayout() {
 	m.sidebar.SetSize(m.explorerW(l), l.BodyH)
 	m.content.SetSize(l.EditorW, l.NoteH())
 	m.content.SetMargin(m.editorMargin(l))
-	m.preview.SetSize(l.PreviewW, l.NoteH())
+	m.preview.SetSize(m.hiddenPreviewW(l), l.NoteH())
 	m.graph.SetSize(l.EditorW, l.BodyH)
 	m.globalGraph.SetSize(l.EditorW, l.BodyH)
 	if m.focus == focusPreview && l.PreviewW == 0 {
@@ -462,7 +462,7 @@ type noteView int
 
 const (
 	viewSplit   noteView = iota // the editor and the side preview
-	viewReading                 // Space p: the note rendered, read-only, full width
+	viewReading                 // Space p: the note rendered and editable, full width
 	viewEditor                  // Space r: the Markdown editor alone, full width
 )
 
@@ -474,6 +474,16 @@ func (m *Model) editorMargin(l Layout) int {
 		return 0
 	}
 	return preview.PageMargin(l.EditorW)
+}
+
+// hiddenPreviewW is the width the preview compiles at: its own column, or in
+// the reading view, where nothing shows it but its compile is what the editor
+// draws, the editor's.
+func (m *Model) hiddenPreviewW(l Layout) int {
+	if m.noteView == viewReading {
+		return l.EditorW
+	}
+	return l.PreviewW
 }
 
 // toggleView is Space p (viewReading) and Space r (viewEditor): show v and
@@ -492,22 +502,20 @@ func (m *Model) toggleView(v noteView) tea.Cmd {
 	return m.focusPane(focusEditor)
 }
 
-// setNoteView lays the note out as v: the reading view draws every line
-// rendered and refuses edits, the others draw raw Markdown and edit.
+// setNoteView lays the note out as v: the reading view draws the note from
+// its compile, the others draw raw Markdown. All of them edit.
 func (m *Model) setNoteView(v noteView) {
 	m.noteView = v
 	m.tutorBView(v)
 	m.content.SetLive(v == viewReading)
-	m.content.SetReadOnly(v == viewReading)
-	if v != viewSplit {
-		preview.ClearImages() // the preview is hidden: drop its terminal images
+	if v == viewEditor {
+		preview.ClearImages() // no compile is shown: drop its terminal images
 	}
 	m.updateLayout() // after SetLive: SetSize recomputes the text width
 }
 
-// leaveReading goes from the reading view back to the split, before
-// anything that needs the split or typing (the graph, the block menu, a new
-// note). The editor view stays: it already edits.
+// leaveReading goes from the reading view back to the split, for a graph,
+// which is drawn in the editor column. The editor view stays.
 func (m *Model) leaveReading() {
 	if m.noteView == viewReading {
 		m.setNoteView(viewSplit)

@@ -118,7 +118,7 @@ func (m *Model) handleKeyAction(k tea.KeyMsg) tea.Cmd {
 		if m.activeBuffer() == nil && s == "i" {
 			return m.newDraft(m.sidebar.ContextParentID())
 		}
-		ver := m.content.Version()
+		ver, typing := m.content.Version(), m.content.Mode() == content.ModeInsert && !k.Paste
 		m.content, cmd = m.content.Update(k)
 		if b := m.activeBuffer(); b != nil {
 			m.refreshModified()
@@ -126,6 +126,9 @@ func (m *Model) handleKeyAction(k tea.KeyMsg) tea.Cmd {
 			// preview and the graph as they are.
 			if m.content.Version() != ver {
 				cmd = tea.Batch(cmd, m.editorEdited())
+				if m.noteView == viewReading && !typing {
+					m.flushPreview() // only typing can wait: this view draws the compile
+				}
 			}
 		}
 	}

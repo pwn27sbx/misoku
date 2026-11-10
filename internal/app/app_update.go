@@ -26,12 +26,14 @@ import (
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
+		nm.syncNoteDisplay()
 		build, layout, mentions := nm.startLinkIndex(), nm.startGlobalMap(), nm.startMentionScan()
 		tutor := nm.tutorSyncCurrent()
 		hooks := nm.tutorAfterUpdate()
 		if build != nil || layout != nil || mentions != nil || tutor != nil || hooks != nil {
 			return nm, tea.Batch(cmd, build, layout, mentions, tutor, hooks)
 		}
+		return nm, cmd
 	}
 	return next, cmd
 }
@@ -387,7 +389,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Anything else (cursor blinks etc.) goes to the components that animate.
 	var c1, c2 tea.Cmd
 	m.sidebar, c1 = m.sidebar.Update(msg)
+	ver := m.content.Version()
 	m.content, c2 = m.content.Update(msg)
+	if m.noteView == viewReading && m.content.Version() != ver {
+		m.syncPreview() // a pasted text: the view draws from the compile
+	}
 	return m, tea.Batch(c1, c2)
 }
 

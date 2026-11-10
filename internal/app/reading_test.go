@@ -28,7 +28,7 @@ func reading(t *testing.T, opts ...app.Option) *harness {
 	t.Helper()
 	h := openNote(t, opts...)
 	h.keys(" p")
-	if v := h.view(); mode(v) != "READING" {
+	if v := h.view(); !inReadingView(v) || mode(v) != "NORMAL" {
 		t.Fatalf("setup: space p should open the reading view:\n%s", v)
 	}
 	return h
@@ -89,9 +89,8 @@ func saved(t *testing.T, h *harness) string {
 	return got.Content
 }
 
-// S1: space p shows the note alone, full width, without line numbers and
-// with every marker hidden, the cursor's line included; space p again
-// restores the split exactly.
+// S1: space p shows the note alone, full width, without line numbers, and
+// the block holding the cursor raw; space p again restores the split exactly.
 func TestReadingViewShowsOnlyTheRenderedNoteAndRestoresTheSplit(t *testing.T) {
 	h := openNoteWith(t, "# Heading\nintro")
 	div := dividers(h.view(), bodyRow)
@@ -105,14 +104,14 @@ func TestReadingViewShowsOnlyTheRenderedNoteAndRestoresTheSplit(t *testing.T) {
 
 	h.keys(" p")
 	v := h.view()
-	if mode(v) != "READING" {
-		t.Fatalf("the statusline should say READING:\n%s", v)
+	if mode(v) != "NORMAL" {
+		t.Fatalf("the statusline should show the real mode:\n%s", v)
 	}
 	if got := dividers(v, bodyRow); len(got) != 1 || got[0] != app.SidebarWidth {
 		t.Fatalf("only the explorer divider should remain, got %v:\n%s", got, v)
 	}
-	if strings.Contains(v, "# Heading") || !strings.Contains(v, "Heading") {
-		t.Fatalf("the reading view hides the # even on the cursor's line:\n%s", v)
+	if !strings.Contains(v, "# Heading") {
+		t.Fatalf("the block holding the cursor should be raw:\n%s", v)
 	}
 	if x, _, paneX := textAt(t, v, "intro"); x == paneX+6 {
 		t.Fatalf("the reading view should have no line-number gutter:\n%s", v)
@@ -124,39 +123,26 @@ func TestReadingViewShowsOnlyTheRenderedNoteAndRestoresTheSplit(t *testing.T) {
 	}
 }
 
-// S1: no key edits the note in the reading view; the status says how to edit.
-func TestReadingViewIsReadOnly(t *testing.T) {
+// S1: the keys that edit work in the reading view.
+func TestReadingViewIsEditable(t *testing.T) {
 	h := openNoteWith(t, "hello\n- [ ] task")
 	h.keys(" p")
-	for _, k := range []string{"i", "x", "A!", "a", "I", "o", "O", "dd", "p", "u", "vd", "Vx", "j"} {
-		h.keys(k)
-		if k[0] == 'v' || k[0] == 'V' {
-			h.key(tea.KeyEsc) // a selection may start; d and x must not cut it
-		}
-		if v := h.view(); mode(v) != "READING" {
-			t.Fatalf("%q in the reading view should stay READING:\n%s", k, v)
-		}
-	}
-	h.key(tea.KeyEnter) // on the box line: Enter must not tick it
-	h.key(tea.KeyDelete)
-	h.send(tea.KeyMsg{Type: tea.KeyCtrlR})
-	if v := h.view(); !strings.Contains(v, "Read-only") || !strings.Contains(v, "SPC r") {
-		t.Fatalf("an edit key should say the view is read-only and how to edit:\n%s", v)
-	}
-	if got := saved(t, h); got != "hello\n- [ ] task" {
-		t.Fatalf("the reading view must not change the note, got %q", got)
+	h.keys("A!")
+	h.key(tea.KeyEsc)
+	h.keys("j")
+	h.key(tea.KeyEnter) // on the box line: Enter ticks it
+	if got := saved(t, h); got != "hello!\n- [x] task" {
+		t.Fatalf("the reading view should edit the note, got %q", got)
 	}
 }
 
-// S1: space o c and space o C (checkbox actions) do nothing
-// in the reading view.
-func TestReadingViewIgnoresCheckboxActions(t *testing.T) {
+// S1: space o c (checkbox action) edits in the reading view.
+func TestReadingViewRunsCheckboxActions(t *testing.T) {
 	h := openNoteWith(t, "- [ ] task")
 	h.keys(" p")
 	h.keys(" oc")
-	h.keys(" oC")
-	if got := saved(t, h); got != "- [ ] task" {
-		t.Fatalf("checkbox actions must not edit in the reading view, got %q", got)
+	if got := saved(t, h); got != "- [x] task" {
+		t.Fatalf("the checkbox action should edit in the reading view, got %q", got)
 	}
 }
 
@@ -172,7 +158,7 @@ func TestReadingViewFollowsLinks(t *testing.T) {
 		} else {
 			h.keys("gd")
 		}
-		if v := h.view(); !strings.Contains(v, "containers") || mode(v) != "READING" {
+		if v := h.view(); !strings.Contains(v, "containers") || !inReadingView(v) {
 			t.Fatalf("%s should open Docker.md in the reading view:\n%s", follow, v)
 		}
 	}
@@ -213,7 +199,7 @@ func TestEditorViewShowsOnlyTheEditableMarkdown(t *testing.T) {
 
 // S3: space p and space r switch straight between the two views.
 func TestReadingAndEditorViewsSwitchDirectly(t *testing.T) {
-	h := openNoteWith(t, "# Heading\nintro")
+	h := openNoteWith(t, "intro\n# Heading")
 	h.keys(" p")
 	h.keys(" r")
 	v := h.view()
@@ -222,7 +208,7 @@ func TestReadingAndEditorViewsSwitchDirectly(t *testing.T) {
 	}
 	h.keys(" p")
 	v = h.view()
-	if mode(v) != "READING" || strings.Contains(v, "# Heading") || len(dividers(v, bodyRow)) != 1 {
+	if mode(v) != "NORMAL" || strings.Contains(v, "# Heading") || !inReadingView(v) {
 		t.Fatalf("space p from the editor view should open the reading view:\n%s", v)
 	}
 }
@@ -247,10 +233,10 @@ func TestReadingModeTabAndCtrlHLMoveBetweenExplorerAndEditor(t *testing.T) {
 		want string
 	}{
 		{tea.KeyMsg{Type: tea.KeyTab}, "EXPLORER"},
-		{tea.KeyMsg{Type: tea.KeyTab}, "READING"},
+		{tea.KeyMsg{Type: tea.KeyTab}, "NORMAL"},
 		{tea.KeyMsg{Type: tea.KeyShiftTab}, "EXPLORER"},
-		{tea.KeyMsg{Type: tea.KeyCtrlL}, "READING"},
-		{tea.KeyMsg{Type: tea.KeyCtrlL}, "READING"},
+		{tea.KeyMsg{Type: tea.KeyCtrlL}, "NORMAL"},
+		{tea.KeyMsg{Type: tea.KeyCtrlL}, "NORMAL"},
 		{tea.KeyMsg{Type: tea.KeyCtrlH}, "EXPLORER"},
 	}
 	for i, s := range steps {
@@ -286,7 +272,7 @@ func TestEditorViewTabAndCtrlHLMoveBetweenExplorerAndEditor(t *testing.T) {
 
 // S3: the explorer toggle works in both views and leaves the view as it was.
 func TestExplorerToggleKeepsTheView(t *testing.T) {
-	for _, c := range []struct{ key, mode string }{{" p", "READING"}, {" r", "NORMAL"}} {
+	for _, c := range []struct{ key, mode string }{{" p", "NORMAL"}, {" r", "NORMAL"}} {
 		h := openNote(t)
 		h.keys(c.key)
 		h.send(tea.KeyMsg{Type: tea.KeyCtrlB})
@@ -308,7 +294,7 @@ func TestReadingModeEscGoesToTheEditor(t *testing.T) {
 	h := reading(t)
 	h.keys(" e")
 	h.key(tea.KeyEsc)
-	if v := h.view(); mode(v) != "READING" {
+	if v := h.view(); mode(v) != "NORMAL" || !inReadingView(v) {
 		t.Fatalf("Esc from the explorer should focus the reading view:\n%s", v)
 	}
 }
@@ -322,7 +308,7 @@ func TestReadingModeFinderOpensNoteInTheEditor(t *testing.T) {
 	h.keys("other")
 	h.key(tea.KeyEnter)
 	v := h.view()
-	if mode(v) != "READING" || !strings.Contains(v, "second note") {
+	if !inReadingView(v) || !strings.Contains(v, "second note") {
 		t.Fatalf("the found note should open in reading mode:\n%s", v)
 	}
 }
@@ -331,7 +317,7 @@ func TestReadingModeSurvivesTheHomeScreen(t *testing.T) {
 	h := reading(t)
 	h.keys(" d")
 	h.keys("1")
-	if v := h.view(); mode(v) != "READING" {
+	if v := h.view(); !inReadingView(v) {
 		t.Fatalf("opening a note from home should stay in reading mode:\n%s", v)
 	}
 }
@@ -340,7 +326,7 @@ func TestReadingModeGraphLeavesIt(t *testing.T) {
 	h := reading(t)
 	h.keys(" g")
 	v := h.view()
-	if mode(v) == "READING" || !strings.Contains(strings.Split(v, "\n")[0], "Graph") {
+	if inReadingView(v) || !strings.Contains(strings.Split(v, "\n")[0], "Graph") {
 		t.Fatalf("space g should leave reading mode and show the graph:\n%s", v)
 	}
 	if got := dividers(v, bodyRow); len(got) != 2 {
@@ -348,13 +334,13 @@ func TestReadingModeGraphLeavesIt(t *testing.T) {
 	}
 }
 
-// A new note needs typing: from the reading view it opens in the split.
-func TestReadingViewNewNoteIsEditable(t *testing.T) {
+// S13: a new note is typed in the reading view, which stays.
+func TestReadingViewNewNoteStaysInTheView(t *testing.T) {
 	h := reading(t)
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlN})
 	h.keys("abc")
-	if v := h.view(); mode(v) != "INSERT" || !strings.Contains(v, "abc") || len(dividers(v, bodyRow)) != 2 {
-		t.Fatalf("a new note from the reading view should be typed in the split:\n%s", v)
+	if v := h.view(); mode(v) != "INSERT" || !strings.Contains(v, "abc") || !inReadingView(v) {
+		t.Fatalf("a new note from the reading view should be typed in the view:\n%s", v)
 	}
 }
 
@@ -368,11 +354,12 @@ func TestReadingModeColonOpensTheCommandLine(t *testing.T) {
 	}
 }
 
-func TestReadingModeBlockMenuLeavesIt(t *testing.T) {
+// S13: the block menu opens without leaving the view.
+func TestReadingModeBlockMenuStays(t *testing.T) {
 	h := reading(t)
 	h.send(preview.AddBlockMsg{After: 1})
-	if v := h.view(); mode(v) != "INSERT" {
-		t.Fatalf("adding a block needs the editor:\n%s", v)
+	if v := h.view(); mode(v) != "INSERT" || !inReadingView(v) {
+		t.Fatalf("adding a block should stay in the view:\n%s", v)
 	}
 }
 
@@ -392,17 +379,17 @@ func TestReadingModeExplorerDividerStillDrags(t *testing.T) {
 func TestReadingViewKeyIsConfigurable(t *testing.T) {
 	h := openNote(t, app.WithKeys(map[string][]string{"reading_view": {}}))
 	h.keys(" p")
-	if v := h.view(); mode(v) == "READING" {
+	if v := h.view(); inReadingView(v) {
 		t.Fatalf("reading_view: [] should unbind space p:\n%s", v)
 	}
 
 	h = openNote(t, app.WithKeys(map[string][]string{"reading_view": {"space v"}}))
 	h.keys(" p")
-	if mode(h.view()) == "READING" {
+	if inReadingView(h.view()) {
 		t.Fatal("space p was replaced and must do nothing now")
 	}
 	h.keys(" v")
-	if v := h.view(); mode(v) != "READING" {
+	if v := h.view(); !inReadingView(v) {
 		t.Fatalf("space v should now open the reading view:\n%s", v)
 	}
 }
@@ -413,7 +400,7 @@ func TestReadingViewKeyIsConfigurable(t *testing.T) {
 func TestOldViewActionNamesStillWork(t *testing.T) {
 	h := openNote(t, app.WithKeys(map[string][]string{"reading_mode": {"space v"}}))
 	h.keys(" v")
-	if v := h.view(); mode(v) != "READING" || strings.Contains(v, "unknown action") {
+	if v := h.view(); !inReadingView(v) || strings.Contains(v, "unknown action") {
 		t.Fatalf("reading_mode should bind the reading view without a warning:\n%s", v)
 	}
 
@@ -425,7 +412,7 @@ func TestOldViewActionNamesStillWork(t *testing.T) {
 
 	h = openNote(t, app.WithKeys(map[string][]string{"reading_mode": {"space v"}, "reading_view": {"space z"}}))
 	h.keys(" z")
-	if v := h.view(); mode(v) != "READING" {
+	if v := h.view(); !inReadingView(v) {
 		t.Fatalf("reading_view should win over reading_mode:\n%s", v)
 	}
 }

@@ -299,8 +299,7 @@ func (m *Model) JumpLink(dir int) bool {
 }
 
 // enter is Enter in NORMAL, as the LazyVim companion's: follow the [[link]]
-// under the cursor outside code, else toggle the line's box (not in the
-// read-only view), else move down.
+// under the cursor outside code, else toggle the line's box, else move down.
 func (m *Model) enter() tea.Cmd {
 	row, col := m.textarea.RowCol()
 	line := m.textarea.CurrentLine()
@@ -309,7 +308,7 @@ func (m *Model) enter() tea.Cmd {
 			return func() tea.Msg { return FollowWikiLinkMsg{Link: l} }
 		}
 	}
-	if IsBoxLine(line) && !m.readOnly {
+	if IsBoxLine(line) {
 		m.ToggleCheckboxes()
 		return nil
 	}

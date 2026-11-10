@@ -34,9 +34,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	if m.page.ID == "" {
 		return m, nil
 	}
-	if k, ok := msg.(tea.KeyMsg); ok && m.readOnly && m.editsText(k) {
-		return m, m.ReadOnlyHint()
-	}
 
 	if k, ok := msg.(tea.KeyMsg); ok && m.textarea.HasSelection() &&
 		m.mode != ModeVisual && m.mode != ModeVisualLine {

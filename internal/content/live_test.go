@@ -39,7 +39,7 @@ func liveEditor(t *testing.T, w int, text string) content.Model {
 // rows is the View's screen rows: styled, and with escapes stripped and
 // trailing blanks trimmed.
 func rows(c content.Model) (styled, plain []string) {
-	styled = strings.Split(c.View(), "\n")
+	styled = strings.Split(c.ConcealedView(), "\n")
 	for _, r := range styled {
 		plain = append(plain, strings.TrimRight(ansi.Strip(r), " "))
 	}

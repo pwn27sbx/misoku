@@ -29,11 +29,14 @@ const (
 )
 
 // SetLive turns the live view on or off. On, the editor hides its line
-// numbers and draws every line but the cursor's rendered; off, it draws
-// exactly as it did before.
+// numbers and the end-of-buffer rows; off, it draws exactly as it did before.
 func (m *Model) SetLive(on bool) {
 	m.live = on
 	m.textarea.ShowLineNumbers = !on
+	m.textarea.EndOfBufferCharacter = '~'
+	if on {
+		m.textarea.EndOfBufferCharacter = ' '
+	}
 	// The text width depends on the line-number column: recompute it.
 	m.fitText()
 }

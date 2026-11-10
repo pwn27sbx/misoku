@@ -182,3 +182,11 @@ func DirPlanStoppedMsg(failed error, skipped []string, err error) tea.Msg {
 	b := &dirBatch{failed: failed}
 	return relinksAppliedMsg{job: relinkJob{renamed: b.summary(), batch: b}, skipped: skipped, err: err}
 }
+
+// ShowInPreview puts another note in the hidden preview, as a graph tab does
+// beside it, so a test can check the note's view ignores that compile.
+func ShowInPreview(tm tea.Model, p core.Page) tea.Model {
+	m := tm.(Model)
+	m.preview.SetPage(p)
+	return m
+}

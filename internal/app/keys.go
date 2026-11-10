@@ -90,9 +90,6 @@ func (m *Model) runAction(action string) tea.Cmd {
 	case keymap.SyncNow:
 		return m.requestSync()
 	case keymap.PasteImage:
-		if m.content.ReadOnly() {
-			return m.content.ReadOnlyHint()
-		}
 		return m.content.PasteClipboard()
 	case keymap.ToggleCheckbox:
 		return m.editCheckboxes(m.content.ToggleCheckboxes)
@@ -110,11 +107,8 @@ func (m *Model) runAction(action string) tea.Cmd {
 
 // editCheckboxes runs a checkbox edit of the editor on the open note and,
 // when it changed the text, brings the modified mark and the preview up to
-// date, as typing does. The reading view only says it is read-only.
+// date, as typing does.
 func (m *Model) editCheckboxes(edit func() bool) tea.Cmd {
-	if m.content.ReadOnly() {
-		return m.content.ReadOnlyHint()
-	}
 	if m.activeBuffer() == nil || !edit() {
 		return nil
 	}

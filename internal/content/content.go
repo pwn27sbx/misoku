@@ -39,6 +39,7 @@ type Model struct {
 	lv         *liveCache      // the live view's memo, shared like hl
 	live       bool            // the live view is on; see SetLive
 	readOnly   bool            // keys that edit do nothing; see SetReadOnly
+	rendered   renderedState   // what ShowRendered installed
 	hist       *History        // the shown tab's undo history (SetHistory)
 	copies     *atomic.Int64
 	actions    *actionLog // the actions the tutorial listens to; see actions.go
@@ -218,7 +219,7 @@ func (m *Model) SetRealCursor(on bool) {
 // pane's top-left corner, or ok=false when there is none: no note open, the
 // command line in charge, no focus, or the cell off screen.
 func (m Model) CursorScreen() (x, y int, ok bool) {
-	if m.page.ID == "" || !m.focused || m.mode == ModeCommand || m.readOnly {
+	if m.page.ID == "" || !m.focused || m.mode == ModeCommand {
 		return 0, 0, false
 	}
 	x, y, ok = m.textarea.CursorScreen()
@@ -291,11 +292,8 @@ func (m Model) CommandView(width int) string {
 }
 
 // EnterInsert switches to INSERT mode (used by the app, e.g. for a new
-// buffer); the read-only view stays in NORMAL.
+// buffer).
 func (m *Model) EnterInsert() tea.Cmd {
-	if m.readOnly {
-		return nil
-	}
 	m.mode = ModeInsert
 	if !m.focused {
 		return nil
