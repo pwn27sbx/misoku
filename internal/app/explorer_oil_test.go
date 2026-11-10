@@ -169,6 +169,33 @@ func TestOilEmptyFolderStaysListed(t *testing.T) {
 	}
 }
 
+// In an empty folder there is no name to edit, so i and a open a new line
+// as o does, and what is typed next creates the note.
+func TestOilInsertKeysInAnEmptyFolderStartANewLine(t *testing.T) {
+	for _, key := range []string{"i", "I", "a", "A"} {
+		t.Run(key, func(t *testing.T) {
+			h, store := newEntryHarness(t)
+			h.keys("G")
+			h.keys("m")
+			h.keys("o")
+			h.keys("Testfolder/")
+			h.key(tea.KeyEsc)
+			h.keys("=")
+			h.keys("y")
+			h.keys("l") // into the empty folder
+
+			h.keys(key)
+			h.keys("nota")
+			h.key(tea.KeyEsc)
+			h.keys("=")
+			h.keys("y")
+			if !exists(store, "Testfolder/nota.md") {
+				t.Fatalf("%s then nota must create Testfolder/nota.md:\n%s", key, h.view())
+			}
+		})
+	}
+}
+
 // S8, S9: erasing a line's whole name with Backspace joins it into the
 // line above, which plans its delete; Ctrl+S in insert confirms, Yes moves
 // it to the Trash, the editor stays open and goes on typing.

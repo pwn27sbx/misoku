@@ -242,8 +242,14 @@ func (b *Buffer) Update(msg tea.Msg) (Nav, tea.Cmd) {
 	case "o", "O":
 		return NavNone, b.openLine(key == "o")
 	case "i", "I":
+		if len(f.rows) == 0 {
+			return NavNone, b.openLine(true)
+		}
 		return NavNone, b.edit(b.name(), true)
 	case "a", "A":
+		if len(f.rows) == 0 {
+			return NavNone, b.openLine(true)
+		}
 		return NavNone, b.edit(b.name(), false)
 	case "p", "P":
 		b.paste(key == "P")

@@ -151,6 +151,66 @@ func TestEmptyNewLineIsDropped(t *testing.T) {
 	}
 }
 
+func TestInsertKeysOnAFolderWithLinesEditTheCurrentName(t *testing.T) {
+	cases := []struct{ key, want string }{
+		{"i", "xa"},
+		{"I", "xa"},
+		{"a", "ax"},
+		{"A", "ax"},
+	}
+	for _, c := range cases {
+		t.Run(c.key, func(t *testing.T) {
+			b := New("", orig())
+			keys(t, b, c.key)
+			keys(t, b, typed("x")...)
+			keys(t, b, "esc")
+			want := []string{c.want, "b", "c/"}
+			if got := names(b.Rows()); !reflect.DeepEqual(got, want) {
+				t.Fatalf("names = %v, want %v", got, want)
+			}
+			if got := b.Rows()[0].OrigID; got != "a.md" {
+				t.Fatalf("OrigID = %q, the rename must keep it", got)
+			}
+		})
+	}
+}
+
+func TestChangeOnAnEmptyFolderDoesNotStartTyping(t *testing.T) {
+	for _, seq := range [][]string{{"c", "w"}, {"c", "c"}} {
+		t.Run(seq[0]+seq[1], func(t *testing.T) {
+			b := New("", nil)
+			keys(t, b, seq...)
+			if b.Editing() {
+				t.Fatal("change started typing with no line to change")
+			}
+			if got := b.Rows(); len(got) != 0 {
+				t.Fatalf("rows = %v, want none", got)
+			}
+		})
+	}
+}
+
+func TestInsertOnAnEmptyFolderThenEscDropsTheNewLine(t *testing.T) {
+	b := New("", nil)
+	keys(t, b, "i")
+	if !b.Editing() {
+		t.Fatal("i did not start typing on an empty folder")
+	}
+	if got := len(b.Rows()); got != 1 {
+		t.Fatalf("rows while typing = %d, want the new line", got)
+	}
+	keys(t, b, "esc")
+	if b.Editing() {
+		t.Fatal("still typing after Esc")
+	}
+	if got := b.Rows(); len(got) != 0 {
+		t.Fatalf("rows = %v, want none", got)
+	}
+	if b.Dirty() {
+		t.Fatal("Dirty() after an empty i")
+	}
+}
+
 func TestUndoRedoOneStepAtATime(t *testing.T) {
 	b := New("", orig())
 	keys(t, b, "d", "d")
