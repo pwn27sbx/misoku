@@ -549,11 +549,11 @@
     },
     {
       "id": "B21",
-      "title": "Leer sin editar",
+      "title": "Vista de lectura y vista de editor",
       "file": "B21 Leer sin editar.md",
       "steps": [
         {
-          "text": "Pulsa space p: vista de lectura",
+          "text": "Pulsa space p: vista de lectura, dibujada y editable",
           "ids": ["VIEW-02"],
           "check": { "kind": "action", "event": "reading_view" }
         },
@@ -570,7 +570,7 @@
         },
         {
           "text": "En lectura, mira cómo se esconden los marcadores",
-          "hint": "space p otra vez para volver",
+          "hint": "space p otra vez; el bloque del cursor enseña su Markdown",
           "ids": ["VIEW-05"],
           "check": { "kind": "action", "event": "reading_view", "value": "concealed" }
         },
