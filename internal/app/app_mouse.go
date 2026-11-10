@@ -110,8 +110,15 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		m.sidebar, cmd = m.sidebar.Update(local)
 		cmd = m.chooseFromOverlay(cmd)
 	case focusEditor:
-		m.dragging = msg.Button == tea.MouseButtonLeft
 		local.Y = m.editorRow(l, msg.Y)
+		if !wheel && m.noteView == viewReading {
+			local.Y = m.flushUnder(local.Y)
+		}
+		if pressed, ok := m.pressRendered(local, wheel); ok {
+			cmd = pressed // what the preview acts on: no cursor, no selection
+			break
+		}
+		m.dragging = msg.Button == tea.MouseButtonLeft
 		cmd = m.editorPaneUpdate(local)
 	case focusPreview:
 		if !onText && !wheel {
@@ -123,6 +130,47 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		m.tutorBPreviewClick(hit, hasHit)
 	}
 	return tea.Batch(append(cmds, cmd)...)
+}
+
+// foldArrowW is the width of a heading's fold arrow. In the reading view
+// only the arrow folds: the rest of the heading row is text to click into.
+const foldArrowW = 2
+
+// flushUnder applies a pending compile before a press in the reading view
+// is mapped, so it never acts on an older text's line, and returns the pane
+// row that now shows what row y showed: the compile can move rows.
+func (m *Model) flushUnder(y int) int {
+	if !m.pv.pending {
+		return y
+	}
+	spot := m.content.SpotAt(y)
+	m.flushPreview()
+	m.syncNoteDisplay()
+	if now, ok := m.content.SpotY(spot); ok {
+		return now
+	}
+	return y
+}
+
+// pressRendered does, in the reading view, what the preview does for a press
+// on the rendered row or footer at pane cell (msg.X, msg.Y): follow a link,
+// tick a box, fold, turn a calendar, run a view's control. It reports false
+// when the press hits none of these and is the editor's.
+func (m *Model) pressRendered(msg tea.MouseMsg, wheel bool) (tea.Cmd, bool) {
+	if wheel || m.noteView != viewReading || m.graphActive() {
+		return nil, false
+	}
+	row, col, ok := m.content.RenderedCell(msg.X, msg.Y)
+	if !ok {
+		return nil, false
+	}
+	hit, ok := m.preview.HitAtRow(row, col)
+	if !ok || (hit.Kind == "fold" && col-hit.X0 >= foldArrowW) {
+		return nil, false
+	}
+	cmd, _ := m.preview.PressRow(row, col)
+	m.tutorBPreviewClick(hit, true)
+	return cmd, true
 }
 
 // noteRow maps screen row y to the row of the editor's or the preview's text

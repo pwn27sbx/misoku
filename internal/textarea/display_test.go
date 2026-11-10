@@ -187,6 +187,16 @@ func TestDisplayRowAtFooter(t *testing.T) {
 	}
 }
 
+func TestLineRowsCountsRowsAndFooter(t *testing.T) {
+	m := frameEditor(20, 8, false, "a\nb\nc")
+	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{raw(), rendered("x", "y", "z"), hidden()}, Footer: []string{"F1", "F2"}})
+	for _, c := range []struct{ line, first, n int }{{0, 0, 1}, {1, 1, 3}, {2, 4, 0}, {3, 4, 2}} {
+		if first, n := m.LineRows(c.line); first != c.first || n != c.n {
+			t.Fatalf("line %d: got (%d, %d), want (%d, %d)", c.line, first, n, c.first, c.n)
+		}
+	}
+}
+
 func TestDisplayRowAtPastTheEnd(t *testing.T) {
 	m := frameEditor(20, 8, false, "a\nb")
 	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{raw(), raw()}, Footer: []string{"F1"}})

@@ -78,6 +78,17 @@ func (m Model) DisplayRowAt(v int) (line, offset int, footer bool) {
 	return line, v - starts[line], false
 }
 
+// LineRows returns the first visual row of line l and how many rows it has;
+// l == LineCount() gives the footer's.
+func (m Model) LineRows(l int) (first, n int) {
+	starts := m.rows()
+	l = clamp(l, 0, len(m.value))
+	if l+1 >= len(starts) {
+		return starts[l], 0
+	}
+	return starts[l], starts[l+1] - starts[l]
+}
+
 // activeDisplay returns the display when it applies to the current text.
 func (m Model) activeDisplay() *Display {
 	if m.display == nil || len(m.display.Lines) != len(m.value) {

@@ -321,14 +321,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 			}
 			m.textarea.ClearSelection()
 			m.textarea.SelectLinewise = false
-			m.textarea.ClickAt(msg.X, msg.Y)
+			m.clickAt(msg.X, msg.Y)
 			m.dragRow, m.dragCol = m.textarea.RowCol()
 			m.dragging = true
 		case tea.MouseActionMotion:
 			if !m.dragging {
 				break
 			}
-			m.textarea.ClickAt(msg.X, msg.Y)
+			m.clickAt(msg.X, msg.Y)
 			if r, c := m.textarea.RowCol(); !m.textarea.HasSelection() && (r != m.dragRow || c != m.dragCol) {
 				m.textarea.SetAnchor(m.dragRow, m.dragCol)
 			}

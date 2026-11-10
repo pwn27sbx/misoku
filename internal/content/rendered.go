@@ -17,6 +17,7 @@ import (
 // RenderedBlock is one source range of the note and the compiled rows it owns.
 type RenderedBlock struct {
 	Line, End int      // source lines [Line, End)
+	Row       int      // the compile's row of Rows[0]
 	Rows      []string // compiled rows, possibly none
 	Folded    bool     // a folded section: the lines after the first are hidden
 }
@@ -29,6 +30,7 @@ type Rendered struct {
 	Current    bool                   // false while a typed edit waits for its compile
 	Blocks     func() []RenderedBlock // read only for a new Generation
 	Footer     []string               // rows after the last line
+	FooterRow  int                    // the compile's row of Footer[0]
 }
 
 // renderedState is what ShowRendered last installed.
@@ -39,10 +41,12 @@ type renderedState struct {
 	version    uint64 // the text blocks were last brought up to
 	blocks     []RenderedBlock
 	footer     []string
-	lines      int // the lines blocks cover
-	row        int // the cursor's line after the last call
-	off        int // the textarea's scroll after the last call
-	from, to   int // the raw lines [from, to)
+	footerRow  int
+	current    bool // blocks are the compile's, not shifted to a newer text
+	lines      int  // the lines blocks cover
+	row        int  // the cursor's line after the last call
+	off        int  // the textarea's scroll after the last call
+	from, to   int  // the raw lines [from, to)
 	dim        bool
 }
 
@@ -68,15 +72,15 @@ func (m *Model) ShowRendered(r Rendered, dim bool) {
 	switch {
 	case r.Current && r.Generation != s.generation:
 		s.generation, s.version = r.Generation, version
-		s.blocks, s.footer = r.Blocks(), r.Footer
+		s.blocks, s.footer, s.footerRow = r.Blocks(), r.Footer, r.FooterRow
 		s.lines = blockLines(s.blocks)
-		changed = true
+		s.current, changed = true, true
 	case version != s.version:
 		// The text moved on and its compile has not come yet: the rendered
 		// rows stay and the entries follow the lines they were compiled from.
 		s.blocks = shiftBlocks(s.blocks, n-s.lines, min(s.row, row))
 		s.version, changed = version, n != s.lines
-		s.lines = n
+		s.lines, s.current = n, false
 	}
 	if len(s.blocks) == 0 || s.lines != n {
 		m.ClearRendered() // nothing that says how to draw these lines
