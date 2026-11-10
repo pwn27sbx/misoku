@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [0.33.1] - 2026-11-10
+
+### Changed
+
+- In the reading view's NORMAL, `x` does nothing over a rendered block, since the character it would delete is not on screen; press `i` to edit the Markdown. Elsewhere `x` is unchanged.
+
 ## [0.33.0] - 2026-11-10
 
 ### Changed
