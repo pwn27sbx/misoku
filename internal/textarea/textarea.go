@@ -558,7 +558,8 @@ func (m *Model) CursorUp() {
 	charOffset := max(m.lastCharOffset, li.CharOffset)
 	m.lastCharOffset = charOffset
 
-	prev, drawn := m.nextShownLine(m.row, -1), m.displayed(m.row) != nil
+	// misoku: from a block's line without rows, k leaves the block.
+	prev, drawn := m.nextShownLine(m.head(m.row), -1), m.displayed(m.row) != nil
 	if prev >= 0 && (drawn || li.RowOffset <= 0) {
 		m.row = prev
 		m.col = len(m.value[m.row])
@@ -921,13 +922,8 @@ func (m Model) wrapLineInfo() LineInfo {
 // misoku: it scrolls by the row index instead of the viewport, whose content
 // is only as long as the last View; the offset stays within the rows.
 func (m *Model) repositionView() {
-	minimum := m.viewport.YOffset
-	maximum := minimum + m.viewport.Height - 1
-
-	if first, last := m.cursorRows(); last < minimum {
-		m.viewport.YOffset = max(first, 0)
-	} else if first > maximum {
-		m.viewport.YOffset = min(first-m.viewport.Height+1, max(m.visualLineCount()-1, 0))
+	if off := m.offsetShowing(m.viewport.YOffset); off != m.viewport.YOffset {
+		m.viewport.YOffset = clamp(off, 0, max(m.visualLineCount()-1, 0))
 	}
 }
 
@@ -1194,10 +1190,14 @@ func (m Model) View() string {
 
 	textRows := starts[len(m.value)] // misoku: total also counts the footer
 	textEnd := min(bottom, textRows)
+	band := m.bandLine()
 	for l := m.lineAtRow(top); l < len(m.value) && starts[l] < textEnd; l++ {
 		if d := m.displayed(l); d != nil {
 			for wl, row := range d.Rows {
 				if v := starts[l] + wl; v >= top && v < textEnd {
+					if l == band {
+						row = m.bandRow(row)
+					}
 					m.writeDisplayRow(&s, v, m.displayCell(l, wl), row)
 				}
 			}

@@ -17,14 +17,7 @@ func (m Model) YOffset() int {
 // repositionView it does not clamp against the content rendered by the last
 // View call, so it also works right after SetValue on a long document.
 func (m *Model) EnsureVisible() {
-	off := m.viewport.YOffset
-	h := max(m.viewport.Height, 1)
-	if first, last := m.cursorRows(); last < off {
-		off = first
-	} else if first > off+h-1 {
-		off = first - h + 1
-	}
-	m.viewport.YOffset = max(off, 0)
+	m.viewport.YOffset = max(m.offsetShowing(m.viewport.YOffset), 0)
 }
 
 // visualLineCount returns the number of soft-wrapped lines in the buffer.
@@ -197,6 +190,23 @@ func (m *Model) DeleteLine() {
 	m.EnsureVisible()
 }
 
+// DeleteLines deletes lines [from, to), clamped, and puts the cursor at the
+// start of the line that took their place, or of the last line. Deleting
+// every line leaves one empty line, as DeleteLine does.
+func (m *Model) DeleteLines(from, to int) {
+	from = clamp(from, 0, len(m.value)-1)
+	to = clamp(to, from+1, len(m.value))
+	if to-from == len(m.value) {
+		m.value = [][]rune{{}}
+	} else {
+		m.value = append(m.value[:from:from], m.value[to:]...)
+	}
+	m.touch()
+	m.row = min(from, len(m.value)-1)
+	m.SetCursor(0)
+	m.EnsureVisible()
+}
+
 // OpenLineBelow inserts an empty line below the cursor and moves onto it (Vim's o).
 func (m *Model) OpenLineBelow() {
 	m.CursorEnd()
@@ -220,7 +230,8 @@ func (m Model) CursorScreen() (x, y int, ok bool) {
 	if m.ShowLineNumbers {
 		gutter += 6
 	}
-	y = m.cursorLineNumber() - m.viewport.YOffset
+	first, _ := m.cursorRows()
+	y = first - m.viewport.YOffset
 	if y < 0 || y >= m.viewport.Height {
 		return 0, 0, false
 	}

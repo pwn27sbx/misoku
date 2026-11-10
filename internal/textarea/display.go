@@ -4,6 +4,9 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/pwn27sbx/misoku/internal/ui"
+
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -20,7 +23,12 @@ var displayGenerations atomic.Uint64
 type DisplayLine struct {
 	Raw    bool     // the line's normal path: wrap, syntax colours, cursor, selection
 	Rows   []string // when !Raw: exactly these rows, possibly none
-	Hidden bool     // !Raw, no rows, and j/k step over it (folded body)
+	Hidden bool     // !Raw, and j/k step over it (a folded body, a block's other lines)
+	// Head is the line holding the rows of this line's block, for a line
+	// without rows of its own: the cursor there is measured, kept on screen
+	// and banded as that block. It counts only when it is an earlier line
+	// drawn with rows; otherwise the line stands for itself.
+	Head int
 }
 
 // Display is how the whole note is drawn while it is set.
@@ -161,15 +169,73 @@ func (m Model) lastShownLine() int {
 	return l
 }
 
+// head returns the line holding the rows of line l's block: its Head when l
+// is drawn without rows of its own and Head is an earlier line drawn with
+// rows, and l itself otherwise.
+func (m Model) head(l int) int {
+	d := m.displayed(l)
+	if d == nil || len(d.Rows) > 0 || d.Head < 0 || d.Head >= l {
+		return l
+	}
+	if h := m.displayed(d.Head); h != nil && len(h.Rows) > 0 {
+		return d.Head
+	}
+	return l
+}
+
 // cursorRows returns the visual rows of the cursor: one, except on a line
-// drawn by the display, whose rows all count as the cursor being on screen.
+// drawn by the display, whose block's rows all count as the cursor being on
+// screen, also from a line of the block without rows of its own.
 func (m Model) cursorRows() (first, last int) {
+	if h := m.head(m.row); h != m.row {
+		first = m.rows()[h]
+		return first, first + len(m.displayed(h).Rows) - 1
+	}
 	first = m.cursorLineNumber()
 	last = first
 	if d := m.displayed(m.row); d != nil && len(d.Rows) > 1 {
 		last = first + len(d.Rows) - 1
 	}
 	return first, last
+}
+
+// offsetShowing returns the scroll that brings the cursor's rows on screen
+// from off, moving as little as it can: rows above the top go to the top;
+// rows below the bottom come up until the last is on the bottom row, or the
+// first on the top row for a block taller than the screen.
+func (m Model) offsetShowing(off int) int {
+	h := max(m.viewport.Height, 1)
+	first, last := m.cursorRows()
+	switch {
+	case last < off:
+		return first
+	case first > off && last > off+h-1:
+		return min(first, last-h+1)
+	}
+	return off
+}
+
+// bandLine returns the line whose display rows take the cursor-line band,
+// the head of the cursor's rendered block, or -1: the band is the focused
+// editor's, and a selection hides it as it hides the raw line's.
+func (m Model) bandLine() int {
+	if !m.focus || m.bandHidden() {
+		return -1
+	}
+	h := m.head(m.row)
+	if m.displayed(h) == nil {
+		return -1
+	}
+	return h
+}
+
+// bandRow paints row with the cursor-line band, to the text's width.
+func (m Model) bandRow(row string) string {
+	bg, ok := m.style.computedCursorLine().GetBackground().(lipgloss.Color)
+	if !ok {
+		return row
+	}
+	return ui.Band(row, bg, m.width)
 }
 
 // writeDisplayRow writes one row View does not wrap itself: the prompt for
@@ -195,3 +261,7 @@ func (m Model) displayCell(l, wl int) string {
 	}
 	return m.lineNumberCell(style, l, wl)
 }
+
+// CursorRendered reports whether the cursor's line is drawn by the display,
+// where no cursor cell is drawn and the terminal's cursor has no column.
+func (m Model) CursorRendered() bool { return m.displayed(m.row) != nil }
