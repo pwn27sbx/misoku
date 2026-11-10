@@ -195,3 +195,70 @@ func BenchmarkPreviewMotion(b *testing.B) {
 		})
 	}
 }
+
+// readingLines is the note length the reading-view benchmarks run on (S9:
+// they must cost no more than the split with the preview open, measured by
+// the 5k runs of BenchmarkMoveKey, BenchmarkTypeKey and BenchmarkWheelScroll).
+const readingLines = 5000
+
+// openReadingBenchNote is openBenchNote switched to the reading view (space
+// p), the view that draws the preview's blocks in the editor.
+func openReadingBenchNote(b *testing.B, lines int) benchApp {
+	b.Helper()
+	a := openBenchNote(b, lines)
+	a.keys(" p")
+	v := a.m.View()
+	if div := dividers(v, bodyRow); len(div) != 1 {
+		b.Fatalf("setup: want the reading view (one divider), got dividers at %v", div)
+	}
+	if !strings.Contains(ansi.Strip(v), "○ nested item") {
+		b.Fatalf("setup: the reading view draws no rendered block:\n%s", ansi.Strip(v))
+	}
+	return a
+}
+
+// BenchmarkReadingMoveKey is BenchmarkMoveKey in the reading view.
+func BenchmarkReadingMoveKey(b *testing.B) {
+	j := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
+	k := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}}
+	a := openReadingBenchNote(b, readingLines)
+	b.ReportAllocs()
+	i := 0
+	for b.Loop() {
+		if forth(i, readingLines-1) {
+			a.step(j)
+		} else {
+			a.step(k)
+		}
+		i++
+	}
+}
+
+// BenchmarkReadingTypeKey is BenchmarkTypeKey in the reading view.
+func BenchmarkReadingTypeKey(b *testing.B) {
+	x := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
+	a := openReadingBenchNote(b, readingLines)
+	a.keys("i")
+	b.ReportAllocs()
+	for b.Loop() {
+		a.step(x)
+	}
+}
+
+// BenchmarkReadingWheelScroll is BenchmarkWheelScroll in the reading view.
+func BenchmarkReadingWheelScroll(b *testing.B) {
+	a := openReadingBenchNote(b, readingLines)
+	down := tea.MouseMsg{X: a.editorX, Y: bodyRow, Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress}
+	up := down
+	up.Button = tea.MouseButtonWheelUp
+	b.ReportAllocs()
+	i := 0
+	for b.Loop() {
+		if forth(i, readingLines/3) {
+			a.step(down)
+		} else {
+			a.step(up)
+		}
+		i++
+	}
+}

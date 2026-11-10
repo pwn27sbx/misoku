@@ -36,9 +36,7 @@ type Model struct {
 	search     bool            // the command line is the "/" search prompt
 	lastSearch string          // the text NORMAL's n and N repeat
 	hl         *hlCache        // shared across copies so View can memoise
-	lv         *liveCache      // the live view's memo, shared like hl
 	live       bool            // the live view is on; see SetLive
-	readOnly   bool            // keys that edit do nothing; see SetReadOnly
 	rendered   renderedState   // what ShowRendered installed
 	hist       *History        // the shown tab's undo history (SetHistory)
 	copies     *atomic.Int64
@@ -84,7 +82,6 @@ func New(th theme.Theme) Model {
 		cmdInput: createCommandInput(th),
 		mode:     ModeNormal,
 		hl:       &hlCache{},
-		lv:       &liveCache{},
 		hist:     NewHistory(),
 		copies:   &atomic.Int64{},
 		actions:  &actionLog{},

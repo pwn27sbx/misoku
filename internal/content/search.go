@@ -1,10 +1,9 @@
 package content
 
 // Searching inside the note: Vim's /, n and N. The prompt reuses the command
-// line (ModeCommand) with a "/" prompt, so its keys, the read-only guard of
-// the reading view and the bottom bar stay the ones the ":" line already
-// has. The match itself is left to the cursor: the editor moves it there and
-// the reading view scrolls it into view.
+// line (ModeCommand) with a "/" prompt, so its keys and the bottom bar stay
+// the ones the ":" line already has. The match itself is left to the cursor:
+// the editor moves it there and scrolls it into view.
 
 import (
 	"unicode"

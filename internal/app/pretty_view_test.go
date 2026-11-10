@@ -414,3 +414,15 @@ func TestPrettyViewSlashMenuFollowsTheCursor(t *testing.T) {
 		t.Fatalf("the menu should open on the row under the cursor (%d):\n%s", y, v)
 	}
 }
+
+// S4: a wheel during a text drag ends the drag in the app and in the editor
+// alike, keeping the selection as the split does: the reveal is not left
+// frozen until the next press.
+func TestPrettyViewWheelDuringDragUnfreezesTheReveal(t *testing.T) {
+	h := prettyAt(t, "**one**\n\n**two**\n\nend")
+	x, y, _ := textAt(t, h.view(), "one")
+	h.send(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	h.send(tea.MouseMsg{X: x + 1, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+	h.send(tea.MouseMsg{X: x + 1, Y: y, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress})
+	wantOnScreen(t, h.view(), []string{"**one**", "two"}, []string{"**two**"})
+}

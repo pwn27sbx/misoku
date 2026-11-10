@@ -16,6 +16,11 @@ func rendered(rows ...string) textarea.DisplayLine { return textarea.DisplayLine
 
 func hidden() textarea.DisplayLine { return textarea.DisplayLine{Hidden: true} }
 
+// viewRows splits a View into its screen rows with the escape codes removed.
+func viewRows(m textarea.Model) []string {
+	return strings.Split(ansi.Strip(m.View()), "\n")
+}
+
 // trimmedRows returns the View's rows with the padding removed.
 func trimmedRows(m textarea.Model) []string {
 	rows := viewRows(m)
@@ -45,14 +50,6 @@ func TestDisplayDrawsRowsExactly(t *testing.T) {
 		rendered("G1"),
 	}})
 	equalRows(t, trimmedRows(m), "A1", "A2", "A3", "beta", "G1", "~")
-}
-
-func TestDisplayRawLineKeepsRenderLineHook(t *testing.T) {
-	m := frameEditor(20, 4, false, "alpha\nbeta\ngamma")
-	m.RenderLine = tagHook
-	m.SetRowCol(2, 0)
-	m.SetDisplay(&textarea.Display{Lines: []textarea.DisplayLine{raw(), rendered("B"), raw()}})
-	equalRows(t, trimmedRows(m), "R0:alpha", "B", "gamma")
 }
 
 func TestDisplayRowsGetNoCursorOrSelection(t *testing.T) {

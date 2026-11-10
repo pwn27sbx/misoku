@@ -297,11 +297,16 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		m.textarea.ScrollBy(-3)
-		return m, nil
-	case tea.MouseButtonWheelDown:
-		m.textarea.ScrollBy(3)
+	case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
+		// A wheel ends a text drag, as the app does: the selection stays,
+		// the next motion no longer extends it and the reveal is no longer
+		// frozen. The release that would have ended it never comes here.
+		m.dragging = false
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.textarea.ScrollBy(-3)
+		} else {
+			m.textarea.ScrollBy(3)
+		}
 		return m, nil
 	case tea.MouseButtonLeft:
 		if m.slash != nil && msg.Action == tea.MouseActionPress {
