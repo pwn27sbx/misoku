@@ -41,6 +41,7 @@ type Model struct {
 	readOnly   bool            // keys that edit do nothing; see SetReadOnly
 	hist       *History        // the shown tab's undo history (SetHistory)
 	copies     *atomic.Int64
+	actions    *actionLog // the actions the tutorial listens to; see actions.go
 	dragging   bool
 	dragRow    int
 	dragCol    int
@@ -84,6 +85,7 @@ func New(th theme.Theme) Model {
 		lv:       &liveCache{},
 		hist:     NewHistory(),
 		copies:   &atomic.Int64{},
+		actions:  &actionLog{},
 	}
 }
 

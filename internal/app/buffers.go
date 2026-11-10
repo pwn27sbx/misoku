@@ -565,7 +565,11 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 	}
 	dirty := m.dirtyBuffers()
 	if force || len(dirty) == 0 {
-		return tea.Quit
+		if force && len(dirty) > 0 {
+			// :q! throws the changes away: the title says so.
+			m.tutorDefer("quit", "discard")
+		}
+		return m.tutorQuitCmd()
 	}
 	names := make([]string, 0, len(dirty))
 	for _, b := range dirty {
@@ -586,11 +590,13 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 				m.savedOnQuit = map[*buffer]bool{}
 				return m.continueSaveAll()
 			case 1:
-				return tea.Quit
+				m.tutorDefer("quit", "discard")
+				return m.tutorQuitCmd()
 			}
 			return nil
 		},
 	}
+	m.tutorDefer("quit", "confirm")
 	return nil
 }
 
@@ -610,7 +616,7 @@ func (m *Model) continueSaveAll() tea.Cmd {
 		// Cancelling it clears m.quitting and Save All stops there.
 		return m.saveBuffer(b, func(m *Model) tea.Cmd { return m.continueSaveAll() })
 	}
-	return tea.Quit
+	return m.tutorQuitCmd()
 }
 
 // remapBuffers renames tabs after a file or folder moved on disk.

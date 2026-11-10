@@ -39,6 +39,12 @@ type tutorGame struct {
 	flash    string
 	flashSeq int
 	hinted   string // lesson whose hint already showed
+
+	// pending holds the commands of the events recorded by tutorDefer, and
+	// tableHint reports whether the statusline's table hint is showing; both
+	// serve the event plumbing of F3b/F3c (see tutor_hooks.go).
+	pending   []tea.Cmd
+	tableHint bool
 }
 
 // WithTutor plays the tutorial in this vault: the current lesson's steps are
@@ -50,6 +56,8 @@ func WithTutor(store *tutor.Store, cat tutor.Catalog, dir string, hasGit bool) O
 			return
 		}
 		m.tutor = &tutorGame{store: store, cat: cat, dir: dir, hasGit: hasGit}
+		// The editor reports the actions the lesson steps wait for.
+		m.content.SetReportActions(true)
 		if m.tutorNotice != "" {
 			m.status = m.tutorNotice
 		}
@@ -418,11 +426,29 @@ func modeValue(mode content.VimMode) string {
 	switch mode {
 	case content.ModeInsert:
 		return "insert"
+	case content.ModeCommand:
+		return "command"
 	case content.ModeVisual:
 		return "visual"
 	case content.ModeVisualLine:
 		return "visual-line"
 	default:
 		return "normal"
+	}
+}
+
+// tutorQuitCmd saves the tutorial's progress and then quits, so the steps a
+// quit itself passes (":q" with changes, ":q!") are on disk when the program
+// ends. A save that fails cannot be reported: the window is leaving and the
+// progress stays as it was, which the next run reads from the notes.
+func (m *Model) tutorQuitCmd() tea.Cmd {
+	g := m.tutor
+	if g == nil {
+		return tea.Quit
+	}
+	store, dir := g.store, g.dir
+	return func() tea.Msg {
+		_ = store.Save(dir)
+		return tea.QuitMsg{}
 	}
 }

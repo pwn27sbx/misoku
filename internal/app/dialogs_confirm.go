@@ -154,7 +154,7 @@ func (d *confirmDialog) update(m *Model, msg tea.Msg) (tea.Cmd, bool) {
 			if m.quitHeld() {
 				return nil, false
 			}
-			return tea.Quit, true
+			return m.tutorQuitCmd(), true
 		default:
 			for i, b := range d.buttons {
 				if strings.EqualFold(msg.String(), b[:1]) {

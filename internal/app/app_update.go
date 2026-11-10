@@ -28,8 +28,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if nm, ok := next.(Model); ok {
 		build, layout, mentions := nm.startLinkIndex(), nm.startGlobalMap(), nm.startMentionScan()
 		tutor := nm.tutorSyncCurrent()
-		if build != nil || layout != nil || mentions != nil || tutor != nil {
-			return nm, tea.Batch(cmd, build, layout, mentions, tutor)
+		hooks := nm.tutorAfterUpdate()
+		if build != nil || layout != nil || mentions != nil || tutor != nil || hooks != nil {
+			return nm, tea.Batch(cmd, build, layout, mentions, tutor, hooks)
 		}
 	}
 	return next, cmd
