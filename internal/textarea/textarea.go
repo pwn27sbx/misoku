@@ -249,6 +249,15 @@ type Model struct {
 	// Visual mode (misoku addition).
 	HideBandWhileSelecting bool
 
+	// WrapIndent, when set, returns the hanging indent of a line: the
+	// continuation rows of its soft wrap are drawn that many cells to the
+	// right, under the line's text (Vim's 'breakindent'). The indent is
+	// display only and is ignored when it exceeds half the width. It must
+	// depend on the runes alone and be set before any text, since the wrap
+	// memo and the row index are keyed on the runes and the width. Nil keeps
+	// the upstream wrap (misoku addition).
+	WrapIndent func(line []rune) int
+
 	selecting bool
 	// SelectLinewise extends the selection to whole lines (Vim's V).
 	SelectLinewise bool
@@ -522,7 +531,9 @@ func (m Model) Line() int {
 // Returns whether or not the cursor blink should be reset.
 func (m *Model) CursorDown() {
 	li := m.LineInfo()
-	charOffset := max(m.lastCharOffset, li.CharOffset)
+	// misoku: the goal is a screen column, counted from the text area's left
+	// edge, so the hanging indent of a continuation row counts.
+	charOffset := max(m.lastCharOffset, m.screenColumn(li))
 	m.lastCharOffset = charOffset
 
 	next, drawn := m.nextShownLine(m.row, 1), m.displayed(m.row) != nil
@@ -546,6 +557,9 @@ func (m *Model) CursorDown() {
 		return
 	}
 
+	// misoku: walk the target row in its own frame, past its indent; a goal
+	// inside the indent stays on the row's first character.
+	charOffset -= m.cursorIndent()
 	offset := 0
 	for offset < charOffset {
 		if m.row >= len(m.value) || m.col >= len(m.value[m.row]) || offset >= nli.CharWidth-1 {
@@ -559,7 +573,7 @@ func (m *Model) CursorDown() {
 // CursorUp moves the cursor up by one line.
 func (m *Model) CursorUp() {
 	li := m.LineInfo()
-	charOffset := max(m.lastCharOffset, li.CharOffset)
+	charOffset := max(m.lastCharOffset, m.screenColumn(li)) // misoku: see CursorDown
 	m.lastCharOffset = charOffset
 
 	// misoku: from a block's line without rows, k leaves the block.
@@ -585,6 +599,7 @@ func (m *Model) CursorUp() {
 		return
 	}
 
+	charOffset -= m.cursorIndent() // misoku: see CursorDown
 	offset := 0
 	for offset < charOffset {
 		if m.col >= len(m.value[m.row]) || offset >= nli.CharWidth-1 {
@@ -1218,6 +1233,11 @@ func (m Model) View() string {
 			style = m.style.computedText()
 		}
 
+		indent := 0 // misoku: the hanging indent of the continuation rows
+		if len(wrappedLines) > 1 {
+			indent = m.hangIndent(line, m.width)
+		}
+
 		segStart := 0 // misoku: rune offset of this wrapped segment in the line
 		for wl, wrappedLine := range wrappedLines {
 			off := segStart
@@ -1237,25 +1257,33 @@ func (m Model) View() string {
 				s.WriteString(m.lineNumberCell(style, l, wl))
 			}
 
+			// misoku: a continuation row starts with the hanging indent, so
+			// its text has that much less room.
+			width := m.width
+			if wl > 0 && indent > 0 {
+				s.WriteString(style.Render(strings.Repeat(" ", indent)))
+				width -= indent
+			}
+
 			strwidth := uniseg.StringWidth(string(wrappedLine))
-			padding := m.width - strwidth
+			padding := width - strwidth
 			// If the trailing space causes the line to be wider than the
 			// width, we should not draw it to the screen since it will result
 			// in an extra space at the end of the line which can look off when
 			// the cursor line is showing.
-			if strwidth > m.width {
+			if strwidth > width {
 				// The character causing the line to be wider than the width is
 				// guaranteed to be a space since any other character would
 				// have been wrapped.
 				wrappedLine = []rune(strings.TrimSuffix(string(wrappedLine), " "))
-				padding -= m.width - strwidth
+				padding -= width - strwidth
 			}
 			if m.row == l && lineInfo.RowOffset == wl && !m.HideCursor {
 				// misoku: the cursor may sit just past a segment whose
 				// trailing space was trimmed above (wide CJK runes); clamp.
 				co := min(lineInfo.ColumnOffset, len(wrappedLine))
 				s.WriteString(m.paint(style, l, off, wrappedLine[:co]))
-				if co >= len(wrappedLine) || (m.col >= len(line) && lineInfo.CharOffset >= m.width) {
+				if co >= len(wrappedLine) || (m.col >= len(line) && lineInfo.CharOffset >= width) {
 					m.Cursor.SetChar(" ")
 					s.WriteString(m.Cursor.View())
 				} else {
@@ -1477,9 +1505,52 @@ func (m Model) memoizedWrap(runes []rune, width int) [][]rune {
 	if v, ok := m.cache.Get(input); ok {
 		return v
 	}
-	v := wrap(runes, width)
+	v := wrapIndent(runes, width, m.hangIndent(runes, width))
 	m.cache.Set(input, v)
 	return v
+}
+
+// hangIndentShare bounds the hanging indent: it is used only while it is at
+// most width/hangIndentShare, so a deep marker never leaves a thin column.
+const hangIndentShare = 2
+
+// hangIndent returns the hanging indent WrapIndent gives a line at width, or
+// 0 without one or when it would leave too little room (misoku addition).
+func (m Model) hangIndent(runes []rune, width int) int {
+	if m.WrapIndent == nil {
+		return 0
+	}
+	ind := m.WrapIndent(runes)
+	if ind <= 0 || ind > width/hangIndentShare {
+		return 0
+	}
+	return ind
+}
+
+// screenColumn returns the cursor's column from the text area's left edge,
+// for the goal column of CursorUp and CursorDown. On the first character
+// after an indent it is the goal itself when one is kept: a goal inside the
+// indent lands there and must survive the next row.
+func (m Model) screenColumn(li LineInfo) int {
+	ind := m.cursorIndent()
+	if ind > 0 && li.CharOffset == 0 && m.lastCharOffset > 0 && m.lastCharOffset < ind {
+		return m.lastCharOffset
+	}
+	return li.CharOffset + ind
+}
+
+// cursorIndent returns the hanging indent drawn before the cursor's row.
+func (m Model) cursorIndent() int {
+	return m.rowIndent(m.row, m.wrapLineInfo().RowOffset)
+}
+
+// rowIndent returns the cells drawn before wrapped segment k of line l: the
+// hanging indent on continuation rows, nothing on the first.
+func (m Model) rowIndent(l, k int) int {
+	if k <= 0 || l < 0 || l >= len(m.value) {
+		return 0
+	}
+	return m.hangIndent(m.value[l], m.width)
 }
 
 // cursorLineNumber returns the line number that the cursor is on.
@@ -1561,12 +1632,27 @@ func Paste() tea.Msg {
 }
 
 func wrap(runes []rune, width int) [][]rune {
+	return wrapIndent(runes, width, 0)
+}
+
+// wrapIndent is wrap with a hanging indent: the first row is width wide and
+// every continuation row width-indent, since the indent is drawn before it.
+// The indent never enters the segments, which still hold every rune of the
+// line plus one trailing space (misoku addition).
+func wrapIndent(runes []rune, width, indent int) [][]rune {
 	var (
 		lines  = [][]rune{{}}
 		word   = []rune{}
 		row    int
 		spaces int
 	)
+	// rowWidth is the room on row r.
+	rowWidth := func(r int) int {
+		if r > 0 {
+			return width - indent
+		}
+		return width
+	}
 
 	// Word wrap the runes
 	for _, r := range runes {
@@ -1577,7 +1663,7 @@ func wrap(runes []rune, width int) [][]rune {
 		}
 
 		if spaces > 0 { //nolint:nestif
-			if uniseg.StringWidth(string(lines[row]))+uniseg.StringWidth(string(word))+spaces > width {
+			if uniseg.StringWidth(string(lines[row]))+uniseg.StringWidth(string(word))+spaces > rowWidth(row) {
 				row++
 				lines = append(lines, []rune{})
 				lines[row] = append(lines[row], word...)
@@ -1594,7 +1680,12 @@ func wrap(runes []rune, width int) [][]rune {
 			// If the last character is a double-width rune, then we may not be able to add it to this line
 			// as it might cause us to go past the width.
 			lastCharLen := rw.RuneWidth(word[len(word)-1])
-			if uniseg.StringWidth(string(word))+lastCharLen > width {
+			// misoku: the word lands on this row only while it is empty.
+			lands := row
+			if len(lines[row]) > 0 {
+				lands = row + 1
+			}
+			if uniseg.StringWidth(string(word))+lastCharLen > rowWidth(lands) {
 				// If the current line has any content, let's move to the next
 				// line because the current word fills up the entire line.
 				if len(lines[row]) > 0 {
@@ -1607,7 +1698,7 @@ func wrap(runes []rune, width int) [][]rune {
 		}
 	}
 
-	if uniseg.StringWidth(string(lines[row]))+uniseg.StringWidth(string(word))+spaces >= width {
+	if uniseg.StringWidth(string(lines[row]))+uniseg.StringWidth(string(word))+spaces >= rowWidth(row) {
 		lines = append(lines, []rune{})
 		lines[row+1] = append(lines[row+1], word...)
 		// We add an extra space at the end of the line to account for the

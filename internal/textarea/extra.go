@@ -123,7 +123,15 @@ func (m *Model) ClickAt(x, y int) {
 	if m.ShowLineNumbers {
 		gutter += 6
 	}
-	m.moveToVisual(m.viewport.YOffset+y, x-gutter)
+	// misoku: a continuation row starts after its hanging indent; a click
+	// in the indent lands on the row's first character. moveToVisual itself
+	// stays in runes, since ScrollBy hands it a rune offset.
+	v := max(m.viewport.YOffset+y, 0)
+	x -= gutter
+	if r := m.lineAtRow(v); r < len(m.value) && m.displayed(r) == nil {
+		x = max(x-m.rowIndent(r, v-m.rows()[r]), 0)
+	}
+	m.moveToVisual(v, x)
 	m.EnsureVisible()
 }
 
@@ -261,7 +269,8 @@ func (m Model) CursorScreen() (x, y int, ok bool) {
 	if m.displayed(m.row) != nil {
 		return gutter, y, true // misoku: the display's rows have no columns
 	}
-	return gutter + m.LineInfo().CharOffset, y, true
+	li := m.LineInfo()
+	return gutter + m.rowIndent(m.row, li.RowOffset) + li.CharOffset, y, true
 }
 
 // RowCol returns the 0-based logical row and rune column of the cursor.

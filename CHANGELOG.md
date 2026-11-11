@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- When a list item, a task, a numbered item or a quote wraps in the editor, its continuation rows start under the item's text instead of at the left edge (a hanging indent, like Vim's `breakindent`); a nested item continues under its own text. The indent is display only: the note's text, copying, search, undo, the cursor and the mouse behave as before. It applies in the editor, the split and the Markdown INSERT shows in the reading view, and a marker wider than half the text width wraps as before.
+
 ## [0.33.1] - 2026-11-10
 
 ### Changed

@@ -69,6 +69,7 @@ func New(th theme.Theme) Model {
 	ta.ShowLineNumbers = true
 	ta.EndOfBufferCharacter = '~'
 	ta.HideBandWhileSelecting = true
+	ta.WrapIndent = hangIndent // before any text: see the field
 	ta.CharLimit = 0
 	ta.MaxHeight = 0
 	ta.Cursor.Style = lipgloss.NewStyle().Foreground(th.Fg)
