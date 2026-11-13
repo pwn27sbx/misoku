@@ -188,7 +188,9 @@ func TestEnglishRouteEStepsPassOnlyWhenDone(t *testing.T) {
 			}
 			text := lesson
 			if p.write != "" {
-				text = strings.Replace(lesson, "\n## Your turn\n", "\n## Your turn\n\n"+p.write+"\n", 1)
+				// Before the heading's own line ending, which is "\r\n" when
+				// git on Windows checked the lesson out with CRLF.
+				text = strings.Replace(lesson, "\n## Your turn", "\n## Your turn\n\n"+p.write, 1)
 			}
 			done.Recheck(l, text, ePlayEnv(t, p.before, after, p.folder))
 			for _, e := range p.events {

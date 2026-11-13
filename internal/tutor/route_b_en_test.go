@@ -27,15 +27,17 @@ func addLines(lines ...string) noteEdit {
 }
 
 // replaceLine rewrites the line that is exactly old; an empty new deletes it.
+// A lesson checked out with CRLF endings (git on Windows) keeps a trailing
+// "\r" on each line: it is not part of the line, and the new line keeps it.
 func replaceLine(old, new string) noteEdit {
 	return func(text string) string {
 		lines := strings.Split(text, "\n")
 		for i, l := range lines {
-			if l == old {
+			if body, ok := strings.CutSuffix(l, "\r"); ok && body == old || l == old {
 				if new == "" {
 					return strings.Join(append(lines[:i:i], lines[i+1:]...), "\n")
 				}
-				lines[i] = new
+				lines[i] = new + l[len(old):]
 				return strings.Join(lines, "\n")
 			}
 		}
