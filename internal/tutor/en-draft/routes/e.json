@@ -1,0 +1,825 @@
+{
+  "id": "E",
+  "dir": "4 Expert",
+  "name": "Expert",
+  "index": "E00 Expert.md",
+  "lessons": [
+    {
+      "id": "E01",
+      "title": "The shortcut map",
+      "file": "E01 The shortcut map.md",
+      "steps": [
+        {
+          "text": "Press space and wait for the guide",
+          "hint": "Press space and wait 400 ms",
+          "ids": [
+            "SRCH-07"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "leader_guide"
+          }
+        },
+        {
+          "text": "Press space o to see the second page",
+          "hint": "space o opens the misoku submenu",
+          "ids": [
+            "SRCH-08"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "leader_guide",
+            "value": "subpage"
+          }
+        },
+        {
+          "text": "Open the palette and compare the keys",
+          "hint": "Press ? or space h",
+          "ids": [
+            "SRCH-06"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "palette_open",
+            "value": "configured-keys"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E02",
+      "title": "Changing your shortcuts",
+      "file": "E02 Changing your shortcuts.md",
+      "steps": [
+        {
+          "text": "Give reading_view another key in config.json",
+          "hint": "keys: reading_view: [space p, z]",
+          "ids": [
+            "SET-08",
+            "SRCH-09"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "keys.reading_view"
+            ]
+          }
+        },
+        {
+          "text": "Empty the key list of export_pdf",
+          "hint": "An empty list unassigns the action",
+          "ids": [
+            "SRCH-09"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "keys.export_pdf",
+              "[]"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E03",
+      "title": "Warnings and old names",
+      "file": "E03 Warnings and old names.md",
+      "steps": [
+        {
+          "text": "Put one key on two actions and restart",
+          "hint": "The warning shows at startup and in :messages",
+          "ids": [
+            "SRCH-10"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "key_clash"
+          }
+        },
+        {
+          "text": "Use reading_mode and toggle_preview in keys",
+          "hint": "The old names still work",
+          "ids": [
+            "SRCH-11"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "disk",
+                "pred": "config-key",
+                "args": [
+                  "keys.reading_mode"
+                ]
+              },
+              {
+                "kind": "disk",
+                "pred": "config-key",
+                "args": [
+                  "keys.toggle_preview"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E04",
+      "title": "The :settings menu",
+      "file": "E04 The settings menu.md",
+      "steps": [
+        {
+          "text": "Open :settings and change a row",
+          "hint": "Also with c from the home screen",
+          "ids": [
+            "SET-01"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "action",
+                "event": "settings_open"
+              },
+              {
+                "kind": "action",
+                "event": "settings_saved"
+              }
+            ]
+          }
+        },
+        {
+          "text": "Change the width at which the explorer hides",
+          "hint": "1 to 1000; factory value 120",
+          "ids": [
+            "SET-03"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "ui.explorer_hide_width"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E05",
+      "title": "Icons and borders",
+      "file": "E05 Icons and borders.md",
+      "steps": [
+        {
+          "text": "Try the four presets and finish on Numbers",
+          "hint": "The Icons & bullets row",
+          "ids": [
+            "SET-04"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.bullets"
+            ]
+          }
+        },
+        {
+          "text": "Change the border to single and leave it",
+          "hint": "The Dialog border row",
+          "ids": [
+            "SET-05"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.border",
+              "single"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E06",
+      "title": "Transparent background",
+      "file": "E06 Transparent background.md",
+      "steps": [
+        {
+          "text": "Turn the Transparent background row on and off",
+          "hint": "It is in :settings",
+          "ids": [
+            "SET-06"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Write ui.transparent by hand in config.json",
+          "hint": "Inside ui, with the value true",
+          "ids": [
+            "VIEW-10"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.transparent",
+              "true"
+            ]
+          }
+        },
+        {
+          "text": "Add ui.checkbox.todo with your glyph, restart",
+          "hint": "Without a glyph, [-] is plain text",
+          "ids": [
+            "SET-09"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "ui.checkbox.todo"
+            ]
+          }
+        },
+        {
+          "text": "Write a task here: - [-] call the hotel",
+          "ids": [
+            "MD-11"
+          ],
+          "check": {
+            "kind": "text",
+            "pred": "line-starts",
+            "args": [
+              "- [-] "
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E07",
+      "title": "Numbers and cursor",
+      "file": "E07 Numbers and cursor.md",
+      "steps": [
+        {
+          "text": "Toggle Heading numbers and leave it off",
+          "hint": "The row in the :settings menu",
+          "ids": [
+            "SET-07"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "ui.heading_numbers"
+            ]
+          }
+        },
+        {
+          "text": "Watch the cursor in NORMAL and in INSERT",
+          "hint": "With ui.cursor_shape set to auto",
+          "ids": [
+            "VIEW-11"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "cursor_shape",
+            "value": [
+              "block",
+              "bar"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E08",
+      "title": "The theme picker",
+      "file": "E08 The theme picker.md",
+      "steps": [
+        {
+          "text": "Try a theme and keep it with Enter",
+          "hint": "space t or :colo without a name",
+          "ids": [
+            "VIEW-06"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "action",
+                "event": "theme_pick"
+              },
+              {
+                "kind": "action",
+                "event": "settings_saved"
+              }
+            ]
+          }
+        },
+        {
+          "text": "Open the picker and leave with Esc",
+          "hint": "The theme goes back to the previous one",
+          "ids": [
+            "VIEW-06"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "theme_pick",
+            "value": "revert"
+          }
+        },
+        {
+          "text": "Go through the full list of 97 palettes",
+          "hint": "They are sorted by name",
+          "ids": [
+            "VIEW-08"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "theme_list"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E09",
+      "title": "Themes by name and your own themes",
+      "file": "E09 Themes by name and your own themes.md",
+      "steps": [
+        {
+          "text": "Run :colo with a name and restart",
+          "hint": "For example :colo catppuccin",
+          "ids": [
+            "VIEW-07"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "theme"
+            ]
+          }
+        },
+        {
+          "text": "Copy a JSON theme into themes and open it",
+          "hint": "It appears without a restart",
+          "ids": [
+            "VIEW-09"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "theme_list"
+          }
+        },
+        {
+          "text": "Change themes_dir to another folder",
+          "hint": "A folder of palettes or one file",
+          "ids": [
+            "SET-13"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "themes_dir"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E10",
+      "title": "Folders in config.json",
+      "file": "E10 Folders in config.json.md",
+      "steps": [
+        {
+          "text": "Change notes_dir and open Misoku with no args",
+          "hint": "An absolute path or one starting with ~",
+          "ids": [
+            "SET-10"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "notes_dir"
+            ]
+          }
+        },
+        {
+          "text": "Set daily_dir to a folder inside the vault",
+          "hint": "A path outside is not accepted",
+          "ids": [
+            "SET-11",
+            "DAY-02"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "daily_dir"
+            ]
+          }
+        },
+        {
+          "text": "Set templates_dir to Plantillas",
+          "hint": "Relative to the vault, not absolute",
+          "ids": [
+            "SET-12"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "templates_dir"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E11",
+      "title": "Sync in config.json",
+      "file": "E11 Sync in config.json.md",
+      "steps": [
+        {
+          "text": "Add a vault to sync.vaults",
+          "hint": "The path as the object's key",
+          "ids": [
+            "SET-14"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-changed",
+            "args": [
+              "sync.vaults"
+            ]
+          }
+        },
+        {
+          "text": "Look at learn_offered after the dialog",
+          "hint": "It is true once you have answered",
+          "ids": [
+            "SET-15"
+          ],
+          "check": {
+            "kind": "disk",
+            "pred": "config-key",
+            "args": [
+              "learn_offered",
+              "true"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "E12",
+      "title": "Syncing",
+      "file": "E12 Syncing.md",
+      "steps": [
+        {
+          "text": "Press space s and wait for the end",
+          "hint": "Or run :sync",
+          "ids": [
+            "SYNC-01"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "ok"
+          }
+        },
+        {
+          "text": "Reopen a vault on the list and watch the sync",
+          "hint": "It syncs on open",
+          "ids": [
+            "SYNC-02"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "on-open"
+          }
+        },
+        {
+          "text": "Wait for the timed sync or lower interval",
+          "hint": "Five minutes by default",
+          "ids": [
+            "SYNC-03"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "timed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E13",
+      "title": "What sync does",
+      "file": "E13 What sync does.md",
+      "steps": [
+        {
+          "text": "Save a note and wait for the local commit",
+          "hint": "A few seconds, no network",
+          "ids": [
+            "SYNC-04"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Close Misoku and watch the push on quit",
+          "hint": "Up to ten seconds after closing",
+          "ids": [
+            "SYNC-05"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_run",
+            "value": "on-quit"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E14",
+      "title": "The sync status",
+      "file": "E14 The sync status.md",
+      "steps": [
+        {
+          "text": "Run :sync status and read every field",
+          "hint": "State, remote, branch, pending",
+          "ids": [
+            "SYNC-06"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_status"
+          }
+        },
+        {
+          "text": "Look at the list of files left out",
+          "hint": "Large, ignored or illegal names",
+          "ids": [
+            "SYNC-17"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_status",
+            "value": "left-out"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E15",
+      "title": "When it stops",
+      "file": "E15 When it stops.md",
+      "steps": [
+        {
+          "text": "Cause a stop, read the dialog, use Check again",
+          "hint": "The dialog, in plain words",
+          "ids": [
+            "SYNC-11"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "action",
+                "event": "sync_stop_dialog"
+              },
+              {
+                "kind": "action",
+                "event": "sync_run"
+              }
+            ]
+          }
+        },
+        {
+          "text": "Leave a lock, accept removing it and syncing",
+          "hint": "Remove the lock and sync",
+          "ids": [
+            "SYNC-13"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "With an expired remote, accept gh auth login",
+          "hint": "The offer shows in the dialog",
+          "ids": [
+            "SYNC-12"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_auth_offer"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E16",
+      "title": "Notes that arrive",
+      "file": "E16 Notes that arrive.md",
+      "steps": [
+        {
+          "text": "Look at the four states in the bar",
+          "hint": "syncing, synced, conflicts, offline",
+          "ids": [
+            "SYNC-07"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_indicator"
+          }
+        },
+        {
+          "text": "Make a note arrive and read the notice",
+          "hint": "Three names in the bar",
+          "ids": [
+            "SYNC-08"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_arrival"
+          }
+        },
+        {
+          "text": "Open a second window on the same vault",
+          "hint": "Only one syncs",
+          "ids": [
+            "SYNC-18"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "sync_indicator",
+            "value": "other-window"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E17",
+      "title": "Setting up sync",
+      "file": "E17 Setting up sync.md",
+      "steps": [
+        {
+          "text": "Run :sync setup and answer",
+          "hint": "Or press s on the home screen",
+          "ids": [
+            "SYNC-14"
+          ],
+          "check": {
+            "kind": "all",
+            "checks": [
+              {
+                "kind": "disk",
+                "pred": "folder-exists",
+                "args": [
+                  ".git"
+                ]
+              },
+              {
+                "kind": "disk",
+                "pred": "config-key",
+                "args": [
+                  "sync.vaults"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "text": "Run misoku sync init with a URL",
+          "hint": "In a new folder, outside the app",
+          "ids": [
+            "SYNC-15"
+          ],
+          "check": {
+            "kind": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E18",
+      "title": "The global graph in depth",
+      "file": "E18 The global graph in depth.md",
+      "steps": [
+        {
+          "text": "Move through the global graph with its keys",
+          "hint": "hjkl, n/N, Enter, +/-, 0, Esc, o, u",
+          "ids": [
+            "GRF-05"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "graph_move"
+          }
+        },
+        {
+          "text": "Press / and check that it filters the graph",
+          "hint": "It does not search inside a note",
+          "ids": [
+            "NEW-17"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "graph_filter"
+          }
+        },
+        {
+          "text": "Run :graph foo and read the error",
+          "hint": "E488: Trailing characters",
+          "ids": [
+            "GRF-07"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "command_error",
+            "value": "E488"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E19",
+      "title": "Precision Vim",
+      "file": "E19 Precision Vim.md",
+      "steps": [
+        {
+          "text": "Scroll one line with ctrl+e and ctrl+y",
+          "hint": "The cursor does not move",
+          "ids": [
+            "VIM-27"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "motion",
+            "value": "scroll-line"
+          }
+        },
+        {
+          "text": "Edit in a tab, switch and press u",
+          "hint": "The history is per tab",
+          "ids": [
+            "VIM-29"
+          ],
+          "check": {
+            "kind": "action",
+            "event": "undo_empty"
+          }
+        }
+      ]
+    },
+    {
+      "id": "E20",
+      "title": "Expert Challenge",
+      "file": "E20 Expert Challenge.md",
+      "steps": [
+        {
+          "text": "Reassign a key and use it",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Change the theme and keep it",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Run a sync and read :sync status",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        },
+        {
+          "text": "Open the guide and run something from the palette",
+          "ids": [],
+          "check": {
+            "kind": "none"
+          }
+        }
+      ]
+    }
+  ]
+}
