@@ -308,8 +308,8 @@ func TestRouteIEnglishActionValuesAreInTheLesson(t *testing.T) {
 	}
 }
 
-// slashIDs are the "/" menu items, by the ids internal/content gives them.
-var slashIDs = []string{
+// routeISlashIDs are the "/" menu items, by the ids internal/content gives them.
+var routeISlashIDs = []string{
 	"format", "h1", "h2", "h3", "h4", "bullet", "numbered", "todo", "toggle",
 	"page", "callout", "quote", "table", "equation", "divider", "columns2",
 	"columns3", "columns4", "link", "template", "board", "calendar",
@@ -328,7 +328,7 @@ var (
 func TestRouteIEnglishQuotesTheEnglishLabels(t *testing.T) {
 	en := func(k i18n.Key) string { return i18n.TFor(i18n.EN, k) }
 	var slash []string
-	for _, id := range slashIDs {
+	for _, id := range routeISlashIDs {
 		slash = append(slash, en(i18n.SlashLabel(id)))
 	}
 	buttons := map[string]bool{}
