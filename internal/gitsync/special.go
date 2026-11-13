@@ -8,6 +8,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // NoticeKind says why a file does not sync like a plain note (S15).
@@ -72,22 +74,22 @@ type Notice struct {
 func (n Notice) String() string {
 	switch n.Kind {
 	case NestedRepo:
-		return n.Path + " is a separate git repository, so its files do not sync: move it out of the vault, or ignore it"
+		return i18n.T(i18n.GitNoticeNested, n.Path)
 	case Submodule:
-		return n.Path + " is a git submodule: only its commit id syncs, not its files"
+		return i18n.T(i18n.GitNoticeSubmodule, n.Path)
 	case LinkOutside:
-		return n.Path + " links to " + n.Detail + ", outside the vault: only the link syncs, not what it points to"
+		return i18n.T(i18n.GitNoticeLink, n.Path, n.Detail)
 	case WindowsName:
 		if n.LeftOut {
-			return n.Path + " has a name Windows cannot use (" + n.Detail + "), so it stays out of sync until you rename it to a valid name; a note renamed to it keeps syncing under its old name"
+			return i18n.T(i18n.GitNoticeWinLeftOut, n.Path, n.Detail)
 		}
-		return n.Path + " has a name Windows cannot use (" + n.Detail + "): rename it, or a Windows computer cannot sync this vault"
+		return i18n.T(i18n.GitNoticeWinName, n.Path, n.Detail)
 	case CaseClash:
-		return n.Path + " and another note or folder have names that differ only in letter case, so this computer holds only one of them: rename the file shown here and both sync again on every device"
+		return i18n.T(i18n.GitNoticeCaseClash, n.Path)
 	case CaseDuplicate:
-		return n.Path + " has the name of another file, ignoring letter case, which macOS and Windows cannot hold together, so it stays out of sync until you rename it"
+		return i18n.T(i18n.GitNoticeCaseDup, n.Path)
 	case HeldDeletion:
-		return n.Path + " was deleted or renamed, but it keeps syncing under this name until the files left out for their names are renamed"
+		return i18n.T(i18n.GitNoticeHeld, n.Path)
 	}
 	return n.Path
 }
@@ -184,18 +186,18 @@ func windowsNameProblem(p string) string {
 		}
 		for _, c := range part {
 			if c < 0x20 {
-				return "a control character"
+				return i18n.T(i18n.GitNameControl)
 			}
 			if strings.ContainsRune(`<>:"\|?*`, c) {
 				return fmt.Sprintf("%q", string(c))
 			}
 		}
 		if strings.HasSuffix(part, ".") || strings.HasSuffix(part, " ") {
-			return "it ends with a dot or a space"
+			return i18n.T(i18n.GitNameDotSpace)
 		}
 		stem, _, _ := strings.Cut(part, ".")
 		if stem = strings.TrimRight(stem, " "); windowsReserved[strings.ToUpper(stem)] {
-			return stem + " is reserved on Windows"
+			return i18n.T(i18n.GitNameReserved, stem)
 		}
 	}
 	return ""

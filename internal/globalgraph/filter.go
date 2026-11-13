@@ -14,6 +14,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // hides reports whether a toggle hides n: an orphan is a note with no link
@@ -140,7 +142,7 @@ func (m *Model) keepSelectionShown() {
 // promptLine is the hint row while the prompt is open: the text, its end
 // in sight when it is too long, then the keys that close it where they fit.
 func (m Model) promptLine() string {
-	for _, tail := range []string{"   enter jump · esc clear", "   enter · esc", ""} {
+	for _, tail := range []string{i18n.T(i18n.GraphPromptJump), "   enter · esc", ""} {
 		room := m.width - 3 - 1 - ansi.StringWidth(tail) // " / ", the cursor
 		if room < 1 {
 			continue

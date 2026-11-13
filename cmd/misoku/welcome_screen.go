@@ -13,6 +13,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 )
@@ -96,9 +97,9 @@ func newWelcomeScreen(o welcomeOptions, th theme.Theme) welcomeScreen {
 // choices are the rows offered, in order: Use this folder only when
 // welcomeFor found a folder that can be used.
 func (m welcomeScreen) choices() []string {
-	c := []string{"Start my notes", "Bring my notes from another computer"}
+	c := []string{i18n.T(i18n.WelcomeStart), i18n.T(i18n.WelcomeBring)}
 	if m.o.Cwd != "" {
-		c = append(c, "Use this folder: "+m.o.Cwd)
+		c = append(c, i18n.T(i18n.WelcomeUseThis, m.o.Cwd))
 	}
 	return c
 }
@@ -249,7 +250,7 @@ func (m welcomeScreen) View() string {
 	muted := bg.Foreground(t.GreyFg2)
 	missing := ""
 	if m.o.Missing != "" {
-		missing = "I can't find your notes at " + m.o.Missing + "."
+		missing = i18n.T(i18n.WelcomeMissing, m.o.Missing)
 	}
 	rows := make([]string, 0, 3)
 	for i, c := range m.choices() {
@@ -262,11 +263,11 @@ func (m welcomeScreen) View() string {
 		inner = max(inner, lipgloss.Width(l)+2)
 	}
 	inner = max(min(inner, m.w-10), 20)
-	lines := []string{bg.Foreground(t.Blue).Bold(true).Render("Welcome to Misoku.")}
+	lines := []string{bg.Foreground(t.Blue).Bold(true).Render(i18n.T(i18n.WelcomeTitle))}
 	if missing != "" {
 		lines = append(lines, bg.Foreground(t.Yellow).Width(inner).Render(missing))
 	}
-	lines = append(lines, "", text.Render("Where do your notes live?"), "")
+	lines = append(lines, "", text.Render(i18n.T(i18n.WelcomeQuestion)), "")
 	for i, row := range rows {
 		mark, style := "  ", text
 		if i == m.cursor {
@@ -277,7 +278,7 @@ func (m welcomeScreen) View() string {
 	if m.notice != "" {
 		lines = append(lines, "", muted.Width(inner).Render(m.notice))
 	}
-	hint := "↑↓ or a number · Enter choose · Esc or q leave"
+	hint := i18n.T(i18n.WelcomeHintChoose)
 	switch {
 	case m.bring != nil:
 		status, isErr := m.bring.Status()
@@ -285,21 +286,21 @@ func (m welcomeScreen) View() string {
 		if isErr {
 			style = bg.Foreground(t.Red)
 		}
-		lines = append(lines, "", text.Render("Folder for your notes: "+m.bringTo.written))
+		lines = append(lines, "", text.Render(i18n.T(i18n.WelcomeFolderShown, m.bringTo.written)))
 		if status != "" {
 			lines = append(lines, style.Width(inner).Render(status))
 		}
-		hint = "Esc cancel"
+		hint = i18n.T(i18n.WelcomeHintCancel)
 	case m.asking:
 		m.input.Width = inner - 2
-		lines = append(lines, "", text.Render("Folder for your notes:"),
+		lines = append(lines, "", text.Render(i18n.T(i18n.WelcomeFolder)),
 			bg.Foreground(t.Fg).Render("  ")+m.input.View())
 		if m.problem != "" {
 			lines = append(lines, bg.Foreground(t.Red).Width(inner).Render(m.problem))
 		}
-		hint = "Enter create and open · Esc leave"
+		hint = i18n.T(i18n.WelcomeHintCreate)
 		if m.askFor == choiceBring {
-			hint = "Enter bring the notes here · Esc leave"
+			hint = i18n.T(i18n.WelcomeHintBring)
 		}
 	}
 	lines = append(lines, "", muted.Render(hint))
@@ -322,7 +323,7 @@ func runWelcomeScreen(o welcomeOptions, th theme.Theme) (string, int) {
 	final, err := p.Run()
 	restore()
 	if err != nil {
-		fmt.Fprintf(o.Err, "Could not show the welcome (%v).\n", err)
+		fmt.Fprintln(o.Err, i18n.T(i18n.WelcomeShowFailed, err))
 		return "", 1
 	}
 	return finishWelcome(o, final.(welcomeScreen).outcome)

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // Move moves the note or folder id under destParentID ("" for the workspace
@@ -22,7 +24,7 @@ import (
 // as far as the system allows. It returns the page as it now exists on disk.
 func (s *Store) Move(id, destParentID string) (Page, error) {
 	if id == "" {
-		return Page{}, errors.New("the workspace root cannot be moved")
+		return Page{}, errors.New(i18n.T(i18n.CoreMoveRoot))
 	}
 	if err := checkMovePath(id); err != nil {
 		return Page{}, err
@@ -52,23 +54,23 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 	// sidecar folder (which may not exist).
 	srcDir := strings.TrimSuffix(id, mdExt)
 	if destDir == srcDir || strings.HasPrefix(destDir, srcDir+"/") {
-		return Page{}, fmt.Errorf("cannot move %q into itself", id)
+		return Page{}, errors.New(i18n.T(i18n.CoreMoveInto, id))
 	}
 	if fromDir := path.Dir(id); fromDir == destDir || (fromDir == "." && destDir == "") {
-		return Page{}, fmt.Errorf("%q is already in that folder", id)
+		return Page{}, errors.New(i18n.T(i18n.CoreAlreadyThere, id))
 	}
 
 	name := path.Base(srcDir)
 	newDir := path.Join(destDir, name)
 	newNote := newDir + mdExt
 	if fileExists(s.joinID(newNote)) || fileExists(s.joinID(newDir)) {
-		return Page{}, fmt.Errorf("%q already exists in the destination", name)
+		return Page{}, errors.New(i18n.T(i18n.CoreExistsThere, name))
 	}
 
 	absDest := s.joinID(destDir)
 	createdDest := !fileExists(absDest)
 	if err := os.MkdirAll(absDest, 0755); err != nil {
-		return Page{}, fmt.Errorf("failed to create folder: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreMkFolder), err)
 	}
 	undoDest := func() {
 		if createdDest {
@@ -79,29 +81,29 @@ func (s *Store) Move(id, destParentID string) (Page, error) {
 	if isFolder {
 		if err := os.Rename(s.joinID(id), s.joinID(newDir)); err != nil {
 			undoDest()
-			return Page{}, fmt.Errorf("failed to move folder: %w", err)
+			return Page{}, fmt.Errorf(i18n.T(i18n.CoreMoveFolder), err)
 		}
 		return Page{ID: newDir, Title: name, ParentID: parentIDFor(s.root, newDir), IsFolder: true, UpdatedAt: modTime(s.joinID(newDir))}, nil
 	}
 
 	if err := os.Rename(s.joinID(id), s.joinID(newNote)); err != nil {
 		undoDest()
-		return Page{}, fmt.Errorf("failed to move page: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreMovePage), err)
 	}
 	if sInfo, err := os.Stat(s.joinID(srcDir)); err == nil && sInfo.IsDir() {
 		if err := os.Rename(s.joinID(srcDir), s.joinID(newDir)); err != nil {
 			// Put the note back next to its sub-notes rather than split them.
 			if backErr := os.Rename(s.joinID(newNote), s.joinID(id)); backErr == nil {
 				undoDest()
-				return Page{}, fmt.Errorf("failed to move sub-pages, nothing moved: %w", err)
+				return Page{}, fmt.Errorf(i18n.T(i18n.CoreMoveSubNothing), err)
 			}
-			return Page{}, fmt.Errorf("moved the page to %s but not its sub-pages folder: %w", newNote, err)
+			return Page{}, fmt.Errorf(i18n.T(i18n.CoreMoveSubHalf), newNote, err)
 		}
 	}
 
 	data, err := os.ReadFile(s.joinID(newNote))
 	if err != nil {
-		return Page{}, fmt.Errorf("moved the page but could not read it back: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreMoveReadBack), err)
 	}
 	return Page{
 		ID:        newNote,
@@ -120,7 +122,7 @@ func checkMovePath(id string) error {
 	if id == "" {
 		return nil
 	}
-	if err := checkRelative(id, "workspace"); err != nil {
+	if err := checkRelative(id, i18n.CoreRelativeWorkspace); err != nil {
 		return err
 	}
 	for _, seg := range strings.Split(id, "/") {
@@ -128,7 +130,7 @@ func checkMovePath(id string) error {
 			return err
 		}
 		if strings.Contains(seg, `\`) {
-			return errors.New(`"\" is not allowed in a name`)
+			return errors.New(i18n.T(i18n.CoreBackslash))
 		}
 	}
 	return nil

@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // ErrNotARepo is returned by FileHistory when the vault is not inside a git
 // repository.
-var ErrNotARepo = errors.New("this vault is not a git repository")
+var ErrNotARepo = i18n.Err(i18n.GitNotARepo)
 
 // ErrNoGit is returned by FileHistory when git is not installed or does not
 // start.
-var ErrNoGit = errors.New("git is not installed")
+var ErrNoGit = i18n.Err(i18n.GitNotInstalled)
 
 // Version is one commit that changed a note.
 type Version struct {

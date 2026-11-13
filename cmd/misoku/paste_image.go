@@ -10,10 +10,8 @@ import (
 	"path/filepath"
 
 	"github.com/pwn27sbx/misoku/internal/clipimage"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
-
-// pasteImageUsage is what `misoku paste-image --help` says.
-const pasteImageUsage = "Usage: misoku paste-image [--dir <folder>] [--link]"
 
 // readClipboardImage reads a picture from the clipboard; tests replace it.
 var readClipboardImage = clipimage.Read
@@ -24,10 +22,10 @@ var readClipboardImage = clipimage.Read
 // --link), so an editor can paste an image the way the app does.
 func runPasteImage(args []string) int {
 	fs := flag.NewFlagSet("paste-image", flag.ContinueOnError)
-	dir := fs.String("dir", ".", "folder of the note the picture belongs to")
-	link := fs.Bool("link", false, "print the Markdown link instead of the path")
+	dir := fs.String("dir", ".", i18n.T(i18n.CliPasteFlagDir))
+	link := fs.Bool("link", false, i18n.T(i18n.CliPasteFlagLink))
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), pasteImageUsage)
+		fmt.Fprintln(fs.Output(), i18n.T(i18n.CliPasteUsage))
 		fs.PrintDefaults()
 	}
 	rest, err := positionals(fs, args)
@@ -45,7 +43,7 @@ func runPasteImage(args []string) int {
 		return 1
 	}
 	if info, err := os.Stat(target); err != nil || !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "misoku paste-image: %s is not a folder\n", *dir)
+		fmt.Fprintln(os.Stderr, "misoku paste-image: "+i18n.T(i18n.CliPasteNotDir, *dir))
 		return 1
 	}
 
@@ -54,13 +52,13 @@ func runPasteImage(args []string) int {
 	data, ok, err := readClipboardImage(ctx, os.Getenv)
 	switch {
 	case errors.Is(err, clipimage.ErrNoTool):
-		fmt.Fprintf(os.Stderr, "misoku paste-image: needs %s\n", clipimage.Hint())
+		fmt.Fprintln(os.Stderr, "misoku paste-image: "+i18n.T(i18n.CliPasteNeeds, clipimage.Hint()))
 		return 1
 	case err != nil:
 		fmt.Fprintf(os.Stderr, "misoku paste-image: %v\n", err)
 		return 1
 	case !ok:
-		fmt.Fprintln(os.Stderr, "misoku paste-image: the clipboard holds no picture")
+		fmt.Fprintln(os.Stderr, "misoku paste-image: "+i18n.T(i18n.CliPasteNoImage))
 		return 1
 	}
 	defer clipimage.Discard(data)
@@ -85,7 +83,7 @@ func runPasteImage(args []string) int {
 func savePasted(folder, src string) (string, error) {
 	assets := filepath.Join(folder, "assets")
 	if err := os.MkdirAll(assets, 0o755); err != nil {
-		return "", fmt.Errorf("could not create %s: %w", assets, err)
+		return "", fmt.Errorf(i18n.T(i18n.CliPasteMkdir), assets, err)
 	}
 	ext := filepath.Ext(src)
 	stem := src[:len(src)-len(ext)]
@@ -106,7 +104,7 @@ func savePasted(folder, src string) (string, error) {
 			return "", err
 		}
 	}
-	return "", fmt.Errorf("could not find a free name for %s", name+ext)
+	return "", errors.New(i18n.T(i18n.CliPasteNoName, name+ext))
 }
 
 // copyPasted writes src to dst, refusing to overwrite what is already there.
@@ -118,16 +116,16 @@ func copyPasted(src, dst string) error {
 	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return fmt.Errorf("could not write %s: %w", filepath.Base(dst), err)
+		return fmt.Errorf(i18n.T(i18n.CliPasteWrite), filepath.Base(dst), err)
 	}
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		_ = os.Remove(dst)
-		return fmt.Errorf("could not write %s: %w", filepath.Base(dst), err)
+		return fmt.Errorf(i18n.T(i18n.CliPasteWrite), filepath.Base(dst), err)
 	}
 	if err := out.Close(); err != nil { // a delayed write error leaves half a picture
 		_ = os.Remove(dst)
-		return fmt.Errorf("could not write %s: %w", filepath.Base(dst), err)
+		return fmt.Errorf(i18n.T(i18n.CliPasteWrite), filepath.Base(dst), err)
 	}
 	return nil
 }

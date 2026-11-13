@@ -2,13 +2,13 @@ package gitsync
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // Status says whether Misoku syncs the folder it opened.
@@ -64,11 +64,11 @@ type State struct {
 // limited to timeout.
 func Check(ctx context.Context, vaults []config.Vault, folder string, timeout time.Duration) State {
 	if Disabled() {
-		return State{Status: Off, Reason: ReasonDisabled, Message: "sync is turned off by MISOKU_SYNC=0"}
+		return State{Status: Off, Reason: ReasonDisabled, Message: i18n.T(i18n.GitOff)}
 	}
 	v, ok := Match(vaults, folder)
 	if !ok {
-		return State{Status: Off, Reason: ReasonNotListed, Message: "this folder is not listed in sync.vaults"}
+		return State{Status: Off, Reason: ReasonNotListed, Message: i18n.T(i18n.GitNotListed)}
 	}
 	st := Detect(ctx, New(folder, timeout))
 	st.Vault = v
@@ -78,12 +78,16 @@ func Check(ctx context.Context, vaults []config.Vault, folder string, timeout ti
 // opMarkers are what git leaves in the git dir while an operation waits for
 // the user, and how to get out of it. Sync never continues or aborts the
 // user's own operation: it pauses until the user does.
-var opMarkers = []struct{ path, what, cmd string }{
-	{"MERGE_HEAD", "a merge", "merge"},
-	{"rebase-merge", "a rebase", "rebase"},
-	{"rebase-apply", "a rebase", "rebase"},
-	{"CHERRY_PICK_HEAD", "a cherry-pick", "cherry-pick"},
-	{"REVERT_HEAD", "a revert", "revert"},
+var opMarkers = []struct {
+	path string
+	what i18n.Key
+	cmd  string
+}{
+	{"MERGE_HEAD", i18n.GitOpMerge, "merge"},
+	{"rebase-merge", i18n.GitOpRebase, "rebase"},
+	{"rebase-apply", i18n.GitOpRebase, "rebase"},
+	{"CHERRY_PICK_HEAD", i18n.GitOpCherryPick, "cherry-pick"},
+	{"REVERT_HEAD", i18n.GitOpRevert, "revert"},
 }
 
 // Detect inspects the repository r runs in and says whether it can sync.
@@ -97,27 +101,27 @@ func Detect(ctx context.Context, r *Runner) State { return detect(ctx, r, true) 
 // detect is Detect; needOrigin false skips the check for origin, for
 // `misoku sync init`, which adds it.
 func detect(ctx context.Context, r *Runner, needOrigin bool) State {
-	paused := func(reason Reason, format string, args ...any) State {
-		return State{Status: Paused, Reason: reason, Message: fmt.Sprintf(format, args...)}
+	paused := func(reason Reason, key i18n.Key, args ...any) State {
+		return State{Status: Paused, Reason: reason, Message: i18n.T(key, args...)}
 	}
 
 	version, ok, err := r.Version(ctx)
 	if err != nil {
 		// A missing git lands here too (exec cannot find it).
-		return paused(ReasonGitMissing, "git did not run (%v); install git %s or newer to sync this vault", err, MinVersion)
+		return paused(ReasonGitMissing, i18n.GitMissing, err, MinVersion)
 	}
 	if !ok {
 		if version == "" {
-			version = "of unknown version"
+			version = i18n.T(i18n.GitUnknownVersion)
 		}
-		return paused(ReasonGitTooOld, "git %s is too old; sync needs git %s or newer, update git", version, MinVersion)
+		return paused(ReasonGitTooOld, i18n.GitTooOld, version, MinVersion)
 	}
 
 	// Only git's own answers say how the vault is set up. Any other
 	// failure (a timeout, a slow or failing disk) says nothing about it, so
 	// it is reported as it is, without repair advice that would be wrong.
 	failed := func(err error) State {
-		return paused(ReasonGitFailed, "git failed while checking the vault (%v); sync checks again next time", redact(err))
+		return paused(ReasonGitFailed, i18n.GitCheckFailed, redact(err))
 	}
 
 	out, err := r.Run(ctx, "rev-parse", "--show-toplevel")
@@ -125,13 +129,13 @@ func detect(ctx context.Context, r *Runner, needOrigin bool) State {
 		if exitCode(err) != 128 || !strings.Contains(err.Error(), "not a git repository") {
 			return failed(err)
 		}
-		return paused(ReasonNotARepo, "this vault is not a git repository (%v); set it up with `misoku sync init <url>`", err)
+		return paused(ReasonNotARepo, i18n.GitNotARepoHint, err)
 	}
 	// D10: the repository must be the vault itself. In a subfolder of a
 	// bigger repository, `git add -A` would commit the whole repository.
 	top := strings.TrimSpace(string(out))
 	if !sameDir(top, r.dir) {
-		return paused(ReasonNotRepoRoot, "this vault is inside the git repository at %s; sync needs the vault to be the repository's top folder: open %s instead, or give the vault a repository of its own", filepath.FromSlash(top), filepath.FromSlash(top))
+		return paused(ReasonNotRepoRoot, i18n.GitNotRepoRoot, filepath.FromSlash(top))
 	}
 
 	if needOrigin {
@@ -140,14 +144,14 @@ func detect(ctx context.Context, r *Runner, needOrigin bool) State {
 			return failed(err)
 		}
 		if !hasLine(string(out), "origin") {
-			return paused(ReasonNoRemote, "the repository has no remote named origin; add one with `git remote add origin <url>`")
+			return paused(ReasonNoRemote, i18n.GitNoRemote)
 		}
 	}
 
 	if key, err := missingIdentity(ctx, r); err != nil {
 		return failed(err)
 	} else if key != "" {
-		return paused(ReasonNoIdentity, "%s", identityMessage(key))
+		return paused(ReasonNoIdentity, i18n.GitNoIdentity, key)
 	}
 
 	// Checked before the detached HEAD: a rebase detaches HEAD, and its
@@ -180,21 +184,21 @@ func detect(ctx context.Context, r *Runner, needOrigin bool) State {
 	}
 	for i, m := range opMarkers {
 		if exists(at(i)) {
-			return paused(ReasonInProgress, "%s is in progress in this vault; finish it (`git %s --continue`) or cancel it (`git %s --abort`)", m.what, m.cmd, m.cmd)
+			return paused(ReasonInProgress, i18n.GitInProgress, i18n.T(m.what), m.cmd)
 		}
 	}
 	// S13: a lock left by an interrupted sync of Misoku's own has its
 	// marker next to it, and SyncVault cleans it up. Any other lock is a
 	// git command of the user's, running or crashed: left alone (S2).
 	if lock := at(len(opMarkers)); exists(lock) && !exists(at(len(opMarkers)+1)) {
-		st := paused(ReasonLocked, "%s", lockedMessage(lock))
+		st := paused(ReasonLocked, i18n.GitLocked, lock)
 		st.Lock = lock
 		return st
 	}
 	// symbolic-ref fails when HEAD points at a commit instead of a branch
 	// (and works on a branch with no commit yet).
 	if _, err := r.Run(ctx, "symbolic-ref", "-q", "HEAD"); err != nil {
-		return paused(ReasonDetachedHead, "HEAD is detached (no branch is checked out); check out your branch, for example `git switch main`")
+		return paused(ReasonDetachedHead, i18n.GitDetached)
 	}
 
 	return State{Status: Ready}
@@ -217,7 +221,7 @@ func missingIdentity(ctx context.Context, r *Runner) (string, error) {
 
 // identityMessage says that key is not set and how to set it.
 func identityMessage(key string) string {
-	return fmt.Sprintf("git does not know who you are (%s is not set); run `git config --global user.name \"Your Name\"` and `git config --global user.email you@example.com`", key)
+	return i18n.T(i18n.GitNoIdentity, key)
 }
 
 // hasLine reports whether text has a line equal to want.

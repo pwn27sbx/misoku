@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -18,9 +19,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
-
-const syncSetupUsage = "Usage: misoku sync setup [--dir <folder>]"
 
 // setupTimeout bounds each gh command and local git check of the setup
 // assistant; the sign-in has none (the user drives it).
@@ -42,9 +42,9 @@ func syncSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, cfgPath string, interrupt <-chan os.Signal, keys bool) int {
 	fs := flag.NewFlagSet("sync setup", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dirFlag := fs.String("dir", "", "vault folder (defaults to $MISOKU_WORKSPACE, then the current directory)")
+	dirFlag := fs.String("dir", "", i18n.T(i18n.CliSyncFlagDir))
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, syncSetupUsage)
+		fmt.Fprintln(stderr, i18n.T(i18n.CliSyncSetupUsage))
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -68,7 +68,7 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	})
 	t := &setupTerminal{in: bufio.NewReader(stdin), stdin: stdin, out: stdout, err: stderr, s: s, interrupt: interrupt}
 	defer classicKeyboard(stdout, keys)()
-	fmt.Fprintf(stdout, "Setting up sync of %s with GitHub.\n", dir)
+	fmt.Fprintln(stdout, i18n.T(i18n.CliSetupSettingUp, dir))
 	if step := t.run(ctx); step.Outcome == gitsync.SetupDone || step.Outcome == gitsync.SetupAlready {
 		return 0
 	}
@@ -150,9 +150,9 @@ func (t *setupTerminal) line(prompt string) (string, bool) {
 
 // yes asks a yes/no question; an empty answer is def.
 func (t *setupTerminal) yes(question string, def bool) bool {
-	hint := " [y/N] "
+	hint := i18n.T(i18n.CliYesNo)
 	if def {
-		hint = " [Y/n] "
+		hint = i18n.T(i18n.CliYesDefault)
 	}
 	text, ok := t.line(question + hint)
 	if !ok {
@@ -161,11 +161,7 @@ func (t *setupTerminal) yes(question string, def bool) bool {
 	if text == "" {
 		return def
 	}
-	switch strings.ToLower(text) {
-	case "y", "yes":
-		return true
-	}
-	return false
+	return slices.Contains(strings.Fields(i18n.T(i18n.CliYesWords)), strings.ToLower(text))
 }
 
 // answer asks what step needs, as ask does; Ctrl+C meanwhile is a
@@ -198,19 +194,19 @@ func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 	case gitsync.AskOwnRepo:
 		return gitsync.SetupAnswer{OK: t.yes(step.Confirm, true)}
 	case gitsync.AskStart:
-		return gitsync.SetupAnswer{OK: t.yes("Start?", true)}
+		return gitsync.SetupAnswer{OK: t.yes(i18n.T(i18n.CliSetupStart), true)}
 	case gitsync.AskIdentity:
-		name, ok := t.withDefault("Your name", step.Name)
+		name, ok := t.withDefault(i18n.T(i18n.CliSetupName), step.Name)
 		if !ok {
 			return cancel
 		}
-		email, ok := t.withDefault("Your email", step.Email)
+		email, ok := t.withDefault(i18n.T(i18n.CliSetupEmail), step.Email)
 		if !ok || !t.yes(step.Confirm, true) {
 			return cancel
 		}
 		return gitsync.SetupAnswer{OK: true, Name: name, Email: email}
 	case gitsync.AskSignIn:
-		if !t.yes("Sign in to GitHub now?", true) {
+		if !t.yes(i18n.T(i18n.CliSetupSignInNow), true) {
 			return cancel
 		}
 		t.signIn()
@@ -221,7 +217,7 @@ func (t *setupTerminal) ask(step gitsync.SetupStep) gitsync.SetupAnswer {
 		// No is the default: mixing two sets of notes takes a typed yes.
 		return gitsync.SetupAnswer{OK: t.yes(step.Confirm, false)}
 	case gitsync.AskRepoName:
-		name, ok := t.withDefault("Repository name", step.Default)
+		name, ok := t.withDefault(i18n.T(i18n.CliSetupRepoName), step.Default)
 		if !ok {
 			return cancel
 		}
@@ -264,7 +260,7 @@ func (t *setupTerminal) pickRepo(step gitsync.SetupStep) gitsync.SetupAnswer {
 		entry(n+1, choice)
 	}
 	for {
-		text, ok := t.line("Number, name or part of one (Enter cancels): ")
+		text, ok := t.line(i18n.T(i18n.CliSetupPickRepo))
 		if !ok || text == "" {
 			return gitsync.SetupAnswer{}
 		}
@@ -280,7 +276,7 @@ func (t *setupTerminal) pickRepo(step gitsync.SetupStep) gitsync.SetupAnswer {
 		for n, choice := range list {
 			if choice < len(step.Repos) && strings.Contains(strings.ToLower(step.Repos[choice].Name), strings.ToLower(text)) {
 				if !matched {
-					fmt.Fprintf(t.out, "Repositories matching %q:\n", text)
+					fmt.Fprintln(t.out, i18n.T(i18n.CliSetupMatching, text))
 					matched = true
 				}
 				entry(n+1, choice)
@@ -324,7 +320,7 @@ func (t *setupTerminal) signIn() {
 // visibility labels a repository in the list.
 func visibility(r gitsync.Repo) string {
 	if r.Private() {
-		return "private"
+		return i18n.T(i18n.CliSetupPrivate)
 	}
-	return strings.ToLower(r.Visibility) + ": not allowed, notes are stored unencrypted"
+	return i18n.T(i18n.CliSetupNotAllowed, strings.ToLower(r.Visibility))
 }

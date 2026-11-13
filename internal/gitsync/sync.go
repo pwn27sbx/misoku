@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // SyncOutcome says how a SyncVault call ended.
@@ -214,7 +216,7 @@ func (res *SyncResult) stopper(ctx context.Context) func(SyncOutcome, error) Syn
 // keeps the marker of its git commands until the caller clears r.marker.
 func begin(ctx context.Context, r *Runner, held *Lock) (SyncOutcome, error) {
 	if held == nil || held.f == nil {
-		return SyncFailed, errors.New("sync needs the vault's lock")
+		return SyncFailed, errors.New(i18n.T(i18n.GitNeedsLock))
 	}
 	out, err := r.Run(ctx, "rev-parse", "--absolute-git-dir")
 	if err != nil {
@@ -241,7 +243,7 @@ func begin(ctx context.Context, r *Runner, held *Lock) (SyncOutcome, error) {
 func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string) (SyncOutcome, error) {
 	ahead, err := countPending(ctx, r, branch)
 	if err != nil {
-		return SyncFailed, fmt.Errorf("could not count the commits to push: %w", err)
+		return SyncFailed, fmt.Errorf(i18n.T(i18n.GitCountFailed), err)
 	}
 	if ahead == 0 {
 		return Synced, nil
@@ -257,13 +259,13 @@ func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string
 			// git's own words ("use 'git pull'") are left out: Misoku joins
 			// origin itself, or stops when origin was rewritten.
 			if originRewritten(ctx, r, branch) {
-				return SyncRewritten, rewrittenError(branch, "the push was turned down")
+				return SyncRewritten, rewrittenError(branch, i18n.T(i18n.GitPushTurnedDown))
 			}
-			return SyncRetry, errors.New("another device pushed first; the next sync joins its changes")
+			return SyncRetry, errors.New(i18n.T(i18n.GitPushedFirst))
 		case refused != "":
-			return SyncFailed, fmt.Errorf("origin refused the push (%s); nothing was lost, fix what origin says and sync again: %w", refused, err)
+			return SyncFailed, fmt.Errorf(i18n.T(i18n.GitPushRefused), refused, err)
 		}
-		return remoteFailure(r, "could not push to origin", err)
+		return remoteFailure(r, i18n.T(i18n.GitCouldNotPush), err)
 	}
 	res.Pushed = true
 	// Push updates origin/<branch> only through the fetch refspec; set it
@@ -277,7 +279,7 @@ func (res *SyncResult) push(ctx context.Context, r *Runner, branch, local string
 // rewrittenError says origin's branch was rewritten and what stopped
 // because of it (S2), with what the user can do.
 func rewrittenError(branch, what string) error {
-	return fmt.Errorf("origin's %s was rewritten (a force-push), so %s to lose nothing; compare it with `git fetch origin` and `git log origin/%s`, and join it by hand", branch, what, branch)
+	return errors.New(i18n.T(i18n.GitRewritten, branch, what))
 }
 
 // originRewritten reports whether origin's branch, asked for again after a
@@ -316,7 +318,7 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 		return "", err
 	}
 	if _, err := r.Run(ctx, "fetch", "--quiet", "--no-tags", "origin", "+refs/heads/"+branch+":"+tracking); err != nil {
-		res.Outcome, res.Err = remoteFailure(r, "could not fetch from origin", err)
+		res.Outcome, res.Err = remoteFailure(r, i18n.T(i18n.GitCouldNotFetch), err)
 		res.Pending = pending(ctx, r, branch)
 		return "", nil
 	}
@@ -336,7 +338,7 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 				return "", err
 			}
 			res.Outcome = SyncRewritten
-			res.Err = rewrittenError(branch, "sync stopped")
+			res.Err = rewrittenError(branch, i18n.T(i18n.GitSyncStopped))
 			res.Pending = pending(ctx, r, branch)
 			return "", nil
 		}
@@ -361,7 +363,7 @@ func (res *SyncResult) integrate(ctx context.Context, r *Runner, local, branch s
 	}
 	if !related && !opts.AllowUnrelatedHistories {
 		res.Outcome = SyncUnrelated
-		res.Err = errors.New("this vault and origin have unrelated histories; join them once with `misoku sync init <url>`")
+		res.Err = errors.New(i18n.T(i18n.GitUnrelated))
 		res.Pending = pending(ctx, r, branch)
 		return "", nil
 	}
@@ -449,7 +451,7 @@ func (res *SyncResult) originBranch(ctx context.Context, r *Runner) (branch stri
 	if !errors.As(err, &gerr) && !errors.As(err, &serr) {
 		return "", false, SyncFailed, err // origin answered, but not as expected
 	}
-	o, err = remoteFailure(r, "could not reach origin", err)
+	o, err = remoteFailure(r, i18n.T(i18n.GitCouldNotReach), err)
 	return "", false, o, err
 }
 
@@ -482,7 +484,7 @@ func defaultBranch(ctx context.Context, r *Runner, remote string, gitArgs ...str
 	}
 	switch {
 	case hasHead && branch == "":
-		return "", false, errors.New("origin did not say which branch is its default")
+		return "", false, errors.New(i18n.T(i18n.GitNoDefaultBranch))
 	case hasHead:
 		return branch, false, nil
 	case hasMain:
@@ -567,26 +569,26 @@ func applyFailure(err error, commit CommitResult) (SyncOutcome, error) {
 	msg := err.Error()
 	for _, busy := range busyFileErrors {
 		if strings.Contains(msg, busy) {
-			return SyncRetry, fmt.Errorf("a file could not be replaced, perhaps because it is open in another app, so origin's changes were not all applied yet (nothing was lost; close it and sync again): %w", err)
+			return SyncRetry, fmt.Errorf(i18n.T(i18n.GitFileBusy), err)
 		}
 	}
 	if !strings.Contains(msg, "would be overwritten by merge") {
-		return SyncFailed, fmt.Errorf("could not apply origin's changes: %w", err)
+		return SyncFailed, fmt.Errorf(i18n.T(i18n.GitApplyFailed), err)
 	}
 	for _, line := range strings.Split(msg, "\n") {
 		name := strings.TrimSpace(line)
 		for _, big := range commit.Skipped {
 			if name == big.Path {
-				return SyncFailed, fmt.Errorf("%s is larger than %s, so it stays out of sync, and origin has a file with the same name: move or rename %s, then sync again: %w", big.Path, sizeLimit(), big.Path, err)
+				return SyncFailed, fmt.Errorf(i18n.T(i18n.GitBigClash), big.Path, sizeLimit(), err)
 			}
 		}
 		for _, n := range commit.Notices {
 			if n.LeftOut && (name == n.Path || strings.HasPrefix(name, n.Path+"/")) {
-				return SyncFailed, fmt.Errorf("%s; origin has a file at the same path, so its changes cannot be applied until you move or rename %s: %w", n, n.Path, err)
+				return SyncFailed, fmt.Errorf(i18n.T(i18n.GitNoticeClash), n, n.Path, err)
 			}
 		}
 	}
-	return SyncRetry, fmt.Errorf("a file changed while syncing, so origin's changes were not applied yet (nothing was lost; the next sync tries again): %w", err)
+	return SyncRetry, fmt.Errorf(i18n.T(i18n.GitFileChanged), err)
 }
 
 // busyFileErrors are git's messages for a working-tree file it could not

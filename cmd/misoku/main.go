@@ -60,11 +60,11 @@ func main() {
 	if len(args) > 0 && args[0] == "tutor" {
 		d, route, notice, err := tutorWorkspace(args[1:])
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Println(tutorUsage)
+			fmt.Println(i18n.T(i18n.CliTutorUsage))
 			return
 		}
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "misoku tutor: %v\n%s\n", err, tutorUsage)
+			fmt.Fprintf(os.Stderr, "misoku tutor: %v\n%s\n", err, i18n.T(i18n.CliTutorUsage))
 			os.Exit(2)
 		}
 		tutorDir, tutorRoute, tutorNotice, args = d, route, notice, nil
@@ -79,7 +79,7 @@ func main() {
 	dir, themeName, themesDir, showVer, listThemes := opts.dir, opts.theme, opts.themesDir, opts.showVer, opts.listThemes
 
 	if cfgErr != nil {
-		fmt.Fprintf(os.Stderr, "Ignoring unreadable config %s: %v\n", cfgPath, cfgErr)
+		fmt.Fprintln(os.Stderr, i18n.T(i18n.CliIgnoringConfig, cfgPath, cfgErr))
 	}
 	// Custom themes location must be registered before any theme lookup.
 	if themesDir == "" {
@@ -88,7 +88,7 @@ func main() {
 	if themesDir != "" {
 		theme.SetUserThemesPath(themesDir)
 		if _, err := os.Stat(theme.UserThemesDir()); err != nil {
-			fmt.Fprintf(os.Stderr, "Custom themes path %s not found; using bundled themes only\n", theme.UserThemesDir())
+			fmt.Fprintln(os.Stderr, i18n.T(i18n.CliThemesPathMissing, theme.UserThemesDir()))
 		}
 	}
 
@@ -108,7 +108,7 @@ func main() {
 	}
 	if themeName != "" {
 		if _, ok := theme.Get(themeName); !ok {
-			fmt.Fprintf(os.Stderr, "Unknown theme %q (run misoku --list-themes)\n", themeName)
+			fmt.Fprintln(os.Stderr, i18n.T(i18n.CliUnknownTheme, themeName))
 			os.Exit(2)
 		}
 	}
@@ -141,14 +141,14 @@ func main() {
 
 	store, err := core.NewStore(workspace)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not open workspace %q: %v\n", workspace, err)
+		fmt.Fprintln(os.Stderr, i18n.T(i18n.CliOpenFailed, workspace, err))
 		os.Exit(1)
 	}
 
 	logPath := logFilePath()
 	f, err := tea.LogToFile(logPath, "debug")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not open log file: %v\n", err)
+		fmt.Fprintln(os.Stderr, i18n.T(i18n.CliLogFailed, err))
 		os.Exit(1)
 	}
 	defer f.Close()
@@ -278,11 +278,11 @@ type options struct {
 // defineFlags declares misoku's flags on fs.
 func defineFlags(fs *flag.FlagSet) *options {
 	o := &options{}
-	fs.StringVar(&o.dir, "dir", "", "folder to open, like misoku <folder> (defaults to $MISOKU_WORKSPACE, then notes_dir in the config, then the current folder)")
-	fs.BoolVar(&o.showVer, "version", false, "print the Misoku version and exit")
-	fs.StringVar(&o.theme, "theme", "", "colour theme for this session (see --list-themes)")
-	fs.StringVar(&o.themesDir, "themes-dir", "", "directory or .json file with custom themes (overrides config themes_dir)")
-	fs.BoolVar(&o.listThemes, "list-themes", false, "list the available colour themes and exit")
+	fs.StringVar(&o.dir, "dir", "", i18n.T(i18n.CliFlagDir))
+	fs.BoolVar(&o.showVer, "version", false, i18n.T(i18n.CliFlagVersion))
+	fs.StringVar(&o.theme, "theme", "", i18n.T(i18n.CliFlagTheme))
+	fs.StringVar(&o.themesDir, "themes-dir", "", i18n.T(i18n.CliFlagThemesDir))
+	fs.BoolVar(&o.listThemes, "list-themes", false, i18n.T(i18n.CliFlagListThemes))
 	return o
 }
 
@@ -299,7 +299,7 @@ func leave(final tea.Model, err error, hup hangup, stderr io.Writer, push func(a
 	hungUp := hup.seen(grace)
 	if err != nil && !hungUp {
 		log.Printf("Fatal error running program: %v\n", err)
-		fmt.Fprintf(stderr, "Error running Misoku application: %v\n", err)
+		fmt.Fprintln(stderr, i18n.T(i18n.CliRunFailed, err))
 		return 1
 	}
 	if m, ok := final.(app.Model); ok {
@@ -410,9 +410,9 @@ func logFilePath() string {
 // runExport handles "misoku export note.md [-o out.pdf]".
 func runExport(args []string) int {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
-	out := fs.String("o", "", "output file or folder (defaults to the note's name with .pdf, next to it)")
+	out := fs.String("o", "", i18n.T(i18n.CliExportFlagOut))
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "Usage: misoku export <note.md> [-o out.pdf]")
+		fmt.Fprintln(fs.Output(), i18n.T(i18n.CliExportUsage))
 		fs.PrintDefaults()
 	}
 	// Allow the flag after the note as well as before it.
@@ -427,7 +427,7 @@ func runExport(args []string) int {
 	note := notes[0]
 	data, err := os.ReadFile(note)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not read %s: %v\n", note, err)
+		fmt.Fprintln(os.Stderr, i18n.T(i18n.CliReadFailed, note, err))
 		return 1
 	}
 	dir := filepath.Dir(note)
@@ -456,7 +456,7 @@ func runExport(args []string) int {
 		})
 	}
 	if err := export.WriteFile(text, export.Options{Title: name, BaseDir: dir}, dest); err != nil {
-		fmt.Fprintf(os.Stderr, "Export failed: %v\n", err)
+		fmt.Fprintln(os.Stderr, i18n.T(i18n.CliExportFailed, err))
 		return 1
 	}
 	fmt.Println(dest)

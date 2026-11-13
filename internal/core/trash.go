@@ -11,11 +11,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // errNoTrash means this OS has no Trash Misoku knows how to use, so deleting
 // stays permanent there (Windows).
-var errNoTrash = errors.New("no trash on this system")
+var errNoTrash = i18n.Err(i18n.CoreNoTrash)
 
 // moveToTrash moves abs (a note or a folder) to the user's Trash so a delete
 // can be undone from Finder or the file manager:
@@ -30,7 +32,7 @@ var errNoTrash = errors.New("no trash on this system")
 func moveToTrash(abs string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("cannot find the Trash: %w", err)
+		return fmt.Errorf(i18n.T(i18n.CoreTrashMissing), err)
 	}
 	switch runtime.GOOS {
 	case "darwin":
@@ -164,11 +166,11 @@ func renameUnique(abs, dir string, reserve func(name string) error) (string, err
 			if reserve != nil {
 				os.Remove(filepath.Join(filepath.Dir(dir), "info", name+".trashinfo"))
 			}
-			return "", fmt.Errorf("could not move to the Trash: %w", err)
+			return "", fmt.Errorf(i18n.T(i18n.CoreTrashFailed), err)
 		}
 		return dst, nil
 	}
-	return "", fmt.Errorf("could not move to the Trash: too many items named %s", base)
+	return "", errors.New(i18n.T(i18n.CoreTrashFull, base))
 }
 
 // trashInfoPath percent-encodes an absolute path for a .trashinfo file,

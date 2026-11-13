@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // lockName is the vault's sync lock file, inside its git folder.
@@ -20,7 +22,7 @@ const lockName = "misoku-sync.lock"
 func LockVault(ctx context.Context, r *Runner) (l *Lock, ok bool, err error) {
 	out, err := r.Run(ctx, "rev-parse", "--absolute-git-dir")
 	if err != nil {
-		return nil, false, fmt.Errorf("could not find the git folder: %w", err)
+		return nil, false, fmt.Errorf(i18n.T(i18n.GitNoGitDir), err)
 	}
 	return TryLock(filepath.Join(filepath.FromSlash(strings.TrimSpace(string(out))), lockName))
 }

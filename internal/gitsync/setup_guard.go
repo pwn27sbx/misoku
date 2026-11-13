@@ -2,7 +2,6 @@ package gitsync
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // The guard before an existing repository is used (issue #7): a pick in a
@@ -141,7 +141,7 @@ func otherFiles(files []string) string {
 	if counted == 0 || other*5 <= counted {
 		return ""
 	}
-	return fmt.Sprintf("%d of %d files are not notes", other, counted)
+	return i18n.T(i18n.SetupNotNotes, other, counted)
 }
 
 // topLevel lists the first path element of files, once each, folders
@@ -238,12 +238,12 @@ func (s *Setup) guard(ctx context.Context, repo Repo) (step SetupStep, ok bool) 
 	switch {
 	case err != nil:
 		return s.fail(ctx,
-			fmt.Sprintf("Misoku could not read %s to check it before using it (%s).", repo.Name, firstLine(redact(err).Error())),
-			"Nothing was fetched into this folder or pushed. Check your connection and your access to it, then run setup again."), false
+			i18n.T(i18n.SetupReadFailed, repo.Name, firstLine(redact(err).Error())),
+			i18n.T(i18n.SetupNothingFetched)), false
 	case look.empty || look.related:
 		return SetupStep{}, true
 	case len(look.code) > 0:
-		return s.askRepo(fmt.Sprintf("%s looks like a code project (%s): Misoku won't mix your notes into it. Pick another repository or create a new private one.", repo.Name, strings.Join(look.code, ", "))), false
+		return s.askRepo(i18n.T(i18n.SetupCodeProject, repo.Name, strings.Join(look.code, ", "))), false
 	case look.other == "" && !s.hasNotes():
 		// Notes for a new computer's empty folder.
 		return SetupStep{}, true
@@ -267,15 +267,15 @@ const listedTop = 12
 func unrelatedStep(repo Repo, look remoteLook) SetupStep {
 	list, more := look.top, ""
 	if len(list) > listedTop {
-		list, more = list[:listedTop], fmt.Sprintf(", and %d more", len(look.top)-listedTop)
+		list, more = list[:listedTop], i18n.T(i18n.SetupAndMore, len(look.top)-listedTop)
 	}
-	lines := []string{fmt.Sprintf("%s does not share this folder's history. It holds: %s%s.", repo.Name, strings.Join(list, ", "), more)}
+	lines := []string{i18n.T(i18n.SetupUnrelated, repo.Name, strings.Join(list, ", "), more)}
 	if look.other != "" {
-		lines = append(lines, fmt.Sprintf("It may not be a notes repository: %s.", look.other))
+		lines = append(lines, i18n.T(i18n.SetupOtherFiles, look.other))
 	}
 	lines = append(lines,
-		"Using it puts both together: its files come into this folder, and your notes are pushed to it.",
-		"If it is not where your notes belong, cancel and create a new private repository.")
-	return SetupStep{Ask: AskUnrelated, Title: "This repository already has other files", Repo: repo.Name,
-		Confirm: fmt.Sprintf("Mix this folder's notes with %s?", repo.Name), Lines: lines}
+		i18n.T(i18n.SetupMixLine),
+		i18n.T(i18n.SetupMixCancel))
+	return SetupStep{Ask: AskUnrelated, Title: i18n.T(i18n.SetupMixTitle), Repo: repo.Name,
+		Confirm: i18n.T(i18n.SetupMixQuestion, repo.Name), Lines: lines}
 }

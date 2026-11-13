@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // Dirs returns every non-hidden directory in the workspace as a
@@ -56,13 +58,13 @@ func (s *Store) ChildDir(parentID string) string {
 func NormalizeNotePath(dir, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", errors.New("file name is empty")
+		return "", errors.New(i18n.T(i18n.CoreNameEmpty))
 	}
 	if strings.ContainsAny(name, invalidNameChars+"\x00") {
-		return "", errors.New(`file name cannot contain / \ : * ? " < > |`)
+		return "", errors.New(i18n.T(i18n.CoreNameChars))
 	}
 	if reservedName(name) {
-		return "", errors.New(name + " is a reserved name on Windows")
+		return "", errors.New(i18n.T(i18n.CoreNameReserved, name))
 	}
 	name = strings.TrimRight(name, ". ")
 	if !strings.HasSuffix(strings.ToLower(name), mdExt) {
@@ -71,17 +73,17 @@ func NormalizeNotePath(dir, name string) (string, error) {
 		name = name[:len(name)-len(mdExt)] + mdExt
 	}
 	if strings.TrimSuffix(name, mdExt) == "" {
-		return "", errors.New("file name is empty")
+		return "", errors.New(i18n.T(i18n.CoreNameEmpty))
 	}
 
 	dir = strings.Trim(strings.TrimSpace(filepath.ToSlash(dir)), "/")
 	rel := path.Clean(path.Join(dir, name))
 	if path.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, "../") {
-		return "", errors.New("location must be inside the workspace")
+		return "", errors.New(i18n.T(i18n.CoreOutside))
 	}
 	for _, seg := range strings.Split(rel, "/") {
 		if strings.HasPrefix(seg, ".") {
-			return "", errors.New("hidden files and folders are not allowed")
+			return "", errors.New(i18n.T(i18n.CoreHidden))
 		}
 	}
 	return rel, nil
@@ -104,13 +106,13 @@ func (s *Store) SaveAs(dir, name, content string) (Page, error) {
 		return Page{}, err
 	}
 	if fileExists(abs) {
-		return Page{}, fmt.Errorf("%s already exists", rel)
+		return Page{}, errors.New(i18n.T(i18n.CoreExists, rel))
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
-		return Page{}, fmt.Errorf("failed to create folder: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreMkFolder), err)
 	}
 	if err := os.WriteFile(abs, []byte(content), 0644); err != nil {
-		return Page{}, fmt.Errorf("failed to save page: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreSaveFailed), err)
 	}
 	return Page{
 		ID:        rel,
@@ -152,7 +154,7 @@ func (s *Store) ApplyRelinks(rs []Relink) (done []Relink, skipped []string, err 
 			continue
 		}
 		if err := writeText(abs, r.To); err != nil {
-			return done, skipped, fmt.Errorf("failed to update links in %s: %w", r.ID, err)
+			return done, skipped, fmt.Errorf(i18n.T(i18n.CoreLinksFailed), r.ID, err)
 		}
 		done = append(done, r)
 	}
@@ -173,7 +175,7 @@ func (s *Store) AttachFile(noteDir, src string) (string, error) {
 		return "", err
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("%s is a folder", filepath.Base(absSrc))
+		return "", errors.New(i18n.T(i18n.CoreIsFolder, filepath.Base(absSrc)))
 	}
 	noteAbs, err := s.idToAbs(noteDir)
 	if err != nil {
@@ -193,7 +195,7 @@ func (s *Store) AttachFile(noteDir, src string) (string, error) {
 
 	assets := filepath.Join(noteAbs, "assets")
 	if err := os.MkdirAll(assets, 0o755); err != nil {
-		return "", fmt.Errorf("failed to create assets folder: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.CoreMkAssets), err)
 	}
 	ext := filepath.Ext(absSrc)
 	stem := strings.TrimSuffix(filepath.Base(absSrc), ext)
@@ -220,7 +222,7 @@ func copyFile(src, dst string) error {
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		os.Remove(dst)
-		return fmt.Errorf("failed to copy %s: %w", filepath.Base(src), err)
+		return fmt.Errorf(i18n.T(i18n.CoreCopyFailed), filepath.Base(src), err)
 	}
 	return out.Close()
 }

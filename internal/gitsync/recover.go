@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // markerName is the file, in the vault's git folder, that SyncVault keeps
@@ -90,7 +92,7 @@ func removeMarker(path string) error {
 
 // errGitStillRunning: the git of an interrupted sync still runs, so the
 // lock it holds is in use. The next sync looks again.
-var errGitStillRunning = errors.New("still running")
+var errGitStillRunning = i18n.Err(i18n.GitStillRunning)
 
 // recoverIndexLock cleans up after a git command of a sync that did not
 // finish (S13), given its marker. killedNow is true right after Misoku
@@ -105,7 +107,7 @@ func recoverIndexLock(path string, killedNow bool) error {
 		return err
 	}
 	if m.pid > 0 && processAlive(m.pid) && !m.stale(time.Now()) {
-		return fmt.Errorf("git (process %d) of an earlier sync is %w; sync tries again once it is done", m.pid, errGitStillRunning)
+		return fmt.Errorf(i18n.T(i18n.GitEarlierRunning), m.pid, errGitStillRunning)
 	}
 	lock := filepath.Join(filepath.Dir(path), "index.lock")
 	info, err := os.Lstat(lock)
@@ -152,7 +154,7 @@ func madeDuring(t time.Time, m marker) bool {
 
 // lockedMessage says what to do about an index.lock that is not Misoku's.
 func lockedMessage(lock string) string {
-	return fmt.Sprintf("git's index.lock is there: a git command is running in this vault, or one stopped half-way; wait for it to finish, or if no git is running, delete %s", lock)
+	return i18n.T(i18n.GitLocked, lock)
 }
 
 // LockedError is a sync stopped by git's index.lock, which Misoku does not
@@ -185,7 +187,7 @@ func StatLock(path string) (l LeftoverLock, ok bool, err error) {
 
 // ErrLockChanged: the index.lock changed or went away after the user was
 // shown it, so it was not removed.
-var ErrLockChanged = errors.New("the lock file changed since it was shown, so it was left alone; check again")
+var ErrLockChanged = i18n.Err(i18n.GitLockChanged)
 
 // RemoveLeftoverLock removes the index.lock the user confirmed, only if it
 // is still the same file (same size and time) as when it was shown: a
