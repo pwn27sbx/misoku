@@ -9,6 +9,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // searchNote is an editor showing text with the cursor at its top.
@@ -176,8 +177,35 @@ func TestSearchCancels(t *testing.T) {
 	if c.Mode() != content.ModeCommand || s.Text != "" {
 		t.Fatalf(": should open the command line, mode %v status %q", c.Mode(), s.Text)
 	}
-	if v := c.CommandView(80); !strings.HasPrefix(v, ":") {
-		t.Fatalf("the command prompt should be \":\", got %q", v)
+	if v := ansi.Strip(c.CommandView(80, "4", "")); !strings.HasPrefix(v, "› ") {
+		t.Fatalf("the command prompt should be \"›\", got %q", v)
+	}
+	if c.IsSearch() {
+		t.Fatal("the \":\" line is no search")
+	}
+}
+
+// The floating box draws "/" for a search and "›" for a command, and the
+// app picks the box's title and colour from IsSearch.
+func TestCommandViewGlyphFollowsTheKind(t *testing.T) {
+	c := searchNote(t, "one foo")
+	c = keys(c, "/fo")
+	if !c.IsSearch() {
+		t.Fatal("\"/\" should open a search")
+	}
+	if v := ansi.Strip(c.CommandView(30, "4", "")); !strings.HasPrefix(v, "/ fo") || ansi.StringWidth(v) != 30 {
+		t.Fatalf("the search line should read \"/ fo\" and be 30 wide, got %q", v)
+	}
+	if got := c.CommandText(); got != "fo" {
+		t.Fatalf("CommandText = %q, want \"fo\"", got)
+	}
+	c, _ = c.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if c.IsSearch() {
+		t.Fatal("a closed prompt is no search")
+	}
+	c = keys(c, ":wq")
+	if v := ansi.Strip(c.CommandView(30, "4", "")); !strings.HasPrefix(v, "› wq") || ansi.StringWidth(v) != 30 {
+		t.Fatalf("the command line should read \"› wq\" and be 30 wide, got %q", v)
 	}
 }
 

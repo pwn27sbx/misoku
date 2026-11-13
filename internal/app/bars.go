@@ -343,13 +343,10 @@ func (m *Model) fitStopNotice(b *buffer, left, right, msg string) (string, strin
 	return left, right, msg
 }
 
-// bottomBar is the single bottom row: the ":" prompt while typing a
-// command (like Vim with cmdheight=0), otherwise the statusline.
+// bottomBar is the single bottom row: the statusline. The ":" and "/"
+// prompts float near the top of the screen (see cmdline.go), so while one is
+// open this row stays the statusline with its COMMAND badge.
 func (m *Model) bottomBar() string {
-	if m.viewMode == viewModeWorkspace && m.focus == focusEditor && m.content.Mode() == content.ModeCommand {
-		bar := lipgloss.NewStyle().Background(m.theme.StatusBg)
-		return ui.FitLine(m.content.CommandView(m.width), m.width, bar)
-	}
 	return m.statusline()
 }
 

@@ -528,6 +528,8 @@ const (
 	AppModeHome          Key = "app.mode.home"
 	AppModeExplorer      Key = "app.mode.explorer"
 	AppModePreview       Key = "app.mode.preview"
+	AppCmdlineTitle      Key = "app.cmdline.title"
+	AppSearchTitle       Key = "app.cmdline.search_title"
 	AppWords             Key = "app.words"
 	AppLnCol             Key = "app.ln_col"
 	AppNoFile            Key = "app.no_file"
@@ -584,6 +586,8 @@ func init() {
 		AppModeHome:         "HOME",
 		AppModeExplorer:     "EXPLORER",
 		AppModePreview:      "PREVIEW",
+		AppCmdlineTitle:     "Cmdline",
+		AppSearchTitle:      "Search",
 
 		AppWords + one:   "󰈭 %d word  ",
 		AppWords + other: "󰈭 %d words  ",
@@ -641,6 +645,8 @@ func init() {
 		AppModeHome:         "INICIO",
 		AppModeExplorer:     "EXPLORADOR",
 		AppModePreview:      "VISTA PREVIA",
+		AppCmdlineTitle:     "Comando",
+		AppSearchTitle:      "Buscar",
 
 		AppWords + one:   "󰈭 %d palabra  ",
 		AppWords + other: "󰈭 %d palabras  ",
@@ -1136,9 +1142,9 @@ func init() {
 		AppPal17:       "Follow [[link]] / toggle box",
 		AppPal17Long:   "In NORMAL mode, follows the [[link]] under the cursor (not inside code; a note that does not exist is not started), toggles the box of a checkbox line, and otherwise moves down a line.",
 		AppPal18:       "Command line",
-		AppPal18Long:   "Opens the command line at the bottom of the editor for the commands below; Enter runs it, Esc leaves it.",
+		AppPal18Long:   "Opens the command line in a box near the top of the screen for the commands below; Enter runs it, Esc leaves it.",
 		AppPal19:       "Search in the note",
-		AppPal19Long:   "Opens the search prompt at the bottom: Enter finds the next match of the text from the cursor, and n or N repeat it forward or backward, wrapping around the note. The text is literal, not a regex, and the search ignores case unless it has an upper-case letter; Esc leaves it.",
+		AppPal19Long:   "Opens the search prompt in a box near the top of the screen: Enter finds the next match of the text from the cursor, and n or N repeat it forward or backward, wrapping around the note. The text is literal, not a regex, and the search ignores case unless it has an upper-case letter; Esc leaves it.",
 		AppPal20:       "Next / previous match",
 		AppPal20Long:   "After a search, n goes to the next match and N to the previous one, both wrapping around the note and saying so in the status bar. Without a search they say there is none.",
 		AppPal21:       "Scroll a line",
@@ -1229,9 +1235,9 @@ func init() {
 		AppPal17:       "Seguir [[enlace]] / marcar casilla",
 		AppPal17Long:   "En modo NORMAL, sigue el [[enlace]] bajo el cursor (no dentro de código; una nota que no existe no se empieza), marca o desmarca la casilla de una línea con casilla y, si no, baja una línea.",
 		AppPal18:       "Línea de comandos",
-		AppPal18Long:   "Abre la línea de comandos al pie del editor para los comandos de abajo; Enter la ejecuta, Esc sale.",
+		AppPal18Long:   "Abre la línea de comandos en un recuadro cerca de la parte de arriba de la pantalla para los comandos de abajo; Enter la ejecuta, Esc sale.",
 		AppPal19:       "Buscar en la nota",
-		AppPal19Long:   "Abre la búsqueda al pie: Enter encuentra la siguiente coincidencia del texto desde el cursor, y n o N la repiten hacia delante o hacia atrás, dando la vuelta a la nota. El texto es literal, no una regex, y la búsqueda no distingue mayúsculas salvo que el texto tenga alguna; Esc sale.",
+		AppPal19Long:   "Abre la búsqueda en un recuadro cerca de la parte de arriba de la pantalla: Enter encuentra la siguiente coincidencia del texto desde el cursor, y n o N la repiten hacia delante o hacia atrás, dando la vuelta a la nota. El texto es literal, no una regex, y la búsqueda no distingue mayúsculas salvo que el texto tenga alguna; Esc sale.",
 		AppPal20:       "Coincidencia siguiente / anterior",
 		AppPal20Long:   "Tras una búsqueda, n va a la siguiente coincidencia y N a la anterior, ambas dando la vuelta a la nota y avisándolo en la barra de estado. Sin búsqueda, dicen que no hay ninguna.",
 		AppPal21:       "Desplazar una línea",

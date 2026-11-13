@@ -1,7 +1,7 @@
 package content
 
 // Searching inside the note: Vim's /, n and N. The prompt reuses the command
-// line (ModeCommand) with a "/" prompt, so its keys and the bottom bar stay
+// line (ModeCommand) with a "/" prompt, so its keys and its floating box stay
 // the ones the ":" line already has. The match itself is left to the cursor:
 // the editor moves it there and scrolls it into view.
 

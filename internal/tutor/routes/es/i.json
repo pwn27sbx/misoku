@@ -98,7 +98,7 @@
       "steps": [
         {
           "text": "Pulsa dos puntos y abandónala con Esc",
-          "hint": "La línea de comandos se abre abajo, sobre la barra",
+          "hint": "La línea de comandos se abre en un recuadro cerca de la parte de arriba de la pantalla",
           "ids": ["VIM-28"],
           "check": { "kind": "action", "event": "cmdline" }
         },

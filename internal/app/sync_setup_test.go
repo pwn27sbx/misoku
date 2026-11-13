@@ -490,7 +490,7 @@ func TestSyncSetupInsideTheAppEscOutsideNormalModeKeepsTheStep(t *testing.T) {
 		open string // what shows while the state is open
 	}{
 		"insert":  {"i", "INSERT"},
-		"command": {":wq", ":wq"},
+		"command": {":wq", "│ › wq"}, // the floating command line
 		"visual":  {"v", "VISUAL"},
 		"keymap":  {"?", "MISOKU KEYMAPS"},
 		"rename":  {"rzz", "azz"},

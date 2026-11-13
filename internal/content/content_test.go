@@ -246,7 +246,7 @@ func TestModeStringAndFocus(t *testing.T) {
 	if !c.HasPage() || c.LineCount() != 1 {
 		t.Errorf("HasPage=%v LineCount=%d", c.HasPage(), c.LineCount())
 	}
-	c.CommandView(20)
+	c.CommandView(20, "4", "")
 	c.SetTheme(theme.DefaultTheme())
 	c.Focus()
 	c.Blur()

@@ -17,7 +17,7 @@ const (
 	minPaneW = 20
 
 	tablineHeight = 1
-	footerHeight  = 1 // statusline (the ":" prompt takes its place while typing)
+	footerHeight  = 1 // statusline (the ":" prompt floats over the body, see cmdline.go)
 
 	// notePadY is the blank rows above and below the note in the editor and
 	// the preview, so the text does not touch the tab bar or the statusline.

@@ -2,7 +2,7 @@
 
 **You will learn:** to search with `/`, to repeat with `n` and `N`, and to read the search messages.
 
-In NORMAL, `/` opens the search at the bottom; you type, `Enter` jumps to the first match, `n` goes to the next one and `N` to the previous one. Lowercase searches ignore case, so `hotel` also finds `Hotel`; a capital letter makes the search case-sensitive, so `Hotel` skips `hotel`. If there are no matches the bar turns red with `E486: Pattern not found`, and when you reach the end you will see `search hit BOTTOM, continuing at TOP`, which tells you it has started over. Search works the same in the editor and in the reading view.
+In NORMAL, `/` opens the search in a box near the top of the screen; you type, `Enter` jumps to the first match, `n` goes to the next one and `N` to the previous one. Lowercase searches ignore case, so `hotel` also finds `Hotel`; a capital letter makes the search case-sensitive, so `Hotel` skips `hotel`. If there are no matches the bar turns red with `E486: Pattern not found`, and when you reach the end you will see `search hit BOTTOM, continuing at TOP`, which tells you it has started over. Search works the same in the editor and in the reading view.
 
 ## Your turn
 

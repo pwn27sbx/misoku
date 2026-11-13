@@ -350,8 +350,9 @@ func TestReadingModeColonOpensTheCommandLine(t *testing.T) {
 	h.keys(":")
 	v := h.view()
 	rows := strings.Split(v, "\n")
-	if !strings.HasPrefix(rows[len(rows)-1], ":") {
-		t.Fatalf("':' should open the command line:\n%s", v)
+	if !strings.Contains(rows[cmdlineRow], " Cmdline ") || !strings.Contains(rows[cmdlineRow+1], "│ › ") ||
+		mode(v) != "COMMAND" || !inReadingView(v) {
+		t.Fatalf("':' should open the floating command line over the reading view:\n%s", v)
 	}
 }
 

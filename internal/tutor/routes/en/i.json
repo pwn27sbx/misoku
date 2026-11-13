@@ -98,7 +98,7 @@
       "steps": [
         {
           "text": "Press colon and leave it with Esc",
-          "hint": "The command line opens at the bottom, above the bar",
+          "hint": "The command line opens in a box near the top of the screen",
           "ids": ["VIM-28"],
           "check": { "kind": "action", "event": "cmdline" }
         },

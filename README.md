@@ -237,7 +237,7 @@ never use `notes_dir`.
 
   Either key switches straight from the other view.
 - **Fast search** across file names and note contents.
-- **Search inside a note** (`/`, `n`, `N`, in the editor and the reading view): `/` opens a prompt at the bottom, Enter finds the next match of the literal text from the cursor, and `n`/`N` repeat it forward and backward, wrapping around the note (the status bar says `search hit BOTTOM, continuing at TOP`). Case-insensitive unless the text has an upper-case letter; `E486: Pattern not found: text` when there is none. The cursor goes to the match; in the reading view the band marks the block holding it, and a folded section holding it unfolds.
+- **Search inside a note** (`/`, `n`, `N`, in the editor and the reading view): `/` opens a prompt in a box near the top of the screen, Enter finds the next match of the literal text from the cursor, and `n`/`N` repeat it forward and backward, wrapping around the note (the status bar says `search hit BOTTOM, continuing at TOP`). Case-insensitive unless the text has an upper-case letter; `E486: Pattern not found: text` when there is none. The cursor goes to the match; in the reading view the band marks the block holding it, and a folded section holding it unfolds.
 - **Search filters**: in the finder, `status:active tag:go folder:Zentro docker` narrows the notes before the words match their names and text. `status:` takes `active`, `onhold` (or `on-hold`), `completed`, `dropped`; `tag:go` or `#go` also finds nested tags like `#go/web`; `folder:Zentro` matches that folder anywhere in the path but not `ZentroOld`, and `folder:"My Notes"` holds spaces. Qualifiers combine; anything else, `foo:bar` included, is plain text. Only qualifiers list every matching note, newest first. In the `[[` link picker (with `link_suggestions` set to `finder`) a leading `#` means headings instead, so tags there are filtered with `tag:`.
 - **Tags**: write `#tag` anywhere in a note (letters, digits, `_`, `-`, `/` for nesting) or list them in the front matter as `tags: a, b`, `[a, b]` or `- a` lines. Tags are highlighted in the editor, the reading view and the preview (never inside code, links, URLs, comments or the front matter); `:tags` lists every tag with its note count and opens the finder on the one you pick (before the notes are indexed it says "Indexing notes…"), and `tag:<name>` (or `#<name>`) filters the finder.
 - **Status filter** (`:status [value]`): opens the finder on `status:<value>`; without a value it opens on `status:` and lists `active · onhold · completed · dropped`.
@@ -406,7 +406,7 @@ configurable)
 
 | Key | What it does |
 | --- | --- |
-| `/` | Opens the search prompt at the bottom; Enter finds the next match from the cursor |
+| `/` | Opens the search prompt in a box near the top of the screen; Enter finds the next match from the cursor |
 | `n` / `N` | Next / previous match, wrapping around the note |
 
 The text is literal, not a regex, and the search ignores case unless it has

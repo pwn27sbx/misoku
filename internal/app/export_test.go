@@ -212,3 +212,13 @@ func ScrollNoteBy(tm tea.Model, n int) tea.Model {
 	m.content.ScrollBy(n)
 	return m
 }
+
+// ShowExplorerOverlay opens the narrow-screen explorer over the editor
+// without moving the focus, so a test can draw it under the floating
+// command line (the keys that open it hand it the focus).
+func ShowExplorerOverlay(tm tea.Model) tea.Model {
+	m := tm.(Model)
+	m.sidebarOpen = true
+	m.updateLayout()
+	return m
+}

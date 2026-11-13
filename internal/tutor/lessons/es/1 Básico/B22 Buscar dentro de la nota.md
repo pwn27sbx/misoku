@@ -2,7 +2,7 @@
 
 **Vas a aprender:** a buscar con `/`, a repetir con `n` y `N`, y a leer los mensajes de la búsqueda.
 
-En NORMAL, `/` abre la búsqueda abajo; escribes, `Enter` salta a la primera coincidencia, `n` va a la siguiente y `N` a la anterior. Una búsqueda en minúsculas no distingue mayúsculas, así que `hotel` también encuentra `Hotel`; una mayúscula hace que la búsqueda sí las distinga, así que `Hotel` se salta `hotel`. Si no hay coincidencias la barra se pone roja con `E486: Patrón no encontrado`, y al llegar al final verás `la búsqueda llegó al FINAL, sigue desde el PRINCIPIO`, que avisa de que ha vuelto a empezar. La búsqueda funciona igual en el editor y en la vista de lectura.
+En NORMAL, `/` abre la búsqueda en un recuadro cerca de la parte de arriba de la pantalla; escribes, `Enter` salta a la primera coincidencia, `n` va a la siguiente y `N` a la anterior. Una búsqueda en minúsculas no distingue mayúsculas, así que `hotel` también encuentra `Hotel`; una mayúscula hace que la búsqueda sí las distinga, así que `Hotel` se salta `hotel`. Si no hay coincidencias la barra se pone roja con `E486: Patrón no encontrado`, y al llegar al final verás `la búsqueda llegó al FINAL, sigue desde el PRINCIPIO`, que avisa de que ha vuelto a empezar. La búsqueda funciona igual en el editor y en la vista de lectura.
 
 ## Tu turno
 

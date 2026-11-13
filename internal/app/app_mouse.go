@@ -22,6 +22,12 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	}
+	// The floating command line covers the panes under it: a click there
+	// is the box's, and the box takes none. A drag already going on (a
+	// divider, a selection, a block) keeps going.
+	if m.inCmdline(msg.X, msg.Y) && m.resizing == dividerNone && !m.dragging && !m.preview.Dragging() {
+		return nil
+	}
 	l := m.hitLayout()
 	// The preview handles the event with what it compiled: hover handles,
 	// block drags and clicks on interactive views must match the text.

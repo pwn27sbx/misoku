@@ -2,7 +2,7 @@
 
 **Vas a aprender:** a pedir cosas por su nombre con `:`, incluida abrir una nota concreta.
 
-Dos puntos abre una línea de comandos abajo, sobre la barra. `Enter` la ejecuta y `Esc` la abandona. Ahí viven los comandos que no caben en una tecla: `:w` guarda sin cerrar nada, y `:e` abre una nota por su nombre, sin pasar por el explorador. `:e` acepta tres formas: un nombre, un nombre con un título detrás de `#`, y una ruta con carpetas separadas por `/`. Si la nota no existe, abre un borrador con ese nombre para que la escribas.
+Dos puntos abre una línea de comandos en un recuadro cerca de la parte de arriba de la pantalla, con el título Comando. `Enter` la ejecuta y `Esc` la abandona. Ahí viven los comandos que no caben en una tecla: `:w` guarda sin cerrar nada, y `:e` abre una nota por su nombre, sin pasar por el explorador. `:e` acepta tres formas: un nombre, un nombre con un título detrás de `#`, y una ruta con carpetas separadas por `/`. Si la nota no existe, abre un borrador con ese nombre para que la escribas.
 
 Prepara dos notas antes de empezar: `Viaje`, con un título `Equipaje`, y `Proyectos/Casa`, dentro de una carpeta `Proyectos`.
 

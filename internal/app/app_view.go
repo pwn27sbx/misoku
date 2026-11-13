@@ -64,6 +64,7 @@ func (m Model) View() string {
 			m.bottomBar(),
 		)
 		screen = m.drawExplorerOverlay(screen)
+		screen = m.drawCmdline(screen) // above the narrow-screen explorer
 	}
 
 	if m.dimsBackdrop() {

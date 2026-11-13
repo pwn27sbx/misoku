@@ -14,6 +14,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 	"github.com/pwn27sbx/misoku/internal/theme"
+	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -288,10 +289,29 @@ func (m Model) CursorPosition() (int, int) { return m.textarea.CursorPosition() 
 // LineCount returns the number of lines in the buffer.
 func (m Model) LineCount() int { return m.textarea.LineCount() }
 
-// CommandView renders the ":" prompt for the command-line row.
-func (m Model) CommandView(width int) string {
-	m.cmdInput.Width = max(width-2, 1)
-	return m.cmdInput.View()
+// IsSearch reports whether the open command line is the "/" search prompt
+// rather than the ":" one.
+func (m Model) IsSearch() bool { return m.mode == ModeCommand && m.search }
+
+// CommandText is the text typed on the command line.
+func (m Model) CommandText() string { return m.cmdInput.Value() }
+
+// CommandView renders the command line for the app's floating box, exactly
+// width columns on bg: the glyph ("›" for ":", "/" for a search) in accent,
+// a space, then the typed text and the input's own cursor.
+func (m Model) CommandView(width int, accent, bg lipgloss.Color) string {
+	fill := lipgloss.NewStyle().Background(bg)
+	in := m.cmdInput
+	in.Prompt = "› "
+	if m.search {
+		in.Prompt = "/ "
+	}
+	in.PromptStyle = fill.Foreground(accent).Bold(true)
+	in.TextStyle = fill.Foreground(m.theme.Fg)
+	in.Cursor.TextStyle = fill.Foreground(m.theme.Fg)
+	// The prompt takes two columns and the cursor after the text one more.
+	in.Width = max(width-3, 1)
+	return ui.FitLine(in.View(), width, fill)
 }
 
 // EnterInsert switches to INSERT mode (used by the app, e.g. for a new

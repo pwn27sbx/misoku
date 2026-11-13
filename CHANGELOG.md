@@ -4,6 +4,12 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- The `:` command line and the `/` search open in a floating box near the top of the screen, like LazyVim's, instead of on the bottom row. The box is titled on its top border, **Cmdline** in blue for `:` and **Search** in yellow for `/` (**Comando** and **Buscar** in Spanish), with `›` or `/` before the text, and it grows with the text. The note stays visible behind it, the bottom row keeps the statusline with its COMMAND badge, and a click inside the box does nothing. The keys, what Enter runs and Esc are unchanged. The tutorial lessons I04 and B22 and the help say so; an already installed tutorial keeps its old lesson text until `misoku tutor --reset`.
+
 ## [0.34.0] - 2026-11-13
 
 ### Added
