@@ -36,6 +36,7 @@ type Model struct {
 	linkList   *linkList       // the inline "[[" suggestions, see linklist.go
 	linkSrc    []core.LinkNote // the notes those suggestions read
 	search     bool            // the command line is the "/" search prompt
+	suggest    suggestState    // the ":" line's command list, see suggest.go
 	lastSearch string          // the text NORMAL's n and N repeat
 	hl         *hlCache        // shared across copies so View can memoise
 	live       bool            // the live view is on; see SetLive
