@@ -1,0 +1,991 @@
+{
+  "id": "I",
+  "dir": "2 Intermediate",
+  "name": "Intermediate",
+  "index": "I00 Intermediate.md",
+  "lessons": [
+    {
+      "id": "I01",
+      "title": "Words, pages and fine scrolling",
+      "file": "I01 Words, pages and fine scrolling.md",
+      "steps": [
+        {
+          "text": "Jump from word to word with w and b",
+          "hint": "In NORMAL, w moves forward a word and b moves back",
+          "ids": ["VIM-11"],
+          "check": { "kind": "action", "event": "motion", "value": "words" }
+        },
+        {
+          "text": "Go down and up half a screen with ctrl+d and ctrl+u",
+          "hint": "ctrl+d goes down half a screen and ctrl+u goes up",
+          "ids": ["VIM-25"],
+          "check": { "kind": "action", "event": "motion", "value": "half-page" }
+        },
+        {
+          "text": "Move a screen forward and back with pgdn, ctrl+f, pgup",
+          "hint": "pgdn and ctrl+f go forward; pgup and ctrl+b go back",
+          "ids": ["VIM-26"],
+          "check": { "kind": "action", "event": "motion", "value": "page" }
+        }
+      ]
+    },
+    {
+      "id": "I02",
+      "title": "Visual selection",
+      "file": "I02 Visual selection.md",
+      "steps": [
+        {
+          "text": "Press v and select a few words",
+          "hint": "v enters VISUAL: the cursor stretches the selection",
+          "ids": ["VIM-19"],
+          "check": { "kind": "action", "event": "mode_changed", "value": "visual" }
+        },
+        {
+          "text": "Press V and select a whole line",
+          "hint": "V marks the full line, without picking columns",
+          "ids": ["VIM-20"],
+          "check": { "kind": "action", "event": "mode_changed", "value": "visual-line" }
+        },
+        {
+          "text": "With a selection, press y and paste it with p",
+          "hint": "y copies without deleting; p pastes after the cursor",
+          "ids": ["VIM-21"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "yank" },
+              { "kind": "action", "event": "paste" }
+            ]
+          }
+        },
+        {
+          "text": "Select tide and press d: the text disappears",
+          "hint": "Write wind and tide on a line and delete only tide",
+          "ids": ["VIM-22"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["wind"] },
+              { "kind": "text", "pred": "absent", "args": ["tide"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "I03",
+      "title": "Copying lines and pasting",
+      "file": "I03 Copying lines and pasting.md",
+      "steps": [
+        {
+          "text": "On a line, press yy",
+          "hint": "yy copies the whole line without deleting it",
+          "ids": ["VIM-17"],
+          "check": { "kind": "action", "event": "yank", "value": "line" }
+        },
+        {
+          "text": "Press p: the line appears twice in a row",
+          "hint": "p pastes below and the cursor moves down to the copy",
+          "ids": ["VIM-18"],
+          "check": { "kind": "text", "pred": "n-lines-start", "args": ["2", "beach list"] }
+        }
+      ]
+    },
+    {
+      "id": "I04",
+      "title": "The `:` command line",
+      "file": "I04 The colon command line.md",
+      "steps": [
+        {
+          "text": "Press colon and leave it with Esc",
+          "hint": "The command line opens at the bottom, above the bar",
+          "ids": ["VIM-28"],
+          "check": { "kind": "action", "event": "cmdline" }
+        },
+        {
+          "text": "Run :w and see that it saves without leaving",
+          "hint": "Enter runs it; it only saves, the note stays open",
+          "ids": ["VIM-28"],
+          "check": { "kind": "disk", "pred": "file-changed", "args": [] }
+        },
+        {
+          "text": "Run :e Trip: it opens the note Trip",
+          "hint": "First prepare the note Trip with a heading Packing",
+          "ids": ["NEW-18"],
+          "check": { "kind": "action", "event": "note_opened", "value": "Trip" }
+        },
+        {
+          "text": "Try :e Trip#Packing, :e Projects/Home and :e Beach",
+          "hint": "Beach doesn't exist: a draft with that name opens",
+          "ids": ["NEW-18"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "note_opened", "value": ["Trip#Packing", "Projects/Home"] },
+              { "kind": "action", "event": "new_draft", "value": "Beach" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "I05",
+      "title": "Collapsible blocks and callouts",
+      "file": "I05 Collapsible blocks and callouts.md",
+      "steps": [
+        {
+          "text": "Insert /Toggle list and write a summary inside",
+          "hint": "It is a details block with a summary: it folds on click",
+          "ids": ["MD-12"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["<details>"] },
+              { "kind": "text", "pred": "line-contains", "args": ["<summary>"] }
+            ]
+          }
+        },
+        {
+          "text": "Insert /Callout",
+          "hint": "A callout is a quote that starts with [!NOTE]",
+          "ids": ["MD-14"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["> [!NOTE]"] }
+        },
+        {
+          "text": "Write the TIP and WARNING callouts by hand",
+          "hint": "Two quotes: one with [!TIP] and another with [!WARNING]",
+          "ids": ["MD-15"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-equals", "args": ["> [!TIP]"] },
+              { "kind": "text", "pred": "line-equals", "args": ["> [!WARNING]"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "I06",
+      "title": "Pages and sub-notes",
+      "file": "I06 Pages and sub-notes.md",
+      "steps": [
+        {
+          "text": "With the cursor in Trip, use /Page and save",
+          "hint": "The sub-note goes in the Trip folder; call it Beach packing",
+          "ids": ["MD-13"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["Trip/Beach packing"] }
+        },
+        {
+          "text": "In the explorer, press s on Trip and save",
+          "hint": "s creates a child note: save it as Day 1 inside Trip",
+          "ids": ["NOTE-08"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["Trip/Day 1"] }
+        }
+      ]
+    },
+    {
+      "id": "I07",
+      "title": "Tables: creating and moving",
+      "file": "I07 Tables, creating and moving.md",
+      "steps": [
+        {
+          "text": "Insert /Table",
+          "hint": "It starts with two columns, its row of dashes and an empty row",
+          "ids": ["MD-18"],
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
+        },
+        {
+          "text": "Fill two cells and move with Tab and Shift+Tab",
+          "hint": "Tab goes to the next cell; Shift+Tab goes back",
+          "ids": ["TBL-01"],
+          "check": { "kind": "action", "event": "cell_next" }
+        },
+        {
+          "text": "With the cursor inside, read the hint in the bar",
+          "hint": "Inside a table the bar reminds you of the cell keys",
+          "ids": ["NEW-04"],
+          "check": { "kind": "action", "event": "table_hint" }
+        },
+        {
+          "text": "Press / inside the table: its entries show up",
+          "hint": "The menu opens with the rows and columns at the top",
+          "ids": ["TBL-07"],
+          "check": { "kind": "action", "event": "slash_open", "value": "in-table" }
+        }
+      ]
+    },
+    {
+      "id": "I08",
+      "title": "Tables: rows and columns",
+      "file": "I08 Tables, rows and columns.md",
+      "steps": [
+        {
+          "text": "With the cursor in the table, run :addrow or :tr",
+          "hint": "Adds a row below the cursor's row",
+          "ids": ["TBL-02"],
+          "check": { "kind": "text", "pred": "n-lines-start", "args": ["4", "|"] }
+        },
+        {
+          "text": "Run :addcol or :tc: a column appears",
+          "hint": "The new column goes to the right of the current one",
+          "ids": ["TBL-03"],
+          "check": { "kind": "text", "pred": "table-shape", "args": ["3"] }
+        },
+        {
+          "text": "Run :delrow: the table loses a row",
+          "hint": "The cursor's row goes away",
+          "ids": ["TBL-04"],
+          "check": { "kind": "text", "pred": "n-lines-start", "args": ["3", "|"] }
+        },
+        {
+          "text": "Run :delcol: every row loses a cell",
+          "hint": "The cursor's column goes away in every row",
+          "ids": ["TBL-05"],
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
+        }
+      ]
+    },
+    {
+      "id": "I09",
+      "title": "Tables: aligning as you type",
+      "file": "I09 Tables, aligning as you type.md",
+      "steps": [
+        {
+          "text": "Run :tablefmt or :tf",
+          "hint": "Pads the cells so every bar lines up",
+          "ids": ["TBL-06"],
+          "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
+        },
+        {
+          "text": "Type Beach inside a padded cell",
+          "hint": "While it fits, the closing bar doesn't move",
+          "ids": ["NEW-03", "TBL-11"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "table-shape", "args": ["2"] },
+              { "kind": "text", "pred": "line-contains", "args": ["Beach"] }
+            ]
+          }
+        },
+        {
+          "text": "Look at the table with borders in the preview",
+          "hint": "The preview draws the table without the Markdown dashes",
+          "ids": ["TBL-12"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "table" }
+        }
+      ]
+    },
+    {
+      "id": "I10",
+      "title": "Tables from the preview",
+      "file": "I10 Tables from the preview.md",
+      "steps": [
+        {
+          "text": "Click a cell in the preview and type Beach",
+          "hint": "The click opens the cell; the text lands in the note",
+          "ids": ["TBL-08"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Beach"] }
+        },
+        {
+          "text": "Click + Add row and + Add column",
+          "hint": "Both buttons live under the table in the preview",
+          "ids": ["TBL-09"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "n-lines-start", "args": ["4", "|"] },
+              { "kind": "text", "pred": "table-shape", "args": ["3"] }
+            ]
+          }
+        },
+        {
+          "text": "Click a column header and rename it",
+          "hint": "Call the second column Cost",
+          "ids": ["TBL-10"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Cost"] }
+        }
+      ]
+    },
+    {
+      "id": "I11",
+      "title": "Columns",
+      "file": "I11 Columns.md",
+      "steps": [
+        {
+          "text": "Insert /2 columns and write in both",
+          "hint": "The block starts with ~~~columns and separates with +++",
+          "ids": ["MD-22"],
+          "check": { "kind": "text-fence", "fence": "columns", "pattern": "+++" }
+        },
+        {
+          "text": "Insert /3 columns",
+          "hint": "Three columns carry two +++ separators",
+          "ids": ["MD-23"],
+          "check": { "kind": "text-fence", "fence": "columns", "pattern": "Column 3" }
+        },
+        {
+          "text": "Insert /4 columns",
+          "hint": "Four columns carry three +++ separators",
+          "ids": ["MD-24"],
+          "check": { "kind": "text-fence", "fence": "columns", "pattern": "Column 4" }
+        },
+        {
+          "text": "Look at the columns in the preview, narrow the window",
+          "hint": "When narrow, the columns stack one under the other",
+          "ids": ["PRV-06"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "columns" }
+        }
+      ]
+    },
+    {
+      "id": "I12",
+      "title": "Equations",
+      "file": "I12 Equations.md",
+      "steps": [
+        {
+          "text": "Insert /Equation and write a^2 + b^2 = c^2",
+          "hint": "The block is called math and draws the formula in the preview",
+          "ids": ["MD-19"],
+          "check": { "kind": "text-fence", "fence": "math", "pattern": "a^2 + b^2 = c^2" }
+        },
+        {
+          "text": "Write by hand a block with two $$ lines",
+          "hint": "Between the two $$ lines put e^{i\\pi} + 1 = 0",
+          "ids": ["MD-20"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-equals", "args": ["$$"] },
+              { "kind": "text", "pred": "line-contains", "args": ["e^{i\\pi} + 1 = 0"] }
+            ]
+          }
+        },
+        {
+          "text": "Look at the two equations drawn in the preview",
+          "hint": "The preview writes them with symbols, nothing to install",
+          "ids": ["PRV-08"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "equation" }
+        }
+      ]
+    },
+    {
+      "id": "I13",
+      "title": "Boards",
+      "file": "I13 Boards.md",
+      "steps": [
+        {
+          "text": "Insert /Board",
+          "hint": "It starts with three columns: Not started, In progress and Done",
+          "ids": ["MD-27"],
+          "check": { "kind": "text-fence", "fence": "board", "pattern": "## " }
+        },
+        {
+          "text": "Click + New page and write the card Backpack",
+          "hint": "+ New page is at the bottom of each column",
+          "ids": ["PRV-09"],
+          "check": { "kind": "text-fence", "fence": "board", "pattern": "Backpack" }
+        },
+        {
+          "text": "Click the card: rename it to Boots",
+          "hint": "From the card you move it to another column and delete it",
+          "ids": ["PRV-10"],
+          "check": { "kind": "text-fence", "fence": "board", "pattern": "Boots" }
+        },
+        {
+          "text": "Click a header and rename it to Finished",
+          "hint": "Clicking the header changes the whole column",
+          "ids": ["PRV-11"],
+          "check": { "kind": "text-fence", "fence": "board", "pattern": "## Finished" }
+        }
+      ]
+    },
+    {
+      "id": "I14",
+      "title": "Calendars",
+      "file": "I14 Calendars.md",
+      "steps": [
+        {
+          "text": "Insert /Calendar",
+          "hint": "The block keeps the month on the month line",
+          "ids": ["MD-28"],
+          "check": { "kind": "text-fence", "fence": "calendar", "pattern": "month: " }
+        },
+        {
+          "text": "Click a day and write the event Beach",
+          "hint": "Each event is a line with the date and the text",
+          "ids": ["PRV-12"],
+          "check": { "kind": "text-fence", "fence": "calendar", "pattern": ": Beach" }
+        },
+        {
+          "text": "Click the event and rename it to Museum",
+          "hint": "From there you also move it to another day or delete it",
+          "ids": ["PRV-13"],
+          "check": { "kind": "text-fence", "fence": "calendar", "pattern": ": Museum" }
+        },
+        {
+          "text": "Click the Today header of the calendar",
+          "hint": "The header arrows change the month",
+          "ids": ["PRV-14"],
+          "check": { "kind": "action", "event": "calendar_month" }
+        },
+        {
+          "text": "With the preview focused use < > and T",
+          "hint": "< and > move the month; T goes back to today",
+          "ids": ["VIEW-15"],
+          "check": { "kind": "action", "event": "calendar_month", "value": ["month-shift", "today"] }
+        }
+      ]
+    },
+    {
+      "id": "I15",
+      "title": "Timelines",
+      "file": "I15 Timelines.md",
+      "steps": [
+        {
+          "text": "Insert /Timeline",
+          "hint": "The block comes with two example spans",
+          "ids": ["MD-29"],
+          "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Card 2: " }
+        },
+        {
+          "text": "Click + New and create the span Trip",
+          "hint": "Each span is Name: date -> date",
+          "ids": ["PRV-15"],
+          "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Trip: " }
+        },
+        {
+          "text": "Click the span and rename it to Coast",
+          "hint": "You can also move it, stretch its dates or delete it",
+          "ids": ["PRV-16"],
+          "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Coast: " }
+        }
+      ]
+    },
+    {
+      "id": "I16",
+      "title": "Charts",
+      "file": "I16 Charts.md",
+      "steps": [
+        {
+          "text": "Insert /Chart",
+          "hint": "The block says type: bar and comes with example values",
+          "ids": ["MD-30"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text-fence", "fence": "chart", "pattern": "type: bar" },
+              { "kind": "text-fence", "fence": "chart", "pattern": "Jan: 12" }
+            ]
+          }
+        },
+        {
+          "text": "Click + Add value and add Beach: 3",
+          "hint": "Each value is a line Label: number",
+          "ids": ["PRV-17"],
+          "check": { "kind": "text-fence", "fence": "chart", "pattern": "Beach: 3" }
+        },
+        {
+          "text": "Click a bar and rename it to Museum: 4",
+          "hint": "From the bar you edit the value or the label, or delete it",
+          "ids": ["PRV-18"],
+          "check": { "kind": "text-fence", "fence": "chart", "pattern": "Museum: 4" }
+        }
+      ]
+    },
+    {
+      "id": "I17",
+      "title": "Code and diagrams",
+      "file": "I17 Code and diagrams.md",
+      "steps": [
+        {
+          "text": "Insert /Code and write echo hello",
+          "hint": "The line of code lives inside the fence",
+          "ids": ["MD-39"],
+          "check": { "kind": "text-fence", "fence": "code", "pattern": "echo hello" }
+        },
+        {
+          "text": "Insert /Flowchart and write Start --> End",
+          "hint": "The arrow is the --> sign",
+          "ids": ["MD-32"],
+          "check": { "kind": "text-fence", "fence": "flow", "pattern": "Start --> End" }
+        },
+        {
+          "text": "Look at the diagram drawn in the preview",
+          "hint": "The flow is drawn with boxes and arrows",
+          "ids": ["PRV-07"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "diagram" }
+        }
+      ]
+    },
+    {
+      "id": "I18",
+      "title": "Images",
+      "file": "I18 Images.md",
+      "steps": [
+        {
+          "text": "Insert /Image and pick an image from outside",
+          "hint": "It is copied to assets and leaves a line with ! and brackets",
+          "ids": ["MD-34"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["!["] }
+        },
+        {
+          "text": "Copy an image and use /Paste image or space i",
+          "hint": "It is pasted on its own line, starting with ![",
+          "ids": ["MD-35"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-starts", "args": ["!["] },
+              { "kind": "text", "pred": "line-contains", "args": ["]("] }
+            ]
+          }
+        },
+        {
+          "text": "Look at the image drawn in the preview",
+          "hint": "If the terminal draws images you will see the thumbnail",
+          "ids": ["PRV-05"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "image" }
+        },
+        {
+          "text": "Check next to the note that the copy was made",
+          "hint": "The file lives in the vault's assets folder",
+          "ids": ["NOTE-21"],
+          "check": { "kind": "disk", "pred": "folder-exists", "args": ["assets"] }
+        }
+      ]
+    },
+    {
+      "id": "I19",
+      "title": "Attachments",
+      "file": "I19 Attachments.md",
+      "steps": [
+        {
+          "text": "Insert /Video and pick a file",
+          "hint": "The link starts with the play sign",
+          "ids": ["MD-36"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[▶ "] }
+        },
+        {
+          "text": "Insert /Audio and pick a file",
+          "hint": "The link starts with the musical note",
+          "ids": ["MD-37"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[♪ "] }
+        },
+        {
+          "text": "Insert /File and pick a document",
+          "hint": "The link starts with the paperclip",
+          "ids": ["MD-38"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[📎 "] }
+        }
+      ]
+    },
+    {
+      "id": "I20",
+      "title": "Links to headings",
+      "file": "I20 Links to headings.md",
+      "steps": [
+        {
+          "text": "Type the start of a link and look at the headings",
+          "hint": "With two brackets and a hash only the headings show up",
+          "ids": ["NEW-06"],
+          "check": { "kind": "action", "event": "links_headings" }
+        },
+        {
+          "text": "Pick Packing: the link appears and gd jumps",
+          "hint": "The full link is written with brackets and a hash",
+          "ids": ["LNK-07"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[[#Packing]]"] },
+              { "kind": "text", "pred": "heading-exists", "args": ["2", "Packing"] }
+            ]
+          }
+        },
+        {
+          "text": "Type two brackets, Trip and a hash",
+          "hint": "You will see the headings of Trip, not those of this note",
+          "ids": ["NEW-07", "LNK-27"],
+          "check": { "kind": "action", "event": "links_headings", "value": "Trip" }
+        },
+        {
+          "text": "Complete the link here and repeat it in Plan",
+          "hint": "Two links to the same heading: one in each note",
+          "ids": ["LNK-03", "LNK-04"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[[Trip#Packing]]"] },
+              { "kind": "disk", "pred": "other-note-text", "args": ["Plan", "[[Trip#Packing]]"] }
+            ]
+          }
+        },
+        {
+          "text": "In Finder mode, look at the footer of the list",
+          "hint": "The footer reminds you: hash heading, caret block, Esc by hand",
+          "ids": ["NEW-10"],
+          "check": { "kind": "action", "event": "link_footer" }
+        }
+      ]
+    },
+    {
+      "id": "I21",
+      "title": "Links to blocks",
+      "file": "I21 Links to blocks.md",
+      "steps": [
+        {
+          "text": "At the end of a paragraph write ^booking",
+          "hint": "The caret and the name go at the end of the same line",
+          "ids": ["MD-46"],
+          "check": { "kind": "text", "pred": "line-ends", "args": [" ^booking"] }
+        },
+        {
+          "text": "Write the link to the block in this note",
+          "hint": "Brackets, hash and caret before the name",
+          "ids": ["LNK-08"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[[#^booking]]"] },
+              { "kind": "text", "pred": "blockref-exists", "args": ["booking"] }
+            ]
+          }
+        },
+        {
+          "text": "Link the block of Trip from here",
+          "hint": "First the block ^booking has to be in Trip",
+          "ids": ["LNK-05"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[[Trip#^booking]]"] },
+              { "kind": "disk", "pred": "other-note-text", "args": ["Trip", "^booking"] }
+            ]
+          }
+        },
+        {
+          "text": "Type the start and look at the list of blocks",
+          "hint": "Each block shows up with its text beside it",
+          "ids": ["NEW-08"],
+          "check": { "kind": "action", "event": "links_blocks" }
+        }
+      ]
+    },
+    {
+      "id": "I22",
+      "title": "Aliases and the suggestion mode",
+      "file": "I22 Aliases and the suggestion mode.md",
+      "steps": [
+        {
+          "text": "Write the link with a bar and my trip",
+          "hint": "The bar separates the target from the text you read",
+          "ids": ["LNK-06"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[[Trip|my trip]]"] },
+              { "kind": "text", "pred": "wikilink-resolves", "args": ["Trip"] }
+            ]
+          }
+        },
+        {
+          "text": "In settings change Link suggestions and back",
+          "hint": "Try Finder and go back to Inline; the row saves at once",
+          "ids": ["NEW-11"],
+          "check": { "kind": "disk", "pred": "config-changed", "args": ["ui.link_suggestions"] }
+        },
+        {
+          "text": "In Finder type tag:travel and pick a note",
+          "hint": "In Inline, tag: is plain text inside the link",
+          "ids": ["NEW-09"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "tag:" }
+        }
+      ]
+    },
+    {
+      "id": "I23",
+      "title": "Markdown and web links",
+      "file": "I23 Markdown and web links.md",
+      "steps": [
+        {
+          "text": "Insert /Link to page and pick Trip",
+          "hint": "Writes a Markdown link with its path to the file",
+          "ids": ["MD-25"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["](Trip.md)"] }
+        },
+        {
+          "text": "Write the link to Trip by hand",
+          "hint": "The path of a file that exists goes in parentheses",
+          "ids": ["LNK-17"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[my note](Trip.md)"] },
+              { "kind": "disk", "pred": "exists", "args": ["Trip"] }
+            ]
+          }
+        },
+        {
+          "text": "Write the web link with brackets and with angles",
+          "hint": "Both forms lead to https://example.com",
+          "ids": ["LNK-18"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["[documentation](https://example.com)"] },
+              { "kind": "text", "pred": "line-contains", "args": ["<https://example.com>"] }
+            ]
+          }
+        },
+        {
+          "text": "Jump to the next link with space o ]",
+          "hint": "space o [ goes to the previous link",
+          "ids": ["LNK-23"],
+          "check": { "kind": "action", "event": "link_next" }
+        }
+      ]
+    },
+    {
+      "id": "I24",
+      "title": "Tags",
+      "file": "I24 Tags.md",
+      "steps": [
+        {
+          "text": "Write #travel in the body",
+          "hint": "The hash starts the tag; no spaces inside",
+          "ids": ["TAG-01"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["#travel"] }
+        },
+        {
+          "text": "Write #travel/beach",
+          "hint": "The slash makes a tag inside another",
+          "ids": ["TAG-02"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["#travel/beach"] }
+        },
+        {
+          "text": "Add tags: beach, sun to the properties",
+          "hint": "Properties go at the top, between two lines of dashes",
+          "ids": ["TAG-03"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["tags: beach, sun"] }
+        },
+        {
+          "text": "Change it to tags: [beach, sun]",
+          "hint": "Square brackets are YAML's list form",
+          "ids": ["TAG-04"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["tags: [beach, sun]"] }
+        },
+        {
+          "text": "Change it to a list with beach and sun",
+          "hint": "One tag per line, with a dash in front",
+          "ids": ["TAG-05"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-equals", "args": ["- beach"] },
+              { "kind": "text", "pred": "line-equals", "args": ["- sun"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "I25",
+      "title": "Tags and the finder",
+      "file": "I25 Tags and the finder.md",
+      "steps": [
+        {
+          "text": "Run :tags and pick a tag",
+          "hint": "The list gathers the vault's tags",
+          "ids": ["TAG-07"],
+          "check": { "kind": "action", "event": "tags_list" }
+        },
+        {
+          "text": "In the finder type tag:travel",
+          "hint": "tag: filters by tag, not by text",
+          "ids": ["TAG-08"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "tag:travel" }
+        },
+        {
+          "text": "In ctrl+p type #travel",
+          "hint": "In the normal finder the hash means a tag",
+          "ids": ["TAG-09"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "#travel" }
+        },
+        {
+          "text": "Search by name and by text with ctrl+p",
+          "hint": "The finder looks at the name and at the content too",
+          "ids": ["SRCH-01"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "finder_open" },
+              { "kind": "action", "event": "finder_filter" }
+            ]
+          }
+        },
+        {
+          "text": "Check that the template doesn't show in :tags",
+          "hint": "Notes in Plantillas don't count for tags",
+          "ids": ["DAY-06"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "disk", "pred": "exists", "args": ["Plantillas/daily"] },
+              { "kind": "action", "event": "tags_list" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "I26",
+      "title": "The command palette",
+      "file": "I26 The command palette.md",
+      "steps": [
+        {
+          "text": "Press ? and filter by table",
+          "hint": "It also opens with space h; type table and look",
+          "ids": ["SRCH-04"],
+          "check": { "kind": "action", "event": "palette_open" }
+        },
+        {
+          "text": "Run :settings from the palette",
+          "hint": "The palette runs any command without remembering the key",
+          "ids": ["SRCH-05"],
+          "check": { "kind": "action", "event": "palette_run", "value": "settings" }
+        },
+        {
+          "text": "Open a result in another tab with ctrl+t",
+          "hint": "In the finder, ctrl+t opens it without leaving this note",
+          "ids": ["SRCH-02"],
+          "check": { "kind": "action", "event": "note_opened", "value": "new-tab" }
+        },
+        {
+          "text": "Open :messages and read the latest messages",
+          "hint": "Each message carries its time",
+          "ids": ["SRCH-12"],
+          "check": { "kind": "action", "event": "messages_open" }
+        },
+        {
+          "text": "See that the EXPORT entries come first",
+          "hint": "The palette puts what exports at the front",
+          "ids": ["EXP-06"],
+          "check": { "kind": "action", "event": "palette_open", "value": "export-first" }
+        }
+      ]
+    },
+    {
+      "id": "I27",
+      "title": "Today and templates",
+      "file": "I27 Today and templates.md",
+      "steps": [
+        {
+          "text": "Press space o d and save the daily note",
+          "hint": "It is saved in Diario with today's date as its name",
+          "ids": ["DAY-01"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["Diario/{today}"] }
+        },
+        {
+          "text": "Create Plantillas/daily with two lines of text",
+          "hint": "The templates folder is Plantillas",
+          "ids": ["DAY-07"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "disk", "pred": "folder-exists", "args": ["Plantillas"] },
+              { "kind": "disk", "pred": "exists", "args": ["Plantillas/daily"] }
+            ]
+          }
+        },
+        {
+          "text": "In another note insert /Template and pick daily",
+          "hint": "The template's text appears where the cursor is",
+          "ids": ["DAY-03", "MD-26"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Day plan"] }
+        },
+        {
+          "text": "Add date and title to the template, insert it again",
+          "hint": "The double braces become the date and the name",
+          "ids": ["DAY-04"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-starts", "args": ["Date: 20"] },
+              { "kind": "text", "pred": "line-starts", "args": ["Note: "] }
+            ]
+          }
+        },
+        {
+          "text": "Put stage: new in the template and insert it",
+          "hint": "The note keeps stage: in progress and gains the new keys",
+          "ids": ["DAY-05"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-equals", "args": ["stage: in progress"] },
+              { "kind": "text", "pred": "line-contains", "args": ["place: beach"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "I28",
+      "title": "The self-folding explorer",
+      "file": "I28 The self-folding explorer.md",
+      "steps": [
+        {
+          "text": "Open a folder with enter: its sibling closes",
+          "hint": "The accordion leaves one open folder per level",
+          "ids": ["NOTE-06"],
+          "check": { "kind": "action", "event": "tree_state", "value": "accordion" }
+        },
+        {
+          "text": "In settings turn Accordion folders off and on",
+          "hint": "The row saves ui.accordion at once",
+          "ids": ["SET-02"],
+          "check": { "kind": "disk", "pred": "config-changed", "args": ["ui.accordion"] }
+        },
+        {
+          "text": "Create External note outside Misoku and wait",
+          "hint": "The tree refreshes on its own in a couple of seconds",
+          "ids": ["NOTE-16"],
+          "check": { "kind": "action", "event": "tree_refresh", "value": "External note" }
+        }
+      ]
+    },
+    {
+      "id": "I29",
+      "title": "Moving around the preview",
+      "file": "I29 Moving around the preview.md",
+      "steps": [
+        {
+          "text": "Move the preview with j k, d u, space, pgdn and G",
+          "hint": "With the preview focused, the wheel works too",
+          "ids": ["VIEW-13"],
+          "check": { "kind": "action", "event": "preview_scroll" }
+        },
+        {
+          "text": "Fold with the triangle and zM; unfold with zR",
+          "hint": "zM closes every heading; zR opens them",
+          "ids": ["VIEW-14"],
+          "check": { "kind": "action", "event": "preview_fold", "value": ["collapse", "expand"] }
+        }
+      ]
+    },
+    {
+      "id": "I30",
+      "title": "Intermediate challenge",
+      "file": "I30 Intermediate challenge.md",
+      "steps": [
+        { "text": "Create Trip to the coast with headings, a list, two tags", "ids": [], "check": { "kind": "none" } },
+        { "text": "Add a three-column table: day, plan, cost", "ids": [], "check": { "kind": "none" } },
+        { "text": "Link the total block of Budget", "ids": [], "check": { "kind": "none" } },
+        { "text": "Add a board with a card in Pending", "ids": [], "check": { "kind": "none" } },
+        { "text": "Go over everything in the reading view", "ids": [], "check": { "kind": "none" } }
+      ]
+    }
+  ]
+}
