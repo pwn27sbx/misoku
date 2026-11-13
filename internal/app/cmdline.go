@@ -63,15 +63,41 @@ func (m *Model) drawCmdline(screen string) string {
 	bg := lipgloss.NewStyle().Background(m.theme.PopupBg)
 	row := bg.Render(" ") + m.content.CommandView(inner-2, colour, m.theme.PopupBg) + bg.Render(" ")
 	box := ui.TitledBox([]string{row}, inner, title, colour, m.theme.PopupBg)
-	return ui.Overlay(screen, box, x, y)
+	screen = ui.Overlay(screen, box, x, y)
+	if list, lx, ly, _, ok := m.cmdlineList(); ok {
+		screen = ui.Overlay(screen, list, lx, ly)
+	}
+	return screen
 }
 
-// inCmdline reports whether the screen cell (x, y) is inside the open box, so
-// a click there never reaches the pane underneath.
+// cmdlineList is the ":" command list and its place: right under the box,
+// as wide and in the box's colour. Its rows stop above the statusline, and
+// ok is false when there is no list or not even one row fits.
+func (m *Model) cmdlineList() (list string, x, y, h int, ok bool) {
+	if !m.cmdlineOpen() || !m.content.SuggestionsOpen() {
+		return "", 0, 0, 0, false
+	}
+	x, by, w, bh := m.cmdlineRect()
+	y = by + bh
+	// The two borders and the statusline row stay out of the rows.
+	rows := min(content.SuggestMaxRows, m.height-1-y-2)
+	_, colour := m.cmdlineKind()
+	list, ok = m.content.SuggestionsView(w, rows, colour)
+	if !ok {
+		return "", 0, 0, 0, false
+	}
+	return list, x, y, lipgloss.Height(list), true
+}
+
+// inCmdline reports whether the screen cell (x, y) is inside the open box or
+// its command list, so a click there never reaches the pane underneath.
 func (m *Model) inCmdline(x, y int) bool {
 	if !m.cmdlineOpen() {
 		return false
 	}
 	bx, by, bw, bh := m.cmdlineRect()
+	if _, _, _, lh, ok := m.cmdlineList(); ok {
+		bh += lh // the list sits right under the box, as wide
+	}
 	return x >= bx && x < bx+bw && y >= by && y < by+bh
 }

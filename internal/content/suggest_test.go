@@ -50,7 +50,7 @@ func pressKey(c content.Model, kt tea.KeyType) content.Model {
 
 // cmdValue is the text of the command line, read from its view.
 func cmdValue(c content.Model) string {
-	return strings.TrimPrefix(ansi.Strip(c.CommandView(80)), ":")
+	return strings.TrimPrefix(ansi.Strip(c.CommandView(80, "", "")), "› ")
 }
 
 func assertValue(t *testing.T, c content.Model, want string) {
@@ -147,7 +147,7 @@ func TestSearchPromptHasNoSuggestions(t *testing.T) {
 	}
 	c = pressKey(c, tea.KeyTab)
 	c = pressKey(c, tea.KeyDown)
-	if got := ansi.Strip(c.CommandView(80)); !strings.HasPrefix(got, "/sync") {
+	if got := ansi.Strip(c.CommandView(80, "", "")); !strings.HasPrefix(got, "/ sync") {
 		t.Fatalf("Tab/Down changed the search text: %q", got)
 	}
 	c = pressKey(c, tea.KeyEnter)

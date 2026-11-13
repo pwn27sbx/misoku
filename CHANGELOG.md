@@ -6,6 +6,10 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ## [Unreleased]
 
+### Added
+
+- While you type after `:`, a second box right below the command line lists the matching commands, in the catalog's order, with their help text in the interface language and the box's colour. One word matches the commands it starts; after a space, the full command (`:sync s` lists `:sync status` and `:sync setup`). It shows up to 8 rows, fewer on a low terminal so the statusline stays visible, and scrolls with the selection. No row is selected at first, so `Enter` still runs what you typed; `Tab`/`↓` and `Shift+Tab`/`↑` select a row and write it into the line. A click inside the list does nothing, a dialog opened over it hides it, and `/` has no list.
+
 ### Changed
 
 - The `:` command line and the `/` search open in a floating box near the top of the screen, like LazyVim's, instead of on the bottom row. The box is titled on its top border, **Cmdline** in blue for `:` and **Search** in yellow for `/` (**Comando** and **Buscar** in Spanish), with `›` or `/` before the text, and it grows with the text. The note stays visible behind it, the bottom row keeps the statusline with its COMMAND badge, and a click inside the box does nothing. The keys, what Enter runs and Esc are unchanged. The tutorial lessons I04 and B22 and the help say so; an already installed tutorial keeps its old lesson text until `misoku tutor --reset`.
