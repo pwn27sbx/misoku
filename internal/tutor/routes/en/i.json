@@ -60,7 +60,7 @@
         },
         {
           "text": "Select tide and press d: the text disappears",
-          "hint": "Write wind and tide on a line and delete only tide",
+          "hint": "Delete only tide, until no tide is left in the note",
           "ids": ["VIM-22"],
           "check": {
             "kind": "all",
@@ -425,8 +425,8 @@
           "check": { "kind": "text-fence", "fence": "calendar", "pattern": ": Museum" }
         },
         {
-          "text": "Click the Today header of the calendar",
-          "hint": "The header arrows change the month",
+          "text": "Click Today in the calendar header",
+          "hint": "The arrows on either side change the month",
           "ids": ["PRV-14"],
           "check": { "kind": "action", "event": "calendar_month" }
         },
@@ -697,7 +697,7 @@
           "check": { "kind": "disk", "pred": "config-changed", "args": ["ui.link_suggestions"] }
         },
         {
-          "text": "In Finder type tag:travel and pick a note",
+          "text": "In Finder mode type [[tag:travel and pick a note",
           "hint": "In Inline, tag: is plain text inside the link",
           "ids": ["NEW-09"],
           "check": { "kind": "action", "event": "finder_filter", "value": "tag:" }
@@ -802,14 +802,14 @@
           "check": { "kind": "action", "event": "tags_list" }
         },
         {
-          "text": "In the finder type tag:travel",
+          "text": "In the finder (ctrl+p) type tag:travel",
           "hint": "tag: filters by tag, not by text",
           "ids": ["TAG-08"],
           "check": { "kind": "action", "event": "finder_filter", "value": "tag:travel" }
         },
         {
-          "text": "In ctrl+p type #travel",
-          "hint": "In the normal finder the hash means a tag",
+          "text": "Clear it and type #travel",
+          "hint": "In this finder the hash means a tag, as tag: does",
           "ids": ["TAG-09"],
           "check": { "kind": "action", "event": "finder_filter", "value": "#travel" }
         },
@@ -900,7 +900,7 @@
           }
         },
         {
-          "text": "In another note insert /Template and pick daily",
+          "text": "Here, insert /Template and pick daily",
           "hint": "The template's text appears where the cursor is",
           "ids": ["DAY-03", "MD-26"],
           "check": { "kind": "text", "pred": "line-contains", "args": ["Day plan"] }
@@ -918,7 +918,7 @@
           }
         },
         {
-          "text": "Put stage: new in the template and insert it",
+          "text": "Give the template stage: new, place: beach; insert it",
           "hint": "The note keeps stage: in progress and gains the new keys",
           "ids": ["DAY-05"],
           "check": {

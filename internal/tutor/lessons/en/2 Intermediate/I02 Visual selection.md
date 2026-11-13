@@ -9,7 +9,7 @@ Selecting is the missing step between "looking" and "changing". In NORMAL, `v` s
 1. Write a line with `wind and tide` and another with `lighthouse and wave`; go to NORMAL with `Esc`, press `v` and select a few words with `h` `j` `k` `l`.
 2. Press `V` and select a whole line with `j` or `k`.
 3. With a selection, press `y` and paste it with `p`.
-4. Write `wind and tide` on a line, select only `tide` with `v` and delete it with `d`.
+4. On a line with `wind and tide`, select only `tide` with `v` and delete it with `d`. The step is recorded once no `tide` is left in the note, copies included.
 
 The status bar says which mode you are in; if in doubt, look there before pressing another key.
 
