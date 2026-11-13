@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
+
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -80,11 +82,13 @@ func TestBundledRoutes(t *testing.T) {
 // note, and every index and lesson is embedded. The embed is walked with its
 // folders: the lessons live one folder per route.
 func TestEmbeddedFilesCovered(t *testing.T) {
-	cat, err := BundledRoutes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	described := map[string]bool{ReferenceNote: true}
+	forEachLang(t, func(t *testing.T, l i18n.Lang, cat Catalog, bundled fs.FS) {
+		testEmbeddedFilesCovered(t, cat, bundled, ReferenceNoteFor(l))
+	})
+}
+
+func testEmbeddedFilesCovered(t *testing.T, cat Catalog, bundled fs.FS, reference string) {
+	described := map[string]bool{reference: true}
 	for _, r := range cat.Routes {
 		described[r.IndexPath()] = true
 		for _, l := range r.Lessons {
@@ -92,7 +96,7 @@ func TestEmbeddedFilesCovered(t *testing.T) {
 		}
 	}
 	notes := 0
-	err = fs.WalkDir(Bundled(), ".", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(bundled, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -113,7 +117,7 @@ func TestEmbeddedFilesCovered(t *testing.T) {
 		t.Errorf("embedded notes = %d, want 102 (97 lessons + 4 indexes + the reference note)", notes)
 	}
 	for name := range described {
-		if _, err := fs.Stat(Bundled(), name); err != nil {
+		if _, err := fs.Stat(bundled, name); err != nil {
 			t.Errorf("%s is in the catalog but not embedded", name)
 		}
 	}

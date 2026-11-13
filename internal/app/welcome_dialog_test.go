@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,6 +26,7 @@ const (
 // welcomeHarness opens Misoku at w x ht with the first-run dialog pending.
 func welcomeHarness(t *testing.T, w, ht int) (*harness, string) {
 	t.Helper()
+	useLang(t, i18n.ES) // the dialog's Spanish words, as designed
 	cfgPath := filepath.Join(t.TempDir(), "config.json")
 	h := newHarnessSize(t, w, ht, newTestStore(t), app.WithLearnOffer(true), app.WithConfigPath(cfgPath),
 		fakeTutorial(new(*exec.Cmd), nil, nil))
@@ -214,6 +216,7 @@ func TestWelcomeDialogWaitsWhenNothingFits(t *testing.T) {
 // S2/S3: a click on an option's title or description chooses it, as the
 // old buttons took clicks; a click elsewhere in the box chooses nothing.
 func TestWelcomeDialogTakesAClickOnAnOption(t *testing.T) {
+	useLang(t, i18n.ES)
 	for _, c := range []struct {
 		text     string
 		tutorial bool

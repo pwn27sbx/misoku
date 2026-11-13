@@ -10,36 +10,26 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	"golang.org/x/text/unicode/norm"
 )
 
-// The whole folder, subfolders included: each route keeps its lessons in its
-// own folder, so a pattern of files at the root would leave them out.
+// The whole folder, subfolders included: one tree per language
+// (lessons/es, lessons/en), and in each one every route keeps its lessons in
+// its own folder, so a pattern of files at the root would leave them out.
 //
 //go:embed lessons
 var lessons embed.FS
 
-// Bundled returns the embedded lesson notes, rooted at the lessons folder.
-func Bundled() fs.FS {
-	sub, err := fs.Sub(lessons, "lessons")
-	if err != nil {
-		panic(err) // the directory is embedded at build time
-	}
-	return sub
-}
+// Bundled returns the embedded lesson notes of the interface language, rooted
+// at that language's tree (see BundledFor).
+func Bundled() fs.FS { return BundledFor(i18n.Current()) }
 
-// Dir returns the tutorial vault folder, next to Misoku's config file, or ""
-// when the user config directory is unknown.
-func Dir() string {
-	p := config.DefaultPath()
-	if p == "" {
-		return ""
-	}
-	return filepath.Join(filepath.Dir(p), "tutor")
-}
+// Dir returns the tutorial vault folder of the interface language (see
+// DirFor), or "" when the user config directory is unknown.
+func Dir() string { return DirFor(i18n.Current()) }
 
 // oldLessonFiles are the eight notes of the pre-routes tutorial, in order.
 // Install moves them to the Trash once; the renamed B0x notes never match.
@@ -179,7 +169,7 @@ func migrationNotice() string { return migrationNoticeFor(core.HasTrash()) }
 // parameter, so a test can prove both texts everywhere.
 func migrationNoticeFor(hasTrash bool) string {
 	if hasTrash {
-		return "Tutorial actualizado: las notas del tutorial anterior están en la papelera."
+		return i18n.T(i18n.TutorMigrated)
 	}
-	return "Tutorial actualizado: las notas del tutorial anterior se borraron (este sistema no tiene papelera)."
+	return i18n.T(i18n.TutorMigratedNoTrash)
 }

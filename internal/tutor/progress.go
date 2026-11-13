@@ -548,7 +548,7 @@ func valueKey(base, path string, i int) string {
 	return base + path + "=" + strconv.Itoa(i+1)
 }
 
-// originals caches the lines of every embedded lesson, so a text check can
+// originals caches the lines of every embedded lesson, in every language, so a text check can
 // ignore what the lesson itself already says (the player's note starts as a
 // copy of it). The keys are the lessons' vault-relative paths, folders
 // included: the embed walks its subfolders, or a lesson in a route folder
@@ -568,7 +568,9 @@ func originals() map[string]map[string]bool {
 			if err != nil {
 				return nil
 			}
-			rel := strings.TrimPrefix(path, "lessons/")
+			// lessons/<lang>/<vault path>: the languages' notes have distinct
+			// paths (a test checks it), so one map holds them all.
+			_, rel, _ := strings.Cut(strings.TrimPrefix(path, "lessons/"), "/")
 			set := map[string]bool{}
 			for _, l := range strings.Split(string(data), "\n") {
 				set[strings.TrimRight(l, "\r")] = true

@@ -4,6 +4,8 @@ import (
 	"io/fs"
 	"strings"
 	"testing"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // hardWraps reports the 1-based numbers of plain paragraph lines that are
@@ -86,10 +88,10 @@ func isBlockLine(line string) bool {
 
 // bundledLessons lists the embedded note files, vault-relative paths
 // included, sorted by WalkDir. The lessons live one folder per route.
-func bundledLessons(t *testing.T) []string {
+func bundledLessons(t *testing.T, bundled fs.FS) []string {
 	t.Helper()
 	var names []string
-	err := fs.WalkDir(Bundled(), ".", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(bundled, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -106,20 +108,22 @@ func bundledLessons(t *testing.T) []string {
 
 // S7: every bundled lesson keeps one paragraph per line.
 func TestLessonsAreNotHardWrapped(t *testing.T) {
-	names := bundledLessons(t)
-	if len(names) != 102 {
-		t.Fatalf("bundled notes = %d, want 102 (97 lessons + 4 indexes + the reference note)", len(names))
-	}
-	for _, name := range names {
-		data, err := fs.ReadFile(Bundled(), name)
-		if err != nil {
-			t.Errorf("%s: %v", name, err)
-			continue
+	forEachLang(t, func(t *testing.T, _ i18n.Lang, _ Catalog, bundled fs.FS) {
+		names := bundledLessons(t, bundled)
+		if len(names) != 102 {
+			t.Fatalf("bundled notes = %d, want 102 (97 lessons + 4 indexes + the reference note)", len(names))
 		}
-		for _, line := range hardWraps(string(data)) {
-			t.Errorf("%s:%d: paragraph wrapped by hand; put it on one line", name, line)
+		for _, name := range names {
+			data, err := fs.ReadFile(bundled, name)
+			if err != nil {
+				t.Errorf("%s: %v", name, err)
+				continue
+			}
+			for _, line := range hardWraps(string(data)) {
+				t.Errorf("%s:%d: paragraph wrapped by hand; put it on one line", name, line)
+			}
 		}
-	}
+	})
 }
 
 // The checker itself must catch a wrapped paragraph (and leave lists alone).

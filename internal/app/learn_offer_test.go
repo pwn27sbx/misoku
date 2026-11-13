@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -16,6 +17,7 @@ import (
 // S1: the first open offers the three answers, with the cat and no letter
 // shortcuts of its own.
 func TestFirstRunDialogOffersTheThreeAnswers(t *testing.T) {
+	useLang(t, i18n.ES)
 	store := newTestStore(t)
 	h := newHarness(t, store, app.WithLearnOffer(true), app.WithConfigPath(filepath.Join(t.TempDir(), "config.json")))
 	v := h.view()
@@ -34,6 +36,7 @@ func TestFirstRunDialogOffersTheThreeAnswers(t *testing.T) {
 
 // S2: each answer is remembered in the config and closes the dialog once.
 func TestFirstRunDialogRemembersEachAnswer(t *testing.T) {
+	useLang(t, i18n.ES)
 	answers := []struct {
 		name     string
 		keys     func(*harness)
@@ -90,6 +93,7 @@ func TestFirstRunDialogCtrlCLeavesTheAnswerUnwritten(t *testing.T) {
 // S8: below 60x12 the screen says the terminal is too small, and a blind
 // Enter must not reach the dialog.
 func TestFirstRunDialogWaitsForARoomierTerminal(t *testing.T) {
+	useLang(t, i18n.ES)
 	cfgPath := filepath.Join(t.TempDir(), "config.json")
 	store := newTestStore(t)
 	h := newHarnessSize(t, 50, 10, store, app.WithLearnOffer(true), app.WithConfigPath(cfgPath),
@@ -111,6 +115,7 @@ func TestFirstRunDialogWaitsForARoomierTerminal(t *testing.T) {
 
 // S8: a resize that stops the dialog fitting closes it and keeps it pending.
 func TestFirstRunDialogClosesWhenAResizeStopsItFitting(t *testing.T) {
+	useLang(t, i18n.ES)
 	store := newTestStore(t)
 	h := newHarness(t, store, app.WithLearnOffer(true), app.WithConfigPath(filepath.Join(t.TempDir(), "config.json")),
 		fakeTutorial(new(*exec.Cmd), nil, nil))
@@ -149,6 +154,7 @@ func TestFirstRunDialogReportsAFailedWrite(t *testing.T) {
 
 // S8: the dialog belongs to the home screen: it never opens over a note.
 func TestFirstRunDialogStaysOffTheNoteScreen(t *testing.T) {
+	useLang(t, i18n.ES)
 	store := newTestStore(t)
 	if _, err := store.Create("nota", ""); err != nil {
 		t.Fatal(err)
@@ -168,4 +174,24 @@ func learnOffered(t *testing.T, path string) bool {
 		return false
 	}
 	return strings.Contains(string(data), `"learn_offered": true`)
+}
+
+// A5/S1: in English the first-run dialog asks in English, the Basic route
+// named and counted from the English tutorial; the letters do not change.
+func TestFirstRunDialogInEnglish(t *testing.T) {
+	useLang(t, i18n.EN)
+	h := newHarness(t, newTestStore(t), app.WithLearnOffer(true), app.WithConfigPath(t.TempDir()+"/config.json"))
+	v := h.view()
+	for _, want := range []string{
+		"Your notes in Markdown, in the terminal,", "the Vim way.", "Is this your first time here?",
+		"▸ n  I'm new", "Basic route · 26 lessons", "e  I have experience", "Intermediate route",
+		"a  Not now", "Straight to your notes", "j/k move · enter choose",
+	} {
+		if !strings.Contains(v, want) {
+			t.Errorf("the English dialog should show %q:\n%s", want, v)
+		}
+	}
+	if strings.Contains(v, "Soy nuevo") {
+		t.Errorf("the English dialog shows Spanish:\n%s", v)
+	}
 }

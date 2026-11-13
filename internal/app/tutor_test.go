@@ -8,24 +8,33 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// tutorHarness opens lesson in a fresh tutorial vault played WithTutor, with
-// the editor at the end of the note in INSERT mode on a new line.
+// tutorHarness opens lesson in a fresh Spanish tutorial vault played
+// WithTutor, with the editor at the end of the note in INSERT mode on a new
+// line. The bar speaks the interface language (English unless a test
+// switches it).
 func tutorHarness(t *testing.T, lesson string) (*harness, *tutor.Store, tutor.Catalog) {
 	t.Helper()
+	return tutorHarnessIn(t, i18n.ES, lesson)
+}
+
+// tutorHarnessIn is tutorHarness with the tutorial of language l.
+func tutorHarnessIn(t *testing.T, l i18n.Lang, lesson string) (*harness, *tutor.Store, tutor.Catalog) {
+	t.Helper()
 	store := newTestStore(t)
-	if err := tutor.Install(tutor.Bundled(), store.Root(), false); err != nil {
+	if err := tutor.Install(tutor.BundledFor(l), store.Root(), false); err != nil {
 		t.Fatal(err)
 	}
 	store, err := core.NewStore(store.Root())
 	if err != nil {
 		t.Fatal(err)
 	}
-	cat := tutor.Default()
+	cat := tutor.CatalogFor(l)
 	progress, err := tutor.Load(store.Root())
 	if err != nil {
 		t.Fatal(err)
@@ -149,6 +158,7 @@ func TestTutorSavesAPassedLevelAtOnce(t *testing.T) {
 // D5: the step line is persistent, the success line replaces it, and the
 // badge counts the route.
 func TestTutorShowsTheStepAndThenTheSuccess(t *testing.T) {
+	useLang(t, i18n.ES)
 	h, _, _ := tutorHarness(t, "1 Básico/B13 Títulos.md")
 	if s := statusOf(h.view()); !strings.Contains(s, "B13 · Paso 1/4") {
 		t.Fatalf("the statusline should show the step in play:\n%s", s)
@@ -162,6 +172,29 @@ func TestTutorShowsTheStepAndThenTheSuccess(t *testing.T) {
 	v := h.view()
 	if !strings.Contains(statusOf(v), "✓ B13 superado · siguiente: Listas") {
 		t.Fatalf("the success line should persist after a toast:\n%s", v)
+	}
+	if !strings.Contains(statusOf(v), "Tutor 1/26") {
+		t.Fatalf("the badge should count the route:\n%s", v)
+	}
+}
+
+// A5/S5: in English the tutorial is the English one, and its bar speaks
+// English: the texts the English B00 quotes.
+func TestTutorShowsTheEnglishStepAndSuccess(t *testing.T) {
+	useLang(t, i18n.EN)
+	h, _, _ := tutorHarnessIn(t, i18n.EN, "1 Basic/B13 Headings.md")
+	if s := statusOf(h.view()); !strings.Contains(s, "B13 · Step 1/4") {
+		t.Fatalf("the statusline should show the step in play in English:\n%s", s)
+	}
+	for _, line := range []string{"# Trip", "## Luggage", "### Day 1", "#### Detail"} {
+		h.keys(line)
+		h.key(tea.KeyEnter)
+	}
+	h.m = app.ExpireToast(app.ExpireTutorFlash(h.m))
+	h.send(tea.KeyMsg{Type: tea.KeyEsc})
+	v := h.view()
+	if !strings.Contains(statusOf(v), "✓ B13 passed · next: Lists") {
+		t.Fatalf("the success line should be English:\n%s", v)
 	}
 	if !strings.Contains(statusOf(v), "Tutor 1/26") {
 		t.Fatalf("the badge should count the route:\n%s", v)
@@ -202,8 +235,12 @@ func TestTutorSkipsTheHistoryLessonWithoutGit(t *testing.T) {
 	if !progress.Skipped(l, 1) || !progress.LessonDone(l) {
 		t.Fatal("the history step should be skipped without git")
 	}
-	if s := statusOf(h.view()); !strings.Contains(s, "Necesitas git para esta lección") {
+	if s := statusOf(h.view()); !strings.Contains(s, "A07 · You need git for this lesson") {
 		t.Fatalf("the bar should say git is needed:\n%s", s)
+	}
+	useLang(t, i18n.ES)
+	if s := statusOf(h.view()); !strings.Contains(s, "A07 · Necesitas git para esta lección") {
+		t.Fatalf("the bar should say git is needed in Spanish:\n%s", s)
 	}
 }
 
@@ -224,7 +261,7 @@ func TestTutorUnskipsTheHistoryLessonWithGit(t *testing.T) {
 	if progress.Skipped(l, 1) {
 		t.Fatal("git is available: the step must not be skipped")
 	}
-	if s := statusOf(h.view()); !strings.Contains(s, "A07 · Paso 1/1") {
+	if s := statusOf(h.view()); !strings.Contains(s, "A07 · Step 1/1") {
 		t.Fatalf("the bar should show the step:\n%s", s)
 	}
 }
@@ -274,7 +311,7 @@ func TestTutorSkipsOnlyTheHistoryStep(t *testing.T) {
 	if got := progress.NextStep(l); got != 2 {
 		t.Fatalf("NextStep = %d, want 2 (the text step)", got)
 	}
-	if s := statusOf(h.view()); !strings.Contains(s, "A07 · Paso 2/2") {
+	if s := statusOf(h.view()); !strings.Contains(s, "A07 · Step 2/2") {
 		t.Fatalf("the bar should show the ordinary step:\n%s", s)
 	}
 }
@@ -373,7 +410,7 @@ func TestTutorDiskCheckOnOpen(t *testing.T) {
 // tutorial existed.
 func TestNoTutorLeavesTheStatuslineAsItWas(t *testing.T) {
 	store := newTestStore(t)
-	if err := tutor.Install(tutor.Bundled(), store.Root(), false); err != nil {
+	if err := tutor.Install(tutor.BundledFor(i18n.ES), store.Root(), false); err != nil {
 		t.Fatal(err)
 	}
 	store, err := core.NewStore(store.Root())

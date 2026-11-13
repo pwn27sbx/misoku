@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -11,24 +12,21 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf8"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	"golang.org/x/text/unicode/norm"
 )
 
 // The catalog is data ("Amendment E12"): the lessons are written in parallel
-// as embedded JSON, one file per route, with the schema of F4's brief. The
-// player cannot edit it, and a broken catalog fails a test instead of the
-// player's tutorial.
+// as embedded JSON, one file per route and one folder per language
+// (routes/es, routes/en), with the schema of F4's brief. The player cannot
+// edit it, and a broken catalog fails a test instead of the player's
+// tutorial.
 //
-//go:embed routes/*.json
+//go:embed routes/es/*.json routes/en/*.json
 var routesFS embed.FS
-
-// ReferenceNote is the note after the last lesson: terminal commands and what
-// cannot be practised inside the tutorial. It has no steps and belongs to no
-// route, so the catalog does not list it; the installer still copies it.
-const ReferenceNote = "Después del tutorial.md"
 
 // Catalog is the tutorial's content: the routes in play order.
 type Catalog struct {
@@ -87,7 +85,7 @@ func (r Route) IndexPath() string {
 
 // Step is one thing the player does, with the check that proves it.
 type Step struct {
-	// Text is the short Spanish instruction for the status line.
+	// Text is the short instruction for the status line, in the route's language.
 	Text string `json:"text"`
 	// Hint is an optional short tip shown while the step is not met.
 	Hint string `json:"hint,omitempty"`
@@ -241,55 +239,45 @@ var fileRe = regexp.MustCompile(`^[\p{L}\p{N} ,.\-]+\.md$`)
 // progress keys assume.
 var lessonIDRe = regexp.MustCompile(`^[BIEA][0-9]{2}$`)
 
-var (
-	bundledOnce sync.Once
-	bundled     Catalog
-	bundledErr  error
-)
+// BundledRoutes loads and validates every embedded route of the interface
+// language (see BundledRoutesFor).
+func BundledRoutes() (Catalog, error) { return BundledRoutesFor(i18n.Current()) }
 
-// BundledRoutes loads and validates every embedded route. A bad catalog is a
-// build bug, so tests call this and fail; the player gets an empty catalog
-// from Default instead of a panic.
-func BundledRoutes() (Catalog, error) {
-	bundledOnce.Do(func() { bundled, bundledErr = loadBundled() })
-	return bundled, bundledErr
-}
-
-func loadBundled() (Catalog, error) {
-	entries, err := fs.ReadDir(routesFS, "routes")
-	if err != nil {
-		return Catalog{}, err
+// loadRoutes reads every route file in dir of fsys ("routes/es"), sorted in
+// play order, with each lesson's folder set. A missing dir is no routes: a
+// language may not have its own tutorial yet.
+func loadRoutes(fsys fs.FS, dir string) ([]Route, error) {
+	entries, err := fs.ReadDir(fsys, dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
 	}
-	var cat Catalog
+	if err != nil {
+		return nil, err
+	}
+	var routes []Route
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		data, err := fs.ReadFile(routesFS, "routes/"+e.Name())
+		data, err := fs.ReadFile(fsys, dir+"/"+e.Name())
 		if err != nil {
-			return Catalog{}, err
+			return nil, err
 		}
 		dec := json.NewDecoder(bytes.NewReader(data))
 		dec.DisallowUnknownFields()
 		var r Route
 		if err := dec.Decode(&r); err != nil {
-			return Catalog{}, fmt.Errorf("tutor: routes/%s: %w", e.Name(), err)
+			return nil, fmt.Errorf("tutor: %s/%s: %w", dir, e.Name(), err)
 		}
-		cat.Routes = append(cat.Routes, r)
-	}
-	sort.SliceStable(cat.Routes, func(i, j int) bool {
-		return routeRank(cat.Routes[i].ID) < routeRank(cat.Routes[j].ID)
-	})
-	for i := range cat.Routes {
-		r := &cat.Routes[i]
 		for j := range r.Lessons {
 			r.Lessons[j].dir = r.Dir
 		}
+		routes = append(routes, r)
 	}
-	if err := cat.validate(); err != nil {
-		return Catalog{}, err
-	}
-	return cat, nil
+	sort.SliceStable(routes, func(i, j int) bool {
+		return routeRank(routes[i].ID) < routeRank(routes[j].ID)
+	})
+	return routes, nil
 }
 
 func routeRank(id string) int {
@@ -301,15 +289,9 @@ func routeRank(id string) int {
 	return len(routeOrder)
 }
 
-// Default returns the bundled catalog. Embedded data is validated by tests;
-// at runtime an invalid catalog is empty rather than fatal.
-func Default() Catalog {
-	cat, err := BundledRoutes()
-	if err != nil {
-		return Catalog{}
-	}
-	return cat
-}
+// Default returns the bundled catalog of the interface language (see
+// CatalogFor).
+func Default() Catalog { return CatalogFor(i18n.Current()) }
 
 // validate checks the whole catalog: unique routes, lessons and files, the
 // route/lesson ID relation, the L1 file names, the step text length and every
