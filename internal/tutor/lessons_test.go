@@ -23,12 +23,7 @@ var lessonMarkers = map[i18n.Lang][2]string{
 // step untouched, with the task that reconciles them. TestLessons logs them
 // instead of failing, and fails once one is fixed so the entry goes.
 var startsPassedPending = map[i18n.Lang]map[string]string{
-	i18n.EN: {
-		// absent "oops" ignores code, and the lesson names `oops` only in
-		// code, so step 1 passes before the player types it (L16 has the
-		// Spanish twin, which never passes).
-		"B05": "T6 reconciles the English route B",
-	},
+	i18n.EN: {},
 }
 
 // forEachLang runs f once per language, as a subtest named after it, with

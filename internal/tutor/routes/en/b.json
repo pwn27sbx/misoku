@@ -129,14 +129,14 @@
       "file": "B05 Undo and redo.md",
       "steps": [
         {
-          "text": "Type oops, leave with Esc and press u",
+          "text": "Delete the line delete me with dd, then press u",
           "hint": "u undoes the last change",
           "ids": ["VIM-23"],
-          "check": { "kind": "text", "pred": "absent", "args": ["oops"] }
+          "check": { "kind": "text", "pred": "absent", "args": ["delete me"] }
         },
         {
-          "text": "Press ctrl+r and get the line back",
-          "hint": "ctrl+r redoes",
+          "text": "Type oops, Esc, u, then ctrl+r: oops comes back",
+          "hint": "ctrl+r redoes what u undid",
           "ids": ["VIM-24"],
           "check": { "kind": "text", "pred": "line-contains", "args": ["oops"] }
         }
@@ -605,7 +605,7 @@
         },
         {
           "text": "Search for Hotel with a capital H",
-          "hint": "search is case-sensitive",
+          "hint": "a capital letter makes the search case-sensitive",
           "ids": ["NEW-15"],
           "check": { "kind": "action", "event": "search_hit", "value": "Hotel" }
         },
@@ -652,8 +652,8 @@
           "check": { "kind": "action", "event": "home" }
         },
         {
-          "text": "Press 1 and then 2 on the home screen",
-          "hint": "the numbers open recent notes and projects",
+          "text": "Press 1, then the number of the first folder",
+          "hint": "the recent notes come first, then the folders",
           "ids": ["NOTE-26"],
           "check": { "kind": "action", "event": "home_open", "value": ["recent", "project"] }
         },

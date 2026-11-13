@@ -6,8 +6,8 @@
 
 ## Your turn
 
-1. Press `space d` and look at the home screen: recent notes, projects and menus.
-2. Press `1` to open the first recent note; come back with `space d` and press `2` for the first folder.
+1. Press `space d` and look at the home screen: **Recent**, **Folders** and the menus.
+2. Press `1` to open the first recent note; come back with `space d` and press the number of the first folder, the one after the last recent note.
 3. Try the fixed letters `n`, `f`, `e`, `t`, `?`, `g`, `c`, `s`, `l`, `q` and `Enter`, coming back with `space d` after each one.
 
 `q` closes Misoku: leave it for last and, if you quit by accident, run `misoku tutor` again and you will be right back here.
