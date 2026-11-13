@@ -10,7 +10,7 @@ This difference matters: the table is for touching up a piece of data, the edito
 
 ## Your turn
 
-1. Click the value `coast` in the table, change it to `mountains` and confirm.
+1. At the top of this note write a block with `---`, `trip: coast` and another `---`; then click the value `coast` in the table, change it to `mountains` and confirm.
 2. Add `tags: [beach, sun]` to the front matter, try to edit the list from the table and, when you see it cannot be done, add `hiking` in the editor.
 
 
