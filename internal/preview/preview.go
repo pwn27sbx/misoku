@@ -138,6 +138,10 @@ func (m *Model) SetTheme(th theme.Theme) {
 	m.recompile()
 }
 
+// Redraw compiles the note again for a change the preview cannot see
+// itself, such as the interface language its labels are written in.
+func (m *Model) Redraw() { m.recompile() }
+
 // SetContent recompiles the raw Markdown into styled ANSI text in real time.
 func (m *Model) SetContent(content string) {
 	m.rawContent = content

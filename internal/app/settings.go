@@ -298,12 +298,15 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 				l = systemLanguage()
 			}
 			i18n.Set(l)
+			// The preview keeps what it compiled; its labels are in the old language.
+			m.preview.Redraw()
 			m.changed(settingLanguage, languageName(saved))
 			if saved == "" {
 				// Auto is the default: remove the key rather than write it.
-				return m.saveUI(map[string]any{config.UILanguage: nil})
+				return tea.Batch(m.saveUI(map[string]any{config.UILanguage: nil}), m.reloadLearn())
 			}
-			return m.saveUI(map[string]any{config.UILanguage: saved})
+			// The home screen's Learn entries are the other language's tutorial now.
+			return tea.Batch(m.saveUI(map[string]any{config.UILanguage: saved}), m.reloadLearn())
 		})
 		m.menuBox.onCancel = back(row)
 		if i := slices.Index(languageChoices, m.prefs().ui.Language); i >= 0 {

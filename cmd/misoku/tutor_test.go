@@ -36,7 +36,7 @@ func TestTutorWorkspaceKeepsEditsUnlessReset(t *testing.T) {
 	if dir != tutor.Dir() || dir == "" {
 		t.Fatalf("dir = %q, want tutor.Dir() %q", dir, tutor.Dir())
 	}
-	lesson := filepath.Join(dir, "1 Básico", "B01 Escribe en 30 segundos.md")
+	lesson := filepath.Join(dir, "1 Basic", "B01 Write in 30 seconds.md") // the tests run in English
 	bundled, err := os.ReadFile(lesson)
 	if err != nil {
 		t.Fatalf("the lesson was not installed: %v", err)
@@ -88,7 +88,7 @@ func TestTutorialProgressIgnoresACorruptFile(t *testing.T) {
 	if store == nil {
 		t.Fatal("tutorialProgress returned nil")
 	}
-	l, ok := tutor.Default().Lesson("1 Básico/B01 Escribe en 30 segundos.md")
+	l, ok := tutor.Default().Lesson("1 Basic/B01 Write in 30 seconds.md")
 	if !ok {
 		t.Fatal("B01 is not in the catalog")
 	}

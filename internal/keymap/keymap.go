@@ -94,20 +94,15 @@ const (
 // Groups lists the leader guide groups in display order.
 var Groups = []string{GroupNote, GroupView, GroupGo}
 
+// GroupName is a leader guide group's name in the interface language;
+// the group itself is an ID and is never shown.
+func GroupName(group string) string { return i18n.T(i18n.KeymapGroup(group)) }
+
 // Info describes one action for the help screen and the command palette.
 type Info struct {
-	Action  string
-	Section string // "general" or "explorer"
-	Group   string // leader guide group of a general action; "" for the explorer
-	// Help is the action's one line in English, filled from the i18n
-	// catalog.
-	//
-	// Deprecated: use HelpText, which speaks the interface language.
-	Help string
-	// Long is the English explanation, filled from the i18n catalog.
-	//
-	// Deprecated: use LongText, which speaks the interface language.
-	Long     string
+	Action   string
+	Section  string // "general" or "explorer"
+	Group    string // leader guide group of a general action; "" for the explorer
 	defaults []string
 }
 
@@ -165,13 +160,6 @@ var Actions = []Info{
 	{Action: ExplorerFileManager, Section: "explorer", defaults: []string{"M"}},
 	{Action: ExplorerEditFolder, Section: "explorer", defaults: []string{"m"}},
 	{Action: ExplorerInsert, Section: "explorer", defaults: []string{"i", "I", "a", "A", "o", "O"}},
-}
-
-func init() {
-	for i, a := range Actions {
-		Actions[i].Help = i18n.TFor(i18n.EN, i18n.KeymapHelp(a.Action))
-		Actions[i].Long = i18n.TFor(i18n.EN, i18n.KeymapLong(a.Action))
-	}
 }
 
 // known reports whether action is one of Actions.

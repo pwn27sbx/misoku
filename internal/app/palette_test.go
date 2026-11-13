@@ -44,8 +44,8 @@ func TestPaletteListsEveryActionWithItsEffectiveKeys(t *testing.T) {
 	v := tallPalette(t, app.WithKeys(user))
 	km, _ := keymap.New(user)
 	for _, a := range keymap.Actions {
-		if paletteRow(v, km.Label(a.Action), a.Help) == "" {
-			t.Errorf("%s: no row with %q and %q", a.Action, km.Label(a.Action), a.Help)
+		if paletteRow(v, km.Label(a.Action), keymap.HelpText(a.Action)) == "" {
+			t.Errorf("%s: no row with %q and %q", a.Action, km.Label(a.Action), keymap.HelpText(a.Action))
 		}
 	}
 	if l := helpLine(v, "Toggle explorer"); !strings.Contains(l, "SPC e") || strings.Contains(l, "Ctrl+B") {
@@ -56,8 +56,8 @@ func TestPaletteListsEveryActionWithItsEffectiveKeys(t *testing.T) {
 func TestPaletteListsEveryCommandOfTheCommandLine(t *testing.T) {
 	v := tallPalette(t)
 	for _, c := range content.Commands {
-		if paletteRow(v, c.Usage, c.Help) == "" {
-			t.Errorf("no row with %q and %q", c.Usage, c.Help)
+		if paletteRow(v, c.Usage, c.HelpText()) == "" {
+			t.Errorf("no row with %q and %q", c.Usage, c.HelpText())
 		}
 	}
 }
@@ -151,7 +151,7 @@ func TestPaletteExplainsTheSelectedEntryAtTheBottom(t *testing.T) {
 	var long string
 	for _, c := range content.Commands {
 		if c.Usage == ":settings" {
-			long = c.Long
+			long = c.LongText()
 		}
 	}
 	if got := noSpace(dialogText(h.view())); long == "" || !strings.Contains(got, noSpace(long)) {

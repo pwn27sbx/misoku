@@ -165,7 +165,7 @@ func (m *Model) paletteEntries() []paletteEntry {
 // selection, so they are only explained, and so is the help itself.
 func actionEntry(group paletteGroup, label, action string, home bool) paletteEntry {
 	info := keymap.Actions[slices.IndexFunc(keymap.Actions, func(i keymap.Info) bool { return i.Action == action })]
-	e := paletteEntry{group: group, key: label, title: info.Help, long: info.Long}
+	e := paletteEntry{group: group, key: label, title: keymap.HelpText(action), long: keymap.LongText(action)}
 	switch {
 	case info.Section != "general" || action == keymap.Help:
 	case !home:
@@ -182,7 +182,7 @@ func actionEntry(group paletteGroup, label, action string, home bool) paletteEnt
 // table runs on Enter, exactly as if it was typed on the command line;
 // from home, only one that needs no note (Command.NoNote).
 func commandEntry(group paletteGroup, c content.Command, home bool) paletteEntry {
-	e := paletteEntry{group: group, key: c.Usage, title: c.Help, long: c.Long}
+	e := paletteEntry{group: group, key: c.Usage, title: c.HelpText(), long: c.LongText()}
 	if home && c.Run != "" && !c.NoNote {
 		e.needsNote = true
 		return e

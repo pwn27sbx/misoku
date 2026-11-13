@@ -18,6 +18,9 @@ func CommandHelp(id string) Key { return Key("command." + id + ".help") }
 // CommandLong explains an ex command.
 func CommandLong(id string) Key { return Key("command." + id + ".long") }
 
+// KeymapGroup is the name of a leader guide group, by its id ("note").
+func KeymapGroup(group string) Key { return Key("keymap.group." + group) }
+
 // SlashLabel is the label of a "/" menu item, by its id ("h1", "board").
 func SlashLabel(id string) Key { return Key("slash." + id) }
 
@@ -505,6 +508,9 @@ func init() {
 
 	register(EN, map[Key]string{
 		KeymapMoreGroup:        "more",
+		KeymapGroup("note"):    "note",
+		KeymapGroup("view"):    "view",
+		KeymapGroup("go"):      "go",
 		KeysUnknownAction:      "keys: unknown action %q",
 		KeysSeveralNeedSpace:   "%q: a shortcut of several keys must start with space",
 		KeysOneKey:             "%q: use one key, or space plus one or two keys",
@@ -631,6 +637,9 @@ func init() {
 	})
 	register(ES, map[Key]string{
 		KeymapMoreGroup:        "más",
+		KeymapGroup("note"):    "nota",
+		KeymapGroup("view"):    "vista",
+		KeymapGroup("go"):      "ir",
 		KeysUnknownAction:      "keys: acción desconocida %q",
 		KeysSeveralNeedSpace:   "%q: un atajo de varias teclas debe empezar con space",
 		KeysOneKey:             "%q: usa una tecla, o space y una o dos teclas",

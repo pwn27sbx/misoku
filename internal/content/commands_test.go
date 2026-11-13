@@ -21,7 +21,7 @@ func TestCommandCatalogNamesAreAcceptedByTheCommandLine(t *testing.T) {
 		t.Fatal("the catalog is empty")
 	}
 	for _, c := range content.Commands {
-		if !strings.HasPrefix(c.Usage, ":") || c.Help == "" || c.Long == "" || len(c.Names) == 0 {
+		if !strings.HasPrefix(c.Usage, ":") || c.HelpText() == "" || c.LongText() == "" || len(c.Names) == 0 {
 			t.Errorf("%q: needs a :usage, Help, Long and names", c.Usage)
 		}
 		for _, n := range c.Names {

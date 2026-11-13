@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pwn27sbx/misoku/internal/i18n"
+	"github.com/pwn27sbx/misoku/internal/keymap"
 )
 
 // S1: the app's own screens and messages speak the interface language.
@@ -89,4 +90,49 @@ func TestPaletteRedrawsAfterALanguageSwitch(t *testing.T) {
 	i18n.Set(i18n.ES)
 	h.keys("?")
 	wantAll(t, "the palette after the switch", h.view(), "Desde la terminal")
+}
+
+// S1, S9: the palette's keymap actions and ex commands read in the
+// interface language, their one line and their explanation both.
+func TestPaletteActionsAndCommandsFollowTheLanguage(t *testing.T) {
+	useLang(t, i18n.ES)
+	h := openNote(t)
+	h.key(tea.KeyEsc)
+	h.keys("?")
+	help := i18n.TFor(i18n.ES, i18n.KeymapHelp(keymap.NewNote))
+	if help == i18n.TFor(i18n.EN, i18n.KeymapHelp(keymap.NewNote)) {
+		t.Fatalf("the Spanish help of new_note is the English one: %q", help)
+	}
+	typeQuery(h, help)
+	wantAll(t, "the Spanish palette filtered on its help", h.view(),
+		help, firstWords(i18n.TFor(i18n.ES, i18n.KeymapLong(keymap.NewNote))))
+
+	h.key(tea.KeyEsc)
+	h.keys("?")
+	cmd := i18n.TFor(i18n.ES, i18n.CommandHelp("settings"))
+	typeQuery(h, ":settings")
+	wantAll(t, "the Spanish palette filtered on :settings", h.view(),
+		cmd, firstWords(i18n.TFor(i18n.ES, i18n.CommandLong("settings"))))
+}
+
+// S1, S9: the leader guide's column titles and rows read in the interface
+// language.
+func TestLeaderGuideFollowsTheLanguage(t *testing.T) {
+	useLang(t, i18n.ES)
+	h := openNote(t)
+	h.keys(" ")
+	tickGuide(h)
+	v := h.view()
+	wantAll(t, "the Spanish leader guide", v, "NOTA", "VISTA", "IR",
+		i18n.TFor(i18n.ES, i18n.KeymapHelp(keymap.NewNote)))
+	if strings.Contains(v, "NOTE") || strings.Contains(v, "VIEW") {
+		t.Fatalf("the Spanish guide still has English column titles:\n%s", v)
+	}
+}
+
+// firstWords is the start of a long explanation, short enough to fit on
+// one wrapped line of the palette.
+func firstWords(s string) string {
+	words := strings.Fields(s)
+	return strings.Join(words[:min(3, len(words))], " ")
 }

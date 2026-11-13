@@ -399,7 +399,7 @@
             "kind": "all",
             "checks": [
               { "kind": "text-fence", "fence": "form", "pattern": "title:" },
-              { "kind": "text-fence", "fence": "form", "pattern": "? Question" }
+              { "kind": "text-fence", "fence": "form", "pattern": "? Pregunta" }
             ]
           }
         },

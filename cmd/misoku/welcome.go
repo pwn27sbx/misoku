@@ -162,7 +162,7 @@ func runWelcome(ctx context.Context, o welcomeOptions) (string, int) {
 	if o.Missing != "" {
 		fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeMissing, o.Missing))
 	}
-	fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeQuestion))
+	fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeNotesQuestion))
 	fmt.Fprintf(o.Out, "  %d) %s\n", choiceStart, i18n.T(i18n.WelcomeStart))
 	fmt.Fprintf(o.Out, "  %d) %s\n", choiceBring, i18n.T(i18n.WelcomeBring))
 	last := choiceBring

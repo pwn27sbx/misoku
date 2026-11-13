@@ -112,7 +112,7 @@ type leaderGuideColumn struct {
 func leaderGuideColumns(km keymap.Map, prefix, visible []string) []leaderGuideColumn {
 	cols := make([]leaderGuideColumn, len(keymap.Groups))
 	for i, g := range keymap.Groups {
-		cols[i].title = strings.ToUpper(g)
+		cols[i].title = strings.ToUpper(keymap.GroupName(g))
 	}
 	add := func(group string, r leaderGuideRow) {
 		if i := slices.Index(keymap.Groups, group); i >= 0 {
@@ -124,7 +124,7 @@ func leaderGuideColumns(km keymap.Map, prefix, visible []string) []leaderGuideCo
 			continue
 		}
 		if key := km.LeaderLabelAfter(a.Action, prefix); key != "" {
-			add(a.Group, leaderGuideRow{key, a.Help})
+			add(a.Group, leaderGuideRow{key, keymap.HelpText(a.Action)})
 		}
 	}
 	for _, sg := range km.LeaderSubgroups(visible, prefix) {

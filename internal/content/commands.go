@@ -16,15 +16,6 @@ type Command struct {
 	// id names the command's texts in the i18n catalog
 	// (i18n.CommandHelp, i18n.CommandLong).
 	id string
-	// Help is the command's one line in English, filled from the i18n
-	// catalog.
-	//
-	// Deprecated: use HelpText, which speaks the interface language.
-	Help string
-	// Long is the English explanation, filled from the i18n catalog.
-	//
-	// Deprecated: use LongText, which speaks the interface language.
-	Long string
 	// Run is the line the palette runs on Enter, without ":"; "" when the
 	// command needs an argument or the cursor in a table.
 	Run string
@@ -61,13 +52,6 @@ var Commands = []Command{
 	{id: "addcol", Usage: ":addcol", Names: []string{"addcol", "tc"}},
 	{id: "delrow", Usage: ":delrow / :delcol", Names: []string{"delrow", "delcol"}},
 	{id: "tablefmt", Usage: ":tablefmt", Names: []string{"tablefmt", "tf"}},
-}
-
-func init() {
-	for i, c := range Commands {
-		Commands[i].Help = i18n.TFor(i18n.EN, i18n.CommandHelp(c.id))
-		Commands[i].Long = i18n.TFor(i18n.EN, i18n.CommandLong(c.id))
-	}
 }
 
 // HelpText is the command's one line, next to the usage, in the interface

@@ -9,6 +9,6 @@ Un tablero es una cerca `board` con columnas que empiezan por `## ` y tarjetas q
 1. Inserta `/Board`.
 2. Haz clic en `+ New page` de una columna y escribe la tarjeta `Mochila`.
 3. Haz clic en la tarjeta `Mochila`, renómbrala a `Botas`, muévela a otra columna y bórrala al final: el paso se apunta en cuanto la renombras.
-4. Haz clic en el encabezado de una columna y renómbralo a `Hecho`.
+4. Haz clic en el encabezado de una columna y renómbralo a `Terminado`.
 
 Siguiente: [[I14 Calendarios]]

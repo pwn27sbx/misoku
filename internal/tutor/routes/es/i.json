@@ -323,13 +323,13 @@
           "text": "Inserta /3 columns",
           "hint": "Tres columnas llevan dos separadores +++",
           "ids": ["MD-23"],
-          "check": { "kind": "text-fence", "fence": "columns", "pattern": "Column 3" }
+          "check": { "kind": "text-fence", "fence": "columns", "pattern": "Columna 3" }
         },
         {
           "text": "Inserta /4 columns",
           "hint": "Cuatro columnas llevan tres separadores +++",
           "ids": ["MD-24"],
-          "check": { "kind": "text-fence", "fence": "columns", "pattern": "Column 4" }
+          "check": { "kind": "text-fence", "fence": "columns", "pattern": "Columna 4" }
         },
         {
           "text": "Mira las columnas en el preview y estrecha la ventana",
@@ -377,7 +377,7 @@
       "steps": [
         {
           "text": "Inserta /Board",
-          "hint": "Nace con tres columnas: Not started, In progress y Done",
+          "hint": "Nace con tres columnas: Sin empezar, En curso y Hecho",
           "ids": ["MD-27"],
           "check": { "kind": "text-fence", "fence": "board", "pattern": "## " }
         },
@@ -394,10 +394,10 @@
           "check": { "kind": "text-fence", "fence": "board", "pattern": "Botas" }
         },
         {
-          "text": "Haz clic en un encabezado y renómbralo a Hecho",
+          "text": "Haz clic en un encabezado y renómbralo a Terminado",
           "hint": "El clic en el encabezado cambia la columna entera",
           "ids": ["PRV-11"],
-          "check": { "kind": "text-fence", "fence": "board", "pattern": "## Hecho" }
+          "check": { "kind": "text-fence", "fence": "board", "pattern": "## Terminado" }
         }
       ]
     },
@@ -447,7 +447,7 @@
           "text": "Inserta /Timeline",
           "hint": "El bloque trae dos tramos de ejemplo",
           "ids": ["MD-29"],
-          "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Card 2: " }
+          "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Tarjeta 2: " }
         },
         {
           "text": "Haz clic en + New y crea el tramo Viaje",
@@ -476,7 +476,7 @@
             "kind": "all",
             "checks": [
               { "kind": "text-fence", "fence": "chart", "pattern": "type: bar" },
-              { "kind": "text-fence", "fence": "chart", "pattern": "Jan: 12" }
+              { "kind": "text-fence", "fence": "chart", "pattern": "Ene: 12" }
             ]
           }
         },

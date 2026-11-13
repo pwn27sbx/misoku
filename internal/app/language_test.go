@@ -233,3 +233,26 @@ func TestTutorSaveErrorIsNotAnErrorShownInSpanish(t *testing.T) {
 	h.key(tea.KeyEsc)
 	assertNotPassed(t, p, l, 1)
 }
+
+// S9: the preview is drawn again in the language just chosen in
+// :settings, without waiting for the note to change.
+func TestSettingsLanguageRedrawsThePreview(t *testing.T) {
+	useLang(t, i18n.EN)
+	store := newTestStore(t)
+	if _, err := store.SaveAs("", "doc", "```\nx := 1\n```\n"); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, store, app.WithConfigPath(tempConfig(t, "")))
+	h.keys("1")
+	h.key(tea.KeyEsc)
+	if v := h.view(); !strings.Contains(v, "code · 1 line") {
+		t.Fatalf("the preview lacks the English code label:\n%s", v)
+	}
+	h.openSettings()
+	h.keys("83") // Language → Español
+	h.key(tea.KeyEsc)
+	v := h.view()
+	if !strings.Contains(v, "código · 1 línea") || strings.Contains(v, "code · 1 line") {
+		t.Fatalf("the preview should redraw in Spanish at once:\n%s", v)
+	}
+}

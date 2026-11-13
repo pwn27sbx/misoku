@@ -242,15 +242,14 @@ func TestLeaderLabelListsOnlyTheKeysAfterSpace(t *testing.T) {
 	}
 }
 
-// The command palette explains the selected action at its bottom with Long:
-// every action has one, and it says more than the one-line Help.
+// The command palette explains the selected action at its bottom with
+// LongText: every action has one, and it says more than the one-line
+// HelpText.
 func TestEveryActionHasALongExplanation(t *testing.T) {
 	for _, a := range keymap.Actions {
-		if a.Long == "" || a.Long == a.Help {
-			t.Errorf("%s: Long %q must explain more than Help %q", a.Action, a.Long, a.Help)
-		}
-		if got := keymap.LongText(a.Action); got != a.Long {
-			t.Errorf("LongText(%s) = %q, want %q", a.Action, got, a.Long)
+		help, long := keymap.HelpText(a.Action), keymap.LongText(a.Action)
+		if help == "" || help == a.Action || long == "" || long == help {
+			t.Errorf("%s: LongText %q must explain more than HelpText %q", a.Action, long, help)
 		}
 	}
 	if got := keymap.LongText("nope"); got != "" {
@@ -392,7 +391,7 @@ func TestGoBackIsAGeneralActionOnCtrlO(t *testing.T) {
 		if a.Action != "go_back" {
 			continue
 		}
-		if a.Section != "general" || a.Group != keymap.GroupGo || a.Help == "" || a.Long == "" {
+		if a.Section != "general" || a.Group != keymap.GroupGo || keymap.HelpText(a.Action) == "" || keymap.LongText(a.Action) == "" {
 			t.Fatalf("go_back is not described as a general GO action: %+v", a)
 		}
 		return

@@ -84,7 +84,7 @@ const (
 const (
 	WelcomeTitle         Key = "welcome.title"
 	WelcomeMissing       Key = "welcome.missing"
-	WelcomeQuestion      Key = "welcome.question"
+	WelcomeNotesQuestion Key = "welcome.notes_question"
 	WelcomeStart         Key = "welcome.start"
 	WelcomeBring         Key = "welcome.bring"
 	WelcomeUseThis       Key = "welcome.use_this"
@@ -477,7 +477,7 @@ Flags:
 
 		WelcomeTitle:         "Welcome to Misoku.",
 		WelcomeMissing:       "I can't find your notes at %s.",
-		WelcomeQuestion:      "Where do your notes live?",
+		WelcomeNotesQuestion: "Where do your notes live?",
 		WelcomeStart:         "Start my notes",
 		WelcomeBring:         "Bring my notes from another computer",
 		WelcomeUseThis:       "Use this folder: %s",
@@ -865,7 +865,7 @@ Opciones:
 
 		WelcomeTitle:         "Te damos la bienvenida a Misoku.",
 		WelcomeMissing:       "No encuentro tus notas en %s.",
-		WelcomeQuestion:      "¿Dónde están tus notas?",
+		WelcomeNotesQuestion: "¿Dónde están tus notas?",
 		WelcomeStart:         "Empezar mis notas",
 		WelcomeBring:         "Traer mis notas de otro equipo",
 		WelcomeUseThis:       "Usar esta carpeta: %s",

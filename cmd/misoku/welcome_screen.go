@@ -267,7 +267,7 @@ func (m welcomeScreen) View() string {
 	if missing != "" {
 		lines = append(lines, bg.Foreground(t.Yellow).Width(inner).Render(missing))
 	}
-	lines = append(lines, "", text.Render(i18n.T(i18n.WelcomeQuestion)), "")
+	lines = append(lines, "", text.Render(i18n.T(i18n.WelcomeNotesQuestion)), "")
 	for i, row := range rows {
 		mark, style := "  ", text
 		if i == m.cursor {

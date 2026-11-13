@@ -98,7 +98,7 @@ func TestFirstRunDialogWaitsForARoomierTerminal(t *testing.T) {
 	store := newTestStore(t)
 	h := newHarnessSize(t, 50, 10, store, app.WithLearnOffer(true), app.WithConfigPath(cfgPath),
 		fakeTutorial(new(*exec.Cmd), nil, nil))
-	if v := h.screen(); !strings.Contains(v, "Terminal too small") {
+	if v := h.screen(); !strings.Contains(v, "Terminal demasiado pequeña") {
 		t.Fatalf("a small terminal says so:\n%s", v)
 	}
 	h.key(tea.KeyEnter)

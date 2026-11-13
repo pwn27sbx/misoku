@@ -233,3 +233,20 @@ func TestLearnEntryInEnglish(t *testing.T) {
 		t.Fatalf("the English entries should show:\n%s", v)
 	}
 }
+
+// S9: choosing another language in :settings reads the Learn entries of
+// that language's tutorial again, off the update loop.
+func TestSettingsLanguageReloadsTheLearnEntries(t *testing.T) {
+	dir := tutorialVault(t)
+	passLevel(t, dir, "1 Básico/B13 Títulos.md")
+	useSystemLanguage(t, i18n.ES)
+	h := settingsHarness(t, filepath.Join(t.TempDir(), "config.json"), app.WithLearn(tutorialLearn(t, dir)))
+	if got := strings.Join(app.LearnLabels(h.m), "|"); !strings.Contains(got, "Learn · Básico 1/26") {
+		t.Fatalf("Spanish entries = %q", got)
+	}
+	h.openSettings()
+	h.keys("82") // Language → English
+	if got := strings.Join(app.LearnLabels(h.m), "|"); !strings.Contains(got, "Learn · Basic 0/26") || strings.Contains(got, "Básico") {
+		t.Fatalf("after choosing English the entries = %q, want the English tutorial's", got)
+	}
+}
