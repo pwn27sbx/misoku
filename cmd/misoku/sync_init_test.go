@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // TestMain gives git an empty global config (with an identity and main as
@@ -35,6 +36,11 @@ func TestMain(m *testing.M) {
 		main()
 		os.Exit(0)
 	}
+	// Tests read the English interface: the children running main() inherit
+	// LANGUAGE, which decides before the machine's own language; a test
+	// about another language sets its own.
+	os.Setenv("LANGUAGE", "en")
+	i18n.Set(i18n.EN)
 	os.Exit(runIsolated(m))
 }
 

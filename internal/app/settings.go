@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -9,13 +8,15 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	uikit "github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
-// The settings menu (":settings") changes seven settings of the "ui"
+// The settings menu (":settings") changes eight settings of the "ui"
 // section of config.json. Save model: a value picked with Enter (or a
 // digit, or a click) applies at once and is saved at once; Esc only goes
 // back (from a list or the width prompt to the menu, from the menu out)
@@ -54,21 +55,41 @@ const (
 	settingTransparent
 	settingHeadingNumbers
 	settingLinkSuggestions
+	settingLanguage
 )
 
+// languageChoices are the values ui.language takes, in the order the
+// Language list shows them: Auto (the key removed: the system decides),
+// then each language.
+var languageChoices = []string{"", string(i18n.EN), string(i18n.ES)}
+
+// systemLanguage is the language Auto (system) means: the one read at
+// startup, so choosing Auto runs no program inside Update. Tests replace
+// it.
+var systemLanguage = i18n.System
+
 // lookPreset is a choice of heading icons and bullets. Misoku's own look
-// has none: its keys are removed from the config.
+// has none: its keys are removed from the config. A preset is told apart
+// by its place in lookPresets, never by its shown name.
 type lookPreset struct {
-	name    string
+	name    i18n.Key // "" for Misoku's own, a name in no language
 	icons   []string
 	bullets []string
 }
 
 var lookPresets = []lookPreset{
-	{name: "Misoku"},
-	{"Numbers", []string{"① ", "② ", "③ ", "④ ", "⑤ ", "⑥ "}, []string{"•", "◦", "▪", "▫"}},
-	{"Arrows", []string{"▶ ", "▷ ", "▸ ", "▹ ", "› ", "· "}, []string{"▸", "▹", "›", "·"}},
-	{"Plain", []string{"# ", "## ", "### ", "#### ", "##### ", "###### "}, []string{"-", "*", "+"}},
+	{},
+	{i18n.LookNumbers, []string{"① ", "② ", "③ ", "④ ", "⑤ ", "⑥ "}, []string{"•", "◦", "▪", "▫"}},
+	{i18n.LookArrows, []string{"▶ ", "▷ ", "▸ ", "▹ ", "› ", "· "}, []string{"▸", "▹", "›", "·"}},
+	{i18n.LookPlain, []string{"# ", "## ", "### ", "#### ", "##### ", "###### "}, []string{"-", "*", "+"}},
+}
+
+// title is the preset's name as the menu shows it.
+func (p lookPreset) title() string {
+	if p.name == "" {
+		return "Misoku"
+	}
+	return i18n.T(p.name)
 }
 
 // borders are the names config ui.border accepts, with a sample.
@@ -84,22 +105,53 @@ func (m *Model) OpenSettings() tea.Cmd {
 	return nil
 }
 
-// openSettingsAt opens the settings menu with highlight highlighted.
+// settingLabels are the rows' labels, in row order.
+var settingLabels = []i18n.Key{
+	i18n.SettingAccordion, i18n.SettingHideWidth, i18n.SettingLook, i18n.SettingBorder,
+	i18n.SettingTransparent, i18n.SettingHeadingNumbers, i18n.SettingLinkSuggestions, i18n.SettingLanguage,
+}
+
+// openSettingsAt opens the settings menu with highlight highlighted, in
+// the language in use.
 func (m *Model) openSettingsAt(highlight int) {
 	s := m.prefs()
-	row := func(label, value string) string { return fmt.Sprintf("%-22s %s", label, value) }
-	m.menu("Settings", []string{
-		row("Accordion folders", onOff(s.ui.AccordionOn())),
-		row("Explorer hide width", strconv.Itoa(s.hideWidth)),
-		row("Icons & bullets", m.lookName()),
-		row("Dialog border", m.borderName()),
-		row("Transparent background", onOff(s.ui.Transparent)),
-		row("Heading numbers", onOff(s.ui.HeadingNumbersOn())),
-		row("Link suggestions", m.linkSuggestionsName()),
-	}, func(m *Model, i int) tea.Cmd { return m.chooseSetting(i) })
+	values := []string{
+		onOff(s.ui.AccordionOn()),
+		strconv.Itoa(s.hideWidth),
+		m.lookName(),
+		m.borderName(),
+		onOff(s.ui.Transparent),
+		onOff(s.ui.HeadingNumbersOn()),
+		m.linkSuggestionsName(),
+		languageName(s.ui.Language),
+	}
+	labels := make([]string, len(settingLabels))
+	for i, key := range settingLabels {
+		labels[i] = i18n.T(key)
+	}
+	m.menu(i18n.T(i18n.SettingsTitle), columns(labels, values), func(m *Model, i int) tea.Cmd { return m.chooseSetting(i) })
 	m.menuBox.sel = highlight
 	m.leaderPending = false
 	m.tutorDefer("settings_open", "")
+}
+
+// columns lays out each label followed by its value, the values lined up
+// one column past the widest label.
+func columns(labels, values []string) []string {
+	width := 0
+	for _, l := range labels {
+		width = max(width, ansi.StringWidth(l))
+	}
+	rows := make([]string, len(labels))
+	for i, l := range labels {
+		rows[i] = l + strings.Repeat(" ", width-ansi.StringWidth(l)+1) + values[i]
+	}
+	return rows
+}
+
+// changed says in the bar that row now holds value.
+func (m *Model) changed(row int, value string) {
+	m.setStatus(i18n.T(i18n.SettingChanged, i18n.T(settingLabels[row]), value))
 }
 
 // back returns to the settings menu on row, for a list or prompt closed
@@ -119,7 +171,7 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		s.ui.Accordion = &on
 		m.sidebar.SetAccordion(on)
 		m.openSettingsAt(row)
-		m.setStatus("Accordion folders: " + onOff(on))
+		m.changed(row, onOff(on))
 		return m.saveUI(map[string]any{config.UIAccordion: on})
 
 	case settingHeadingNumbers:
@@ -127,7 +179,7 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		s.ui.HeadingNumbers = &on
 		m.applyLook()
 		m.openSettingsAt(row)
-		m.setStatus("Heading numbers: " + onOff(on))
+		m.changed(row, onOff(on))
 		return m.saveUI(map[string]any{config.UIHeadingNumbers: on})
 
 	case settingLinkSuggestions:
@@ -135,12 +187,12 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		if s.ui.LinkSuggestions == config.LinkSuggestionsFinder {
 			s.ui.LinkSuggestions = config.LinkSuggestionsInline
 			m.openSettingsAt(row)
-			m.setStatus("Link suggestions: Inline")
+			m.changed(row, m.linkSuggestionsName())
 			return m.saveUI(map[string]any{config.UILinkSuggestions: nil})
 		}
 		s.ui.LinkSuggestions = config.LinkSuggestionsFinder
 		m.openSettingsAt(row)
-		m.setStatus("Link suggestions: Finder")
+		m.changed(row, m.linkSuggestionsName())
 		return m.saveUI(map[string]any{config.UILinkSuggestions: config.LinkSuggestionsFinder})
 
 	case settingTransparent:
@@ -149,7 +201,7 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		m.applyTheme(m.baseTheme, false)
 		m.applyLook() // heading bands follow the option
 		m.openSettingsAt(row)
-		m.setStatus("Transparent background: " + onOff(on))
+		m.changed(row, onOff(on))
 		if !on {
 			// Off is the default: remove the key rather than write false.
 			return m.saveUI(map[string]any{config.UITransparent: nil})
@@ -157,13 +209,13 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 		return m.saveUI(map[string]any{config.UITransparent: true})
 
 	case settingHideWidth:
-		cmd := m.prompt("Explorer hide width", strconv.Itoa(s.hideWidth),
-			fmt.Sprintf("The explorer hides below this many columns (default %d).", config.DefaultExplorerHideWidth),
+		cmd := m.prompt(i18n.T(i18n.SettingHideWidth), strconv.Itoa(s.hideWidth),
+			i18n.T(i18n.SettingHideWidthHelp, config.DefaultExplorerHideWidth),
 			func(m *Model, value string) tea.Cmd {
 				defer m.openSettingsAt(settingHideWidth)
 				n, err := strconv.Atoi(value)
 				if err != nil || n < 1 || n > maxHideWidth {
-					m.setError(fmt.Sprintf("Explorer hide width must be a whole number from 1 to %d", maxHideWidth))
+					m.setError(i18n.T(i18n.SettingHideWidthBad, maxHideWidth))
 					return nil
 				}
 				if n == m.prefs().hideWidth {
@@ -171,44 +223,46 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 				}
 				m.prefs().ui.ExplorerHideWidth = n
 				m.applyExplorerHideWidth(n)
-				m.setStatus(fmt.Sprintf("Explorer hide width: %d", n))
+				m.changed(settingHideWidth, strconv.Itoa(n))
 				return m.saveUI(map[string]any{config.UIExplorerHideWidth: n})
 			})
 		m.promptBox.onCancel = back(row)
 		return cmd
 
 	case settingLook:
-		items := make([]string, len(lookPresets))
+		names := make([]string, len(lookPresets))
+		samples := make([]string, len(lookPresets))
 		for i, p := range lookPresets {
-			items[i] = fmt.Sprintf("%-8s %s", p.name, lookSample(p))
+			names[i], samples[i] = p.title(), lookSample(p)
 		}
-		m.menu("Icons & bullets", items, func(m *Model, i int) tea.Cmd {
+		m.menu(i18n.T(i18n.SettingLook), columns(names, samples), func(m *Model, i int) tea.Cmd {
 			p := lookPresets[i]
 			defer m.openSettingsAt(settingLook)
-			if m.lookName() == p.name {
+			if m.lookIndex() == i {
 				return nil
 			}
 			ui := &m.prefs().ui
 			ui.HeadingIcons, ui.Bullets = p.icons, p.bullets
 			m.applyLook()
-			m.setStatus("Icons & bullets: " + p.name)
+			m.changed(settingLook, p.title())
 			if p.icons == nil {
 				return m.saveUI(map[string]any{config.UIHeadingIcons: nil, config.UIBullets: nil})
 			}
 			return m.saveUI(map[string]any{config.UIHeadingIcons: p.icons, config.UIBullets: p.bullets})
 		})
 		m.menuBox.onCancel = back(row)
-		if i := slices.IndexFunc(lookPresets, func(p lookPreset) bool { return p.name == m.lookName() }); i >= 0 {
+		if i := m.lookIndex(); i >= 0 {
 			m.menuBox.sel = i
 		}
 		return nil
 
 	case settingBorder:
-		items := make([]string, len(borders))
+		names := make([]string, len(borders))
+		samples := make([]string, len(borders))
 		for i, b := range borders {
-			items[i] = fmt.Sprintf("%-8s %s", b.name, b.sample)
+			names[i], samples[i] = b.name, b.sample
 		}
-		m.menu("Dialog border", items, func(m *Model, i int) tea.Cmd {
+		m.menu(i18n.T(i18n.SettingBorder), columns(names, samples), func(m *Model, i int) tea.Cmd {
 			name := borders[i].name
 			defer m.openSettingsAt(settingBorder)
 			if name == m.borderName() {
@@ -217,12 +271,43 @@ func (m *Model) chooseSetting(row int) tea.Cmd {
 			m.prefs().ui.Border = name
 			uikit.SetBorder(name)
 			m.applyLook()
-			m.setStatus("Dialog border: " + name)
+			m.changed(settingBorder, name)
 			return m.saveUI(map[string]any{config.UIBorder: name})
 		})
 		m.menuBox.onCancel = back(row)
 		if m.borderName() == "single" {
 			m.menuBox.sel = 1
+		}
+		return nil
+
+	case settingLanguage:
+		items := make([]string, len(languageChoices))
+		for i, c := range languageChoices {
+			items[i] = languageName(c)
+		}
+		m.menu(i18n.T(i18n.SettingLanguage), items, func(m *Model, i int) tea.Cmd {
+			saved := languageChoices[i]
+			// Redrawn after the switch, so in the language just chosen.
+			defer m.openSettingsAt(settingLanguage)
+			if saved == m.prefs().ui.Language {
+				return nil
+			}
+			m.prefs().ui.Language = saved
+			l, ok := i18n.Parse(saved)
+			if !ok {
+				l = systemLanguage()
+			}
+			i18n.Set(l)
+			m.changed(settingLanguage, languageName(saved))
+			if saved == "" {
+				// Auto is the default: remove the key rather than write it.
+				return m.saveUI(map[string]any{config.UILanguage: nil})
+			}
+			return m.saveUI(map[string]any{config.UILanguage: saved})
+		})
+		m.menuBox.onCancel = back(row)
+		if i := slices.Index(languageChoices, m.prefs().ui.Language); i >= 0 {
+			m.menuBox.sel = i
 		}
 		return nil
 	}
@@ -236,23 +321,29 @@ func (m *Model) applyExplorerHideWidth(n int) {
 	WithExplorerHideWidth(n)(m)
 }
 
+// lookIndex is the place in lookPresets of the heading icons and bullets
+// in use, or -1 for lists of the user's own.
+func (m *Model) lookIndex() int {
+	ui := m.prefs().ui
+	return slices.IndexFunc(lookPresets, func(p lookPreset) bool {
+		return slices.Equal(ui.HeadingIcons, p.icons) && slices.Equal(ui.Bullets, p.bullets)
+	})
+}
+
 // lookName names the heading icons and bullets in use: a preset's name,
 // or "custom" for lists of the user's own.
 func (m *Model) lookName() string {
-	ui := m.prefs().ui
-	for _, p := range lookPresets {
-		if slices.Equal(ui.HeadingIcons, p.icons) && slices.Equal(ui.Bullets, p.bullets) {
-			return p.name
-		}
+	if i := m.lookIndex(); i >= 0 {
+		return lookPresets[i].title()
 	}
-	return "custom"
+	return i18n.T(i18n.LookCustom)
 }
 
 func onOff(on bool) string {
 	if on {
-		return "on"
+		return i18n.T(i18n.SettingOn)
 	}
-	return "off"
+	return i18n.T(i18n.SettingOff)
 }
 
 // borderName names the dialog border in use.
@@ -263,12 +354,21 @@ func (m *Model) borderName() string {
 	return "rounded" // unset, or a name ui.SetBorder refused
 }
 
+// languageName names a saved ui.language as the settings menu shows it: a
+// language by its own name, anything else as Auto (system).
+func languageName(saved string) string {
+	if l, ok := i18n.Parse(saved); ok {
+		return i18n.Name(l)
+	}
+	return i18n.T(i18n.LanguageAuto)
+}
+
 // linkSuggestionsName names what "[[" opens, as the settings menu shows it.
 func (m *Model) linkSuggestionsName() string {
 	if m.prefs().ui.LinkSuggestions == config.LinkSuggestionsFinder {
-		return "Finder"
+		return i18n.T(i18n.LinkSuggestionsFinder)
 	}
-	return "Inline"
+	return i18n.T(i18n.LinkSuggestionsInline)
 }
 
 // lookSample shows a preset: its first three heading icons and bullets.
@@ -311,7 +411,7 @@ func (m *Model) saveUI(values map[string]any) tea.Cmd {
 			return nil // newer values of these keys were saved already
 		}
 		if _, err := config.SetUI(path, fresh); err != nil {
-			return core.StatusMsg{Text: "Could not save settings: " + err.Error(), Error: true}
+			return core.StatusMsg{Text: i18n.T(i18n.SettingSaveFailed, err.Error()), Error: true}
 		}
 		for key := range fresh {
 			s.written[key] = seq

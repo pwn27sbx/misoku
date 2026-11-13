@@ -191,3 +191,32 @@ func TestSetUITransparentSavesAndRemovesTheKey(t *testing.T) {
 		t.Fatalf("file after removing transparent: %v", got)
 	}
 }
+
+// ui.language is written under its key, read back by Load, kept by Save,
+// and removed by nil (Auto: back to the system language).
+func TestSetUILanguageSavesAndRemovesTheKey(t *testing.T) {
+	path := writeConfig(t, `{"theme": "nord"}`)
+	if _, err := config.SetUI(path, map[string]any{config.UILanguage: "es"}); err != nil {
+		t.Fatal(err)
+	}
+	if ui, _ := decode(t, path)["ui"].(map[string]any); ui["language"] != "es" {
+		t.Fatalf("ui after saving the language: %v", ui)
+	}
+	cfg, err := config.Load(path)
+	if err != nil || cfg.UI.Language != "es" {
+		t.Fatalf("Load = %+v, %v", cfg.UI, err)
+	}
+	cfg.Theme = "onedark"
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := config.Load(path); again.UI.Language != "es" {
+		t.Fatalf("after Save: %+v", again.UI)
+	}
+	if _, err := config.SetUI(path, map[string]any{config.UILanguage: nil}); err != nil {
+		t.Fatal(err)
+	}
+	if got := decode(t, path); got["ui"] != nil || got["theme"] != "onedark" {
+		t.Fatalf("file after choosing Auto: %v", got)
+	}
+}

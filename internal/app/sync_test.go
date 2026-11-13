@@ -12,6 +12,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -42,6 +43,9 @@ var testHome string
 // forbid t.Parallel, and the sync tests run in parallel.
 func TestMain(m *testing.M) {
 	hangAsGH()
+	// Tests read the English interface; those about another language
+	// switch it themselves.
+	i18n.Set(i18n.EN)
 	os.Exit(runIsolated(m))
 }
 

@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,33 +28,38 @@ func (m *Model) tableHit(h preview.Hit) tea.Cmd {
 		lines := m.docLines()
 		header := h.Line+1 < len(lines) && strings.Contains(lines[h.Line+1], "-") &&
 			strings.Trim(strings.ReplaceAll(strings.ReplaceAll(lines[h.Line+1], "|", ""), ":", ""), " -") == ""
-		edit := "Edit cell"
+		// The menu dispatches on the action, never on its shown words.
+		edit := i18n.TableEditCell
 		if header {
-			edit = "Rename column"
+			edit = i18n.TableRenameColumn
 		}
-		items := []string{edit, "Add row below", "Add column right", "Delete column"}
+		actions := []i18n.Key{edit, i18n.TableAddRowBelow, i18n.TableAddColRight, i18n.TableDeleteColumn}
 		if !header {
-			items = append(items, "Delete row")
+			actions = append(actions, i18n.TableDeleteRow)
+		}
+		items := make([]string, len(actions))
+		for i, a := range actions {
+			items[i] = i18n.T(a)
 		}
 		label := h.Arg
 		if label == "" {
-			label = "(empty cell)"
+			label = i18n.T(i18n.TableEmptyCell)
 		}
 		m.menu(label, items, func(m *Model, choice int) tea.Cmd {
-			switch items[choice] {
-			case "Edit cell", "Rename column":
-				return m.prompt(edit, h.Arg, "", func(m *Model, v string) tea.Cmd {
+			switch actions[choice] {
+			case i18n.TableEditCell, i18n.TableRenameColumn:
+				return m.prompt(i18n.T(edit), h.Arg, "", func(m *Model, v string) tea.Cmd {
 					m.content.SetTableCell(h.Line, h.Index, v)
 					m.tableEdited()
 					return nil
 				})
-			case "Add row below":
+			case i18n.TableAddRowBelow:
 				m.content.TableOpAt(h.Line, h.Index, "addrow")
-			case "Add column right":
+			case i18n.TableAddColRight:
 				m.content.TableOpAt(h.Line, h.Index, "addcol")
-			case "Delete column":
+			case i18n.TableDeleteColumn:
 				m.content.TableOpAt(h.Line, h.Index, "delcol")
-			case "Delete row":
+			case i18n.TableDeleteRow:
 				m.content.TableOpAt(h.Line, h.Index, "delrow")
 			}
 			m.tableEdited()

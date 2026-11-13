@@ -19,6 +19,7 @@ const (
 	UITransparent       = "transparent"
 	UIHeadingNumbers    = "heading_numbers"
 	UILinkSuggestions   = "link_suggestions"
+	UILanguage          = "language"
 )
 
 // Values of ui.link_suggestions.

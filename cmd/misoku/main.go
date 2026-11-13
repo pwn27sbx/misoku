@@ -21,6 +21,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/cursor"
 	"github.com/pwn27sbx/misoku/internal/export"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/kitty"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/syncout"
@@ -35,6 +36,13 @@ import (
 var version = "dev"
 
 func main() {
+	// The language comes first: every subcommand, the usage and the flag
+	// errors below speak it. A misoku tutor started by the app runs this
+	// too, so it speaks the app's language.
+	cfgPath := config.DefaultPath()
+	cfg, cfgErr := config.Load(cfgPath)
+	i18n.Set(i18n.Startup(cfg.UI.Language))
+
 	if len(os.Args) > 1 && os.Args[1] == "export" {
 		os.Exit(runExport(os.Args[2:]))
 	}
@@ -70,8 +78,6 @@ func main() {
 	}
 	dir, themeName, themesDir, showVer, listThemes := opts.dir, opts.theme, opts.themesDir, opts.showVer, opts.listThemes
 
-	cfgPath := config.DefaultPath()
-	cfg, cfgErr := config.Load(cfgPath)
 	if cfgErr != nil {
 		fmt.Fprintf(os.Stderr, "Ignoring unreadable config %s: %v\n", cfgPath, cfgErr)
 	}

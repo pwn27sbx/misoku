@@ -13,6 +13,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -93,6 +94,9 @@ type syncState struct {
 	// A stop's notice also has what the bar must always show of it, the key
 	// included, and the shortest way to say that. Empty for any other notice.
 	noticeStop, noticeStopTight string
+	// reading is the line `:sync status` shows while it reads, in the
+	// language it was shown in, until the status arrives.
+	reading string
 }
 
 // setupSync reads the "sync" section of the config file and decides, once,
@@ -529,20 +533,23 @@ func displayName(name string) string {
 	}, name)
 }
 
-// fromAnotherComputer ends every count of arrivalHead; the compact form of the
-// notice leaves it out.
-const fromAnotherComputer = " from another computer"
-
-// arrivalHead counts the notes a sync brought, in words.
+// arrivalHead counts the notes a sync brought, in words, saying they came
+// from another computer.
 func arrivalHead(res gitsync.SyncResult) string {
-	added, updated := len(res.NewNotes), len(res.UpdatedNotes)
+	return arrivalCount(res, i18n.SyncArrivedNewAndUpdated, i18n.SyncArrivedNew, i18n.SyncArrivedUpdated)
+}
+
+// arrivalCount counts the notes a sync brought with the sentences given:
+// new and updated, new only, updated only.
+func arrivalCount(res gitsync.SyncResult, both, added, updated i18n.Key) string {
+	a, u := len(res.NewNotes), len(res.UpdatedNotes)
 	switch {
-	case added > 0 && updated > 0:
-		return fmt.Sprintf("%d new %s, %d updated"+fromAnotherComputer, added, plural(added, "note", "notes"), updated)
-	case added > 0:
-		return fmt.Sprintf("%d new %s"+fromAnotherComputer, added, plural(added, "note", "notes"))
+	case a > 0 && u > 0:
+		return i18n.N(both, a, a, u)
+	case a > 0:
+		return i18n.N(added, a, a)
 	}
-	return fmt.Sprintf("%d %s updated"+fromAnotherComputer, updated, plural(updated, "note", "notes"))
+	return i18n.N(updated, u, u)
 }
 
 // withArrivals adds to a sync's line the notes it brought. A plain "Synced"
@@ -569,9 +576,10 @@ func arrivalLine(head string, names []string) string {
 	return head + ": " + strings.Join(names, ", ")
 }
 
-// arrivalCompact is the notice without "from another computer".
+// arrivalCompact is the notice without where the notes came from.
 func arrivalCompact(res gitsync.SyncResult) string {
-	return arrivalLine(strings.TrimSuffix(arrivalHead(res), fromAnotherComputer), arrivedNotes(res))
+	head := arrivalCount(res, i18n.SyncArrivedNewAndUpdatedCompact, i18n.SyncArrivedNewCompact, i18n.SyncArrivedUpdatedCompact)
+	return arrivalLine(head, arrivedNotes(res))
 }
 
 // barNotice returns the compact form of the notice when the bar's message is
@@ -981,7 +989,8 @@ func (m *Model) requestSyncStatus() tea.Cmd {
 		m.openSyncStatus([]string{m.syncOff})
 		return nil
 	}
-	m.setStatus("Reading the sync status…")
+	m.sync.reading = i18n.T(i18n.SyncReadingStatus)
+	m.setStatus(m.sync.reading)
 	m.statusKeys = m.keyCount
 	dir := m.store.Root()
 	return func() tea.Msg {
@@ -997,9 +1006,10 @@ const maxListed = 10
 // showSyncStatus shows what `:sync status` read, with what this window
 // knows of its last sync.
 func (m *Model) showSyncStatus(msg syncStatusMsg) {
-	if m.status == "Reading the sync status…" {
+	if m.sync.reading != "" && m.status == m.sync.reading {
 		m.clearStatus()
 	}
+	m.sync.reading = ""
 	if msg.fromKey && m.keyCount != m.statusKeys {
 		// Keys pressed since the sync key were meant for the note: any dialog
 		// would take them.

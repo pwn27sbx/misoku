@@ -286,6 +286,9 @@ type UI struct {
 	// small list under the cursor) or "finder" (the note picker). Unset or
 	// unknown means inline; see InlineLinkSuggestions.
 	LinkSuggestions string `json:"link_suggestions,omitempty"`
+	// Language is the interface language: "en" or "es". Unset (Auto)
+	// follows the system; see i18n.Resolve.
+	Language string `json:"language,omitempty"`
 }
 
 // DefaultPath returns the config file location, or "" if the OS has no

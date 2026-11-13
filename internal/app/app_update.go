@@ -117,7 +117,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tutorSaveMsg:
 		if msg.err != nil {
-			m.setError("Could not save the tutorial's progress: " + msg.err.Error())
+			m.setTutorSaveError(msg.err)
 		}
 		return m, nil
 	case settingsSavedMsg:

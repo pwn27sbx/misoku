@@ -1,7 +1,7 @@
 package app
 
 import (
-	"strings"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -17,13 +17,24 @@ type sentMessage struct {
 
 // say shows a message in the bar and keeps it for `:messages`. An error
 // stays until Esc or the next message; any other message clears on the
-// next key.
-func (m *Model) say(text string, isErr bool) {
+// next key. An error counts for the tutorial as one shown.
+func (m *Model) say(text string, isErr bool) { m.show(text, isErr, isErr) }
+
+// setTutorSaveError shows the tutorial's own failed progress write: an
+// error the tutorial does not count as one shown, or a lesson that asks
+// for an error would pass on Misoku's failure instead of the player's.
+func (m *Model) setTutorSaveError(err error) {
+	m.show(i18n.T(i18n.TutorSaveFailed, err.Error()), true, false)
+}
+
+// show is say, with whether the tutorial counts the message as an error
+// shown.
+func (m *Model) show(text string, isErr, counts bool) {
 	m.status, m.statusErr = text, isErr
 	if text == "" {
 		return
 	}
-	if isErr && !strings.HasPrefix(text, "Could not save the tutorial's progress") {
+	if counts {
 		m.tutorDefer("error_shown", "")
 	}
 	if len(m.messages) == maxMessages {
