@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -97,10 +98,10 @@ func (m *Model) SetSize(w, h int) {
 // ScrollStatus returns a formatted indicator of the viewport scroll position.
 func (m Model) ScrollStatus() string {
 	if m.viewport.AtTop() {
-		return "Top"
+		return i18n.T(i18n.PreviewTop)
 	}
 	if m.viewport.AtBottom() {
-		return "Bot"
+		return i18n.T(i18n.PreviewBottom)
 	}
 	pct := m.viewport.ScrollPercent() * 100
 	return fmt.Sprintf("%3.0f%%", pct)
@@ -343,7 +344,7 @@ func (m Model) View() string {
 
 	var body string
 	if m.pageID == "" {
-		msg := lipgloss.NewStyle().Foreground(th.GreyFg).Render("Nothing to preview")
+		msg := lipgloss.NewStyle().Foreground(th.GreyFg).Render(i18n.T(i18n.PreviewNothing))
 		body = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, msg)
 	} else {
 		body = ui.Fit(m.viewport.View(), m.viewport.Width, m.height, plain)

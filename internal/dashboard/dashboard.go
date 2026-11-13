@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
@@ -42,11 +43,24 @@ const (
 
 // MenuItem represents a selectable button on the start screen.
 type MenuItem struct {
-	Key    string
-	ID     string
-	Icon   string
+	Key  string
+	ID   string
+	Icon string
+	// Label is the text shown as given, such as a learn entry's; it is
+	// used when the item has no text key.
 	Label  string
 	Action Action
+	// text names the label in the i18n catalog, so the item is drawn in
+	// the language in use when it is drawn.
+	text i18n.Key
+}
+
+// label is the text the item shows.
+func (it MenuItem) label() string {
+	if it.text != "" {
+		return i18n.T(it.text)
+	}
+	return it.Label
 }
 
 // LearnEntry is one route on the home screen: its ID and the label, such as
@@ -97,21 +111,21 @@ func New(th theme.Theme) Model {
 	return Model{
 		theme: th,
 		menuItems: []MenuItem{
-			{Key: "n", Icon: "", Label: "New Note", Action: ActionNewPage},
-			{Key: "f", Icon: "󰍉", Label: "Find Note", Action: ActionFind},
-			{Key: "e", Icon: "󰙅", Label: "Open Explorer", Action: ActionBrowse},
-			{Key: "t", Icon: "\U000f03d8", Label: "Themes", Action: ActionThemes},
-			{Key: "?", Icon: "", Label: "Keymaps", Action: ActionKeymap},
-			{Key: "g", Icon: "\U000f0431", Label: "Graph", Action: ActionGraph},
-			{Key: "c", Icon: "\U000f0493", Label: "Settings", Action: ActionSettings},
-			{Key: "q", Icon: "󰩈", Label: "Quit", Action: ActionQuit},
+			{Key: "n", Icon: "", text: i18n.DashNewNote, Action: ActionNewPage},
+			{Key: "f", Icon: "󰍉", text: i18n.DashFindNote, Action: ActionFind},
+			{Key: "e", Icon: "󰙅", text: i18n.DashOpenExplorer, Action: ActionBrowse},
+			{Key: "t", Icon: "\U000f03d8", text: i18n.DashThemes, Action: ActionThemes},
+			{Key: "?", Icon: "", text: i18n.DashKeymaps, Action: ActionKeymap},
+			{Key: "g", Icon: "\U000f0431", text: i18n.DashGraph, Action: ActionGraph},
+			{Key: "c", Icon: "\U000f0493", text: i18n.DashSettings, Action: ActionSettings},
+			{Key: "q", Icon: "󰩈", text: i18n.DashQuit, Action: ActionQuit},
 		},
 	}
 }
 
 // syncItem is the entry that sets up sync; SetSyncSetup shows it before
 // Keymaps. Its icon is nf-md-sync, as in the status bar.
-var syncItem = MenuItem{Key: "s", Icon: "\U000f04e6", Label: "Sync between computers", Action: ActionSyncSetup}
+var syncItem = MenuItem{Key: "s", Icon: "\U000f04e6", text: i18n.DashSync, Action: ActionSyncSetup}
 
 // SetSyncSetup shows the "Sync between computers" entry (key s) when
 // offered is true, and removes it otherwise: the app offers it while the
@@ -140,7 +154,7 @@ func (m *Model) SetSyncSetup(offered bool) {
 // learnItem is the entry that starts the tutorial, before Settings. SetLearn
 // fills its label with the levels passed. Its icon is nf-fa-book, as the
 // tutorial's own title.
-var learnItem = MenuItem{Key: "l", Icon: "\uf02d", Label: "Learn", Action: ActionLearn}
+var learnItem = MenuItem{Key: "l", Icon: "\uf02d", Action: ActionLearn}
 
 // SetLearn shows one "Learn" entry per route, under Graph, with its label
 // (such as "Learn · Básico 3/26"), and removes them when entries is empty:
@@ -306,7 +320,7 @@ func (m Model) lines() []dashLine {
 		add(center(lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("M I S O K U")), -1)
 	}
 	add("", -1)
-	add(center(lipgloss.NewStyle().Foreground(th.GreyFg2).Render("notes that live in plain Markdown files")), -1)
+	add(center(lipgloss.NewStyle().Foreground(th.GreyFg2).Render(i18n.T(i18n.DashTagline))), -1)
 	add("", -1)
 
 	button := func(idx int, icon, label, sub, key string, iconColor lipgloss.Color) string {
@@ -333,12 +347,12 @@ func (m Model) lines() []dashLine {
 	}
 
 	for i, it := range m.menuItems {
-		add(button(i, it.Icon, it.Label, "", it.Key, th.Blue), i)
+		add(button(i, it.Icon, it.label(), "", it.Key, th.Blue), i)
 	}
 
 	if len(m.recentPages) > 0 {
 		add("", -1)
-		add(section("Recent"), -1)
+		add(section(i18n.T(i18n.DashRecent)), -1)
 		for i, p := range m.recentPages {
 			sub := ""
 			if dir := path.Dir(p.ID); dir != "." {
@@ -356,7 +370,7 @@ func (m Model) lines() []dashLine {
 
 	if len(m.projects) > 0 {
 		add("", -1)
-		add(section("Folders"), -1)
+		add(section(i18n.T(i18n.DashFolders)), -1)
 		for i, p := range m.projects {
 			idx := len(m.menuItems) + len(m.recentPages) + i
 			key := fmt.Sprint(len(m.recentPages) + i + 1)
@@ -365,15 +379,11 @@ func (m Model) lines() []dashLine {
 	}
 
 	add("", -1)
-	noun := "notes"
-	if m.totalNotes == 1 {
-		noun = "note"
-	}
 	footer := lipgloss.NewStyle().Foreground(th.Green).Render("") +
-		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(fmt.Sprintf("  %d %s  ·  %s", m.totalNotes, noun, ui.Truncate(m.workspace, 34)))
+		lipgloss.NewStyle().Foreground(th.GreyFg2).Render("  "+i18n.N(i18n.DashNotes, m.totalNotes, m.totalNotes)+"  ·  "+ui.Truncate(m.workspace, 34))
 	add(center(footer), -1)
 	add("", -1)
-	add(lipgloss.NewStyle().Foreground(th.GreyFg).Render("  SPC opens every other command · ? shows them all"), -1)
+	add(lipgloss.NewStyle().Foreground(th.GreyFg).Render("  "+i18n.T(i18n.DashFooterHint)), -1)
 	return out
 }
 

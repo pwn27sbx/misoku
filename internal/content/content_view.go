@@ -3,6 +3,7 @@ package content
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
@@ -27,7 +28,7 @@ func (m Model) View() string {
 		lines := []string{
 			lipgloss.NewStyle().Foreground(th.Grey).Render("󰠮"),
 			"",
-			lipgloss.NewStyle().Foreground(th.GreyFg2).Bold(true).Render("No note open"),
+			lipgloss.NewStyle().Foreground(th.GreyFg2).Bold(true).Render(i18n.T(i18n.EditorNoNote)),
 			"",
 			lipgloss.NewStyle().Foreground(th.GreyFg).Render(m.emptyHint()),
 		}
@@ -35,6 +36,8 @@ func (m Model) View() string {
 		return ui.Fit(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block), m.width, m.height, plain)
 	}
 
+	// Drawn in the language in use now, which may have changed since New.
+	m.textarea.Placeholder = i18n.T(i18n.EditorPlaceholder)
 	m.textarea.LineColors = nil
 	if !m.dimmed {
 		m.textarea.LineColors = m.hl.colors(m)
@@ -45,15 +48,18 @@ func (m Model) View() string {
 // emptyHint names the shortcuts worth knowing with no note open, as the user
 // configured them; an unbound action is left out.
 func (m Model) emptyHint() string {
-	hints := []struct{ action, what string }{
-		{keymap.NewNote, "new note"},
-		{keymap.FindNote, "search"},
-		{keymap.NextPane, "explorer"},
+	hints := []struct {
+		action string
+		what   i18n.Key
+	}{
+		{keymap.NewNote, i18n.EditorHintNewNote},
+		{keymap.FindNote, i18n.EditorHintSearch},
+		{keymap.NextPane, i18n.EditorHintExplorer},
 	}
 	var parts []string
 	for _, h := range hints {
 		if k := m.keys.Hint(h.action); k != "" {
-			parts = append(parts, k+"  "+h.what)
+			parts = append(parts, k+"  "+i18n.T(h.what))
 		}
 	}
 	return strings.Join(parts, "    ")

@@ -4,10 +4,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -169,7 +169,7 @@ func (c *compiler) embed(l core.WikiLink) {
 			c.image(l.Alias, n.File)
 			return
 		}
-		c.emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 "+path.Base(l.Target)) + c.st.muted.Render(" (not found)"))
+		c.emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 "+path.Base(l.Target)) + c.st.muted.Render(" "+i18n.T(i18n.PreviewNotFound)))
 		return
 	}
 
@@ -179,7 +179,7 @@ func (c *compiler) embed(l core.WikiLink) {
 		label = note.Title
 	}
 	if !ok {
-		c.emit(markLink("wiki", l.Ref(), c.st.muted.Underline(true).Render("󰈙 "+label)) + c.st.muted.Render("  (no such note)"))
+		c.emit(markLink("wiki", l.Ref(), c.st.muted.Underline(true).Render("󰈙 "+label)) + c.st.muted.Render("  "+i18n.T(i18n.PreviewNoSuchNote)))
 		return
 	}
 	bar := c.st.quoteBar.Render("▏ ")
@@ -187,7 +187,7 @@ func (c *compiler) embed(l core.WikiLink) {
 	section, found := core.LinkSection(note.Content, l)
 	switch {
 	case !found:
-		c.emit(bar + c.st.muted.Render("section not found"))
+		c.emit(bar + c.st.muted.Render(i18n.T(i18n.PreviewSectionNotFound)))
 		return
 	case c.depth >= maxEmbedDepth:
 		c.emit(bar + c.st.muted.Render("…"))
@@ -253,8 +253,9 @@ func (m *Model) SetMentions(id string, ms []core.UnlinkedMention) {
 	m.recompile()
 }
 
-// mentionButton is the link action at the end of an unlinked mention's row.
-const mentionButton = "[ link ]"
+// mentionButton is the link action at the end of an unlinked mention's row,
+// in the interface language.
+func mentionButton() string { return i18n.T(i18n.PreviewMentionButton) }
 
 // appendMentions adds the "Unlinked mentions" section, rows drawn like the
 // backlinks: the name opens the note at its first mention, and the link
@@ -265,15 +266,16 @@ func (m *Model) appendMentions(compiled string, hits []Hit, width int) (string, 
 	if compiled == "" {
 		lines = nil
 	}
-	title := " Unlinked mentions in " + plural(len(m.mentions), "note") + " "
+	title := i18n.N(i18n.PreviewUnlinkedMentions, len(m.mentions), len(m.mentions))
 	lines = append(lines, "", st.rule.Render("──")+st.muted.Bold(true).Render(title)+st.rule.Render(strings.Repeat("─", max(width-2-ansi.StringWidth(title), 0))))
+	button := mentionButton()
 	for _, u := range m.mentions {
 		row := len(lines)
-		name, count := "󰈙 "+u.Title, " · "+plural(u.Count, "mention")+"  "
+		name, count := "󰈙 "+u.Title, " · "+i18n.N(i18n.PreviewMentions, u.Count, u.Count)+"  "
 		x0 := ansi.StringWidth(name + count)
-		lines = append(lines, ansi.Truncate(st.link.Render(name)+st.muted.Render(count)+st.link.Bold(true).Render(mentionButton), width, "…"))
+		lines = append(lines, ansi.Truncate(st.link.Render(name)+st.muted.Render(count)+st.link.Bold(true).Render(button), width, "…"))
 		hits = append(hits, Hit{Row: row, H: 2, X1: width, Kind: HitNoteLink, Arg: u.ID, Index: u.Line, Line: -1})
-		if x1 := x0 + ansi.StringWidth(mentionButton); x1 <= width {
+		if x1 := x0 + ansi.StringWidth(button); x1 <= width {
 			hits = append(hits, Hit{Row: row, H: 1, X0: x0, X1: x1, Kind: HitMentionLink, Arg: u.ID, Line: -1})
 		}
 		snippet, _, _ := strings.Cut(ansi.Strip(Compile(u.Text, m.theme, 1000)), "\n")
@@ -290,7 +292,7 @@ func (m *Model) appendBacklinks(compiled string, hits []Hit, width int) (string,
 	if compiled == "" {
 		lines = nil
 	}
-	title := " Linked from " + plural(len(m.backlinks), "note") + " "
+	title := i18n.N(i18n.PreviewLinkedFrom, len(m.backlinks), len(m.backlinks))
 	lines = append(lines, "", st.rule.Render("──")+st.muted.Bold(true).Render(title)+st.rule.Render(strings.Repeat("─", max(width-2-ansi.StringWidth(title), 0))))
 	for _, b := range m.backlinks {
 		row := len(lines)
@@ -301,13 +303,6 @@ func (m *Model) appendBacklinks(compiled string, hits []Hit, width int) (string,
 		lines = append(lines, ansi.Truncate(st.muted.Render("  "+strings.TrimSpace(snippet)), width, "…"))
 	}
 	return strings.Join(lines, "\n"), hits
-}
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	return strconv.Itoa(n) + " " + word + "s"
 }
 
 // ScrollToLine scrolls so the block holding document line (0-based) is at

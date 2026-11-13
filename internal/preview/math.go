@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
@@ -17,7 +18,7 @@ func renderMath(body []string, th theme.Theme, _ int, _ *[]Hit) []string {
 		src = append(src, texToUnicode(eq))
 	}
 	if len(src) == 0 {
-		return []string{lipgloss.NewStyle().Foreground(th.GreyFg).Render("Empty equation: write LaTeX like  E = mc^2")}
+		return []string{lipgloss.NewStyle().Foreground(th.GreyFg).Render(i18n.T(i18n.PreviewMathEmpty))}
 	}
 	style := lipgloss.NewStyle().Foreground(th.Fg)
 	var out []string

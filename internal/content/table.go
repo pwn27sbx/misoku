@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // Markdown pipe-table editing: add/delete rows and columns, move between
@@ -180,7 +182,7 @@ func (m *Model) tableOp(op string) bool {
 			if i == sepIdx {
 				cell = "---"
 			} else if i == 0 {
-				cell = "Column"
+				cell = i18n.T(i18n.EditorNewColumn)
 			}
 			rows[i] = append(rows[i][:c+1], append([]string{cell}, rows[i][c+1:]...)...)
 		}

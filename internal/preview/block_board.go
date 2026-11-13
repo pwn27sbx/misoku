@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -47,7 +48,7 @@ func renderBoard(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 			cols = append(cols, boardColumn{name: strings.TrimSpace(strings.TrimLeft(t, "#")), line: i})
 		case strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* "):
 			if len(cols) == 0 {
-				cols = append(cols, boardColumn{name: "Cards", line: -1})
+				cols = append(cols, boardColumn{name: i18n.T(i18n.PreviewBoardCards), line: -1})
 			}
 			card := strings.TrimSpace(t[2:])
 			card = strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(card, "[ ] "), "[x] "), "[X] ")
@@ -60,7 +61,7 @@ func renderBoard(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 		}
 	}
 	if len(cols) == 0 {
-		return []string{lipgloss.NewStyle().Foreground(th.GreyFg).Render("(empty board: add \"## Column\" headings and \"- card\" lines)")}
+		return []string{lipgloss.NewStyle().Foreground(th.GreyFg).Render(i18n.T(i18n.PreviewBoardEmpty))}
 	}
 
 	gap := 2
@@ -100,7 +101,7 @@ func renderBoard(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 			lines = append(lines, rendered...)
 		}
 		perCol[i].hits = append(perCol[i].hits, Hit{Row: len(lines), H: 1, X1: colW, Kind: "board:add", Line: c.line, Index: i, Arg: c.name})
-		lines = append(lines, lipgloss.NewStyle().Foreground(color).Render(" + New page"))
+		lines = append(lines, lipgloss.NewStyle().Foreground(color).Render(" "+i18n.T(i18n.PreviewNewPage)))
 		for j := range lines {
 			lines[j] = pad(lines[j], colW)
 		}

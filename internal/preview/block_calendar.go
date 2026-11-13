@@ -1,11 +1,11 @@
 package preview
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -61,20 +61,22 @@ func renderCalendar(body []string, th theme.Theme, width int, cal CalendarView, 
 	muted := lipgloss.NewStyle().Foreground(th.GreyFg)
 	text := lipgloss.NewStyle().Foreground(th.Fg)
 
-	title := text.Bold(true).Render(month.Format("January 2006")) + "  " + muted.Render(fmt.Sprintf("%d events", len(events)))
-	nav := lipgloss.NewStyle().Foreground(th.GreyFg2).Render(calendarNav)
+	title := text.Bold(true).Render(monthYear(month, false)) + "  " + muted.Render(i18n.N(i18n.PreviewCalendarEvents, len(events), len(events)))
+	nav := lipgloss.NewStyle().Foreground(th.GreyFg2).Render(calendarNav())
 	gridW := 7*cw + 8
 	gap := max(gridW-ansi.StringWidth(title)-ansi.StringWidth(nav), 2)
 	out := []string{title + strings.Repeat(" ", gap) + nav, ""}
 	navX := ansi.StringWidth(title) + gap
 	addHit(hs, Hit{Row: 0, X0: navX, X1: navX + 2, Kind: "cal:prev", Line: -1})
-	addHit(hs, Hit{Row: 0, X0: navX + 3, X1: navX + 8, Kind: "cal:today", Line: -1})
-	addHit(hs, Hit{Row: 0, X0: navX + 9, X1: navX + 12, Kind: "cal:next", Line: -1})
+	todayW := ansi.StringWidth(i18n.T(i18n.PreviewToday)) // between "‹  " and "  ›"
+	addHit(hs, Hit{Row: 0, X0: navX + 3, X1: navX + 3 + todayW, Kind: "cal:today", Line: -1})
+	addHit(hs, Hit{Row: 0, X0: navX + 4 + todayW, X1: navX + 7 + todayW, Kind: "cal:next", Line: -1})
 
 	var head strings.Builder
 	head.WriteString(" ")
-	for _, d := range []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"} {
-		head.WriteString(muted.Render(center(d[:min(len(d), cw)], cw)))
+	for _, d := range strings.Split(i18n.T(i18n.PreviewWeekdays), ",") {
+		r := []rune(d)
+		head.WriteString(muted.Render(center(string(r[:min(len(r), cw)]), cw)))
 		head.WriteString(" ")
 	}
 	out = append(out, head.String())
@@ -108,7 +110,7 @@ func renderCalendar(body []string, th theme.Theme, width int, cal CalendarView, 
 			}
 			num := strconv.Itoa(day.Day())
 			if day.Day() == 1 && cw >= 6 {
-				num = day.Format("Jan 2")
+				num = monthName(day.Month(), true) + " " + strconv.Itoa(day.Day())
 			}
 			numStyle := shade.Foreground(th.Fg)
 			if day.Month() != month.Month() {
@@ -132,7 +134,7 @@ func renderCalendar(body []string, th theme.Theme, width int, cal CalendarView, 
 				if i := r - 1; i < len(evs) {
 					label := evs[i].title
 					if r == cellH-1 && len(evs) > cellH-1 {
-						label = fmt.Sprintf("+%d more", len(evs)-(cellH-2))
+						label = i18n.T(i18n.PreviewCalendarMore, len(evs)-(cellH-2))
 					} else {
 						addHit(hs, Hit{Row: rowBase + r, X0: x0, X1: x0 + cw, Kind: "cal:event", Line: evs[i].line, Arg: evs[i].title})
 					}

@@ -1,12 +1,14 @@
 package preview
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"os"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -39,7 +41,7 @@ func SplitFrontMatter(input string) (map[string]string, string) {
 func renderCover(path string, width int, bg lipgloss.Color) ([]string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("not found")
+		return nil, errors.New(i18n.T(i18n.PreviewImageMissing))
 	}
 	profile := lipgloss.ColorProfile()
 	key := imageKey{"cover:" + path, info.ModTime(), width, int(profile), string(bg)}
@@ -57,13 +59,13 @@ func renderCover(path string, width int, bg lipgloss.Color) ([]string, error) {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("unsupported image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageUnsupported))
 	}
 
 	b := img.Bounds()
 	iw, ih := b.Dx(), b.Dy()
 	if iw == 0 || ih == 0 || width <= 0 {
-		return nil, fmt.Errorf("empty image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageEmpty))
 	}
 	pw, ph := width, coverRows*2
 	// Crop the source to the banner's aspect ratio, centred.

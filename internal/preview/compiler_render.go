@@ -8,6 +8,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/highlight"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -56,13 +57,9 @@ func (c *compiler) codeBlock(lang string, code []string) {
 	key := c.foldKey("c", lang)
 	label := lang
 	if label == "" {
-		label = "code"
+		label = i18n.T(i18n.PreviewCodeLabel)
 	}
-	plural := "s"
-	if len(code) == 1 {
-		plural = ""
-	}
-	info := fmt.Sprintf("%s · %d line%s", label, len(code), plural)
+	info := i18n.N(i18n.PreviewCodeInfo, len(code), label, len(code))
 	c.hits = append(c.hits, Hit{Row: len(c.out), H: 1, X1: c.width, Kind: "fold", Arg: key, Line: -1})
 	if c.folded(key) {
 		c.emit(c.st.codeLang.Render("▸ " + info))
@@ -435,11 +432,13 @@ func (c *compiler) table(rows [][]string, docStart int) {
 		}
 	}
 	c.emit(border("└", "┴", "┘"))
-	addRow := lipgloss.NewStyle().Foreground(c.st.th.Blue).Render("+ Add row")
-	addCol := lipgloss.NewStyle().Foreground(c.st.th.Blue).Render("+ Add column")
+	rowLabel, colLabel := i18n.T(i18n.PreviewAddRow), i18n.T(i18n.PreviewAddColumn)
+	addRow := lipgloss.NewStyle().Foreground(c.st.th.Blue).Render(rowLabel)
+	addCol := lipgloss.NewStyle().Foreground(c.st.th.Blue).Render(colLabel)
+	colX := ansi.StringWidth(rowLabel) + 3 // after the row label and "   "
 	c.hits = append(c.hits,
-		Hit{Row: len(c.out), H: 1, X0: 0, X1: 9, Kind: "table:addrow", Line: lastLine, Index: cols - 1},
-		Hit{Row: len(c.out), H: 1, X0: 12, X1: 24, Kind: "table:addcol", Line: lastLine, Index: cols - 1},
+		Hit{Row: len(c.out), H: 1, X0: 0, X1: ansi.StringWidth(rowLabel), Kind: "table:addrow", Line: lastLine, Index: cols - 1},
+		Hit{Row: len(c.out), H: 1, X0: colX, X1: colX + ansi.StringWidth(colLabel), Kind: "table:addcol", Line: lastLine, Index: cols - 1},
 	)
 	c.emit(addRow + "   " + addCol)
 	c.blank()

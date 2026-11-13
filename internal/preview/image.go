@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/kitty"
 	_ "golang.org/x/image/bmp"  //
 	_ "golang.org/x/image/webp" //
@@ -50,7 +51,7 @@ func standaloneImage(line string) (alt, src string, ok bool) {
 // resolveImage turns a Markdown image source into a local file path.
 func resolveImage(src, baseDir string) (string, error) {
 	if strings.Contains(src, "://") {
-		return "", fmt.Errorf("remote image")
+		return "", errors.New(i18n.T(i18n.PreviewImageRemote))
 	}
 	if u, err := url.PathUnescape(src); err == nil {
 		src = u
@@ -62,7 +63,7 @@ func resolveImage(src, baseDir string) (string, error) {
 	}
 	if !filepath.IsAbs(src) {
 		if baseDir == "" {
-			return "", fmt.Errorf("unknown folder")
+			return "", errors.New(i18n.T(i18n.PreviewImageNoFolder))
 		}
 		src = filepath.Join(baseDir, filepath.FromSlash(src))
 	}
@@ -101,7 +102,7 @@ func cellBox(iw, ih, width int) (cols, rows int) {
 func renderImage(path string, width int, bg lipgloss.Color) ([]string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("not found")
+		return nil, errors.New(i18n.T(i18n.PreviewImageMissing))
 	}
 	if imageMode() == kitty.Graphics {
 		lines, err := renderGraphicsImage(path, info, width)
@@ -128,13 +129,13 @@ func renderImage(path string, width int, bg lipgloss.Color) ([]string, error) {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("unsupported image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageUnsupported))
 	}
 
 	b := img.Bounds()
 	iw, ih := b.Dx(), b.Dy()
 	if iw == 0 || ih == 0 {
-		return nil, fmt.Errorf("empty image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageEmpty))
 	}
 	cols, rows := cellBox(iw, ih, width)
 

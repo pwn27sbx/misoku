@@ -3,6 +3,7 @@ package content
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -83,11 +84,11 @@ func (m Model) SlashView() (string, int, int, bool) {
 
 	var lines []string
 	if len(items) == 0 {
-		lines = append(lines, ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render("  No results"), inner, bg))
+		lines = append(lines, ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render("  "+i18n.T(i18n.EditorNoResults)), inner, bg))
 	}
 	for _, r := range rows {
 		if r.item < 0 {
-			lines = append(lines, ui.FitLine(bg.Foreground(th.GreyFg2).Render(" "+r.header), inner, bg))
+			lines = append(lines, ui.FitLine(bg.Foreground(th.GreyFg2).Render(" "+i18n.T(i18n.SlashSection(r.header))), inner, bg))
 			continue
 		}
 		it := items[r.item]
@@ -97,8 +98,8 @@ func (m Model) SlashView() (string, int, int, bool) {
 			base = lipgloss.NewStyle().Background(th.OneBg2)
 			iconFg = th.Blue
 		}
-		left := base.Foreground(iconFg).Render(" "+it.icon+"  ") + base.Foreground(labelFg).Render(it.label)
-		right := base.Foreground(th.GreyFg).Render(it.hint + " ")
+		left := base.Foreground(iconFg).Render(" "+it.icon+"  ") + base.Foreground(labelFg).Render(it.text())
+		right := base.Foreground(th.GreyFg).Render(it.hintText() + " ")
 		gap := inner - lipgloss.Width(left) - lipgloss.Width(right)
 		lines = append(lines, left+base.Render(strings.Repeat(" ", max(gap, 1)))+right)
 	}

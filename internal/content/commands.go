@@ -1,6 +1,10 @@
 package content
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
+)
 
 // Command is one ex command of the editor's command line, as the command
 // palette lists it.
@@ -9,9 +13,18 @@ type Command struct {
 	Usage string
 	// Names are every spelling the command line accepts for it.
 	Names []string
-	// Help is one line, next to the usage; Long explains it at the bottom
-	// of the palette.
-	Help, Long string
+	// id names the command's texts in the i18n catalog
+	// (i18n.CommandHelp, i18n.CommandLong).
+	id string
+	// Help is the command's one line in English, filled from the i18n
+	// catalog.
+	//
+	// Deprecated: use HelpText, which speaks the interface language.
+	Help string
+	// Long is the English explanation, filled from the i18n catalog.
+	//
+	// Deprecated: use LongText, which speaks the interface language.
+	Long string
 	// Run is the line the palette runs on Enter, without ":"; "" when the
 	// command needs an argument or the cursor in a table.
 	Run string
@@ -24,55 +37,46 @@ type Command struct {
 // parseVimCommand and the table commands: a name missing here is not a
 // command.
 var Commands = []Command{
-	{Usage: ":w", Names: []string{"w", "write"}, Help: "Save", Run: "w",
-		Long: "Writes the note to disk. A note that was never saved asks which folder it goes in."},
-	{Usage: ":w name", Names: []string{"sav", "saveas"}, Help: "Save as name.md",
-		Long: "Saves the note under a new name, name.md; a path such as folder/name puts it in that folder of the vault. :sav and :saveas do the same."},
-	{Usage: ":wq / :x", Names: []string{"wq", "x", "xit", "wqa", "xa"}, Help: "Save and quit", Run: "wq",
-		Long: "Saves this note, then closes Misoku. Another note with unsaved changes still asks first."},
-	{Usage: ":q / :q!", Names: []string{"q", "quit", "qa", "qall", "q!", "quit!", "qa!", "qall!"}, Help: "Quit / discard", Run: "q", NoNote: true,
-		Long: "Closes Misoku. :q asks before losing unsaved changes; :q! throws them away."},
-	{Usage: ":bd", Names: []string{"bd", "bdelete", "bw", "close", "bd!", "bdelete!", "bw!"}, Help: "Close tab", Run: "bd",
-		Long: "Closes this tab. With unsaved changes it asks first; :bd! closes it without saving."},
-	{Usage: ":enew", Names: []string{"enew", "new", "e", "edit"}, Help: "New note", Run: "enew", NoNote: true,
-		Long: "Opens an empty tab for a new note, as the new note key does. :e and :edit without a name do the same; with a name they open that note."},
-	{Usage: ":e name", Names: []string{"e", "edit"}, Help: "Open or start note name",
-		Long: "Opens the note name, resolved as a [[link]] written in this note would be, so Projects/AWS works too. A note that does not exist yet starts unsaved with that name; nothing is written until you save it. Bare :e opens an empty tab."},
-	{Usage: ":export [file]", Names: []string{"export", "pdf"}, Help: "Export to a file", Run: "export",
-		Long: "Writes this note as a PDF. Without a file it goes in the note's folder, named after the note; a file or folder picks where. :pdf does the same."},
-	{Usage: ":graph", Names: []string{"graph"}, Help: "Graph of this note's links", Run: "graph", NoNote: true,
-		Long: "Shows the map of the notes this note links to and the ones linking to it."},
-	{Usage: ":graph all", Names: []string{"graph"}, Help: "Graph of every note", Run: "graph all", NoNote: true,
-		Long: "Shows the map of every note in the vault and the links between them, notes without links and links to missing notes included."},
-	{Usage: ":daily", Names: []string{"daily"}, Help: "Today's daily note", Run: "daily", NoNote: true,
-		Long: "Opens today's note, Diario/YYYY-MM-DD.md or the daily_dir of config.json. When it does not exist yet, a new note with that name starts in that folder; nothing is written until you save it."},
-	{Usage: ":history", Names: []string{"history"}, Help: "Older versions of this note", Run: "history",
-		Long: "Lists the commits of git that changed this note, renames included, and shows the selected version. Enter puts it back in the editor as one change: u undoes it, and nothing is written until you save."},
-	{Usage: ":tags", Names: []string{"tags"}, Help: "Every tag, to filter by one", Run: "tags", NoNote: true,
-		Long: "Lists every tag of the vault, #tag in the text or tags: in the front matter, with how many notes carry it. Picking one opens the finder with tag:name, which also finds its nested tags (name/sub)."},
-	{Usage: ":status [value]", Names: []string{"status"}, Help: "Notes with a status", Run: "status", NoNote: true,
-		Long: "Opens the finder with status:value: active, onhold, completed or dropped, the status: of the front matter. Without a value it opens with status: and lists the four."},
-	{Usage: ":messages", Names: []string{"messages", "mes"}, Help: "Last messages of the bar", Run: "messages", NoNote: true,
-		Long: "Lists the last 100 messages the status bar showed, with their time, so an error that went away can be read again."},
-	{Usage: ":colo [name]", Names: []string{"colo", "colorscheme", "theme"}, Help: "Switch theme", Run: "colo", NoNote: true,
-		Long: "With a name, applies and saves that theme; without one, opens the theme picker."},
-	{Usage: ":settings", Names: []string{"settings"}, Help: "Settings menu", Run: "settings", NoNote: true,
-		Long: "Opens the settings menu: accordion folders, the explorer's hide width, heading icons and bullets, the dialog border, the transparent background and heading numbers. A change applies and is saved at once."},
-	{Usage: ":sync", Names: []string{"sync"}, Help: "Sync the vault with git", Run: "sync", NoNote: true,
-		Long: "Syncs the vault with its git remote now, like the sync key."},
-	{Usage: ":sync status", Names: []string{"sync"}, Help: "Sync state, conflict copies", Run: "sync status", NoNote: true,
-		Long: "Shows the state of the sync and any conflict copies left to look at."},
-	{Usage: ":sync setup", Names: []string{"sync"}, Help: "Connect the vault to GitHub", Run: "sync setup", NoNote: true,
-		Long: "Walks through connecting this vault to a GitHub repository, so it syncs on its own."},
-	{Usage: ":addrow", Names: []string{"addrow", "tr"}, Help: "Table row",
-		Long: "With the cursor in a Markdown table, adds a row below the cursor. :tr is the short form."},
-	{Usage: ":addcol", Names: []string{"addcol", "tc"}, Help: "Table column",
-		Long: "With the cursor in a Markdown table, adds a column after the cursor. :tc is the short form."},
-	{Usage: ":delrow / :delcol", Names: []string{"delrow", "delcol"}, Help: "Delete table row / column",
-		Long: "With the cursor in a Markdown table, deletes the row or the column under the cursor."},
-	{Usage: ":tablefmt", Names: []string{"tablefmt", "tf"}, Help: "Align the table",
-		Long: "With the cursor in a Markdown table, lines up its columns. :tf is the short form."},
+	{id: "w", Usage: ":w", Names: []string{"w", "write"}, Run: "w"},
+	{id: "saveas", Usage: ":w name", Names: []string{"sav", "saveas"}},
+	{id: "wq", Usage: ":wq / :x", Names: []string{"wq", "x", "xit", "wqa", "xa"}, Run: "wq"},
+	{id: "q", Usage: ":q / :q!", Names: []string{"q", "quit", "qa", "qall", "q!", "quit!", "qa!", "qall!"}, Run: "q", NoNote: true},
+	{id: "bd", Usage: ":bd", Names: []string{"bd", "bdelete", "bw", "close", "bd!", "bdelete!", "bw!"}, Run: "bd"},
+	{id: "enew", Usage: ":enew", Names: []string{"enew", "new", "e", "edit"}, Run: "enew", NoNote: true},
+	{id: "e", Usage: ":e name", Names: []string{"e", "edit"}},
+	{id: "export", Usage: ":export [file]", Names: []string{"export", "pdf"}, Run: "export"},
+	{id: "graph", Usage: ":graph", Names: []string{"graph"}, Run: "graph", NoNote: true},
+	{id: "graph_all", Usage: ":graph all", Names: []string{"graph"}, Run: "graph all", NoNote: true},
+	{id: "daily", Usage: ":daily", Names: []string{"daily"}, Run: "daily", NoNote: true},
+	{id: "history", Usage: ":history", Names: []string{"history"}, Run: "history"},
+	{id: "tags", Usage: ":tags", Names: []string{"tags"}, Run: "tags", NoNote: true},
+	{id: "status", Usage: ":status [value]", Names: []string{"status"}, Run: "status", NoNote: true},
+	{id: "messages", Usage: ":messages", Names: []string{"messages", "mes"}, Run: "messages", NoNote: true},
+	{id: "colo", Usage: ":colo [name]", Names: []string{"colo", "colorscheme", "theme"}, Run: "colo", NoNote: true},
+	{id: "settings", Usage: ":settings", Names: []string{"settings"}, Run: "settings", NoNote: true},
+	{id: "sync", Usage: ":sync", Names: []string{"sync"}, Run: "sync", NoNote: true},
+	{id: "sync_status", Usage: ":sync status", Names: []string{"sync"}, Run: "sync status", NoNote: true},
+	{id: "sync_setup", Usage: ":sync setup", Names: []string{"sync"}, Run: "sync setup", NoNote: true},
+	{id: "addrow", Usage: ":addrow", Names: []string{"addrow", "tr"}},
+	{id: "addcol", Usage: ":addcol", Names: []string{"addcol", "tc"}},
+	{id: "delrow", Usage: ":delrow / :delcol", Names: []string{"delrow", "delcol"}},
+	{id: "tablefmt", Usage: ":tablefmt", Names: []string{"tablefmt", "tf"}},
 }
+
+func init() {
+	for i, c := range Commands {
+		Commands[i].Help = i18n.TFor(i18n.EN, i18n.CommandHelp(c.id))
+		Commands[i].Long = i18n.TFor(i18n.EN, i18n.CommandLong(c.id))
+	}
+}
+
+// HelpText is the command's one line, next to the usage, in the interface
+// language.
+func (c Command) HelpText() string { return i18n.T(i18n.CommandHelp(c.id)) }
+
+// LongText explains the command at the bottom of the palette, in the
+// interface language.
+func (c Command) LongText() string { return i18n.T(i18n.CommandLong(c.id)) }
 
 // isCommand reports whether name is in the catalog.
 func isCommand(name string) bool {

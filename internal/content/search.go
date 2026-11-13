@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -42,7 +43,7 @@ func (m *Model) searchCmd(query string) tea.Cmd {
 // repeatCmd repeats the last search: forward for n, backward for N.
 func (m *Model) repeatCmd(forward bool) tea.Cmd {
 	if m.lastSearch == "" {
-		return errorCmd("E35: No previous regular expression")
+		return errorCmd(i18n.T(i18n.EditorNoPreviousSearch))
 	}
 	cmd, found := m.findCmdResult(m.lastSearch, forward)
 	if found {
@@ -72,7 +73,7 @@ func (m *Model) findCmdResult(query string, forward bool) (tea.Cmd, bool) {
 	row, col, wrapped, ok := m.find(query, forward)
 	if !ok {
 		m.reportAction("search_error", query)
-		return errorCmd("E486: Pattern not found: " + query), false
+		return errorCmd(i18n.T(i18n.EditorPatternNotFound, query)), false
 	}
 	m.reportAction("search_hit", query)
 	m.textarea.SetRowCol(row, col) // keeps the cursor visible
@@ -81,9 +82,9 @@ func (m *Model) findCmdResult(query string, forward bool) (tea.Cmd, bool) {
 	}
 	m.reportAction("search_wrap", "")
 	if forward {
-		return statusCmd("search hit BOTTOM, continuing at TOP"), true
+		return statusCmd(i18n.T(i18n.EditorSearchWrappedTop)), true
 	}
-	return statusCmd("search hit TOP, continuing at BOTTOM"), true
+	return statusCmd(i18n.T(i18n.EditorSearchWrappedBot)), true
 }
 
 // find looks for the next (forward) or previous occurrence of query from the

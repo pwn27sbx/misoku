@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
@@ -54,7 +55,7 @@ func (m Model) View() string {
 	// 2. Find button (opens the global finder).
 	fieldW := max(w-2, 4)
 	field := lipgloss.NewStyle().Background(th.Bg2)
-	left := field.Foreground(th.GreyFg).Render(" 󰍉 Find note")
+	left := field.Foreground(th.GreyFg).Render(" 󰍉 " + i18n.T(i18n.SidebarFindNote))
 	hint := ""
 	if k := m.keys.Hint(keymap.ExplorerFind); k != "" {
 		hint = field.Foreground(th.Grey).Render(k + " ")
@@ -68,7 +69,7 @@ func (m Model) View() string {
 	h := m.treeHeight()
 	at, level := m.newEntryRow(items)
 	if len(items) == 0 && !m.creating {
-		msg := "Empty workspace — press n"
+		msg := i18n.T(i18n.SidebarEmpty)
 		rows = append(rows, bg.Foreground(th.GreyFg).Italic(true).Render("  "+ui.Truncate(msg, w-3)))
 	}
 	end := min(m.offset+h, len(items))
@@ -93,14 +94,15 @@ func (m Model) editView(bg lipgloss.Style) string {
 	if id := m.edit.Folder(); id != "" {
 		folder = strings.TrimSuffix(id, ".md") + "/"
 	}
-	title := bg.Foreground(th.Blue).Bold(true).Render(" 󰉖 EDIT " + ui.Truncate(folder, w-9))
-	hint := bg.Foreground(th.GreyFg).Render(" " + ui.Truncate("= apply · esc leave", w-2))
+	edit := i18n.T(i18n.SidebarEditTitle)
+	title := bg.Foreground(th.Blue).Bold(true).Render(" 󰉖 " + edit + " " + ui.Truncate(folder, w-5-lipgloss.Width(edit)))
+	hint := bg.Foreground(th.GreyFg).Render(" " + ui.Truncate(i18n.T(i18n.SidebarEditHint), w-2))
 	out := []string{ui.FitLine(title, w, bg), ui.FitLine(hint, w, bg), ""}
 
 	first, h := m.editWindow()
 	lines, cur := m.edit.Rows(), m.edit.Cursor()
 	if len(lines) == 0 && !m.edit.Editing() {
-		out = append(out, bg.Foreground(th.GreyFg).Italic(true).Render("  "+ui.Truncate("Empty — o adds a line", w-3)))
+		out = append(out, bg.Foreground(th.GreyFg).Italic(true).Render("  "+ui.Truncate(i18n.T(i18n.SidebarEditEmpty), w-3)))
 	}
 	for i := first; i < len(lines) && len(out) < h+editHeader; i++ {
 		base := bg
@@ -181,6 +183,7 @@ func (m Model) renderNewEntry(level int) string {
 	base := lipgloss.NewStyle().Background(th.OneBg2)
 	prefix := base.Render(" "+strings.Repeat("  ", level)+"  ") + base.Foreground(th.NordBlue).Render(markdownIcon)
 	m.renameInput.Width = max(m.width-lipgloss.Width(prefix)-2, 1)
+	m.renameInput.Placeholder = i18n.T(i18n.SidebarNamePlaceholder) // the language in use now
 	m.renameInput.TextStyle = base.Foreground(th.Fg)
 	return ui.FitLine(prefix+m.renameInput.View(), m.width, base)
 }
@@ -271,6 +274,7 @@ func (m Model) renderItem(item TreeItem, selected bool) string {
 
 	if m.renaming && selected {
 		m.renameInput.Width = max(m.width-used-2, 1)
+		m.renameInput.Placeholder = i18n.T(i18n.SidebarNamePlaceholder)
 		m.renameInput.TextStyle = base.Foreground(th.Fg)
 		b.WriteString(m.renameInput.View())
 		return ui.FitLine(b.String(), m.width, base)

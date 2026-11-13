@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	"github.com/charmbracelet/lipgloss"
@@ -30,9 +31,10 @@ func renderTimeline(body []string, th theme.Theme, width int, hs *[]Hit) []strin
 		items = append(items, event{date: start, end: end, title: strings.TrimSpace(name), line: i})
 	}
 	muted := lipgloss.NewStyle().Foreground(th.GreyFg)
+	add := i18n.T(i18n.PreviewTimelineNew)
 	if len(items) == 0 {
-		addHit(hs, Hit{Row: 1, X1: 5, Kind: "tl:add", Line: -1})
-		return []string{muted.Render("(empty timeline: add \"Task: 2026-10-01 -> 2026-10-05\" lines)"), muted.Render("+ New")}
+		addHit(hs, Hit{Row: 1, X1: lipgloss.Width(add), Kind: "tl:add", Line: -1})
+		return []string{muted.Render(i18n.T(i18n.PreviewTimelineEmpty)), muted.Render(add)}
 	}
 
 	first, last := items[0].date, items[0].end
@@ -96,9 +98,9 @@ func renderTimeline(body []string, th theme.Theme, width int, hs *[]Hit) []strin
 		// Label each month where it starts (or the first, if it starts
 		// early enough in its month to be worth naming).
 		if d.Day() == 1 || (d.Equal(first) && d.Day() <= 20) {
-			label := d.Format("Jan")
+			label := monthName(d.Month(), true)
 			if !yearShown || d.Month() == time.January {
-				label = d.Format("Jan 2006")
+				label = monthYear(d, true)
 			}
 			if put(monthRow, col(d), label, 1) {
 				yearShown = true
@@ -184,7 +186,7 @@ func renderTimeline(body []string, th theme.Theme, width int, hs *[]Hit) []strin
 		addHit(hs, Hit{Row: len(out), X1: width, Kind: "tl:item", Line: it.line, Arg: it.title})
 		out = append(out, row.String())
 	}
-	addHit(hs, Hit{Row: len(out), X1: 5, Kind: "tl:add", Line: -1})
-	out = append(out, muted.Render("+ New"))
+	addHit(hs, Hit{Row: len(out), X1: lipgloss.Width(add), Kind: "tl:add", Line: -1})
+	out = append(out, muted.Render(add))
 	return out
 }

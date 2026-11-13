@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -72,7 +73,7 @@ func (m Model) LinkListView() (string, int, int, bool) {
 
 	var lines []string
 	if len(items) == 0 {
-		lines = append(lines, ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render("  No matches"), inner, bg))
+		lines = append(lines, ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render("  "+i18n.T(i18n.EditorNoMatches)), inner, bg))
 	}
 	for i, it := range items {
 		idx := m.linkList.offset + i

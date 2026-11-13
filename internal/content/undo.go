@@ -1,11 +1,11 @@
 package content
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -146,16 +146,16 @@ func (m *Model) undo() tea.Cmd {
 	m.record() // an edit not recorded yet becomes a change, never lost
 	h := m.hist
 	if h != nil && h.pos == 0 && h.tooBig {
-		return statusCmd(fmt.Sprintf("Note too large to keep undo history (limit %d MB)", undoMaxBytes>>20))
+		return statusCmd(i18n.T(i18n.EditorUndoTooLarge, undoMaxBytes>>20))
 	}
 	if h == nil || h.pos == 0 {
 		m.reportAction("undo_empty", "")
-		return statusCmd("Already at oldest change")
+		return statusCmd(i18n.T(i18n.EditorUndoOldest))
 	}
 	n := h.dropped + h.pos
 	h.pos--
 	m.restore(h.states[h.pos])
-	return statusCmd(fmt.Sprintf("1 change; before #%d", n))
+	return statusCmd(i18n.T(i18n.EditorUndoBefore, n))
 }
 
 // redo puts back the change undo took away (Vim's Ctrl+R).
@@ -163,11 +163,11 @@ func (m *Model) redo() tea.Cmd {
 	m.record()
 	h := m.hist
 	if h == nil || h.pos >= len(h.states)-1 {
-		return statusCmd("Already at newest change")
+		return statusCmd(i18n.T(i18n.EditorUndoNewest))
 	}
 	h.pos++
 	m.restore(h.states[h.pos])
-	return statusCmd(fmt.Sprintf("1 change; after #%d", h.dropped+h.pos))
+	return statusCmd(i18n.T(i18n.EditorUndoAfter, h.dropped+h.pos))
 }
 
 // restore shows text, with the cursor on the first line that changed.

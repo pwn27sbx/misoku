@@ -3,7 +3,6 @@ package preview
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"image"
 	"image/png"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/kitty"
 )
 
@@ -137,10 +137,10 @@ func renderGraphicsImage(path string, info os.FileInfo, width int) ([]string, er
 	cfg, format, err := image.DecodeConfig(f)
 	f.Close()
 	if err != nil {
-		return nil, fmt.Errorf("unsupported image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageUnsupported))
 	}
 	if cfg.Width <= 0 || cfg.Height <= 0 {
-		return nil, fmt.Errorf("empty image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageEmpty))
 	}
 	cols, rows := cellBox(cfg.Width, cfg.Height, width)
 
@@ -176,11 +176,11 @@ func imagePNGBytes(path, format string) ([]byte, error) {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("unsupported image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageUnsupported))
 	}
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
-		return nil, fmt.Errorf("unsupported image")
+		return nil, errors.New(i18n.T(i18n.PreviewImageUnsupported))
 	}
 	return buf.Bytes(), nil
 }

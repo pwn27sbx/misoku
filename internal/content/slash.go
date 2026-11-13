@@ -5,61 +5,126 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // slashItem is one entry of the "/" block menu.
 type slashItem struct {
-	section string
+	section string // "table", "basic", "views" or "media"; its header is i18n.SlashSection
 	icon    string
-	label   string
-	hint    string
-	aliases string
-	before  string // inserted before the cursor
-	after   string // inserted after the cursor
+	label   i18n.Key
+	hint    string   // syntax or a term, the same in every language
+	hintKey i18n.Key // a hint in words, in the interface language
+	// aliases are English search words, always searched; aliasesES are
+	// Spanish ones, searched while the interface is in Spanish.
+	aliases   string
+	aliasesES string
+	before    string // inserted before the cursor
+	after     string // inserted after the cursor
+	// starter, when set, gives before and after in the interface language:
+	// the text a view starts with (A6).
+	starter func() (before, after string)
 	action  string // "page" / "link" / "template" are handled by the app
 	block   bool   // starts its own line
 }
 
+// text is the item's label in the interface language.
+func (it slashItem) text() string { return i18n.T(it.label) }
+
+// hintText is the hint shown at the right of the item.
+func (it slashItem) hintText() string {
+	if it.hintKey != "" {
+		return i18n.T(it.hintKey)
+	}
+	return it.hint
+}
+
+// insert is the text the item puts before and after the cursor.
+func (it slashItem) insert() (before, after string) {
+	if it.starter != nil {
+		return it.starter()
+	}
+	return it.before, it.after
+}
+
+// haystack is what a query is matched against: the label as shown and in
+// English, the English aliases and, in Spanish, the Spanish ones.
+func (it slashItem) haystack() string {
+	s := it.text() + " " + i18n.TFor(i18n.EN, it.label) + " " + it.aliases
+	if i18n.Current() == i18n.ES {
+		s += " " + it.aliasesES
+	}
+	return strings.ToLower(s)
+}
+
+// columnsStarter opens a columns block of n columns, named in the
+// interface language from the second on.
+func columnsStarter(n int) func() (string, string) {
+	return func() (string, string) {
+		var after strings.Builder
+		for i := 2; i <= n; i++ {
+			after.WriteString("\n+++\n" + i18n.T(i18n.SlashColumnN, i))
+		}
+		after.WriteString("\n~~~")
+		return "~~~columns\n", after.String()
+	}
+}
+
+// day is today moved by days, as a note writes a date.
+func day(days int) string { return time.Now().AddDate(0, 0, days).Format("2006-01-02") }
+
 var slashItems = []slashItem{
-	{section: "Table", icon: "\U000f0a15", label: "Add row below", aliases: "row insert", action: "table:addrow"},
-	{section: "Table", icon: "\U000f0a12", label: "Add column right", aliases: "column col insert", action: "table:addcol"},
-	{section: "Table", icon: "\U000f0a17", label: "Delete row", aliases: "row remove", action: "table:delrow"},
-	{section: "Table", icon: "\U000f0a14", label: "Delete column", aliases: "column col remove", action: "table:delcol"},
-	{section: "Table", icon: "\U000f04eb", label: "Format table", aliases: "align tidy", action: "table:format"},
-	{section: "Basic blocks", icon: "\U000f026b", label: "Heading 1", hint: "#", aliases: "h1 title", before: "# ", block: true},
-	{section: "Basic blocks", icon: "\U000f026c", label: "Heading 2", hint: "##", aliases: "h2 subtitle", before: "## ", block: true},
-	{section: "Basic blocks", icon: "\U000f026d", label: "Heading 3", hint: "###", aliases: "h3", before: "### ", block: true},
-	{section: "Basic blocks", icon: "\U000f026e", label: "Heading 4", hint: "####", aliases: "h4", before: "#### ", block: true},
-	{section: "Basic blocks", icon: "\U000f0279", label: "Bulleted list", hint: "-", aliases: "bullet ul unordered", before: "- ", block: true},
-	{section: "Basic blocks", icon: "\U000f027b", label: "Numbered list", hint: "1.", aliases: "ol ordered number", before: "1. ", block: true},
-	{section: "Basic blocks", icon: "\U000f0135", label: "To-do list", hint: "[]", aliases: "todo task checkbox check", before: "- [ ] ", block: true},
-	{section: "Basic blocks", icon: "\U000f0142", label: "Toggle list", hint: ">", aliases: "details collapse", before: "<details>\n<summary>", after: "</summary>\n\n</details>", block: true},
-	{section: "Basic blocks", icon: "\U000f0219", label: "Page", aliases: "subpage sub-note note new", action: "page"},
-	{section: "Basic blocks", icon: "\U000f02fd", label: "Callout", aliases: "note tip info admonition", before: "> [!NOTE]\n> ", block: true},
-	{section: "Basic blocks", icon: "\U000f027e", label: "Quote", hint: "\"", aliases: "blockquote", before: "> ", block: true},
-	{section: "Basic blocks", icon: "\U000f04eb", label: "Table", aliases: "grid", before: "| ", after: " | Column 2 |\n| --- | --- |\n|  |  |", block: true},
-	{section: "Basic blocks", icon: "\U000f04a0", label: "Equation", hint: "$$", aliases: "math latex tex formula katex", before: "```math\n", after: "\n```", block: true},
-	{section: "Basic blocks", icon: "\U000f0374", label: "Divider", hint: "---", aliases: "hr rule line separator", before: "---\n", block: true},
-	{section: "Basic blocks", icon: "\U000f0bcc", label: "2 columns", hint: "+++", aliases: "columns cols layout side split", before: "~~~columns\n", after: "\n+++\nColumn 2\n~~~", block: true},
-	{section: "Basic blocks", icon: "\U000f056d", label: "3 columns", hint: "+++", aliases: "columns cols layout side split", before: "~~~columns\n", after: "\n+++\nColumn 2\n+++\nColumn 3\n~~~", block: true},
-	{section: "Basic blocks", icon: "\U000f0728", label: "4 columns", hint: "+++", aliases: "columns cols layout side split", before: "~~~columns\n", after: "\n+++\nColumn 2\n+++\nColumn 3\n+++\nColumn 4\n~~~", block: true},
-	{section: "Basic blocks", icon: "\U000f0337", label: "Link to page", aliases: "mention reference note", action: "link"},
-	{section: "Basic blocks", icon: "\U000f018f", label: "Template", hint: "{{}}", aliases: "plantilla template", action: "template"},
-	{section: "Views", icon: "\U000f0564", label: "Board", hint: "kanban", aliases: "kanban status tasks", before: "```board\n## Not started\n- ", after: "\n## In progress\n- Card 2\n  Lines under a card are its description\n## Done\n- Card 3\n```", block: true},
-	{section: "Views", icon: "\U000f00ed", label: "Calendar", aliases: "month events dates", before: "```calendar\nmonth: " + time.Now().Format("2006-01") + "\n" + time.Now().Format("2006-01-02") + ": ", after: "\n```", block: true},
-	{section: "Views", icon: "\U000f0b77", label: "Timeline", hint: "gantt", aliases: "gantt schedule roadmap", before: "```timeline\n", after: "Card 1: " + time.Now().AddDate(0, 0, -3).Format("2006-01-02") + " -> " + time.Now().AddDate(0, 0, 2).Format("2006-01-02") + "\nCard 2: " + time.Now().Format("2006-01-02") + " -> " + time.Now().AddDate(0, 0, 4).Format("2006-01-02") + "\n```", block: true},
-	{section: "Views", icon: "\U000f0128", label: "Chart", hint: "bar line pie", aliases: "graph plot bar line pie donut hbar", before: "```chart\ntype: bar\ntitle: ", after: "\nJan: 12\nFeb: 20\nMar: 7\nApr: 15\n```", block: true},
-	{section: "Views", icon: "\U000f0b4b", label: "Form", aliases: "survey questions questionnaire", before: "```form\ntitle: ", after: "\ndescription: Optional description\n? Question 1\n? Question 2 (choice): Option 1 | Option 2 | Option 3\n```", block: true},
-	{section: "Views", icon: "\U000f04aa", label: "Flowchart", hint: "-->", aliases: "flow diagram graph mermaid excalidraw chart process", before: "```flow\nstart([Start]) --> ", after: "check{Is it working?}\ncheck -->|yes| done([Ship it])\ncheck -->|no| fix[Fix it]\nfix --> check\n```", block: true},
-	{section: "Media", icon: "\U000f0e7c", label: "Cover", hint: "banner", aliases: "banner header hero", action: "media:cover"},
-	{section: "Media", icon: "\U000f02e9", label: "Image", aliases: "picture photo img upload", action: "media:image"},
-	{section: "Media", icon: "\U000f02e9", label: "Paste image", hint: "clipboard", aliases: "clipboard paste screenshot screen shot", action: "media:paste"},
-	{section: "Media", icon: "\U000f0567", label: "Video", aliases: "movie upload", action: "media:video"},
-	{section: "Media", icon: "\U000f075a", label: "Audio", aliases: "sound music upload", action: "media:audio"},
-	{section: "Media", icon: "\U000f0214", label: "File", aliases: "attachment pdf upload document", action: "media:file"},
-	{section: "Media", icon: "\U000f0169", label: "Code", hint: "```", aliases: "snippet block pre", before: "```\n", after: "\n```", block: true},
+	{section: "table", icon: "\U000f0a15", label: i18n.TableAddRowBelow, aliases: "row insert", aliasesES: "fila insertar añadir", action: "table:addrow"},
+	{section: "table", icon: "\U000f0a12", label: i18n.TableAddColRight, aliases: "column col insert", aliasesES: "columna insertar añadir", action: "table:addcol"},
+	{section: "table", icon: "\U000f0a17", label: i18n.TableDeleteRow, aliases: "row remove", aliasesES: "fila borrar quitar", action: "table:delrow"},
+	{section: "table", icon: "\U000f0a14", label: i18n.TableDeleteColumn, aliases: "column col remove", aliasesES: "columna borrar quitar", action: "table:delcol"},
+	{section: "table", icon: "\U000f04eb", label: i18n.SlashLabel("format"), aliases: "align tidy", aliasesES: "alinear ordenar formato", action: "table:format"},
+	{section: "basic", icon: "\U000f026b", label: i18n.SlashLabel("h1"), hint: "#", aliases: "h1 title", aliasesES: "titulo encabezado", before: "# ", block: true},
+	{section: "basic", icon: "\U000f026c", label: i18n.SlashLabel("h2"), hint: "##", aliases: "h2 subtitle", aliasesES: "titulo subtitulo encabezado", before: "## ", block: true},
+	{section: "basic", icon: "\U000f026d", label: i18n.SlashLabel("h3"), hint: "###", aliases: "h3", aliasesES: "titulo encabezado", before: "### ", block: true},
+	{section: "basic", icon: "\U000f026e", label: i18n.SlashLabel("h4"), hint: "####", aliases: "h4", aliasesES: "titulo encabezado", before: "#### ", block: true},
+	{section: "basic", icon: "\U000f0279", label: i18n.SlashLabel("bullet"), hint: "-", aliases: "bullet ul unordered", aliasesES: "viñetas vinetas puntos", before: "- ", block: true},
+	{section: "basic", icon: "\U000f027b", label: i18n.SlashLabel("numbered"), hint: "1.", aliases: "ol ordered number", aliasesES: "numerada ordenada numeros", before: "1. ", block: true},
+	{section: "basic", icon: "\U000f0135", label: i18n.SlashLabel("todo"), hint: "[]", aliases: "todo task checkbox check", aliasesES: "tareas pendientes casilla", before: "- [ ] ", block: true},
+	{section: "basic", icon: "\U000f0142", label: i18n.SlashLabel("toggle"), hint: ">", aliases: "details collapse", aliasesES: "desplegable plegable", before: "<details>\n<summary>", after: "</summary>\n\n</details>", block: true},
+	{section: "basic", icon: "\U000f0219", label: i18n.SlashLabel("page"), aliases: "subpage sub-note note new", aliasesES: "pagina subpagina subnota nota nueva", action: "page"},
+	{section: "basic", icon: "\U000f02fd", label: i18n.SlashLabel("callout"), aliases: "note tip info admonition", aliasesES: "aviso nota consejo", before: "> [!NOTE]\n> ", block: true},
+	{section: "basic", icon: "\U000f027e", label: i18n.SlashLabel("quote"), hint: "\"", aliases: "blockquote", aliasesES: "cita", before: "> ", block: true},
+	{section: "basic", icon: "\U000f04eb", label: i18n.SlashLabel("table"), aliases: "grid", aliasesES: "tabla cuadricula", starter: func() (string, string) {
+		return "| ", " | " + i18n.T(i18n.SlashColumnN, 2) + " |\n| --- | --- |\n|  |  |"
+	}, block: true},
+	{section: "basic", icon: "\U000f04a0", label: i18n.SlashLabel("equation"), hint: "$$", aliases: "math latex tex formula katex", aliasesES: "ecuacion matematicas formula", before: "```math\n", after: "\n```", block: true},
+	{section: "basic", icon: "\U000f0374", label: i18n.SlashLabel("divider"), hint: "---", aliases: "hr rule line separator", aliasesES: "separador linea", before: "---\n", block: true},
+	{section: "basic", icon: "\U000f0bcc", label: i18n.SlashLabel("columns2"), hint: "+++", aliases: "columns cols layout side split", aliasesES: "columnas", starter: columnsStarter(2), block: true},
+	{section: "basic", icon: "\U000f056d", label: i18n.SlashLabel("columns3"), hint: "+++", aliases: "columns cols layout side split", aliasesES: "columnas", starter: columnsStarter(3), block: true},
+	{section: "basic", icon: "\U000f0728", label: i18n.SlashLabel("columns4"), hint: "+++", aliases: "columns cols layout side split", aliasesES: "columnas", starter: columnsStarter(4), block: true},
+	{section: "basic", icon: "\U000f0337", label: i18n.SlashLabel("link"), aliases: "mention reference note", aliasesES: "enlace mencion referencia nota", action: "link"},
+	{section: "basic", icon: "\U000f018f", label: i18n.SlashLabel("template"), hint: "{{}}", aliases: "plantilla template", action: "template"},
+	{section: "views", icon: "\U000f0564", label: i18n.SlashLabel("board"), hint: "kanban", aliases: "kanban status tasks", aliasesES: "tablero tareas estado", starter: func() (string, string) {
+		return i18n.T(i18n.SlashBoardStart), i18n.T(i18n.SlashBoardRest)
+	}, block: true},
+	{section: "views", icon: "\U000f00ed", label: i18n.SlashLabel("calendar"), aliases: "month events dates", aliasesES: "calendario mes eventos fechas", before: "```calendar\nmonth: " + time.Now().Format("2006-01") + "\n" + time.Now().Format("2006-01-02") + ": ", after: "\n```", block: true},
+	{section: "views", icon: "\U000f0b77", label: i18n.SlashLabel("timeline"), hint: "gantt", aliases: "gantt schedule roadmap", aliasesES: "cronograma calendario plan", starter: func() (string, string) {
+		return "```timeline\n", i18n.T(i18n.SlashTimelineRest, day(-3), day(2), day(0), day(4))
+	}, block: true},
+	{section: "views", icon: "\U000f0128", label: i18n.SlashLabel("chart"), hint: "bar line pie", aliases: "graph plot bar line pie donut hbar", aliasesES: "grafico barras lineas torta", starter: func() (string, string) {
+		return "```chart\ntype: bar\ntitle: ", i18n.T(i18n.SlashChartRest)
+	}, block: true},
+	{section: "views", icon: "\U000f0b4b", label: i18n.SlashLabel("form"), aliases: "survey questions questionnaire", aliasesES: "formulario encuesta preguntas cuestionario", starter: func() (string, string) {
+		return "```form\ntitle: ", i18n.T(i18n.SlashFormRest)
+	}, block: true},
+	{section: "views", icon: "\U000f04aa", label: i18n.SlashLabel("flowchart"), hint: "-->", aliases: "flow diagram graph mermaid excalidraw chart process", aliasesES: "diagrama flujo proceso", starter: func() (string, string) {
+		return i18n.T(i18n.SlashFlowStart), i18n.T(i18n.SlashFlowRest)
+	}, block: true},
+	{section: "media", icon: "\U000f0e7c", label: i18n.SlashLabel("cover"), hint: "banner", aliases: "banner header hero", aliasesES: "portada cabecera", action: "media:cover"},
+	{section: "media", icon: "\U000f02e9", label: i18n.SlashLabel("image"), aliases: "picture photo img upload", aliasesES: "imagen foto subir", action: "media:image"},
+	{section: "media", icon: "\U000f02e9", label: i18n.SlashLabel("paste"), hintKey: i18n.SlashHintClipboard, aliases: "clipboard paste screenshot screen shot", aliasesES: "pegar portapapeles captura pantalla", action: "media:paste"},
+	{section: "media", icon: "\U000f0567", label: i18n.SlashLabel("video"), aliases: "movie upload", aliasesES: "pelicula subir", action: "media:video"},
+	{section: "media", icon: "\U000f075a", label: i18n.SlashLabel("audio"), aliases: "sound music upload", aliasesES: "sonido musica subir", action: "media:audio"},
+	{section: "media", icon: "\U000f0214", label: i18n.SlashLabel("file"), aliases: "attachment pdf upload document", aliasesES: "archivo adjunto documento subir", action: "media:file"},
+	{section: "media", icon: "\U000f0169", label: i18n.SlashLabel("code"), hint: "```", aliases: "snippet block pre", aliasesES: "codigo bloque", before: "```\n", after: "\n```", block: true},
 }
 
 const (
@@ -98,10 +163,10 @@ func (m *Model) slashMatches() []slashItem {
 	inTable := m.InTable()
 	var out []slashItem
 	for _, it := range slashItems {
-		if it.section == "Table" && !inTable {
+		if it.section == "table" && !inTable {
 			continue
 		}
-		if q == "" || strings.Contains(strings.ToLower(it.label+" "+it.aliases), q) {
+		if q == "" || strings.Contains(it.haystack(), q) {
 			out = append(out, it)
 		}
 	}
@@ -206,10 +271,11 @@ func (m *Model) applySlash(it slashItem) tea.Cmd {
 	if it.block && strings.TrimSpace(ta.LineBeforeCursor()) != "" {
 		ta.InsertString("\n")
 	}
-	ta.InsertString(it.before)
+	before, after := it.insert()
+	ta.InsertString(before)
 	row, col := ta.RowCol()
-	if it.after != "" {
-		ta.InsertString(it.after)
+	if after != "" {
+		ta.InsertString(after)
 		ta.SetRowCol(row, col)
 	}
 	ta.EnsureVisible()
