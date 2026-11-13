@@ -1,0 +1,596 @@
+{
+  "id": "A",
+  "dir": "3 Advanced",
+  "name": "Advanced",
+  "index": "A00 Advanced.md",
+  "lessons": [
+    {
+      "id": "A01",
+      "title": "Deep headings, nested quotes and comments",
+      "file": "A01 Deep headings, nested quotes and comments.md",
+      "steps": [
+        {
+          "text": "Type level 5 and 6 headings by hand",
+          "hint": "The menu stops at 4; 5 and 6 take five and six hash signs",
+          "ids": ["MD-06"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "heading-exists", "args": ["5", "Budget"] },
+              { "kind": "text", "pred": "heading-exists", "args": ["6", "Detail"] }
+            ]
+          }
+        },
+        {
+          "text": "Nest a quote inside another quote",
+          "hint": "Start the line with two greater-than signs in a row",
+          "ids": ["MD-17"],
+          "check": { "kind": "text", "pred": "line-starts", "args": [">> "] }
+        },
+        {
+          "text": "Write a comment the preview does not draw",
+          "hint": "The comment goes between <!-- and -->",
+          "ids": ["MD-45"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["<!-- to be confirmed -->"] }
+        }
+      ]
+    },
+    {
+      "id": "A02",
+      "title": "Front matter and properties",
+      "file": "A02 Front matter and properties.md",
+      "steps": [
+        {
+          "text": "Write the properties block with two keys",
+          "hint": "Three dashes, the keys and three dashes, at the top of the note",
+          "ids": ["PROP-01"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "line-contains", "args": ["trip: coast"] },
+              { "kind": "text", "pred": "line-contains", "args": ["stage: planned"] }
+            ]
+          }
+        },
+        {
+          "text": "Look at the preview's properties table",
+          "hint": "The table sits under the header, one row per key",
+          "ids": ["PROP-02"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "properties" }
+        },
+        {
+          "text": "Check that cover and icon are not in the table",
+          "hint": "cover and icon are presentation, not data",
+          "ids": ["PRV-34"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "properties" }
+        }
+      ]
+    },
+    {
+      "id": "A03",
+      "title": "Editing properties",
+      "file": "A03 Editing properties.md",
+      "steps": [
+        {
+          "text": "Change the value coast to mountains in the table",
+          "hint": "A click on the value opens the field; the key is not touched",
+          "ids": ["PROP-03"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["trip: mountains"] }
+        },
+        {
+          "text": "Add hiking to the tags list in the editor",
+          "hint": "The table draws lists read-only",
+          "ids": ["PROP-04"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["tags: [beach, sun, hiking]"] }
+        }
+      ]
+    },
+    {
+      "id": "A04",
+      "title": "Note status",
+      "file": "A04 Note status.md",
+      "steps": [
+        {
+          "text": "Add status: active to the front matter",
+          "hint": "status is one more property of the header",
+          "ids": ["PROP-05"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["status: active"] }
+        },
+        {
+          "text": "Try the four statuses and look at their glyphs",
+          "hint": "The glyphs show in the explorer and on the home screen",
+          "ids": ["PROP-06", "NOTE-24", "NOTE-28"],
+          "check": {
+            "kind": "action",
+            "event": "status_glyph",
+            "value": ["active", "onhold", "completed", "dropped"]
+          }
+        },
+        {
+          "text": "Write a made-up status and see there is no glyph",
+          "hint": "An unknown value is treated as if there were no status",
+          "ids": ["PROP-08"],
+          "check": { "kind": "action", "event": "status_glyph", "value": "none" }
+        }
+      ]
+    },
+    {
+      "id": "A05",
+      "title": "Advanced filters",
+      "file": "A05 Advanced filters.md",
+      "steps": [
+        {
+          "text": "Run :status and choose a status",
+          "hint": ":status opens the finder already filtered",
+          "ids": ["PROP-07"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "status:" }
+        },
+        {
+          "text": "Filter the finder with status:active",
+          "hint": "The conditions go inside the finder",
+          "ids": ["TAG-10"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "status:active" }
+        },
+        {
+          "text": "Filter with folder:Travel and a quoted folder",
+          "hint": "A folder with spaces goes in quotes",
+          "ids": ["TAG-11"],
+          "check": { "kind": "action", "event": "finder_filter", "value": "folder:" }
+        },
+        {
+          "text": "Combine status, folder and a word",
+          "hint": "Every condition must hold",
+          "ids": ["TAG-12"],
+          "check": {
+            "kind": "action",
+            "event": "finder_filter",
+            "value": "status:active folder:Travel beach"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A06",
+      "title": "Note history",
+      "file": "A06 Note history.md",
+      "steps": [
+        {
+          "text": "Run :history on a note with commits",
+          "hint": "The history is the one in the vault's git",
+          "ids": ["HIST-01"],
+          "check": { "kind": "action", "event": "history_open", "value": "commits" }
+        },
+        {
+          "text": "Walk the versions with j and k",
+          "hint": "The wheel moves the list too",
+          "ids": ["HIST-02"],
+          "check": { "kind": "action", "event": "history_preview" }
+        },
+        {
+          "text": "Restore a version with Enter and undo with u",
+          "hint": "The version enters the editor as a single change",
+          "ids": ["HIST-03"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["budget: 900"] }
+        },
+        {
+          "text": "Try :history on a note with no commits",
+          "hint": "Without git there is no dialog: the bar says why",
+          "ids": ["HIST-04"],
+          "check": { "kind": "action", "event": "history_error" }
+        }
+      ]
+    },
+    {
+      "id": "A07",
+      "title": "Mentions and backlinks",
+      "file": "A07 Mentions and backlinks.md",
+      "steps": [
+        {
+          "text": "Link to this note from another and look at the list",
+          "hint": "Backlinks show below the preview",
+          "ids": ["LNK-22"],
+          "check": { "kind": "action", "event": "backlinks" }
+        },
+        {
+          "text": "Open an unlinked mention with a click",
+          "hint": "Mentions are notes that name this one without brackets",
+          "ids": ["PRV-31"],
+          "check": { "kind": "action", "event": "mention_open" }
+        },
+        {
+          "text": "Turn a mention into a link with the link button",
+          "hint": "The button rewrites every mention in that note",
+          "ids": ["PRV-32"],
+          "check": {
+            "kind": "disk",
+            "pred": "other-note-text",
+            "args": ["Idea", "[[A07 Mentions and backlinks]]"]
+          }
+        },
+        {
+          "text": "Click a row in the backlinks list",
+          "hint": "It opens the note on the link's line",
+          "ids": ["PRV-33"],
+          "check": { "kind": "action", "event": "backlink_open" }
+        }
+      ]
+    },
+    {
+      "id": "A08",
+      "title": "Renaming without breaking links",
+      "file": "A08 Renaming without breaking links.md",
+      "steps": [
+        {
+          "text": "Rename Suitcase and accept updating the links",
+          "hint": "The question says how many links and in how many notes",
+          "ids": ["LNK-25"],
+          "check": {
+            "kind": "disk",
+            "pred": "other-note-text",
+            "args": ["A08 Renaming without breaking links", "[[Luggage]]"]
+          }
+        },
+        {
+          "text": "Link the Suitcase in Home with its path in front",
+          "hint": "With two notes of the same name, the link carries the folder",
+          "ids": ["LNK-26"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[[Home/Suitcase]]"] }
+        }
+      ]
+    },
+    {
+      "id": "A09",
+      "title": "Embedding",
+      "file": "A09 Embedding.md",
+      "steps": [
+        {
+          "text": "Create Trip and embed the whole note",
+          "hint": "An exclamation mark before the link brings the content",
+          "ids": ["LNK-09"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[Trip]]"] }
+        },
+        {
+          "text": "Embed the Luggage heading of Trip",
+          "hint": "The # separates the note from the part",
+          "ids": ["LNK-10"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[Trip#Luggage]]"] }
+        },
+        {
+          "text": "Embed the booking block of Trip",
+          "hint": "The ^ says the part is a block, not a heading",
+          "ids": ["LNK-11"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[Trip#^booking]]"] }
+        },
+        {
+          "text": "Embed an image from the vault",
+          "hint": "The image goes by its name, with no path",
+          "ids": ["LNK-12"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["![[mapa.png]]"] }
+        }
+      ]
+    },
+    {
+      "id": "A10",
+      "title": "File links and dangerous links",
+      "file": "A10 File links and dangerous links.md",
+      "steps": [
+        {
+          "text": "Link a local file and open it",
+          "hint": "A Markdown link can point to a PDF or an image",
+          "ids": ["LNK-19"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[menu](menu.pdf)"] }
+        },
+        {
+          "text": "Try a dangerous link and cancel",
+          "hint": "The dialog comes with Cancel already selected",
+          "ids": ["LNK-20"],
+          "check": { "kind": "action", "event": "link_confirm", "value": "Cancel" }
+        }
+      ]
+    },
+    {
+      "id": "A11",
+      "title": "Local graph",
+      "file": "A11 Local graph.md",
+      "steps": [
+        {
+          "text": "Open the graph with space g",
+          "hint": ":graph does the same",
+          "ids": ["GRF-01"],
+          "check": { "kind": "action", "event": "graph_open", "value": "local" }
+        },
+        {
+          "text": "Move, open, zoom and centre",
+          "hint": "h and l, j and k, Enter, + and -, and 0 to centre",
+          "ids": ["GRF-02"],
+          "check": {
+            "kind": "action",
+            "event": "graph_move",
+            "value": ["hl", "jk", "enter", "zoom", "center"]
+          }
+        },
+        {
+          "text": "Click, scroll and drag in the graph",
+          "hint": "The mouse does the same as the keys",
+          "ids": ["GRF-03"],
+          "check": { "kind": "action", "event": "graph_mouse" }
+        },
+        {
+          "text": "Write a link and watch the graph update",
+          "hint": "The graph refreshes by itself",
+          "ids": ["GRF-08"],
+          "check": { "kind": "action", "event": "graph_refresh" }
+        }
+      ]
+    },
+    {
+      "id": "A12",
+      "title": "Global graph",
+      "file": "A12 Global graph.md",
+      "steps": [
+        {
+          "text": "Open the global graph with space G",
+          "hint": ":graph all and the g on the home screen work too",
+          "ids": ["GRF-04"],
+          "check": { "kind": "action", "event": "graph_open", "value": "global" }
+        },
+        {
+          "text": "Open a missing note from a hollow node",
+          "hint": "Hollow nodes are links to notes that do not exist",
+          "ids": ["GRF-06"],
+          "check": { "kind": "action", "event": "new_draft", "value": "Suitcase" }
+        }
+      ]
+    },
+    {
+      "id": "A13",
+      "title": "Export to PDF",
+      "file": "A13 Export to PDF.md",
+      "steps": [
+        {
+          "text": "Export this note with :export",
+          "hint": "The PDF appears next to the note",
+          "ids": ["EXP-01"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["A13 Export to PDF.pdf"] }
+        },
+        {
+          "text": "Export to a folder and with another name",
+          "hint": "A folder ends in a slash; a name carries its extension",
+          "ids": ["EXP-02"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["report.pdf"] }
+        },
+        {
+          "text": "Export another note with space P",
+          "hint": "space P exports the open note without typing anything",
+          "ids": ["EXP-03"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["A00 Advanced.pdf"] }
+        }
+      ]
+    },
+    {
+      "id": "A14",
+      "title": "Cover",
+      "file": "A14 Cover.md",
+      "steps": [
+        {
+          "text": "Insert a cover with the Cover menu item",
+          "hint": "Write cover: with the path if you have no image at hand",
+          "ids": ["MD-33"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["cover:"] }
+        },
+        {
+          "text": "Look at the cover band in the preview",
+          "hint": "The band takes eight rows above the title",
+          "ids": ["PRV-04"],
+          "check": { "kind": "action", "event": "preview_rendered", "value": "cover" }
+        }
+      ]
+    },
+    {
+      "id": "A15",
+      "title": "Forms: create and answer",
+      "file": "A15 Forms, create and answer.md",
+      "steps": [
+        {
+          "text": "Insert a form with the Form menu item",
+          "hint": "The block comes with a title and two questions",
+          "ids": ["MD-31"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text-fence", "fence": "form", "pattern": "title:" },
+              { "kind": "text-fence", "fence": "form", "pattern": "? Question" }
+            ]
+          }
+        },
+        {
+          "text": "Answer the first question with 3 days",
+          "hint": "The answer goes under the question, with an equals sign",
+          "ids": ["PRV-19"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= 3 days" }
+        },
+        {
+          "text": "Make the second question a date and pick today",
+          "hint": "The (date) type opens the calendar and writes the date",
+          "ids": ["PRV-20"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= {today}" }
+        }
+      ]
+    },
+    {
+      "id": "A16",
+      "title": "Forms: choices and stars",
+      "file": "A16 Forms, choices and stars.md",
+      "steps": [
+        {
+          "text": "Mark, clear and mark an option again",
+          "hint": "Another click on the same option clears the answer",
+          "ids": ["PRV-21"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= Cabin" }
+        },
+        {
+          "text": "Mark two options of a multiple-choice question",
+          "hint": "The answer joins the options with commas",
+          "ids": ["PRV-22"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= Bike, Train" }
+        },
+        {
+          "text": "Give the rating question three stars",
+          "hint": "The third star writes a 3",
+          "ids": ["PRV-23"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "= 3" }
+        }
+      ]
+    },
+    {
+      "id": "A17",
+      "title": "Forms: editing them",
+      "file": "A17 Forms, editing them.md",
+      "steps": [
+        {
+          "text": "Rename, change, require, clear and delete a question",
+          "hint": "The question's menu keeps the type and the options",
+          "ids": ["PRV-24"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "Luggage" }
+        },
+        {
+          "text": "Add a new question with its name and type",
+          "hint": "The add question button asks for a name and a type",
+          "ids": ["PRV-25"],
+          "check": { "kind": "text-fence", "fence": "form", "pattern": "Transfer" }
+        },
+        {
+          "text": "Change the title and the description",
+          "hint": "A click on each one opens its field",
+          "ids": ["PRV-26"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text-fence", "fence": "form", "pattern": "title: Trip to the coast" },
+              { "kind": "text-fence", "fence": "form", "pattern": "description: Back to the village" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A18",
+      "title": "Moving blocks",
+      "file": "A18 Moving blocks.md",
+      "steps": [
+        {
+          "text": "Drag a block with the dotted handle",
+          "hint": "The handle grabs the whole block, not one line",
+          "ids": ["PRV-27"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Total: $900"] }
+        },
+        {
+          "text": "Add a block with the + in the margin",
+          "hint": "The + opens a new line and the menu",
+          "ids": ["PRV-28"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Dinner: $45"] }
+        },
+        {
+          "text": "Look at the handles of the block under the cursor",
+          "hint": "The handles show when the mouse passes over the preview",
+          "ids": ["PRV-29"],
+          "check": { "kind": "action", "event": "block_handles", "value": "visible" }
+        }
+      ]
+    },
+    {
+      "id": "A19",
+      "title": "Conflicts and external changes",
+      "file": "A19 Conflicts and external changes.md",
+      "steps": [
+        {
+          "text": "Change the note from outside and save",
+          "hint": "The bar says Both kept: and gives the copy's name",
+          "ids": ["EDT-20"],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Delete a note from outside and see the warning",
+          "hint": "It warns once and asks before recreating it",
+          "ids": ["EDT-21"],
+          "check": { "kind": "action", "event": "external_change", "value": "confirm" }
+        },
+        {
+          "text": "Cause a sync conflict",
+          "hint": "It needs two copies of the vault touching the same line",
+          "ids": ["SYNC-09"],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Check that both texts are there",
+          "hint": "One in the note and the other in the conflict copy",
+          "ids": ["SYNC-10"],
+          "check": { "kind": "none" }
+        }
+      ]
+    },
+    {
+      "id": "A20",
+      "title": "Editing folders in the editor",
+      "file": "A20 Editing folders in the editor.md",
+      "steps": [
+        {
+          "text": "Open a folder in the editor with m",
+          "hint": "Each entry is an editable line",
+          "ids": ["NOTE-17"],
+          "check": { "kind": "action", "event": "dirbuf_open" }
+        },
+        {
+          "text": "Create, rename and delete lines and confirm",
+          "hint": "Nothing is touched until you accept the plan",
+          "ids": ["NOTE-18"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["Notes/luggage"] }
+        },
+        {
+          "text": "Open the editor from the tree with i, a and o",
+          "hint": "The key reaches the editor already received",
+          "ids": ["NOTE-19"],
+          "check": { "kind": "action", "event": "dirbuf_open", "value": ["i", "a", "o"] }
+        },
+        {
+          "text": "Create a file with M and come back",
+          "hint": "Misoku rereads the folder when mini.files closes",
+          "ids": ["NOTE-20"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["practice-mini"] }
+        }
+      ]
+    },
+    {
+      "id": "A21",
+      "title": "Advanced Challenge",
+      "file": "A21 Advanced Challenge.md",
+      "steps": [
+        {
+          "text": "Create House project with properties, status and cover",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Embed the total block of Budget",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Rename Budget and accept updating the links",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Export to PDF and open the local graph",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Turn an unlinked mention into a link",
+          "ids": [],
+          "check": { "kind": "none" }
+        }
+      ]
+    }
+  ]
+}
