@@ -560,7 +560,7 @@
       "steps": [
         {
           "text": "Run :sync status and read every field",
-          "hint": "State, remote, branch, pending",
+          "hint": "State, Remote, Branch, Pending",
           "ids": [
             "SYNC-06"
           ],
@@ -619,8 +619,8 @@
           }
         },
         {
-          "text": "With an expired remote, accept gh auth login",
-          "hint": "The offer shows in the dialog",
+          "text": "With an expired remote, choose Sign in",
+          "hint": "It runs gh auth login",
           "ids": [
             "SYNC-12"
           ],

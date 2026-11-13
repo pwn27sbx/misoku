@@ -2,7 +2,7 @@
 
 **You will learn:** the look of lists and dialogs.
 
-"Icons & bullets" changes two things in the preview: the icons in front of headings and the bullets of lists. It comes with four presets. Misoku is the factory one: it draws no icon in front of headings and writes nothing, it deletes the keys. Numbers puts `①` and `②` in front of headings and uses bullets like `•` and `◦`. Arrows uses `▶` and `▷` with arrows in lists. Plain leaves the Markdown markers as they are, with `#` and `-`.
+"Icons & bullets" changes two things in the preview: the icons in front of headings and the bullets of lists. It comes with four presets. Misoku is the factory look: no icons in front of headings, and choosing it deletes the keys instead of writing them. Numbers puts `①` and `②` in front of headings and uses bullets like `•` and `◦`. Arrows uses `▶` and `▷` with arrows in lists. Plain leaves the Markdown markers as they are, with `#` and `-`.
 
 Those icons show when heading numbers are off, because Heading numbers takes their place in the preview; you practise that in lesson E07. The preset applies instantly and is saved in `config.json`: Icons & bullets writes `ui.heading_icons` and `ui.bullets`, and Misoku deletes them to go back to the factory values.
 

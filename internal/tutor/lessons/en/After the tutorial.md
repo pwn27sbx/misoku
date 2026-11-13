@@ -6,12 +6,12 @@ This note gathers what is not practised inside the routes: the terminal commands
 
 - `misoku tutor` opens the tutorial and leaves you at the first step you have not passed.
 - `misoku tutor --route I` opens a specific route (`B`, `I`, `A` or `E`).
-- `misoku tutor --reset` moves the tutorial to the trash and starts from zero.
+- `misoku tutor --reset` moves the tutorial in the language in use to the trash and starts it from zero.
 - `misoku <folder>` opens another folder, and `misoku --dir <folder>` does the same from anywhere.
 - `misoku export note.md -o output.pdf` writes a note as a PDF, as does `:export` inside the app.
-- `misoku paste-image` saves an image from the clipboard into the note from outside.
-- `misoku sync setup` connects the vault to GitHub and `misoku sync init` prepares it by hand.
-- `misoku --version` gives the version, `misoku --help` lists the options, `misoku --list-themes` the themes and `misoku --theme <name>` picks one.
+- `misoku paste-image` saves the image in the clipboard under `<folder>/assets` (`--dir <folder>`) and prints the path to link it.
+- `misoku sync setup` connects the vault to a private GitHub repository and `misoku sync init <url>` links it to any git URL by hand.
+- `misoku --version` gives the version, `misoku --help` lists the options, `misoku --list-themes` the themes and `misoku --theme <name>` picks one for that session.
 - `misoku --themes-dir <folder>` reads your own themes, and the `MISOKU_WORKSPACE` variable sets the folder that opens.
 
 ## What is practised outside

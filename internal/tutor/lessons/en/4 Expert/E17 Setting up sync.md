@@ -13,6 +13,8 @@ Both paths end in the same place: a vault in `sync.vaults` with its remote. The 
 1. Run `:sync setup` (or `s` on the home screen) and answer its questions.
 2. Run `misoku sync init <url>` in a new folder and check that the repository is created and the vault is listed.
 
+Write down below which path you took and the URL of your repository; saving the note marks step 2.
+
 
 
 Next: [[E18 The global graph in depth]]
