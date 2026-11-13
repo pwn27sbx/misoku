@@ -4,7 +4,7 @@
 
 The `/` menu goes up to the level 4 heading. The last two are typed by hand, with five or six hash signs and a space: `#####` and `######`. The preview draws them smaller than the others, and the rest of the app treats them like any other heading.
 
-A quote is nested with two greater-than signs in a row at the start of the line: `>> `. The line is drawn inside another quote, indented one more step, and the second sign is not part of the text: it is the quote's mould.
+A quote is nested with two greater-than signs in a row at the start of the line: `>> `. The line is drawn inside another quote, indented one more step, and the second sign is not part of the text: it is part of the quote's syntax.
 
 An HTML comment lives between `<!--` and `-->`. It is saved with the note and synced, but the preview does not draw it. It is the way to leave a note to yourself, or a reminder, without it showing up when you read.
 

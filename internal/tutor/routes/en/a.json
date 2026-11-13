@@ -338,7 +338,7 @@
           "text": "Open a missing note from a hollow node",
           "hint": "Hollow nodes are links to notes that do not exist",
           "ids": ["GRF-06"],
-          "check": { "kind": "action", "event": "new_draft", "value": "Suitcase" }
+          "check": { "kind": "action", "event": "new_draft", "value": "Backpack" }
         }
       ]
     },

@@ -11,7 +11,7 @@ A note that does not exist but is linked does not disappear: it is drawn hollow,
 ## Your turn
 
 1. Press `space G` (or `:graph all`, or `g` on the home screen) and see the whole vault by folders.
-2. Write `[[Suitcase]]` in a note, open the global graph, find the hollow node with that name and press `Enter` to start the note.
+2. Write `[[Backpack]]` in a note, open the global graph, find the hollow node with that name and press `Enter` to start the note.
 
 
 
