@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,7 +40,7 @@ func (m *Model) openGraph() tea.Cmd {
 	if i := m.bufferIndex(graphID); i >= 0 {
 		m.showBuffer(m.buffers[i])
 	} else {
-		b := &buffer{id: graphID, title: "Graph"}
+		b := &buffer{id: graphID, title: i18n.T(i18n.AppGraphTab)}
 		m.insertBuffer(b)
 		m.showBuffer(b)
 	}

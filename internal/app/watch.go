@@ -1,11 +1,11 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -192,7 +192,7 @@ func (m *Model) applyScannedNote(b *buffer, gone bool, content string, read bool
 		return
 	}
 	if m.isDirty(b) {
-		m.setError(fmt.Sprintf("%q changed on disk; saving keeps both versions", b.id))
+		m.setError(i18n.T(i18n.AppChangedOnDiskKept, b.id))
 		return
 	}
 	b.setSaved(content)
@@ -206,7 +206,7 @@ func (m *Model) applyScannedNote(b *buffer, gone bool, content string, read bool
 		m.preview.SetPage(b.page())
 		m.refreshLinks()
 	}
-	m.setStatus(fmt.Sprintf("%q reloaded: it changed on disk", b.id))
+	m.setStatus(i18n.T(i18n.AppReloaded, b.id))
 }
 
 // syncUserTheme re-reads the user theme files when they changed on disk (a

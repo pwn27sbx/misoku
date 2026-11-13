@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -91,7 +92,7 @@ func (m *Model) followWikiLink(l core.WikiLink, open func(string) tea.Cmd) tea.C
 		if abs, ok := m.store.FindFile(l.Target, m.currentNoteID()); ok {
 			return m.openExternal(abs)
 		}
-		m.setError("Not found: " + l.Target)
+		m.setError(i18n.T(i18n.AppNotFound, l.Target))
 		return nil
 	}
 	p, ok := core.ResolveNote(m.notes, l.Target, m.currentNoteID())
@@ -117,7 +118,7 @@ func (m *Model) jumpToSection(l core.WikiLink) {
 	}
 	line := core.LinkLine(m.content.Value(), l)
 	if line < 0 {
-		m.setError("No section \"" + strings.TrimPrefix(l.Ref(), l.Target+"#") + "\" in this note")
+		m.setError(i18n.T(i18n.AppNoSection, strings.TrimPrefix(l.Ref(), l.Target+"#")))
 		return
 	}
 	m.content.GotoLine(line + 1)
@@ -147,7 +148,7 @@ func (m *Model) newLinkedDraft(target string) tea.Cmd {
 		m.content.SetBuffer(b.page(), true)
 		m.preview.SetPage(b.page())
 	}
-	m.setStatus("New note \"" + name + "\": save to create it")
+	m.setStatus(i18n.T(i18n.AppNewNoteDraft, name))
 	return cmd
 }
 
@@ -195,11 +196,11 @@ func (m *Model) followURL(u string, open func(string) tea.Cmd) tea.Cmd {
 	}
 	abs, err := m.store.Abs(id)
 	if err != nil {
-		m.setError("Not found: " + file)
+		m.setError(i18n.T(i18n.AppNotFound, file))
 		return nil
 	}
 	if _, err := os.Stat(abs); err != nil {
-		m.setError("Not found: " + file)
+		m.setError(i18n.T(i18n.AppNotFound, file))
 		return nil
 	}
 	return m.openExternal(abs)
@@ -212,9 +213,9 @@ func (m *Model) followURL(u string, open func(string) tea.Cmd) tea.Cmd {
 func (m *Model) openExternal(target string) tea.Cmd {
 	if !m.openDirectly(target) {
 		m.confirm = &confirmDialog{
-			title:      "Open " + shortTarget(target) + "?",
-			message:    []string{"The system may run it, or it is outside the vault."},
-			buttons:    []string{"Open", "Cancel"},
+			title:      i18n.T(i18n.AppOpenTitle, shortTarget(target)),
+			message:    []string{i18n.T(i18n.AppOpenWhy)},
+			buttons:    []string{i18n.T(i18n.AppOpen), i18n.T(i18n.AppCancel)},
 			deliberate: true, // a stray letter must not open it
 			selected:   1,    // Cancel is the safe default
 			onChoose: func(m *Model, choice int) tea.Cmd {
@@ -291,10 +292,10 @@ func (m *Model) openExternalNow(target string) tea.Cmd {
 		open = systemOpen
 	}
 	if err := open(target); err != nil {
-		m.setError("Could not open " + target + ": " + err.Error())
+		m.setError(i18n.T(i18n.AppCouldNotOpen, target, err.Error()))
 		return nil
 	}
-	return m.showToast("Opened " + shortTarget(target))
+	return m.showToast(i18n.T(i18n.AppOpened, shortTarget(target)))
 }
 
 func shortTarget(s string) string {
@@ -352,7 +353,7 @@ func (m *Model) followEditorLink(msg core.FollowLinkMsg) tea.Cmd {
 			return m.followURL(strings.Trim(msg.Line[loc[0]:loc[1]], "<>"), m.openInCurrentBuffer)
 		}
 	}
-	m.setError("No link under the cursor")
+	m.setError(i18n.T(i18n.AppNoLinkUnder))
 	return nil
 }
 
@@ -374,7 +375,7 @@ func (m *Model) goBack() tea.Cmd {
 		}
 		return cmd
 	}
-	m.setStatus("No previous note in this tab")
+	m.setStatus(i18n.T(i18n.AppNoPreviousNote))
 	return nil
 }
 

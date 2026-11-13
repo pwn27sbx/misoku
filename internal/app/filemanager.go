@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 )
 
@@ -55,12 +56,12 @@ type fileManagerDoneMsg struct {
 func (m *Model) openFileManager() tea.Cmd {
 	nvim, err := exec.LookPath("nvim")
 	if err != nil {
-		m.setError(m.keys.Hint(keymap.ExplorerFileManager) + " needs Neovim (nvim) on PATH")
+		m.setError(i18n.T(i18n.AppNeedsNvim, m.keys.Hint(keymap.ExplorerFileManager)))
 		return nil
 	}
 	log, err := os.CreateTemp("", "misoku-actions-*.jsonl")
 	if err != nil {
-		m.setError("Could not start mini.files: " + err.Error())
+		m.setError(i18n.T(i18n.AppMiniFilesFailed, err.Error()))
 		return nil
 	}
 	_ = log.Close()
@@ -104,8 +105,8 @@ func (m *Model) fileManagerDone(msg fileManagerDoneMsg) {
 	switch {
 	case msg.err == nil:
 	case errors.As(msg.err, &code) && code.ExitCode() == miniFilesMissingExit:
-		m.setError("mini.files is not installed in Neovim (add nvim-mini/mini.files, or the LazyVim extra editor.mini-files)")
+		m.setError(i18n.T(i18n.AppMiniFilesMissing))
 	default:
-		m.setError("Neovim: " + msg.err.Error())
+		m.setError(i18n.T(i18n.AppNeovimError, msg.err.Error()))
 	}
 }

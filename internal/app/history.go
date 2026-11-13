@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -60,15 +61,15 @@ func (m *Model) requestHistory() tea.Cmd {
 	b := m.activeBuffer()
 	switch {
 	case b == nil || b.isGraph():
-		m.setError("History needs an open note")
+		m.setError(i18n.T(i18n.AppHistoryNoNote))
 		m.tutorDefer("history_error", "")
 		return nil
 	case b.draft():
-		m.setError("This note was never saved, so it has no history yet")
+		m.setError(i18n.T(i18n.AppHistoryNeverSaved))
 		m.tutorDefer("history_error", "")
 		return nil
 	}
-	m.setStatus("Reading the history of " + b.id + "…")
+	m.setStatus(i18n.T(i18n.AppHistoryReading, b.id))
 	return listHistory(m.store.Root(), b.id)
 }
 
@@ -90,7 +91,7 @@ func readVersion(root, id string, gen uint64, v gitsync.Version) tea.Cmd {
 		out, err := gitsync.New(root, historyTimeout).FileAt(ctx, v.Hash, v.Path)
 		t := historyText{text: string(out)}
 		if err != nil {
-			t = historyText{err: "Could not read this version: " + err.Error()}
+			t = historyText{err: i18n.T(i18n.AppHistoryBadVersion, err.Error())}
 		}
 		return historyVersionMsg{id: id, gen: gen, hash: v.Hash, text: t}
 	}
@@ -104,19 +105,19 @@ func (m *Model) showHistory(msg historyListedMsg) tea.Cmd {
 	}
 	switch {
 	case errors.Is(msg.err, gitsync.ErrNoGit):
-		m.setError("History needs git, and git is not installed")
+		m.setError(i18n.T(i18n.AppHistoryNoGit))
 		m.tutorDefer("history_error", "")
 		return nil
 	case errors.Is(msg.err, gitsync.ErrNotARepo):
-		m.setError("No history: this vault is not a git repository")
+		m.setError(i18n.T(i18n.AppHistoryNoRepo))
 		m.tutorDefer("history_error", "")
 		return nil
 	case msg.err != nil:
-		m.setError("Could not read the history: " + msg.err.Error())
+		m.setError(i18n.T(i18n.AppHistoryUnreadable, msg.err.Error()))
 		m.tutorDefer("history_error", "")
 		return nil
 	case len(msg.versions) == 0:
-		m.setError(msg.id + " is not in git yet: it was never committed")
+		m.setError(i18n.T(i18n.AppHistoryUntracked, msg.id))
 		m.tutorDefer("history_error", "")
 		return nil
 	}
@@ -185,7 +186,7 @@ func (d *historyDialog) restore(m *Model) {
 	t, ok := d.selected()
 	switch {
 	case !ok:
-		m.setStatus("Still reading this version…")
+		m.setStatus(i18n.T(i18n.AppHistoryStill))
 		return
 	case t.err != "":
 		m.setError(t.err)
@@ -199,12 +200,12 @@ func (d *historyDialog) restore(m *Model) {
 	m.history = nil
 	v := d.versions[d.sel]
 	if !m.content.RestoreText(t.text) {
-		m.setStatus("The note already holds the version of " + v.Date)
+		m.setStatus(i18n.T(i18n.AppHistorySame, v.Date))
 		return
 	}
 	m.preview.SetContent(m.content.Value())
 	m.refreshModified()
-	m.setStatus("Restored the version of " + v.Date + " (" + shortHash(v.Hash) + "): u undoes it, save to keep it")
+	m.setStatus(i18n.T(i18n.AppHistoryRestored, v.Date, shortHash(v.Hash)))
 }
 
 // shortHash is the first seven characters of a commit hash, as git shows it.
@@ -220,7 +221,7 @@ func (d *historyDialog) previewLines() []string {
 	t, ok := d.selected()
 	switch {
 	case !ok:
-		return []string{"Reading…"}
+		return []string{i18n.T(i18n.AppReading)}
 	case t.err != "":
 		return []string{t.err}
 	}

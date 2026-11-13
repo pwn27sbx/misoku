@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/pwn27sbx/misoku/internal/content"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,10 +12,10 @@ import (
 
 // paletteEntry is one row of the command palette.
 type paletteEntry struct {
-	group string // the heading it is listed under
-	key   string // the whole key, or the command as typed
-	title string // one line, next to the key
-	long  string // the explanation at the bottom of the palette
+	group paletteGroup // the heading it is listed under
+	key   string       // the whole key, or the command as typed
+	title string       // one line, next to the key
+	long  string       // the explanation at the bottom of the palette
 	// run performs the entry on Enter; nil for a key that only works in
 	// its own place (the editor, the explorer, the graph), which the
 	// palette just explains.
@@ -25,79 +26,93 @@ type paletteEntry struct {
 }
 
 // fixedKey is a key that is not configurable: Vim editing, the preview,
-// the graph and the mouse.
-type fixedKey struct{ key, title, long string }
+// the graph and the mouse. Its words are read when the palette opens, in
+// the language then in use.
+type fixedKey struct {
+	key         func() string
+	title, long i18n.Key
+}
 
-// Palette groups, in display order.
-const (
-	groupExport   = "󰈦 EXPORT"
-	groupGeneral  = "󰕭 GENERAL"
-	groupExplorer = "󰙅 EXPLORER"
-	groupEditor   = " EDITOR · NORMAL"
-	groupCommands = " COMMANDS"
-	groupPreview  = " PREVIEW"
-	groupGraph    = "󰘚 GRAPH"
-	groupGlobal   = "󰘚 GLOBAL GRAPH"
-	groupMouse    = "󰍽 MOUSE"
+// fixed is a key named the same in every language.
+func fixed(key string) func() string { return func() string { return key } }
+
+// Palette groups, in display order: an icon and the group's name.
+type paletteGroup struct {
+	icon string
+	name i18n.Key
+}
+
+func (g paletteGroup) String() string { return g.icon + i18n.T(g.name) }
+
+var (
+	groupExport   = paletteGroup{"󰈦 ", i18n.AppPalGroupExport}
+	groupGeneral  = paletteGroup{"󰕭 ", i18n.AppPalGroupGeneral}
+	groupExplorer = paletteGroup{"󰙅 ", i18n.AppPalGroupExplorer}
+	groupEditor   = paletteGroup{" ", i18n.AppPalGroupEditor}
+	groupCommands = paletteGroup{" ", i18n.AppPalGroupCommands}
+	groupPreview  = paletteGroup{" ", i18n.AppPalGroupPreview}
+	groupGraph    = paletteGroup{"󰘚 ", i18n.AppPalGroupGraph}
+	groupGlobal   = paletteGroup{"󰘚 ", i18n.AppPalGroupGlobal}
+	groupMouse    = paletteGroup{"󰍽 ", i18n.AppPalGroupMouse}
 )
 
 var editorKeys = []fixedKey{
-	{"i a A I", "Insert mode", "Starts typing: before the cursor (i), after it (a), at the end of the line (A) or at its start (I). Esc goes back to NORMAL."},
-	{"Tab/S-Tab", "Indent / outdent (insert)", "In INSERT mode, Tab indents the line or the list item and Shift+Tab takes the indent back; in a table they move between cells."},
-	{"o / O", "New line below / above", "Opens a new line below (o) or above (O) the cursor and starts typing on it."},
-	{"h j k l", "Move", "Moves the cursor left, down, up and right, as the arrow keys do."},
-	{"w / b", "Next / previous word", "Moves the cursor to the start of the next word (w) or of the previous one (b)."},
-	{"0 / $", "Line start / end", "Moves the cursor to the start (0) or the end ($) of the line."},
-	{"gg / G", "Top / bottom", "Moves the cursor to the first (gg) or the last (G) line of the note."},
-	{"Ctrl+D/U", "Half page down / up", "Scrolls the editor half a screen down (Ctrl+D) or up (Ctrl+U)."},
-	{"x / dd", "Delete char / line", "Deletes the character under the cursor (x) or the whole line (dd), which can then be pasted with p."},
-	{"yy / p", "Copy line / paste", "Copies the line (yy) and pastes what was copied or deleted below the cursor (p)."},
-	{"v / V", "Select, then y copy, d cut", "Starts selecting by character (v) or by line (V); then y copies the selection and d cuts it."},
-	{"u", "Undo", "Undoes the last change: a whole stay in INSERT mode, or one NORMAL command such as dd, p or x."},
-	{"Ctrl+R", "Redo", "Redoes the last change that u undid."},
-	{"/ (insert)", "Block menu: headings, lists, blocks", "Typed in INSERT mode at the start of a line or after a space, / opens the block menu: headings, lists, tables, callouts, media and more."},
-	{"[[ (insert)", "Link to a note", "Typed in INSERT mode, [[ opens the note finder to pick the note to link to."},
-	{"gd / gx", "Follow the link under the cursor", "Opens the note or the web page the link under the cursor points to."},
-	{"Enter", "Follow [[link]] / toggle box", "In NORMAL mode, follows the [[link]] under the cursor (not inside code; a note that does not exist is not started), toggles the box of a checkbox line, and otherwise moves down a line."},
-	{":", "Command line", "Opens the command line at the bottom of the editor for the commands below; Enter runs it, Esc leaves it."},
-	{"/", "Search in the note", "Opens the search prompt at the bottom: Enter finds the next match of the text from the cursor, and n or N repeat it forward or backward, wrapping around the note. The text is literal, not a regex, and the search ignores case unless it has an upper-case letter; Esc leaves it."},
-	{"n / N", "Next / previous match", "After a search, n goes to the next match and N to the previous one, both wrapping around the note and saying so in the status bar. Without a search they say there is none."},
+	{fixed("i a A I"), i18n.AppPal01, i18n.AppPal01Long},
+	{fixed("Tab/S-Tab"), i18n.AppPal02, i18n.AppPal02Long},
+	{fixed("o / O"), i18n.AppPal03, i18n.AppPal03Long},
+	{fixed("h j k l"), i18n.AppPal04, i18n.AppPal04Long},
+	{fixed("w / b"), i18n.AppPal05, i18n.AppPal05Long},
+	{fixed("0 / $"), i18n.AppPal06, i18n.AppPal06Long},
+	{fixed("gg / G"), i18n.AppPal07, i18n.AppPal07Long},
+	{fixed("Ctrl+D/U"), i18n.AppPal08, i18n.AppPal08Long},
+	{fixed("x / dd"), i18n.AppPal09, i18n.AppPal09Long},
+	{fixed("yy / p"), i18n.AppPal10, i18n.AppPal10Long},
+	{fixed("v / V"), i18n.AppPal11, i18n.AppPal11Long},
+	{fixed("u"), i18n.AppPal12, i18n.AppPal12Long},
+	{fixed("Ctrl+R"), i18n.AppPal13, i18n.AppPal13Long},
+	{fixed("/ (insert)"), i18n.AppPal14, i18n.AppPal14Long},
+	{fixed("[[ (insert)"), i18n.AppPal15, i18n.AppPal15Long},
+	{fixed("gd / gx"), i18n.AppPal16, i18n.AppPal16Long},
+	{fixed("Enter"), i18n.AppPal17, i18n.AppPal17Long},
+	{fixed(":"), i18n.AppPal18, i18n.AppPal18Long},
+	{fixed("/"), i18n.AppPal19, i18n.AppPal19Long},
+	{fixed("n / N"), i18n.AppPal20, i18n.AppPal20Long},
 }
 
 var previewKeys = []fixedKey{
-	{"j / k", "Scroll a line", "With the focus on the preview, scrolls it one line down (j) or up (k)."},
-	{"d / u", "Half page down / up", "With the focus on the preview, scrolls it half a screen down (d) or up (u); Ctrl+D and Ctrl+U too."},
-	{"Space / PgDn", "Page down", "With the focus on the preview, scrolls it a whole screen down; PgUp goes back up."},
-	{"g / G", "Top / bottom", "With the focus on the preview, jumps to its top (g) or its bottom (G)."},
-	{"< / >", "Calendar month back / forward", "Moves the calendar blocks of the note one month back (<, or H) or forward (>, or L)."},
-	{"T", "Calendar: this month", "Brings the calendar blocks of the note back to the current month."},
-	{"zM / zR", "Fold / unfold all", "Folds (zM) or unfolds (zR) every foldable block of the preview at once."},
+	{fixed("j / k"), i18n.AppPal21, i18n.AppPal21Long},
+	{fixed("d / u"), i18n.AppPal22, i18n.AppPal22Long},
+	{fixed("Space / PgDn"), i18n.AppPal23, i18n.AppPal23Long},
+	{fixed("g / G"), i18n.AppPal24, i18n.AppPal24Long},
+	{fixed("< / >"), i18n.AppPal25, i18n.AppPal25Long},
+	{fixed("T"), i18n.AppPal26, i18n.AppPal26Long},
+	{fixed("zM / zR"), i18n.AppPal27, i18n.AppPal27Long},
 }
 
 var graphKeys = []fixedKey{
-	{"h j k l", "Move from note to note", "In the graph, j and k move between notes at the same level; h and l move one column left or right, to the parent or to a child."},
-	{"Enter", "Open the selected note", "In the graph, opens the selected note in the editor."},
-	{"+ / -", "Zoom in / out", "In the graph, shows the map closer (+) or further away (-)."},
-	{"0", "Centre the graph", "In the graph, puts the selected note back in the middle of the map."},
-	{"Esc", "Back", "In the graph, goes back to the note shown before, as the back button does."},
+	{fixed("h j k l"), i18n.AppPal28, i18n.AppPal28Long},
+	{fixed("Enter"), i18n.AppPal29, i18n.AppPal29Long},
+	{fixed("+ / -"), i18n.AppPal30, i18n.AppPal30Long},
+	{fixed("0"), i18n.AppPal31, i18n.AppPal31Long},
+	{fixed("Esc"), i18n.AppPal32, i18n.AppPal32Long},
 }
 
 var globalGraphKeys = []fixedKey{
-	{"h j k l", "Move to the nearest note", "In the global graph, selects the nearest note to the left, below, above or to the right; the arrow keys do the same."},
-	{"n / N", "Next / previous link", "In the global graph, selects the next (n) or the previous (N) note the selected one links to or is linked from."},
-	{"Enter", "Open the note, or start a missing one", "In the global graph, opens the selected note in the editor; on a link to a note that doesn't exist yet, starts that note, unsaved until you save it."},
-	{"+ / -", "Zoom: dots, busy names, all names", "In the global graph, + shows the map closer, with more names, and - further away; the wheel zooms around the mouse."},
-	{"0", "Centre on the selection", "In the global graph, moves the view so the selected note is in the middle."},
-	{"Esc", "Back to the previous selection", "In the global graph, clears the filter first; without one, selects the note selected before, as the back button does."},
-	{"/", "Filter the map by name or path", "In the global graph, greys out the notes whose name or path doesn't hold the text typed; Enter selects the best match and keeps the filter, Esc clears it."},
-	{"o", "Hide / show notes without links", "In the global graph, hides the notes that link nowhere and that nothing links to, or shows them again. They keep their place on the map."},
-	{"u", "Hide / show missing notes", "In the global graph, hides the links to notes that don't exist yet, or shows them again."},
+	{fixed("h j k l"), i18n.AppPal33, i18n.AppPal33Long},
+	{fixed("n / N"), i18n.AppPal34, i18n.AppPal34Long},
+	{fixed("Enter"), i18n.AppPal35, i18n.AppPal35Long},
+	{fixed("+ / -"), i18n.AppPal36, i18n.AppPal36Long},
+	{fixed("0"), i18n.AppPal37, i18n.AppPal37Long},
+	{fixed("Esc"), i18n.AppPal38, i18n.AppPal38Long},
+	{fixed("/"), i18n.AppPal39, i18n.AppPal39Long},
+	{fixed("o"), i18n.AppPal40, i18n.AppPal40Long},
+	{fixed("u"), i18n.AppPal41, i18n.AppPal41Long},
 }
 
 var mouseKeys = []fixedKey{
-	{"Click", "Tabs, tree, cursor", "A click picks a tab, a row of the explorer, a place in the editor, or a checkbox or a link in the preview."},
-	{"Wheel", "Scroll any pane", "The wheel scrolls the pane under the mouse, whichever has the focus."},
-	{"Drag", "Resize the panes", "Dragging a divider between two panes makes one wider and the other narrower."},
+	{func() string { return i18n.T(i18n.AppPalKeyClick) }, i18n.AppPal42, i18n.AppPal42Long},
+	{func() string { return i18n.T(i18n.AppPalKeyWheel) }, i18n.AppPal43, i18n.AppPal43Long},
+	{func() string { return i18n.T(i18n.AppPalKeyDrag) }, i18n.AppPal44, i18n.AppPal44Long},
 }
 
 // paletteEntries lists every row of the palette, in display order: how to
@@ -120,8 +135,8 @@ func (m *Model) paletteEntries() []paletteEntry {
 			break
 		}
 	}
-	out = append(out, paletteEntry{group: groupExport, key: "misoku export", title: "From the shell",
-		long: "Run misoku export note.md in a terminal to write the PDF without opening Misoku."})
+	out = append(out, paletteEntry{group: groupExport, key: "misoku export", title: i18n.T(i18n.AppPalShell),
+		long: i18n.T(i18n.AppPalShellLong)})
 
 	for _, a := range keymap.Actions {
 		label := m.keys.Label(a.Action)
@@ -148,7 +163,7 @@ func (m *Model) paletteEntries() []paletteEntry {
 // their key would from where the palette was opened: from home, only the
 // homeActions, the others need an open note. The explorer's act on its
 // selection, so they are only explained, and so is the help itself.
-func actionEntry(group, label, action string, home bool) paletteEntry {
+func actionEntry(group paletteGroup, label, action string, home bool) paletteEntry {
 	info := keymap.Actions[slices.IndexFunc(keymap.Actions, func(i keymap.Info) bool { return i.Action == action })]
 	e := paletteEntry{group: group, key: label, title: info.Help, long: info.Long}
 	switch {
@@ -166,7 +181,7 @@ func actionEntry(group, label, action string, home bool) paletteEntry {
 // commandEntry lists an ex command. One that needs no argument and no
 // table runs on Enter, exactly as if it was typed on the command line;
 // from home, only one that needs no note (Command.NoNote).
-func commandEntry(group string, c content.Command, home bool) paletteEntry {
+func commandEntry(group paletteGroup, c content.Command, home bool) paletteEntry {
 	e := paletteEntry{group: group, key: c.Usage, title: c.Help, long: c.Long}
 	if home && c.Run != "" && !c.NoNote {
 		e.needsNote = true
@@ -182,10 +197,10 @@ func commandEntry(group string, c content.Command, home bool) paletteEntry {
 	return e
 }
 
-func fixedEntries(group string, keys []fixedKey) []paletteEntry {
+func fixedEntries(group paletteGroup, keys []fixedKey) []paletteEntry {
 	out := make([]paletteEntry, len(keys))
 	for i, k := range keys {
-		out[i] = paletteEntry{group: group, key: k.key, title: k.title, long: k.long}
+		out[i] = paletteEntry{group: group, key: k.key(), title: i18n.T(k.title), long: i18n.T(k.long)}
 	}
 	return out
 }

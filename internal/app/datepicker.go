@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -124,6 +125,12 @@ func (p *datePicker) update(m *Model, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// longDate is t as the picker's header shows it: "Mon, 2 Jan 2006" in
+// English, with the names of the language in use.
+func longDate(t time.Time) string {
+	return i18n.T(i18n.AppDateLong, i18n.T(i18n.AppWeekdays[t.Weekday()]), t.Day(), i18n.T(i18n.AppMonthsShort[t.Month()-1]), t.Year())
+}
+
 func (p *datePicker) view(m *Model) (string, int, int) {
 	th := m.theme
 	x, y, w, _ := p.geom(m)
@@ -131,17 +138,17 @@ func (p *datePicker) view(m *Model) (string, int, int) {
 	bg := lipgloss.NewStyle().Background(th.PopupBg)
 	rows := []string{
 		bg.Foreground(th.Blue).Render(" \U000f00ed ") + bg.Foreground(th.Fg).Bold(true).Render(ui.Truncate(p.title, inner-4)),
-		bg.Foreground(th.GreyFg2).Render(" " + p.date.Format("Mon, 2 Jan 2006")),
+		bg.Foreground(th.GreyFg2).Render(" " + longDate(p.date)),
 	}
-	month := p.date.Format("January 2006")
+	month := i18n.T(i18n.AppDateMonth, i18n.T(i18n.AppMonths[p.date.Month()-1]), p.date.Year())
 	pad := max(inner-4-lipgloss.Width(month)-4, 0)
 	rows = append(rows, bg.Foreground(th.Blue).Render("  ‹ ")+bg.Render(strings.Repeat(" ", pad/2))+
 		bg.Foreground(th.Fg).Bold(true).Render(month)+bg.Render(strings.Repeat(" ", pad-pad/2))+bg.Foreground(th.Blue).Render(" ›  "))
 	rows = append(rows, "")
 	var head strings.Builder
 	head.WriteString(bg.Render("  "))
-	for _, d := range []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"} {
-		head.WriteString(bg.Foreground(th.GreyFg).Render(fmt.Sprintf("%*s  ", pickerCell-2, d)))
+	for _, k := range i18n.AppWeekdaysTwo {
+		head.WriteString(bg.Foreground(th.GreyFg).Render(fmt.Sprintf("%*s  ", pickerCell-2, i18n.T(k))))
 	}
 	rows = append(rows, head.String())
 
@@ -167,6 +174,6 @@ func (p *datePicker) view(m *Model) (string, int, int) {
 		}
 		rows = append(rows, line.String())
 	}
-	rows = append(rows, "", bg.Foreground(th.GreyFg).Render(" ←→↑↓ day · [ ] month · t today · Enter"))
+	rows = append(rows, "", bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppPickerHelp)))
 	return panel(th, rows, inner), x, y
 }

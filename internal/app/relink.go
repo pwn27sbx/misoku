@@ -1,10 +1,10 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -78,9 +78,9 @@ func (m *Model) askRelinks(msg relinksPlannedMsg) {
 		return
 	}
 	m.confirm = &confirmDialog{
-		title:   "Update " + countLinks(msg.relinks) + "?",
-		message: []string{"No keeps the new name and leaves the links as written."},
-		buttons: []string{"Yes", "No"},
+		title:   i18n.T(i18n.AppRelinkTitle, countLinks(msg.relinks)),
+		message: []string{i18n.T(i18n.AppRelinkNo)},
+		buttons: []string{i18n.T(i18n.AppYes), i18n.T(i18n.AppNo)},
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			if choice != 0 {
 				return nil
@@ -101,7 +101,7 @@ func countLinks(rs []core.Relink) string {
 	for _, r := range rs {
 		links += r.Links
 	}
-	return fmt.Sprintf("%d %s in %d %s", links, plural(links, "link", "links"), len(rs), plural(len(rs), "note", "notes"))
+	return i18n.T(i18n.AppLinksInNotes, i18n.N(i18n.AppLinksInNotesLinks, links, links), i18n.N(i18n.AppLinksInNotesNotes, len(rs), len(rs)))
 }
 
 // finishRelinks brings the open tabs of the rewritten notes up to date
@@ -127,7 +127,7 @@ func (m *Model) finishRelinks(msg relinksAppliedMsg) {
 		m.refreshGraph()
 		m.refreshModified()
 	}
-	status := msg.job.renamed + " · updated " + countLinks(msg.done)
+	status := i18n.T(i18n.AppRelinkUpdated, msg.job.renamed, countLinks(msg.done))
 	if len(msg.done) == 0 && msg.job.batch != nil {
 		status = msg.job.renamed // a batch that rewrote no link says only what it did
 	}
@@ -139,7 +139,7 @@ func (m *Model) finishRelinks(msg relinksAppliedMsg) {
 		isErr = true
 	}
 	if len(msg.skipped) > 0 {
-		status += " · " + strings.Join(msg.skipped, ", ") + " changed meanwhile, its links were left as written"
+		status += i18n.T(i18n.AppRelinkSkipped, strings.Join(msg.skipped, ", "))
 		isErr = true
 	}
 	if isErr {

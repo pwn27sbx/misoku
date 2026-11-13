@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +22,7 @@ func (m *Model) propertyHit(h preview.Hit) tea.Cmd {
 	if !ok || f.List != nil || f.EndLine > f.Line {
 		return nil // gone or turned into a list since the preview was drawn
 	}
-	return m.prompt("Edit property", f.Value, f.Key, func(m *Model, v string) tea.Cmd {
+	return m.prompt(i18n.T(i18n.AppEditProperty), f.Value, f.Key, func(m *Model, v string) tea.Cmd {
 		m.content.SetFrontMatter(f.Key, v)
 		m.tableEdited()
 		return nil

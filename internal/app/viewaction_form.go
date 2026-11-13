@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,16 +14,17 @@ import (
 // questionTypes are the choices offered when adding a form question:
 // label shown, type tag written in the Markdown, whether it has options.
 var questionTypes = []struct {
-	label, tag string
-	options    bool
+	label   i18n.Key
+	tag     string
+	options bool
 }{
-	{"Short answer", "", false},
-	{"Long answer", "long", false},
-	{"Single choice  ○", "choice", true},
-	{"Multiple choice  ☐", "multi", true},
-	{"Rating  ☆☆☆☆☆", "rating", false},
-	{"Date", "date", false},
-	{"Email", "email", false},
+	{i18n.AppFormShort, "", false},
+	{i18n.AppFormLong, "long", false},
+	{i18n.AppFormChoice, "choice", true},
+	{i18n.AppFormMulti, "multi", true},
+	{i18n.AppFormRating, "rating", false},
+	{i18n.AppFormDate, "date", false},
+	{i18n.AppFormEmail, "email", false},
 }
 
 // chooseQuestionType asks for a question type (and options when needed) and
@@ -30,9 +32,9 @@ var questionTypes = []struct {
 func (m *Model) chooseQuestionType(text, options string, done func(*Model, string)) tea.Cmd {
 	labels := make([]string, len(questionTypes))
 	for i, t := range questionTypes {
-		labels[i] = t.label
+		labels[i] = i18n.T(t.label)
 	}
-	m.menu("Type of \""+text+"\"", labels, func(m *Model, i int) tea.Cmd {
+	m.menu(i18n.T(i18n.AppFormTypeOf, text), labels, func(m *Model, i int) tea.Cmd {
 		t := questionTypes[i]
 		line := "? " + text
 		if t.tag != "" {
@@ -43,9 +45,9 @@ func (m *Model) chooseQuestionType(text, options string, done func(*Model, strin
 			return nil
 		}
 		if options == "" {
-			options = "Option 1 | Option 2 | Option 3"
+			options = i18n.T(i18n.AppFormOptions3)
 		}
-		return m.prompt("Options for \""+text+"\"", options, "Separate options with | or commas", func(m *Model, v string) tea.Cmd {
+		return m.prompt(i18n.T(i18n.AppFormOptionsFor, text), options, i18n.T(i18n.AppFormOptionsHint), func(m *Model, v string) tea.Cmd {
 			var opts []string
 			for _, o := range strings.FieldsFunc(v, func(r rune) bool { return r == '|' || r == ',' }) {
 				if o = strings.TrimSpace(o); o != "" {
@@ -53,7 +55,7 @@ func (m *Model) chooseQuestionType(text, options string, done func(*Model, strin
 				}
 			}
 			if len(opts) == 0 {
-				opts = []string{"Option 1"}
+				opts = []string{i18n.T(i18n.AppFormOption1)}
 			}
 			done(m, line+": "+strings.Join(opts, " | "))
 			return nil
@@ -108,9 +110,9 @@ func (m *Model) formHit(h preview.Hit) tea.Cmd {
 	lines := m.docLines()
 	switch h.Kind {
 	case "form:title", "form:desc":
-		key, label := "title", "Form title"
+		key, label := "title", i18n.T(i18n.AppFormTitle)
 		if h.Kind == "form:desc" {
-			key, label = "description", "Description"
+			key, label = "description", i18n.T(i18n.AppFormDescription)
 		}
 		return m.prompt(label, h.Arg, "", func(m *Model, v string) tea.Cmd {
 			lines := m.docLines()
@@ -132,7 +134,7 @@ func (m *Model) formHit(h preview.Hit) tea.Cmd {
 			})
 			return nil
 		}
-		return m.prompt(h.Arg, m.currentAnswer(h.Line), "Your answer (saved in the note as \"= answer\")", func(m *Model, v string) tea.Cmd {
+		return m.prompt(h.Arg, m.currentAnswer(h.Line), i18n.T(i18n.AppFormAnswerHint), func(m *Model, v string) tea.Cmd {
 			m.setAnswer(h.Line, v)
 			return nil
 		})
@@ -174,7 +176,7 @@ func (m *Model) formHit(h preview.Hit) tea.Cmd {
 		m.setAnswer(h.Line, v)
 
 	case "form:addopt":
-		return m.prompt("New option for "+h.Arg, "", "", func(m *Model, v string) tea.Cmd {
+		return m.prompt(i18n.T(i18n.AppFormNewOption, h.Arg), "", "", func(m *Model, v string) tea.Cmd {
 			if v == "" {
 				return nil
 			}
@@ -190,9 +192,9 @@ func (m *Model) formHit(h preview.Hit) tea.Cmd {
 
 	case "form:question":
 		required := strings.HasPrefix(strings.TrimSpace(lines[h.Line]), "?*")
-		toggle := "Make required"
+		toggle := i18n.T(i18n.AppFormRequired)
 		if required {
-			toggle = "Make optional"
+			toggle = i18n.T(i18n.AppFormOptional)
 		}
 		const (
 			rename = iota
@@ -201,11 +203,11 @@ func (m *Model) formHit(h preview.Hit) tea.Cmd {
 			clearAnswer
 			deleteQuestion
 		)
-		m.menu(h.Arg, []string{"Rename", "Change type", toggle, "Clear answer", "Delete question"}, func(m *Model, choice int) tea.Cmd {
+		m.menu(h.Arg, []string{i18n.T(i18n.AppRename), i18n.T(i18n.AppFormChangeType), toggle, i18n.T(i18n.AppFormClearAnswer), i18n.T(i18n.AppFormDeleteQ)}, func(m *Model, choice int) tea.Cmd {
 			lines := m.docLines()
 			switch choice {
 			case rename:
-				return m.prompt("Rename question", h.Arg, "", func(m *Model, v string) tea.Cmd {
+				return m.prompt(i18n.T(i18n.AppFormRenameQ), h.Arg, "", func(m *Model, v string) tea.Cmd {
 					if v == "" {
 						return nil
 					}
@@ -249,7 +251,7 @@ func (m *Model) formHit(h preview.Hit) tea.Cmd {
 		})
 
 	case "form:addq":
-		return m.prompt("New question", "", "Next you'll pick its type (text, choice, rating…)", func(m *Model, v string) tea.Cmd {
+		return m.prompt(i18n.T(i18n.AppFormNewQ), "", i18n.T(i18n.AppFormNewQHint), func(m *Model, v string) tea.Cmd {
 			if v == "" {
 				return nil
 			}

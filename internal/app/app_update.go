@@ -11,6 +11,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/globalgraph"
 	"github.com/pwn27sbx/misoku/internal/graph"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
@@ -109,7 +110,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.EnableMouseAllMotion
 	case learnChosenMsg:
 		if msg.err != nil {
-			m.setError("Could not remember the answer (" + msg.err.Error() + "); Misoku will ask again next time")
+			m.setError(i18n.T(i18n.AppLearnNotSaved, msg.err.Error()))
 		}
 		if msg.route != "" {
 			return m, m.startTutorial(msg.route)
@@ -316,7 +317,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.unavailable:
 			return m, m.openFileBrowser(msg.kind)
 		case msg.err != nil:
-			m.setError("File dialog failed: " + msg.err.Error())
+			m.setError(i18n.T(i18n.AppFileDialogFailed, msg.err.Error()))
 		case msg.cancelled || msg.path == "":
 			m.setStatus("")
 		default:
@@ -400,7 +401,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) handleSave(msg core.VimSaveMsg) tea.Cmd {
 	b := m.activeBuffer()
 	if b == nil {
-		m.setError("E32: No file name")
+		m.setError(i18n.T(i18n.AppNoFileName))
 		return nil
 	}
 	if msg.Path != "" {
@@ -432,7 +433,7 @@ func (m *Model) renamePage(id, title string) tea.Cmd {
 	before := append([]core.Page(nil), m.notes...)
 	updated, err := m.store.Rename(id, title)
 	if err != nil {
-		m.setError("Rename failed: " + err.Error())
+		m.setError(i18n.T(i18n.AppRenameFailed, err.Error()))
 		return nil
 	}
 	activeBefore := m.active
@@ -445,7 +446,7 @@ func (m *Model) renamePage(id, title string) tea.Cmd {
 		m.preview.SetPage(b.page())
 		m.sidebar.SetActiveID(b.id)
 	}
-	renamed := "Renamed to " + updated.ID
+	renamed := i18n.T(i18n.AppRenamedTo, updated.ID)
 	m.setStatus(renamed)
 	return m.planRelinks(relinkJob{renamed: renamed, before: before, moves: []core.Move{{From: id, To: updated.ID}}})
 }
@@ -453,38 +454,38 @@ func (m *Model) renamePage(id, title string) tea.Cmd {
 func (m *Model) confirmDelete(id string) {
 	p, err := m.store.Get(id)
 	if err != nil {
-		m.setError("Not found: " + id)
+		m.setError(i18n.T(i18n.AppNotFound, id))
 		return
 	}
-	what := "The file is"
+	trashed, gone := i18n.AppDeleteFile, i18n.AppDeleteFileGone
 	if p.IsFolder {
-		what = "The folder and everything inside it are"
+		trashed, gone = i18n.AppDeleteFolder, i18n.AppDeleteFolderGone
 	} else if sidecar := strings.TrimSuffix(id, ".md"); sidecar != id {
 		if info, err := os.Stat(filepath.Join(m.store.Root(), filepath.FromSlash(sidecar))); err == nil && info.IsDir() {
-			what = "The note and all of its sub-notes are"
+			trashed, gone = i18n.AppDeleteNote, i18n.AppDeleteNoteGone
 		}
 	}
-	msg := []string{what + " moved to the Trash.", "You can restore it from there."}
+	msg := []string{i18n.T(trashed), i18n.T(i18n.AppDeleteRestore)}
 	if !core.HasTrash() {
-		msg = []string{what + " removed from disk.", "This cannot be undone."}
+		msg = []string{i18n.T(gone), i18n.T(i18n.AppDeleteForGood)}
 	}
 	m.confirm = &confirmDialog{
-		title:   "Delete " + id + "?",
+		title:   i18n.T(i18n.AppDeleteTitle, id),
 		message: msg,
-		buttons: []string{"Delete", "Cancel"},
+		buttons: []string{i18n.T(i18n.AppDelete), i18n.T(i18n.AppCancel)},
 		danger:  true,
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			if choice != 0 {
 				return nil
 			}
 			if err := m.store.Delete(id); err != nil {
-				m.setError("Delete failed: " + err.Error())
+				m.setError(i18n.T(i18n.AppDeleteFailed, err.Error()))
 				return nil
 			}
 			m.dropBuffersUnder(id)
 			m.reloadTree()
 			m.refreshModified()
-			m.setStatus("Deleted " + id)
+			m.setStatus(i18n.T(i18n.AppDeleted, id))
 			if len(m.buffers) == 0 && len(m.store.List()) == 0 {
 				m.goHome()
 			}

@@ -1,10 +1,10 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -106,7 +106,7 @@ func (m *Model) mentionRow(id string) (core.UnlinkedMention, bool) {
 // them.
 func (m *Model) refuseDirtyMention(id string) bool {
 	if i := m.bufferIndex(id); i >= 0 && m.isDirty(m.buffers[i]) {
-		m.setError(id + " has unsaved changes: save it before linking its mentions")
+		m.setError(i18n.T(i18n.AppMentionDirty, id))
 		return true
 	}
 	return false
@@ -127,9 +127,9 @@ func (m *Model) askLinkMentions(id string) tea.Cmd {
 	}
 	rs := []core.Relink{{ID: row.ID, From: row.Content, To: to, Links: n}}
 	m.confirm = &confirmDialog{
-		title:   fmt.Sprintf("Link %s in %s?", mentionCount(n), row.Title),
-		message: []string{"Each one becomes [[" + b.title + "]]; No leaves the note as written."},
-		buttons: []string{"Yes", "No"},
+		title:   i18n.T(i18n.AppMentionTitle, mentionCount(n), row.Title),
+		message: []string{i18n.T(i18n.AppMentionNo, b.title)},
+		buttons: []string{i18n.T(i18n.AppYes), i18n.T(i18n.AppNo)},
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			if choice != 0 || m.refuseDirtyMention(id) {
 				return nil
@@ -146,7 +146,7 @@ func (m *Model) askLinkMentions(id string) tea.Cmd {
 
 // mentionCount says "1 mention" or "n mentions".
 func mentionCount(n int) string {
-	return fmt.Sprintf("%d %s", n, plural(n, "mention", "mentions"))
+	return i18n.N(i18n.AppMentionCount, n, n)
 }
 
 // finishLinkMentions brings an open clean tab of the rewritten note up to
@@ -165,9 +165,9 @@ func (m *Model) finishLinkMentions(msg mentionsLinkedMsg) {
 	case msg.err != nil:
 		m.setError(msg.err.Error())
 	case len(msg.skipped) > 0:
-		m.setError(strings.Join(msg.skipped, ", ") + " changed since it was read; its mentions were left as written")
+		m.setError(i18n.T(i18n.AppMentionSkipped, strings.Join(msg.skipped, ", ")))
 		m.requestMentions(true)
 	case len(msg.done) > 0:
-		m.setStatus(fmt.Sprintf("Linked %s in %s", mentionCount(msg.done[0].Links), msg.row.Title))
+		m.setStatus(i18n.T(i18n.AppMentionLinked, mentionCount(msg.done[0].Links), msg.row.Title))
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/export"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,7 +16,7 @@ import (
 func (m *Model) exportPDF(arg string) tea.Cmd {
 	b := m.activeBuffer()
 	if b == nil {
-		m.setError("Open a note to export it")
+		m.setError(i18n.T(i18n.AppExportNoNote))
 		return nil
 	}
 	dir := m.noteDir(b)
@@ -28,13 +29,13 @@ func (m *Model) exportPDF(arg string) tea.Cmd {
 		return notes(target)
 	}
 	if err := export.WriteFile(export.Printable(text, lookup), export.Options{Title: b.title, BaseDir: dir}, out); err != nil {
-		m.setError("Export failed: " + err.Error())
+		m.setError(i18n.T(i18n.AppExportFailed, err.Error()))
 		return nil
 	}
 	shown := tildePath(out)
 	if rel, err := filepath.Rel(m.store.Root(), out); err == nil && !strings.HasPrefix(rel, "..") {
 		shown = filepath.ToSlash(rel)
 	}
-	m.setStatus("\"" + shown + "\" exported")
-	return m.showToast("Exported " + shown)
+	m.setStatus(i18n.T(i18n.AppExportedStatus, shown))
+	return m.showToast(i18n.T(i18n.AppExportedToast, shown))
 }

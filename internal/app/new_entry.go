@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -13,27 +14,27 @@ import (
 func (m *Model) requestCreate(parentID, name string) tea.Cmd {
 	e, err := m.store.ParseNewEntry(parentID, name)
 	if err != nil {
-		m.setError("Can't create " + name + ": " + err.Error())
+		m.setError(i18n.T(i18n.AppCantCreate, name, err.Error()))
 		return nil
 	}
 	if e.Exists {
 		if e.Note.ID != "" {
 			cmd := m.openFile(e.Note.ID)
-			m.setStatus(e.Path + " already exists: opened it")
+			m.setStatus(i18n.T(i18n.AppExistsOpened, e.Path))
 			return cmd
 		}
 		m.showCreatedFolders(e.Folders)
-		m.setStatus(e.Path + " already exists")
+		m.setStatus(i18n.T(i18n.AppExists, e.Path))
 		return nil
 	}
-	what := "Creates the note and opens it."
+	what := i18n.T(i18n.AppCreatesNote)
 	if e.Note.ID == "" {
-		what = "Creates the folder."
+		what = i18n.T(i18n.AppCreatesFolder)
 	}
 	m.confirm = &confirmDialog{
-		title:   "CREATE " + e.Path,
+		title:   i18n.T(i18n.AppCreateTitle, e.Path),
 		message: []string{what},
-		buttons: []string{"Yes", "No"},
+		buttons: []string{i18n.T(i18n.AppYes), i18n.T(i18n.AppNo)},
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			if choice != 0 {
 				return nil
@@ -50,11 +51,11 @@ func (m *Model) requestCreate(parentID, name string) tea.Cmd {
 func (m *Model) createEntry(e core.NewEntry) tea.Cmd {
 	p, err := m.store.CreateEntry(e)
 	if err != nil {
-		m.setError("Create failed: " + err.Error())
+		m.setError(i18n.T(i18n.AppCreateFailed, err.Error()))
 		return nil
 	}
 	m.showCreatedFolders(e.Folders)
-	m.setStatus("Created " + e.Path)
+	m.setStatus(i18n.T(i18n.AppCreated, e.Path))
 	if p.IsFolder || e.Note.ID == "" {
 		return nil
 	}

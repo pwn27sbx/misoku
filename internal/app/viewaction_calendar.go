@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,7 +15,7 @@ import (
 func (m *Model) calendarHit(h preview.Hit) tea.Cmd {
 	switch h.Kind {
 	case "cal:day":
-		return m.prompt("New event on "+h.Arg, "", "", func(m *Model, v string) tea.Cmd {
+		return m.prompt(i18n.T(i18n.AppCalNewEvent, h.Arg), "", "", func(m *Model, v string) tea.Cmd {
 			if v != "" {
 				m.setDocLines(insertAt(m.docLines(), h.End, h.Arg+": "+v))
 			}
@@ -22,10 +23,10 @@ func (m *Model) calendarHit(h preview.Hit) tea.Cmd {
 		})
 	case "cal:event":
 		date, _, _ := strings.Cut(strings.TrimSpace(m.docLines()[h.Line]), ":")
-		m.menu(h.Arg, []string{"Rename", "Move to another date", "Delete"}, func(m *Model, choice int) tea.Cmd {
+		m.menu(h.Arg, []string{i18n.T(i18n.AppRename), i18n.T(i18n.AppCalMoveDate), i18n.T(i18n.AppDelete)}, func(m *Model, choice int) tea.Cmd {
 			switch choice {
 			case 0:
-				return m.prompt("Rename event", h.Arg, "", func(m *Model, v string) tea.Cmd {
+				return m.prompt(i18n.T(i18n.AppCalRenameEvent), h.Arg, "", func(m *Model, v string) tea.Cmd {
 					if v != "" {
 						lines := m.docLines()
 						lines[h.Line] = strings.TrimSpace(date) + ": " + v
@@ -35,7 +36,7 @@ func (m *Model) calendarHit(h preview.Hit) tea.Cmd {
 				})
 			case 1:
 				from, _ := time.Parse("2006-01-02", strings.TrimSpace(date))
-				m.pickDate("Move \""+h.Arg+"\" to", from, time.Time{}, func(m *Model, d time.Time) tea.Cmd {
+				m.pickDate(i18n.T(i18n.AppCalMoveTo, h.Arg), from, time.Time{}, func(m *Model, d time.Time) tea.Cmd {
 					lines := m.docLines()
 					lines[h.Line] = d.Format("2006-01-02") + ": " + h.Arg
 					m.setDocLines(lines)

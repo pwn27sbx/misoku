@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -218,14 +219,14 @@ func (m *Model) renderLeaderGuide() string {
 		}
 	}
 
-	footer := " These keys come from config.json · Esc to close"
+	footer := i18n.T(i18n.AppLeaderFooter)
 	width = min(max(width, lipgloss.Width(footer)+1), max(avail, 1))
 	// A short terminal loses rows of the body, never the footer: the panel
 	// has a title, two blank rows, the footer and its border.
 	if maxBody := m.height - footerHeight - 6; len(body) > maxBody {
-		body = append(body[:max(maxBody-1, 0)], bg.Foreground(th.GreyFg).Render(" … enlarge the terminal to see all"))
+		body = append(body[:max(maxBody-1, 0)], bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppLeaderEnlarge)))
 	}
-	title := keyStyle.Render(" "+keymap.SequenceLabel(m.leaderKeys)) + bg.Foreground(th.GreyFg).Render(" then")
+	title := keyStyle.Render(" "+keymap.SequenceLabel(m.leaderKeys)) + bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppLeaderThen))
 	if name := keymap.GroupTitle(m.leaderKeys); name != "" {
 		title += headStyle.Render("  " + name)
 	}

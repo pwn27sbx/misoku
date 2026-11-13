@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -324,7 +325,7 @@ func (d *menuDialog) view(m *Model) (string, int, int) {
 		field := lipgloss.NewStyle().Background(th.Bg2)
 		text := field.Foreground(th.Fg).Render(d.query + "▏")
 		if d.query == "" && !d.filtering {
-			text = field.Foreground(th.GreyFg).Render("Type to filter (/ for digits)…")
+			text = field.Foreground(th.GreyFg).Render(i18n.T(i18n.AppMenuFilter))
 		}
 		rows = append(rows, bg.Render(" ")+ui.FitLine(field.Foreground(th.Blue).Bold(true).Render("  ")+text, inner-2, field)+bg.Render(" "))
 	}
@@ -333,7 +334,7 @@ func (d *menuDialog) view(m *Model) (string, int, int) {
 		pos := d.offset + r
 		if pos >= len(d.shown) {
 			if r == 0 {
-				rows = append(rows, bg.Foreground(th.GreyFg).Render("   Nothing matches"))
+				rows = append(rows, bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppNothingHere)))
 				continue
 			}
 			rows = append(rows, "")
@@ -350,11 +351,11 @@ func (d *menuDialog) view(m *Model) (string, int, int) {
 	hint := " ↑↓ Enter · Esc"
 	switch {
 	case d.number != "" && !d.numbered():
-		hint = " No item " + d.number + " · Backspace or Esc"
+		hint = i18n.T(i18n.AppMenuNoItem, d.number)
 	case d.number != "":
-		hint = " Number: " + d.number + "_ · Enter picks it"
+		hint = i18n.T(i18n.AppMenuNumber, d.number)
 	case d.search:
-		hint = " Type or / to filter · ↑↓ Enter · Esc"
+		hint = i18n.T(i18n.AppMenuSearchHint)
 	}
 	rows = append(rows, bg.Foreground(th.GreyFg).Render(hint))
 	return panel(th, rows, inner), x, y

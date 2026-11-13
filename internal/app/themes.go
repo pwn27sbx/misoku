@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -40,7 +41,7 @@ func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
 		cfg, _ := config.Load(m.configPath)
 		cfg.Theme = th.Name
 		if err := config.Save(m.configPath, cfg); err != nil {
-			m.setError("Could not save theme: " + err.Error())
+			m.setError(i18n.T(i18n.AppThemeSaveError, err.Error()))
 			return false
 		}
 		m.tutorDefer("settings_saved", "")
@@ -52,11 +53,11 @@ func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
 func (m *Model) setThemeByName(name string) {
 	th, ok := theme.Get(strings.ToLower(strings.TrimSpace(name)))
 	if !ok {
-		m.setError(fmt.Sprintf("E185: Cannot find color scheme '%s'", name))
+		m.setError(i18n.T(i18n.AppThemeNotFound, name))
 		return
 	}
 	if m.applyTheme(th, true) {
-		m.setStatus("Theme: " + th.Name)
+		m.setStatus(i18n.T(i18n.AppThemeSet, th.Name))
 	}
 }
 
@@ -75,7 +76,7 @@ func (m *Model) openThemePicker() tea.Cmd {
 	th := m.theme
 	in := textinput.New()
 	in.Prompt = ""
-	in.Placeholder = "Filter themes…"
+	in.Placeholder = i18n.T(i18n.AppThemeFilter)
 	in.CharLimit = 40
 	p := &themePicker{input: in, all: theme.Names(), original: m.baseTheme}
 	p.filter()
@@ -139,7 +140,7 @@ func (p *themePicker) close(m *Model, keep bool) {
 		return
 	}
 	if m.applyTheme(m.baseTheme, true) {
-		m.setStatus("Theme: " + m.theme.Name)
+		m.setStatus(i18n.T(i18n.AppThemeSet, m.theme.Name))
 		m.tutorDefer("theme_pick", "")
 	}
 }
@@ -222,7 +223,7 @@ func (p *themePicker) view(m *Model) (string, int, int) {
 	p.input.Cursor.TextStyle = field.Foreground(th.Fg)
 	p.input.Width = max(inner-8, 1)
 
-	title := bg.Foreground(th.Blue).Render(" \U000f03d8 ") + bg.Foreground(th.Fg).Bold(true).Render("Themes")
+	title := bg.Foreground(th.Blue).Render(" \U000f03d8 ") + bg.Foreground(th.Fg).Bold(true).Render(i18n.T(i18n.AppThemesTitle))
 	count := bg.Foreground(th.GreyFg2).Render(fmt.Sprintf("%d ", len(p.list)))
 	rows := []string{
 		title + bg.Render(strings.Repeat(" ", max(inner-lipgloss.Width(title)-lipgloss.Width(count), 0))) + count,
@@ -255,15 +256,15 @@ func (p *themePicker) view(m *Model) (string, int, int) {
 			sw.WriteString(chip.Foreground(c).Render("●"))
 		}
 		sw.WriteString(chip.Render(" "))
-		kind := "dark"
+		kind := i18n.T(i18n.AppThemeDark)
 		if t.Light {
-			kind = "light"
+			kind = i18n.T(i18n.AppThemeLight)
 		}
 		label := base.Foreground(th.Fg).Bold(idx == p.sel).Render(name)
 		right := base.Foreground(th.GreyFg).Render(kind+" ") + sw.String() + base.Render(" ")
 		gap := inner - lipgloss.Width(marker) - lipgloss.Width(label) - lipgloss.Width(right)
 		rows = append(rows, marker+label+base.Render(strings.Repeat(" ", max(gap, 1)))+right)
 	}
-	rows = append(rows, bg.Foreground(th.GreyFg).Render(" ↑↓ preview · Enter apply · Esc revert"))
+	rows = append(rows, bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppThemeHelp)))
 	return panel(th, rows, inner), g.x, g.y
 }

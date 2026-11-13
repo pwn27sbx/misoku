@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // fileManagerAction is one line of the log the Lua writes: mini.files'
@@ -127,7 +127,7 @@ func readFileManagerMoves(store *core.Store, logPath string, before []core.Page)
 // "Renamed to X" for one note, "Moved N notes" for more.
 func fileManagerStatus(moves []core.Move) string {
 	if len(moves) == 1 {
-		return "Renamed to " + moves[0].To
+		return i18n.T(i18n.AppRenamedTo, moves[0].To)
 	}
-	return fmt.Sprintf("Moved %d notes", len(moves))
+	return i18n.T(i18n.AppMovedNotes, len(moves))
 }

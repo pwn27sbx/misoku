@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/pwn27sbx/misoku/internal/dirplan"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -35,7 +36,7 @@ func (m *Model) confirmLeaveEditor(msg leavePlannedMsg) {
 		return
 	}
 	apply := m.confirm.onChoose
-	m.confirm.buttons = []string{"Yes", "No", "Cancel"}
+	m.confirm.buttons = []string{i18n.T(i18n.AppYes), i18n.T(i18n.AppNo), i18n.T(i18n.AppCancel)}
 	m.confirm.onChoose = func(m *Model, choice int) tea.Cmd {
 		switch choice {
 		case 0:

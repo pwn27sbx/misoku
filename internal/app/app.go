@@ -16,6 +16,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/gitsync"
 	"github.com/pwn27sbx/misoku/internal/globalgraph"
 	"github.com/pwn27sbx/misoku/internal/graph"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
@@ -144,7 +145,7 @@ type Model struct {
 
 	syncVault  *config.Vault    // this folder's sync.vaults entry; nil = sync off
 	syncUnsafe bool             // the folder is no place to set up sync (gitsync.UnsafeFolder)
-	syncOff    string           // why sync is off, shown when the user asks for one
+	syncOff    func() string    // why sync is off, shown when the user asks for one; read when shown, in the language then
 	syncLock   *gitsync.Lock    // held for the whole session once taken (S11)
 	syncing    bool             // a sync command is running
 	syncRun    *syncRun         // the sync started last, to wait for on quit (S14)
@@ -199,6 +200,9 @@ type Model struct {
 	setupStep    int
 	setupStop    context.CancelFunc
 	setupStopped bool
+	// setupShown is the bar line a running step showed, cleared when it
+	// returns.
+	setupShown string
 	// onSetupEnd hears that the assistant ended, on a screen that is not
 	// the app (SetupDialogs); nil in the app.
 	onSetupEnd func(gitsync.SetupStep) tea.Cmd
@@ -494,7 +498,7 @@ func (m *Model) toggleView(v noteView) tea.Cmd {
 	if m.noteView == v {
 		m.setNoteView(viewSplit)
 		if m.layout().PreviewW == 0 {
-			m.setStatus("Window too narrow for the preview")
+			m.setStatus(i18n.T(i18n.AppTooNarrowPreview))
 		}
 		return nil
 	}

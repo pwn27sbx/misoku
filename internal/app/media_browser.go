@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -37,7 +38,7 @@ func (m *Model) openFileBrowser(kind string) tea.Cmd {
 	}
 	in := textinput.New()
 	in.Prompt = ""
-	in.Placeholder = "Filter, or type a path and press Enter"
+	in.Placeholder = i18n.T(i18n.AppBrowserFilter)
 	in.CharLimit = 512
 	fb := &fileBrowser{kind: k, input: in}
 	fb.chdir(start)
@@ -134,7 +135,7 @@ func (fb *fileBrowser) activate(m *Model) {
 			m.browser = nil
 			m.attachMedia(fb.kind.name, p)
 		default:
-			fb.err = "Not a " + fb.kind.name + ": " + filepath.Base(p)
+			fb.err = i18n.T(i18n.AppBrowserNotA, i18n.T(fb.kind.noun), filepath.Base(p))
 		}
 		return
 	}
@@ -235,7 +236,7 @@ func (fb *fileBrowser) view(m *Model) (string, int, int) {
 	fb.input.Cursor.TextStyle = field.Foreground(th.Fg)
 	fb.input.Width = max(inner-8, 1)
 
-	title := bg.Foreground(th.Blue).Render(" \U000f0256 ") + bg.Foreground(th.Fg).Bold(true).Render(fb.kind.title)
+	title := bg.Foreground(th.Blue).Render(" \U000f0256 ") + bg.Foreground(th.Fg).Bold(true).Render(fb.kind.titleText())
 	where := bg.Foreground(th.GreyFg2).Render(" " + ui.Truncate(tildePath(fb.dir), inner-2))
 	rows := []string{
 		title,
@@ -249,7 +250,7 @@ func (fb *fileBrowser) view(m *Model) (string, int, int) {
 		i := fb.offset + r
 		if i >= len(list) {
 			if r == 0 {
-				rows = append(rows, bg.Foreground(th.GreyFg).Italic(true).Render("   Nothing here"))
+				rows = append(rows, bg.Foreground(th.GreyFg).Italic(true).Render(i18n.T(i18n.AppBrowserEmpty)))
 			} else {
 				rows = append(rows, "")
 			}
@@ -277,7 +278,7 @@ func (fb *fileBrowser) view(m *Model) (string, int, int) {
 	if fb.err != "" {
 		rows = append(rows, bg.Foreground(th.Red).Render(" "+ui.Truncate(fb.err, inner-2)))
 	} else {
-		rows = append(rows, bg.Foreground(th.GreyFg).Render(" Enter open/choose · ← or Backspace up · ~/path jumps · Esc cancel"))
+		rows = append(rows, bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppBrowserHelp)))
 	}
 	return panel(th, rows, inner), x, y
 }

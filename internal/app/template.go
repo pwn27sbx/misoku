@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // WithTemplatesDir sets the vault folder of the note templates,
@@ -17,7 +18,7 @@ func WithTemplatesDir(dir string) Option {
 	return func(m *Model) {
 		d, err := config.VaultFolder(dir, config.DefaultTemplatesDir)
 		if err != nil {
-			m.setError("templates_dir: " + err.Error() + "; using " + d)
+			m.setError(i18n.T(i18n.AppFolderRefused, "templates_dir", err.Error(), d))
 		}
 		m.templates = d
 	}
@@ -52,7 +53,7 @@ func (m *Model) openTemplatePicker() tea.Cmd {
 		}
 	}
 	if len(ids) == 0 {
-		m.setStatus("No templates yet: create notes in the folder " + dir + "/ of the vault")
+		m.setStatus(i18n.T(i18n.AppNoTemplates, dir))
 		return nil
 	}
 	sort.Strings(ids)
@@ -60,7 +61,7 @@ func (m *Model) openTemplatePicker() tea.Cmd {
 	for i, id := range ids {
 		items[i] = strings.TrimSuffix(id[len(dir)+1:], path.Ext(id))
 	}
-	m.searchMenu("Templates", items, 0, func(m *Model, i int) tea.Cmd {
+	m.searchMenu(i18n.T(i18n.AppTemplatesTitle), items, 0, func(m *Model, i int) tea.Cmd {
 		m.insertTemplate(ids[i], items[i])
 		return nil
 	})
@@ -77,11 +78,11 @@ func (m *Model) insertTemplate(id, name string) {
 	}
 	p, err := m.store.Get(id)
 	if err != nil {
-		m.setError("Template " + name + ": " + err.Error())
+		m.setError(i18n.T(i18n.AppTemplateError, name, err.Error()))
 		return
 	}
 	m.content.InsertTemplate(p.Content, b.title, m.clock())
 	m.preview.SetContent(m.content.Value())
 	m.refreshModified()
-	m.setStatus("Inserted the template " + name + ": u undoes it")
+	m.setStatus(i18n.T(i18n.AppTemplateDone, name))
 }

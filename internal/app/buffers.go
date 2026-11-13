@@ -13,6 +13,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -130,7 +131,13 @@ func (b *buffer) isGraph() bool { return b.id == graphID || b.isGlobalGraph() }
 func (b *buffer) isGlobalGraph() bool { return b.id == globalGraphID }
 
 func (b *buffer) fileName() string {
-	if b.draft() {
+	// A graph's tab is named in the language in use, not the one it opened in.
+	switch {
+	case b.id == graphID:
+		return i18n.T(i18n.AppGraphTab)
+	case b.isGlobalGraph():
+		return i18n.T(i18n.AppGlobalGraphTab)
+	case b.draft():
 		return b.title
 	}
 	return path.Base(b.id)
@@ -288,7 +295,7 @@ func (m *Model) openFile(id string) tea.Cmd {
 	}
 	p, err := m.store.Get(id)
 	if err != nil || p.IsFolder {
-		m.setError("Cannot open " + id)
+		m.setError(i18n.T(i18n.AppCannotOpen, id))
 		return nil
 	}
 	m.tutorBNoteOpened()
@@ -315,7 +322,7 @@ func (m *Model) newDraft(parentID string) tea.Cmd {
 	m.draftSeq++
 	b := &buffer{
 		id:    fmt.Sprintf("%s%d", draftIDPrefix, m.draftSeq),
-		title: fmt.Sprintf("Untitled-%d", m.draftSeq),
+		title: i18n.T(i18n.AppUntitled, m.draftSeq),
 		dir:   m.store.ChildDir(parentID),
 	}
 	m.insertBuffer(b)
@@ -376,9 +383,9 @@ func (m *Model) closeBuffer(id string, force bool) tea.Cmd {
 		return nil
 	}
 	m.confirm = &confirmDialog{
-		title:   "Unsaved changes",
-		message: []string{fmt.Sprintf("Save changes to %s before closing?", b.fileName()), "Your changes will be lost if you don't save them."},
-		buttons: []string{"Save", "Don't Save", "Cancel"},
+		title:   i18n.T(i18n.AppUnsavedTitle),
+		message: []string{i18n.T(i18n.AppUnsavedQuestion, b.fileName()), i18n.T(i18n.AppUnsavedLost)},
+		buttons: []string{i18n.T(i18n.AppSave), i18n.T(i18n.AppDontSave), i18n.T(i18n.AppCancel)},
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			switch choice {
 			case 0:
@@ -414,9 +421,9 @@ func (m *Model) saveBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 		// Writing blindly would fail, or after a rename recreate the old name
 		// next to the new one and duplicate the note: let the user choose.
 		m.confirm = &confirmDialog{
-			title:   "Not on disk",
-			message: []string{fmt.Sprintf("%s was deleted or renamed outside Misoku.", b.fileName()), "Recreate it at its old path with your version?"},
-			buttons: []string{"Recreate", "Cancel"},
+			title:   i18n.T(i18n.AppGoneTitle),
+			message: []string{i18n.T(i18n.AppGoneWhat, b.fileName()), i18n.T(i18n.AppGoneAsk)},
+			buttons: []string{i18n.T(i18n.AppRecreate), i18n.T(i18n.AppCancel)},
 			onChoose: func(m *Model, choice int) tea.Cmd {
 				if choice == 0 {
 					return m.recreateBuffer(b, after)
@@ -454,13 +461,13 @@ func (m *Model) keepBothAndWrite(b *buffer, theirs string, after func(*Model) te
 		_, err = m.store.SaveAs(path.Dir(name), path.Base(name), theirs)
 	}
 	if err != nil {
-		m.setError("Not saved: the version on disk could not be kept (" + err.Error() + ")")
+		m.setError(i18n.T(i18n.AppNotSavedKeep, err.Error()))
 		m.quitting = false
 		return nil
 	}
 	m.reloadTree()
 	// Short, so the status bar shows the copy's name whole.
-	return m.writeBufferNote(b, after, "Both kept: "+path.Base(name))
+	return m.writeBufferNote(b, after, i18n.T(i18n.AppBothKept, path.Base(name)))
 }
 
 // writeBuffer writes b's text to its file, with no conflict check.
@@ -475,7 +482,7 @@ func (m *Model) writeBufferNote(b *buffer, after func(*Model) tea.Cmd, note stri
 	text := m.liveText(b)
 	saved, err := m.store.Update(core.Page{ID: b.id, Title: b.title, Content: text})
 	if err != nil {
-		m.setError("Save failed: " + err.Error())
+		m.setError(i18n.T(i18n.AppSaveFailed, err.Error()))
 		m.quitting = false
 		return nil
 	}
@@ -486,7 +493,7 @@ func (m *Model) writeBufferNote(b *buffer, after func(*Model) tea.Cmd, note stri
 	if note != "" {
 		m.setError(note)
 	} else {
-		m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
+		m.setStatus(i18n.T(i18n.AppWritten, b.id, strings.Count(text, "\n")+1))
 	}
 	m.refreshModified()
 	if after != nil {
@@ -514,7 +521,7 @@ func noteGoneAt(root, id string) bool {
 // warnGone tells the user b's note left the disk. Misoku cannot tell a
 // delete from a rename; after a rename the explorer shows the new name.
 func (m *Model) warnGone(b *buffer) {
-	m.setError(fmt.Sprintf("%q was deleted or renamed outside Misoku; saving will ask before recreating it", b.id))
+	m.setError(i18n.T(i18n.AppGoneSaveAsks, b.id))
 }
 
 // recreateBuffer writes b's text back at its old path after its file
@@ -523,7 +530,7 @@ func (m *Model) warnGone(b *buffer) {
 func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 	text := m.liveText(b)
 	if _, err := m.store.SaveAs(path.Dir(b.id), path.Base(b.id), text); err != nil {
-		m.setError("Save failed: " + err.Error())
+		m.setError(i18n.T(i18n.AppSaveFailed, err.Error()))
 		m.quitting = false
 		return nil
 	}
@@ -531,7 +538,7 @@ func (m *Model) recreateBuffer(b *buffer, after func(*Model) tea.Cmd) tea.Cmd {
 	b.gone = false
 	m.noteSaved()
 	m.reloadTree()
-	m.setStatus(fmt.Sprintf("\"%s\" %dL written", b.id, strings.Count(text, "\n")+1))
+	m.setStatus(i18n.T(i18n.AppWritten, b.id, strings.Count(text, "\n")+1))
 	m.refreshModified()
 	if after != nil {
 		return after(m)
@@ -569,7 +576,7 @@ func (m *Model) saveBufferAs(b *buffer, dir, name string) (tea.Cmd, error) {
 		m.sidebar.SetActiveID(b.id)
 		m.sidebar.SetSelectedID(b.id)
 	}
-	m.setStatus(fmt.Sprintf("\"%s\" written", p.ID))
+	m.setStatus(i18n.T(i18n.AppWrittenNew, p.ID))
 	m.refreshModified()
 	return tutorCmd, nil
 }
@@ -594,12 +601,12 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 	}
 	list := strings.Join(names, ", ")
 	if len(names) > 3 {
-		list = strings.Join(names[:3], ", ") + fmt.Sprintf(" and %d more", len(names)-3)
+		list = i18n.T(i18n.AppQuitMore, strings.Join(names[:3], ", "), len(names)-3)
 	}
 	m.confirm = &confirmDialog{
-		title:   "Quit Misoku?",
-		message: []string{fmt.Sprintf("%d unsaved: %s", len(dirty), list)},
-		buttons: []string{"Save All", "Discard", "Cancel"},
+		title:   i18n.T(i18n.AppQuitTitle),
+		message: []string{i18n.T(i18n.AppQuitUnsaved, len(dirty), list)},
+		buttons: []string{i18n.T(i18n.AppSaveAll), i18n.T(i18n.AppDiscard), i18n.T(i18n.AppCancel)},
 		onChoose: func(m *Model, choice int) tea.Cmd {
 			switch choice {
 			case 0:

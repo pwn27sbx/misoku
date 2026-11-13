@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,7 +27,7 @@ func boardColumns(lines []string, h preview.Hit) []boardCol {
 			cols = append(cols, boardCol{name: strings.TrimSpace(strings.TrimLeft(t, "#")), line: i})
 		case strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* "):
 			if len(cols) == 0 {
-				cols = append(cols, boardCol{name: "Cards", line: -1})
+				cols = append(cols, boardCol{name: i18n.T(i18n.AppBoardCards), line: -1})
 			}
 			cols[len(cols)-1].cardLine = append(cols[len(cols)-1].cardLine, i)
 		}
@@ -63,7 +64,7 @@ func (m *Model) boardHit(h preview.Hit) tea.Cmd {
 	cols := boardColumns(lines, h)
 	switch h.Kind {
 	case "board:add":
-		return m.prompt("New card in "+h.Arg, "", "Lines you add under the card in the editor become its description", func(m *Model, v string) tea.Cmd {
+		return m.prompt(i18n.T(i18n.AppBoardNewCard, h.Arg), "", i18n.T(i18n.AppBoardNewCardHint), func(m *Model, v string) tea.Cmd {
 			if v == "" {
 				return nil
 			}
@@ -78,21 +79,21 @@ func (m *Model) boardHit(h preview.Hit) tea.Cmd {
 		})
 
 	case "board:card":
-		items := []string{"Rename"}
+		items := []string{i18n.T(i18n.AppRename)}
 		var targets []int
 		for i, c := range cols {
 			if i != h.Index {
-				items = append(items, "Move to → "+c.name)
+				items = append(items, i18n.T(i18n.AppBoardMoveTo, c.name))
 				targets = append(targets, i)
 			}
 		}
-		items = append(items, "Delete")
+		items = append(items, i18n.T(i18n.AppDelete))
 		m.menu(h.Arg, items, func(m *Model, choice int) tea.Cmd {
 			lines := m.docLines()
 			n := cardExtent(lines, h.Line, h.End)
 			switch {
 			case choice == 0:
-				return m.prompt("Rename card", h.Arg, "", func(m *Model, v string) tea.Cmd {
+				return m.prompt(i18n.T(i18n.AppBoardRenameCard), h.Arg, "", func(m *Model, v string) tea.Cmd {
 					if v == "" {
 						return nil
 					}
@@ -103,7 +104,7 @@ func (m *Model) boardHit(h preview.Hit) tea.Cmd {
 				})
 			case choice == len(items)-1:
 				m.setDocLines(removeAt(lines, h.Line, n))
-				m.setStatus("Card deleted")
+				m.setStatus(i18n.T(i18n.AppBoardCardDeleted))
 			default:
 				card := append([]string{}, lines[h.Line:h.Line+n]...)
 				lines = removeAt(lines, h.Line, n)
@@ -113,7 +114,7 @@ func (m *Model) boardHit(h preview.Hit) tea.Cmd {
 				to := targets[choice-1]
 				if to < len(cols) {
 					m.setDocLines(insertAt(lines, cols[to].endLine, card...))
-					m.setStatus("Moved to " + cols[to].name)
+					m.setStatus(i18n.T(i18n.AppBoardMoved, cols[to].name))
 				}
 			}
 			return nil
@@ -123,14 +124,14 @@ func (m *Model) boardHit(h preview.Hit) tea.Cmd {
 		if h.Line < 0 {
 			return nil
 		}
-		m.menu(h.Arg, []string{"Add card", "Rename column", "Delete column and its cards"}, func(m *Model, choice int) tea.Cmd {
+		m.menu(h.Arg, []string{i18n.T(i18n.AppBoardAddCard), i18n.T(i18n.AppBoardRenameColumn), i18n.T(i18n.AppBoardDeleteColumn)}, func(m *Model, choice int) tea.Cmd {
 			switch choice {
 			case 0:
 				hh := h
 				hh.Kind = "board:add"
 				return m.boardHit(hh)
 			case 1:
-				return m.prompt("Rename column", h.Arg, "", func(m *Model, v string) tea.Cmd {
+				return m.prompt(i18n.T(i18n.AppBoardRenameColumn), h.Arg, "", func(m *Model, v string) tea.Cmd {
 					if v != "" {
 						lines := m.docLines()
 						hashes := strings.TrimSpace(lines[h.Line])

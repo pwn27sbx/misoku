@@ -1,9 +1,8 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	uikit "github.com/pwn27sbx/misoku/internal/ui"
 )
@@ -29,7 +28,7 @@ func (m *Model) applyUI(ui config.UI) {
 	m.modeIcon = ui.ModeIcon
 	m.modifiedMark = ui.ModifiedMark
 	if ui.Border != "" && !uikit.SetBorder(ui.Border) {
-		m.setError(fmt.Sprintf("ui: unknown border %q (use rounded or single)", ui.Border))
+		m.setError(i18n.T(i18n.AppUnknownBorder, ui.Border))
 	}
 	m.sidebar.SetAccordion(ui.AccordionOn())
 	m.applyExplorerHideWidth(ui.HideWidth())

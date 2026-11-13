@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -23,11 +24,13 @@ const (
 	setupGitTimeout = 5 * time.Minute
 	// setupStepLimit bounds one call of the engine.
 	setupStepLimit = 15 * time.Minute
-	// setupRunning is the bar while a step runs.
-	setupRunning = "Setting up sync… Esc cancels"
-	// setupCancelling is the bar once Esc stopped a step, until it returns.
-	setupCancelling = "Cancelling sync setup…"
 )
+
+// setupRunning is the bar while a step runs.
+func setupRunning() string { return i18n.T(i18n.AppSetupRunning) }
+
+// setupCancelling is the bar once Esc stopped a step, until it returns.
+func setupCancelling() string { return i18n.T(i18n.AppSetupCancelling) }
 
 // setupMsg brings a step of the assistant back to Update; id is the
 // step's number in its Model (setupStep).
@@ -43,11 +46,11 @@ type setupSignedInMsg struct{ s *gitsync.Setup }
 // startSetup starts the assistant for the open vault.
 func (m *Model) startSetup() tea.Cmd {
 	if m.setupBusy {
-		m.setStatus("Sync setup is already running…")
+		m.setStatus(i18n.T(i18n.AppSetupAlready))
 		return nil
 	}
 	if m.configPath == "" {
-		m.setError("Sync setup needs Misoku's config file, and there is none here")
+		m.setError(i18n.T(i18n.AppSetupNoConfig))
 		return nil
 	}
 	m.setupNotes = nil
@@ -65,7 +68,10 @@ func (m *Model) setupWork(s *gitsync.Setup, call func(context.Context) gitsync.S
 	m.setupStep++
 	id := m.setupStep
 	m.setupBusy, m.setupRun, m.setupStop, m.setupStopped = true, s, cancel, false
-	m.setStatus(setupRunning)
+	// The line is kept as shown: it is cleared when the step returns, even
+	// if the language changed meanwhile.
+	m.setupShown = setupRunning()
+	m.setStatus(m.setupShown)
 	return func() tea.Msg {
 		defer cancel()
 		return setupMsg{s: s, step: call(ctx), id: id}
@@ -81,16 +87,16 @@ func (m *Model) cancelSetupStep() tea.Cmd {
 	}
 	m.setupStopped = true
 	m.setupStop()
-	m.setStatus(setupCancelling)
+	m.setStatus(setupCancelling())
 	return nil
 }
 
 // setupBar is the bar while a step runs: it runs, or Esc is stopping it.
 func (m *Model) setupBar() string {
 	if m.setupStopped {
-		return setupCancelling
+		return setupCancelling()
 	}
-	return setupRunning
+	return setupRunning()
 }
 
 // setupNext answers the current step.
@@ -106,7 +112,7 @@ func (m *Model) setupCancelled(s *gitsync.Setup) tea.Cmd {
 	if s.MadeRepo() {
 		return m.setupNext(s, gitsync.SetupAnswer{})
 	}
-	text := s.StopText("Sync setup cancelled")
+	text := s.StopText(i18n.T(i18n.AppSetupCancelled))
 	m.setStatus(text)
 	return m.setupEnded(gitsync.SetupStep{Outcome: gitsync.SetupCancelled, Lines: []string{text}})
 }
@@ -139,7 +145,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 		return nil // stale: not the step running
 	}
 	m.setupBusy, m.setupStop = false, nil
-	if m.status == setupRunning {
+	if m.status == m.setupShown {
 		m.clearStatus()
 	}
 	s, step := msg.s, msg.step
@@ -165,7 +171,7 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 			m.setStatus(step.Lines[len(step.Lines)-1])
 			return nil
 		}
-		m.setStatus(s.StopText("Sync setup stopped: another dialog is open"))
+		m.setStatus(s.StopText(i18n.T(i18n.AppSetupOtherDialog)))
 		return nil
 	}
 	if step.Problem != "" {
@@ -174,17 +180,17 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 	lines := append(append([]string{}, m.setupNotes...), step.Lines...)
 	switch step.Ask {
 	case gitsync.AskOwnRepo:
-		m.setupDialog(s, step.Title, append(lines, "", step.Confirm), []string{"Create", "Cancel"}, func(m *Model) tea.Cmd {
+		m.setupDialog(s, step.Title, append(lines, "", step.Confirm), []string{i18n.T(i18n.AppSetupCreate), i18n.T(i18n.AppCancel)}, func(m *Model) tea.Cmd {
 			return m.setupNext(s, gitsync.SetupAnswer{OK: true})
 		})
 	case gitsync.AskStart:
-		m.setupDialog(s, step.Title, lines, []string{"Start", "Cancel"}, func(m *Model) tea.Cmd {
+		m.setupDialog(s, step.Title, lines, []string{i18n.T(i18n.AppSetupStart), i18n.T(i18n.AppCancel)}, func(m *Model) tea.Cmd {
 			return m.setupNext(s, gitsync.SetupAnswer{OK: true})
 		})
 	case gitsync.AskIdentity:
 		return m.askIdentity(s, step)
 	case gitsync.AskSignIn:
-		m.setupDialog(s, step.Title, lines, []string{"Sign in", "Cancel"}, func(m *Model) tea.Cmd {
+		m.setupDialog(s, step.Title, lines, []string{i18n.T(i18n.AppSyncSignIn), i18n.T(i18n.AppCancel)}, func(m *Model) tea.Cmd {
 			return m.execOutside(s.SignInCommand(), func(error) tea.Msg {
 				// gh said how it went on the terminal; Next asks gh
 				// whether it is signed in now.
@@ -194,14 +200,14 @@ func (m *Model) showSetup(msg setupMsg) tea.Cmd {
 	case gitsync.AskRepo:
 		m.askRepo(s, step)
 	case gitsync.AskUnrelated:
-		m.setupDialog(s, step.Title, append(lines, "", step.Confirm), []string{"Mix them", "Cancel"}, func(m *Model) tea.Cmd {
+		m.setupDialog(s, step.Title, append(lines, "", step.Confirm), []string{i18n.T(i18n.AppSetupMix), i18n.T(i18n.AppCancel)}, func(m *Model) tea.Cmd {
 			return m.setupNext(s, gitsync.SetupAnswer{OK: true})
 		})
 		// Cancel is the default, and no letter picks: mixing two sets of
 		// notes takes a deliberate choice.
 		m.confirm.selected, m.confirm.deliberate = 1, true
 	case gitsync.AskRepoName:
-		hint := "Misoku creates it private on GitHub"
+		hint := i18n.T(i18n.AppSetupRepoHint)
 		if step.Problem != "" {
 			hint = step.Problem
 		}
@@ -223,7 +229,7 @@ func (m *Model) quitHeld() bool {
 	if !m.setupBusy {
 		return false
 	}
-	m.setError("Sync setup is running: Esc cancels it, then quit")
+	m.setError(i18n.T(i18n.AppSetupQuitHeld))
 	return true
 }
 
@@ -247,17 +253,17 @@ func (m *Model) setupDialog(s *gitsync.Setup, title string, lines, buttons []str
 // them in git's global settings. Values filled in from the GitHub account
 // come already typed: Enter takes them, and they can be edited.
 func (m *Model) askIdentity(s *gitsync.Setup, step gitsync.SetupStep) tea.Cmd {
-	hint := "git writes it in your notes' history"
+	hint := i18n.T(i18n.AppSetupGitHint)
 	if step.FromGitHub {
-		hint = "From your GitHub account; change it if you like"
+		hint = i18n.T(i18n.AppSetupGitHubHint)
 	}
 	if step.Problem != "" {
 		hint = step.Problem
 	}
-	return m.setupPrompt(s, "Your name, for git", step.Name, hint, func(m *Model, name string) tea.Cmd {
-		return m.setupPrompt(s, "Your email, for git", step.Email, hint, func(m *Model, email string) tea.Cmd {
-			lines := []string{step.Confirm, "", "Name: " + name, "Email: " + email}
-			m.setupDialog(s, "Save your git identity", lines, []string{"Save", "Cancel"}, func(m *Model) tea.Cmd {
+	return m.setupPrompt(s, i18n.T(i18n.AppSetupName), step.Name, hint, func(m *Model, name string) tea.Cmd {
+		return m.setupPrompt(s, i18n.T(i18n.AppSetupEmail), step.Email, hint, func(m *Model, email string) tea.Cmd {
+			lines := []string{step.Confirm, "", i18n.T(i18n.AppSetupNameLine, name), i18n.T(i18n.AppSetupEmailLine, email)}
+			m.setupDialog(s, i18n.T(i18n.AppSetupSaveIdentity), lines, []string{i18n.T(i18n.AppSave), i18n.T(i18n.AppCancel)}, func(m *Model) tea.Cmd {
 				return m.setupNext(s, gitsync.SetupAnswer{OK: true, Name: name, Email: email})
 			})
 			return nil
@@ -273,9 +279,9 @@ func (m *Model) askIdentity(s *gitsync.Setup, step gitsync.SetupStep) tea.Cmd {
 func (m *Model) askRepo(s *gitsync.Setup, step gitsync.SetupStep) {
 	items := make([]string, 0, len(step.Repos)+1)
 	for _, r := range step.Repos {
-		label := r.Name + " · private"
+		label := i18n.T(i18n.AppSetupPrivate, r.Name)
 		if !r.Private() {
-			label = r.Name + " · " + strings.ToLower(r.Visibility) + ", not allowed"
+			label = i18n.T(i18n.AppSetupNotAllowed, r.Name, strings.ToLower(r.Visibility))
 		}
 		items = append(items, label)
 	}
@@ -307,12 +313,12 @@ func (m *Model) finishSetup(step gitsync.SetupStep, lines []string) tea.Cmd {
 	}
 	if step.Outcome == gitsync.SetupDone {
 		m.vaultSetUp()
-		m.setStatus("Sync is set up")
+		m.setStatus(i18n.T(i18n.AppSetupDone))
 	}
 	m.confirm = &confirmDialog{
 		title:    step.Title,
 		message:  m.wrapLines(lines),
-		buttons:  []string{"Close"},
+		buttons:  []string{i18n.T(i18n.AppClose)},
 		onChoose: func(m *Model, _ int) tea.Cmd { return m.setupEnded(step) },
 	}
 	return nil

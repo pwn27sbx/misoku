@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -59,9 +60,9 @@ func (m *Model) openSaveAs(b *buffer, after func(*Model) tea.Cmd) {
 
 	m.tutorBSaveDialog()
 	d := &saveAsDialog{buf: b, after: after, dirs: m.store.Dirs(), sel: -1}
-	d.folder = in("/  (workspace root)")
+	d.folder = in(i18n.T(i18n.AppSaveAsRootHint))
 	d.folder.SetValue(dir)
-	d.name = in("note name")
+	d.name = in(i18n.T(i18n.AppSaveAsNameHint))
 	d.name.SetValue(name)
 	d.name.CursorEnd()
 	d.field = 1
@@ -128,7 +129,7 @@ func (d *saveAsDialog) update(m *Model, msg tea.Msg) tea.Cmd {
 		case "esc", "ctrl+c":
 			m.saveAs = nil
 			m.quitting = false
-			m.setStatus("Save cancelled")
+			m.setStatus(i18n.T(i18n.AppSaveCancelled))
 			return nil
 		case "enter":
 			return d.submit(m)
@@ -233,10 +234,10 @@ func (d *saveAsDialog) view(th theme.Theme, W, H int) (string, int, int) {
 	}
 
 	rows := []string{
-		bg.Foreground(th.Blue).Render(" 󰆓 ") + bg.Foreground(th.Fg).Bold(true).Render("Save As") +
+		bg.Foreground(th.Blue).Render(" 󰆓 ") + bg.Foreground(th.Fg).Bold(true).Render(i18n.T(i18n.AppSaveAsTitle)) +
 			bg.Foreground(th.GreyFg).Render("   "+d.buf.fileName()),
 		"",
-		label("Folder", d.field == 0),
+		label(i18n.T(i18n.AppSaveAsFolder), d.field == 0),
 	}
 	d.folder.Width = iw - 8
 	rows = append(rows, inputRow(d.folder.View(), "", d.field == 0))
@@ -247,7 +248,7 @@ func (d *saveAsDialog) view(th theme.Theme, W, H int) (string, int, int) {
 		idx := start + i
 		if idx >= len(list) {
 			if i == 0 {
-				rows = append(rows, bg.Foreground(th.GreyFg).Italic(true).Render("     new folder will be created"))
+				rows = append(rows, bg.Foreground(th.GreyFg).Italic(true).Render(i18n.T(i18n.AppSaveAsNewFolder)))
 			} else {
 				rows = append(rows, "")
 			}
@@ -256,7 +257,7 @@ func (d *saveAsDialog) view(th theme.Theme, W, H int) (string, int, int) {
 		name := list[idx]
 		text := name
 		if name == "" {
-			text = "/" + "  workspace root"
+			text = i18n.T(i18n.AppSaveAsRoot)
 		}
 		st := bg.Foreground(th.GreyFg2)
 		ico := bg.Foreground(th.Blue)
@@ -272,7 +273,7 @@ func (d *saveAsDialog) view(th theme.Theme, W, H int) (string, int, int) {
 		}
 		rows = append(rows, row)
 	}
-	rows = append(rows, "", label("Name", d.field == 1))
+	rows = append(rows, "", label(i18n.T(i18n.AppSaveAsName), d.field == 1))
 	d.name.Width = iw - 12
 	rows = append(rows, inputRow(d.name.View(), " .md ", d.field == 1))
 	rows = append(rows, "")
@@ -285,7 +286,7 @@ func (d *saveAsDialog) view(th theme.Theme, W, H int) (string, int, int) {
 		rows = append(rows, bg.Foreground(th.Green).Render("  󰈙  ")+bg.Foreground(th.Fg).Render(ui.Truncate(rel, iw-8)))
 	}
 	rows = append(rows, "")
-	help := "Tab switch field · ↑↓ folder · Enter save · Esc cancel"
+	help := i18n.T(i18n.AppSaveAsHelp)
 	rows = append(rows, bg.Foreground(th.GreyFg).Render("  "+ui.Truncate(help, iw-3)))
 	return panel(th, rows, iw), g.x, g.y
 }

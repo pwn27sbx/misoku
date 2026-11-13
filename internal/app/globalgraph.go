@@ -8,6 +8,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/globalgraph"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -58,7 +59,7 @@ func (m *Model) openGlobalGraph() tea.Cmd {
 	if i := m.bufferIndex(globalGraphID); i >= 0 {
 		m.showBuffer(m.buffers[i])
 	} else {
-		b := &buffer{id: globalGraphID, title: "Global graph"}
+		b := &buffer{id: globalGraphID, title: i18n.T(i18n.AppGlobalGraphTab)}
 		m.insertBuffer(b)
 		m.showBuffer(b)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // QuitSyncLimit is how long Misoku may take, once its screen has closed,
@@ -51,7 +52,7 @@ func (m Model) SyncOnQuit(ctx context.Context, w io.Writer, limit time.Duration)
 	// Writes to the terminal are best effort: there is nothing to do
 	// about one that fails.
 	say := func(text string) { _, _ = fmt.Fprintln(w, text) }
-	say("Pushing changes…")
+	say(i18n.T(i18n.AppSyncPushing))
 
 	lock := m.syncLock
 	if run != nil {
@@ -64,12 +65,12 @@ func (m Model) SyncOnQuit(ctx context.Context, w io.Writer, limit time.Duration)
 			// That sync is not stopped: its git finishes, or dies with
 			// Misoku, and the next sync recovers (S13). Its lock is kept
 			// until Misoku exits, so no other window runs git beside it.
-			say("Not pushed, the next sync tries again: a sync still running did not finish (" + stopReason(ctx, limit) + ")")
+			say(i18n.T(i18n.AppSyncNotPushedRunning, stopReason(ctx, limit)))
 			return
 		}
 	}
 	if lock == nil {
-		say("Not pushed: another Misoku window syncs this vault")
+		say(i18n.T(i18n.AppSyncNotPushedBusy))
 		return
 	}
 	defer lock.Unlock()
@@ -89,23 +90,23 @@ func pushOnQuit(ctx context.Context, dir string, v config.Vault, lock *gitsync.L
 	}
 	switch {
 	case ctx.Err() != nil:
-		return "Not pushed, the next sync tries again: " + stopReason(ctx, limit)
+		return i18n.T(i18n.AppSyncNotPushedRetry, stopReason(ctx, limit))
 	case st.Status != gitsync.Ready:
-		return "Not pushed, sync is paused: " + oneLine(st.Message)
+		return i18n.T(i18n.AppSyncNotPushedPaused, oneLine(st.Message))
 	case res.Outcome == gitsync.Synced && res.Pushed:
-		return "Changes pushed."
+		return i18n.T(i18n.AppSyncPushed)
 	case res.Outcome == gitsync.Synced:
-		return "Nothing new to push."
+		return i18n.T(i18n.AppSyncNothingToPush)
 	case res.Outcome == gitsync.SyncRewritten:
-		return "Not pushed, sync is paused: " + oneLine(errText(res.Err))
+		return i18n.T(i18n.AppSyncNotPushedPaused, oneLine(errText(res.Err)))
 	}
-	return "Not pushed, the next sync tries again: " + oneLine(errText(res.Err))
+	return i18n.T(i18n.AppSyncNotPushedRetry, oneLine(errText(res.Err)))
 }
 
 // stopReason says why ctx ended: Ctrl+C or the time limit.
 func stopReason(ctx context.Context, limit time.Duration) string {
 	if errors.Is(ctx.Err(), context.Canceled) {
-		return "cancelled"
+		return i18n.T(i18n.AppCancelledWord)
 	}
-	return "no answer within " + limit.String()
+	return i18n.T(i18n.AppSyncNoAnswer, limit.String())
 }

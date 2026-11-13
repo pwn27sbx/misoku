@@ -1,12 +1,12 @@
 package app
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/atotto/clipboard"
@@ -32,9 +32,9 @@ func (m *Model) copyText(text string) tea.Cmd {
 	}
 	n := utf8.RuneCountInString(text)
 	lines := strings.Count(strings.TrimSuffix(text, "\n"), "\n") + 1
-	msg := fmt.Sprintf("Copied %d characters", n)
+	msg := i18n.T(i18n.AppCopiedChars, n)
 	if lines > 1 {
-		msg = fmt.Sprintf("Copied %d lines", lines)
+		msg = i18n.T(i18n.AppCopiedLines, lines)
 	}
 	return m.showToast(msg)
 }

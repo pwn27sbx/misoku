@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dirplan"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -76,10 +78,10 @@ func (m *Model) confirmDirPlan(msg relinksPlannedMsg) {
 	batch := msg.job.batch
 	switch {
 	case batch.err != nil:
-		m.setError("Can't apply: " + batch.err.Error())
+		m.setError(i18n.T(i18n.AppPlanCantApply, batch.err.Error()))
 		return
 	case len(batch.plan.Ops) == 0:
-		m.setStatus("No changes")
+		m.setStatus(i18n.T(i18n.AppPlanNoChanges))
 		return
 	}
 	var lines []string
@@ -91,22 +93,22 @@ func (m *Model) confirmDirPlan(msg relinksPlannedMsg) {
 		}
 	}
 	if n := len(batch.plan.Ops) - dirPlanShown; n > 0 {
-		lines = append(lines, fmt.Sprintf("…and %d more", n))
+		lines = append(lines, i18n.T(i18n.AppPlanMore, n))
 	}
 	if len(msg.relinks) > 0 {
-		lines = append(lines, "Updates "+countLinks(msg.relinks)+".")
+		lines = append(lines, i18n.T(i18n.AppPlanUpdates, countLinks(msg.relinks)))
 	}
 	permanent := deletes && !hasTrash()
 	switch {
 	case permanent:
-		lines = append(lines, "Deleted entries are removed from disk, cannot be undone.")
+		lines = append(lines, i18n.T(i18n.AppPlanPermanent))
 	case deletes:
-		lines = append(lines, "Deleted entries go to the Trash.")
+		lines = append(lines, i18n.T(i18n.AppPlanTrash))
 	}
 	m.confirm = &confirmDialog{
-		title:      "CONFIRM FILE SYSTEM ACTIONS",
+		title:      i18n.T(i18n.AppPlanTitle),
 		message:    lines,
-		buttons:    []string{"Yes", "No"},
+		buttons:    []string{i18n.T(i18n.AppYes), i18n.T(i18n.AppNo)},
 		danger:     deletes,
 		deliberate: permanent,
 		onChoose: func(m *Model, choice int) tea.Cmd {
@@ -167,7 +169,7 @@ func applyDirOp(store *core.Store, op dirplan.Op) error {
 	case dirplan.OpDelete:
 		return store.Delete(op.From)
 	}
-	return fmt.Errorf("unknown action %s", op.Kind)
+	return errors.New(i18n.T(i18n.AppPlanUnknown, op.Kind))
 }
 
 // finishDirPlan brings the screen up to date after a batch: tabs follow
@@ -191,13 +193,13 @@ func (m *Model) finishDirPlan(job relinkJob) {
 // stopped, why, and what was not done.
 func (b dirBatch) summary() string {
 	if b.failed == nil {
-		return fmt.Sprintf("Applied %d %s", b.done, plural(b.done, "action", "actions"))
+		return i18n.N(i18n.AppPlanApplied, b.done, b.done)
 	}
 	var left []string
 	for _, op := range b.plan.Ops[b.done:] {
 		left = append(left, describeOp(op))
 	}
-	return fmt.Sprintf("Stopped after %d of %d actions: %v · not done: %s", b.done, len(b.plan.Ops), b.failed, strings.Join(left, ", "))
+	return i18n.T(i18n.AppPlanStopped, b.done, len(b.plan.Ops), b.failed, strings.Join(left, ", "))
 }
 
 // describeOp is an op as the confirm lists it: "move a.md → Docs/a.md".

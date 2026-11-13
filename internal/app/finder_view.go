@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -22,8 +23,8 @@ func (f *finder) view(m *Model) (string, int, int) {
 	rows := make([]string, 0, g.innerHeight)
 
 	// Title + count.
-	title := bg.Foreground(th.Blue).Render(" 󰍉 ") + bg.Foreground(th.Fg).Bold(true).Render(f.title()) + bg.Foreground(th.GreyFg2).Render("  in "+f.root+"/")
-	count := bg.Foreground(th.GreyFg2).Render(fmt.Sprintf("%d results · %d notes ", f.count(), len(f.notes)))
+	title := bg.Foreground(th.Blue).Render(" 󰍉 ") + bg.Foreground(th.Fg).Bold(true).Render(f.title()) + bg.Foreground(th.GreyFg2).Render(i18n.T(i18n.AppFinderIn, f.root))
+	count := bg.Foreground(th.GreyFg2).Render(i18n.T(i18n.AppFinderCount, f.count(), len(f.notes)))
 	rows = append(rows, title+bg.Render(strings.Repeat(" ", max(inner-lipgloss.Width(title)-lipgloss.Width(count), 0)))+count)
 
 	// Prompt.
@@ -61,9 +62,9 @@ func (f *finder) view(m *Model) (string, int, int) {
 			left = f.resultRow(th, f.offset+r, g.listW)
 		}
 		if r == 0 && f.count() == 0 {
-			empty := "   No matching notes"
+			empty := i18n.T(i18n.AppFinderNoNotes)
 			if f.wiki {
-				empty = "   No matching links"
+				empty = i18n.T(i18n.AppFinderNoLinks)
 			}
 			left = ui.FitLine(bg.Foreground(th.GreyFg).Italic(true).Render(empty), g.listW, bg)
 		}
@@ -85,10 +86,11 @@ func (f *finder) view(m *Model) (string, int, int) {
 		rows = append(rows, left+sep+ui.FitLine(right, g.previewW, bg))
 	}
 
-	help := "↑↓ move · Enter open here (jumps to the line) · Ctrl+T new tab · Esc close"
+	help := i18n.T(i18n.AppFinderHelp)
 	switch {
 	case f.wiki:
-		help = linkFinderHelp
+		// The link picker's footer: what "#" and "^" mean there.
+		help = i18n.T(i18n.AppLinkFinderHelp)
 	case f.statusHint():
 		help = statusHintText
 	}
@@ -188,13 +190,13 @@ func (m *Model) showInCurrentBuffer(id string, record bool) tea.Cmd {
 	if cur == nil || m.isDirty(cur) || cur.isGraph() {
 		cmd := m.openFile(id)
 		if cur != nil && !cur.isGraph() {
-			m.setStatus(fmt.Sprintf("Opened in a new tab — %s has unsaved changes", cur.fileName()))
+			m.setStatus(i18n.T(i18n.AppOpenedNewTab, cur.fileName()))
 		}
 		return cmd
 	}
 	p, err := m.store.Get(id)
 	if err != nil || p.IsFolder {
-		m.setError("Cannot open " + id)
+		m.setError(i18n.T(i18n.AppCannotOpen, id))
 		return nil
 	}
 	if record && !cur.draft() {
@@ -251,7 +253,7 @@ func (f *finder) textRow(th theme.Theme, mt finderMatch, base, hit lipgloss.Styl
 
 func (f *finder) title() string {
 	if f.link {
-		return "Link to Note"
+		return i18n.T(i18n.AppFinderLinkTitle)
 	}
-	return "Find Note"
+	return i18n.T(i18n.AppFinderTitle)
 }

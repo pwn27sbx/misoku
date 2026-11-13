@@ -1,9 +1,9 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -16,7 +16,7 @@ import (
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		m.syncCursor(Layout{})
-		return "loading…"
+		return i18n.T(i18n.AppLoading)
 	}
 	if m.width < MinTermWidth || m.height < MinTermHeight {
 		m.syncCursor(Layout{})
@@ -24,7 +24,7 @@ func (m Model) View() string {
 			Width(m.width).Height(m.height).
 			Align(lipgloss.Center, lipgloss.Center).
 			Foreground(m.theme.Yellow).
-			Render(fmt.Sprintf("Terminal too small (%dx%d)\nResize to at least %dx%d", m.width, m.height, MinTermWidth, MinTermHeight))
+			Render(i18n.T(i18n.AppTooSmall, m.width, m.height, MinTermWidth, MinTermHeight))
 	}
 
 	var screen string

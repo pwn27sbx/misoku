@@ -63,14 +63,14 @@ func (m *Model) clearStatus() { m.status, m.statusErr = "", false }
 // newest highlighted (`:messages`). The list scrolls; Esc closes it.
 func (m *Model) openMessages() {
 	if len(m.messages) == 0 {
-		m.setStatus("No messages yet")
+		m.setStatus(i18n.T(i18n.AppMessagesNone))
 		return
 	}
 	items := make([]string, len(m.messages))
 	for i, s := range m.messages {
 		items[i] = s.at + "  " + s.text
 	}
-	m.menu("Messages", items, func(*Model, int) tea.Cmd { return nil })
+	m.menu(i18n.T(i18n.AppMessagesTitle), items, func(*Model, int) tea.Cmd { return nil })
 	m.tutorBMessages()
 	d := m.menuBox
 	d.sel = len(d.shown) - 1

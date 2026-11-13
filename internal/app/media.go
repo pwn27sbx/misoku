@@ -12,25 +12,44 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/clipimage"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // mediaKind describes what the "/" menu asked to attach.
 type mediaKind struct {
-	name  string   // image, video, audio, file
-	title string   // dialog title
+	name  string   // image, video, audio, file: an ID, never shown
+	noun  i18n.Key // what it is, shown: "image"
+	title i18n.Key // dialog title
 	exts  []string // allowed extensions (empty = any file)
 	uti   string   // macOS uniform type for the native dialog
 }
 
 var mediaKinds = map[string]mediaKind{
-	"image": {"image", "Choose an image", core.ImageExts, "public.image"},
-	"video": {"video", "Choose a video", core.VideoExts, "public.movie"},
-	"audio": {"audio", "Choose an audio file", core.AudioExts, "public.audio"},
-	"file":  {"file", "Choose a file", nil, ""},
-	"cover": {"cover", "Choose a cover image", []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}, "public.image"},
+	"image": {"image", i18n.AppKindImage, i18n.AppChooseImage, core.ImageExts, "public.image"},
+	"video": {"video", i18n.AppKindVideo, i18n.AppChooseVideo, core.VideoExts, "public.movie"},
+	"audio": {"audio", i18n.AppKindAudio, i18n.AppChooseAudio, core.AudioExts, "public.audio"},
+	"file":  {"file", i18n.AppKindFile, i18n.AppChooseFile, nil, ""},
+	"cover": {"cover", i18n.AppKindCover, i18n.AppChooseCover, []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}, "public.image"},
 }
+
+// windowsDialogScript is the PowerShell that shows Windows' file dialog for
+// k, titled and filtered in the language in use.
+func windowsDialogScript(k mediaKind) string {
+	filter := i18n.T(i18n.AppAllFiles) + "|*.*"
+	if len(k.exts) > 0 {
+		filter = i18n.T(k.noun) + "|*" + strings.Join(k.exts, ";*")
+	}
+	return fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Title = %s; $d.Filter = %s; if ($d.ShowDialog() -eq 'OK') { $d.FileName }`, psQuote(k.titleText()), psQuote(filter))
+}
+
+// psQuote is s as a PowerShell single-quoted string: a quote inside is
+// doubled, so no title or filter can end the string early.
+func psQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+
+// titleText is the dialog's title in the language in use.
+func (k mediaKind) titleText() string { return i18n.T(k.title) }
 
 func (k mediaKind) accepts(name string) bool {
 	if len(k.exts) == 0 {
@@ -67,7 +86,7 @@ func (m *Model) pickMedia(kind string) tea.Cmd {
 	if os.Getenv("MISOKU_NATIVE_PICKER") == "0" {
 		return m.openFileBrowser(kind)
 	}
-	m.setStatus(k.title + "… (a file dialog opened)")
+	m.setStatus(i18n.T(i18n.AppDialogOpened, k.titleText()))
 	return func() tea.Msg {
 		p, cancelled, err := nativeFileDialog(k)
 		if errors.Is(err, errNoDialog) {
@@ -83,7 +102,7 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 		if os.Getenv("SSH_CONNECTION") != "" {
 			return "", false, errNoDialog
 		}
-		script := fmt.Sprintf(`POSIX path of (choose file with prompt %q`, k.title)
+		script := fmt.Sprintf(`POSIX path of (choose file with prompt %q`, k.titleText())
 		if k.uti != "" {
 			script += fmt.Sprintf(` of type {%q}`, k.uti)
 		}
@@ -104,9 +123,9 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 		}
 		var cmd *exec.Cmd
 		if bin, err := exec.LookPath("zenity"); err == nil {
-			args := []string{"--file-selection", "--title=" + k.title}
+			args := []string{"--file-selection", "--title=" + k.titleText()}
 			if len(k.exts) > 0 {
-				args = append(args, "--file-filter="+k.name+" | *"+strings.Join(k.exts, " *"))
+				args = append(args, "--file-filter="+i18n.T(k.noun)+" | *"+strings.Join(k.exts, " *"))
 			}
 			cmd = exec.Command(bin, args...)
 		} else if bin, err := exec.LookPath("kdialog"); err == nil {
@@ -114,7 +133,7 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 			if len(k.exts) > 0 {
 				filter = "*" + strings.Join(k.exts, " *")
 			}
-			cmd = exec.Command(bin, "--getopenfilename", ".", filter, "--title", k.title)
+			cmd = exec.Command(bin, "--getopenfilename", ".", filter, "--title", k.titleText())
 		} else {
 			return "", false, errNoDialog
 		}
@@ -129,12 +148,7 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 		return strings.TrimSpace(string(out)), false, nil
 
 	case "windows":
-		filter := "All files|*.*"
-		if len(k.exts) > 0 {
-			filter = k.name + "|*" + strings.Join(k.exts, ";*")
-		}
-		ps := fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Title = '%s'; $d.Filter = '%s'; if ($d.ShowDialog() -eq 'OK') { $d.FileName }`, k.title, filter)
-		out, err := exec.Command("powershell", "-NoProfile", "-STA", "-Command", ps).Output()
+		out, err := exec.Command("powershell", "-NoProfile", "-STA", "-Command", windowsDialogScript(k)).Output()
 		if err != nil {
 			return "", false, errNoDialog
 		}
@@ -148,7 +162,7 @@ func nativeFileDialog(k mediaKind) (string, bool, error) {
 func (m *Model) attachMedia(kind, src string) {
 	link := m.attachMediaAs(kind, src, false)
 	if link != "" && kind != "cover" { // the cover sets its own confirmation
-		m.setStatus("Attached " + link)
+		m.setStatus(i18n.T(i18n.AppAttached, link))
 	}
 }
 
@@ -160,7 +174,7 @@ func (m *Model) attachPastedImage(msg core.ClipboardImageMsg) {
 	if link == "" {
 		return // the status line already says why nothing was attached
 	}
-	m.setStatus("Pasted " + link)
+	m.setStatus(i18n.T(i18n.AppPasted, link))
 }
 
 // attachMediaAs is attachMedia with the choice of putting the link on a line of
@@ -169,7 +183,7 @@ func (m *Model) attachPastedImage(msg core.ClipboardImageMsg) {
 func (m *Model) attachMediaAs(kind, src string, ownLine bool) string {
 	b := m.activeBuffer()
 	if b == nil {
-		m.setStatus("Open a note first")
+		m.setStatus(i18n.T(i18n.AppOpenNoteFirst))
 		return ""
 	}
 	noteDir := b.dir
@@ -181,14 +195,14 @@ func (m *Model) attachMediaAs(kind, src string, ownLine bool) string {
 	}
 	link, err := m.store.AttachFile(noteDir, src)
 	if err != nil {
-		m.setError("Could not attach file: " + err.Error())
+		m.setError(i18n.T(i18n.AppAttachFailed, err.Error()))
 		return ""
 	}
 	if kind == "cover" {
 		m.content.SetFrontMatter("cover", link)
 		m.preview.SetContent(m.content.Value())
 		m.refreshModified()
-		m.setStatus("Cover set to " + link)
+		m.setStatus(i18n.T(i18n.AppCoverSet, link))
 		return link
 	}
 	name := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
@@ -215,7 +229,7 @@ func (m *Model) attachMediaAs(kind, src string, ownLine bool) string {
 	m.preview.SetContent(m.content.Value())
 	m.refreshModified()
 	if b.draft() {
-		return link + " — saved with the note's folder once you save"
+		return i18n.T(i18n.AppSavedWithFolder, link)
 	}
 	return link
 }

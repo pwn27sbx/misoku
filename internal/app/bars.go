@@ -1,11 +1,11 @@
 package app
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/content"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -55,7 +55,7 @@ func (m *Model) renderTab(b *buffer) (string, int) {
 
 	left := base.Foreground(iconFg).Render("  ") + base.Foreground(fg).Bold(active).Render(name)
 	if b.draft() && !b.isGraph() {
-		left += base.Foreground(th.GreyFg).Italic(true).Render(" new")
+		left += base.Foreground(th.GreyFg).Italic(true).Render(i18n.T(i18n.AppTabNew))
 	}
 	s := left + base.Render("  ") + base.Foreground(closeFg).Render(closeGlyph) + base.Render(" ")
 	if active {
@@ -175,11 +175,11 @@ func (m *Model) modeLabel() (string, lipgloss.Color) {
 	th := m.theme
 	switch {
 	case m.viewMode == viewModeDashboard:
-		return "  HOME ", th.Blue
+		return "  " + i18n.T(i18n.AppModeHome) + " ", th.Blue
 	case m.focus == focusSidebar:
-		return " 󰙅 EXPLORER ", th.Teal
+		return " 󰙅 " + i18n.T(i18n.AppModeExplorer) + " ", th.Teal
 	case m.focus == focusPreview:
-		return " 󰈈 PREVIEW ", th.Yellow
+		return " 󰈈 " + i18n.T(i18n.AppModePreview) + " ", th.Yellow
 	}
 	switch m.content.Mode() {
 	case content.ModeInsert:
@@ -216,11 +216,7 @@ func (m *Model) statusline() string {
 	}
 	if b != nil {
 		words := m.wordCount(b)
-		unit := "words"
-		if words == 1 {
-			unit = "word"
-		}
-		parts = append(parts, fill.Foreground(th.GreyFg2).Render(fmt.Sprintf("󰈭 %d %s  ", words, unit)))
+		parts = append(parts, fill.Foreground(th.GreyFg2).Render(i18n.N(i18n.AppWords, words, words)))
 	}
 	if b != nil {
 		parts = append(parts, fill.Foreground(th.GreyFg2).Render(" Markdown  "))
@@ -239,7 +235,7 @@ func (m *Model) statusline() string {
 	pos := "  "
 	if b != nil {
 		ln, col := m.content.CursorPosition()
-		pos = fmt.Sprintf(" Ln %d, Col %d ", ln, col)
+		pos = i18n.T(i18n.AppLnCol, ln, col)
 	}
 	parts = append(parts,
 		lipgloss.NewStyle().Background(th.LightBg).Foreground(th.Green).Render("")+
@@ -293,7 +289,7 @@ func (m *Model) statusLeft(b *buffer, nameMax int, folder bool) string {
 	if m.viewMode == viewModeDashboard || nameMax <= 0 {
 		return left + lipgloss.NewStyle().Background(th.StatusBg).Foreground(color).Render("\ue0b4")
 	}
-	file := "No file"
+	file := i18n.T(i18n.AppNoFile)
 	fileFg := th.GreyFg2
 	if b != nil {
 		file = b.fileName()
@@ -305,7 +301,7 @@ func (m *Model) statusLeft(b *buffer, nameMax int, folder bool) string {
 		left += light.Foreground(th.Green).Render("● ")
 	}
 	if b != nil && b.draft() && !b.isGraph() {
-		left += light.Foreground(th.Yellow).Render("unsaved ")
+		left += light.Foreground(th.Yellow).Render(i18n.T(i18n.AppUnsavedMark))
 	}
 	left += lipgloss.NewStyle().Background(th.StatusBg).Foreground(th.LightBg).Render("")
 	// A tutorial session keeps the folder out: every lesson of a route lives in
@@ -398,7 +394,7 @@ func (m *Model) tutorBar(text string, muted bool) string {
 func (m *Model) tableHint() string {
 	if m.viewMode == viewModeWorkspace && m.focus == focusEditor &&
 		m.content.Mode() == content.ModeInsert && m.content.InTable() {
-		return "Tab next cell · / add row or column"
+		return i18n.T(i18n.AppTableHint)
 	}
 	return ""
 }
@@ -410,7 +406,7 @@ func (m *Model) messageOf(text string) string {
 	text = m.barText(text)
 	if m.statusErr {
 		return fill.Foreground(th.Red).Render("  "+text) +
-			fill.Foreground(th.GreyFg).Render("  Esc dismiss · :messages")
+			fill.Foreground(th.GreyFg).Render(i18n.T(i18n.AppErrorHint))
 	}
 	return fill.Foreground(th.Fg).Render("  " + text)
 }

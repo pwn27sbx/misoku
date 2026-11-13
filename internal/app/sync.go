@@ -3,11 +3,11 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -108,16 +108,17 @@ func (m *Model) setupSync() {
 	m.syncBase = m.clock()
 	home, _ := os.UserHomeDir() // none known: the root and system folders are still not offered
 	m.syncUnsafe = gitsync.UnsafeFolder(m.store.Root(), home)
-	m.syncOff = "Sync is off: this folder is not listed in sync.vaults"
+	m.syncOff = func() string { return i18n.T(i18n.AppSyncOffNotListed) }
 	if gitsync.Disabled() {
-		m.syncOff = "Sync is off (MISOKU_SYNC=0)"
+		m.syncOff = func() string { return i18n.T(i18n.AppSyncOffDisabled) }
 		return
 	}
 	// An unreadable config leaves sync off, the safe side. Startup only
 	// reported it on the terminal Misoku then covers, so say it here.
 	cfg, err := config.Load(m.configPath)
 	if err != nil {
-		m.syncOff = "Sync is off: the config file could not be read (" + oneLine(err.Error()) + ")"
+		detail := oneLine(err.Error())
+		m.syncOff = func() string { return i18n.T(i18n.AppSyncOffConfig, detail) }
 		return
 	}
 	vaults, warnings := cfg.Sync.Parse()
@@ -132,7 +133,8 @@ func (m *Model) setupSync() {
 	// now and when a sync is asked for, instead of only "not listed".
 	why := strings.Join(warnings, "; ")
 	if m.syncVault == nil {
-		m.syncOff += " (" + why + ")"
+		base := m.syncOff
+		m.syncOff = func() string { return i18n.T(i18n.AppSyncOffWhy, base(), why) }
 	} else {
 		// The sync on opening replaces this message before the screen
 		// first shows it: that sync says it again (finishSync).
@@ -182,23 +184,31 @@ func (m *Model) requestSync() tea.Cmd {
 	return m.askSync()
 }
 
+// syncOffText says why sync is off, in the language in use.
+func (m *Model) syncOffText() string {
+	if m.syncOff == nil {
+		return ""
+	}
+	return m.syncOff()
+}
+
 // askSync starts a sync in the background, one at a time (D6). Asked for while
 // the commit after a save runs, it starts as soon as that commit ends. It opens
 // no dialog.
 func (m *Model) askSync() tea.Cmd {
 	switch {
 	case m.syncVault == nil:
-		m.setStatus(m.syncOff)
+		m.setStatus(m.syncOffText())
 		return nil
 	case m.syncing && m.syncRun != nil && m.syncRun.local:
 		m.syncQueued = true
-		m.showProgress("Syncing…")
+		m.showProgress(i18n.T(i18n.AppSyncing))
 		return nil
 	case m.syncing:
-		m.setStatus("Already syncing…")
+		m.setStatus(i18n.T(i18n.AppSyncAlready))
 		return nil
 	}
-	m.showProgress("Syncing…")
+	m.showProgress(i18n.T(i18n.AppSyncing))
 	return m.startSync(false, false)
 }
 
@@ -416,7 +426,7 @@ func (m *Model) recordSync(msg syncDoneMsg) {
 	res := msg.res
 	switch {
 	case msg.leftover != nil:
-		fail(syncPaused, lockedText)
+		fail(syncPaused, lockedText())
 		return
 	case msg.err != nil:
 		fail(syncError, msg.err.Error())
@@ -466,47 +476,47 @@ func errText(err error) string {
 // syncSummary is the one-line outcome of a sync for the status bar.
 func syncSummary(msg syncDoneMsg, key string) (string, bool) {
 	if words, ok := stopWords[stopOf(msg)]; ok {
-		return "Sync paused: " + words.bar + " · " + key, true
+		return i18n.T(i18n.AppSyncPausedWhyKey, i18n.T(words.bar), key), true
 	}
 	switch {
 	case msg.leftover != nil:
-		return "Sync paused: " + lockedText + " · " + key, true
+		return i18n.T(i18n.AppSyncPausedWhyKey, lockedText(), key), true
 	case msg.err != nil:
-		return "Sync failed: " + oneLine(msg.err.Error()), true
+		return i18n.T(i18n.AppSyncFailed, oneLine(msg.err.Error())), true
 	case msg.busy:
-		return "Sync: another Misoku window syncs this vault", false
+		return i18n.T(i18n.AppSyncBusy), false
 	case msg.paused.Status == gitsync.Paused && msg.paused.Reason == gitsync.ReasonGitFailed:
-		return "Sync error: " + oneLine(msg.paused.Message), true
+		return i18n.T(i18n.AppSyncErrorWhy, oneLine(msg.paused.Message)), true
 	case msg.paused.Status == gitsync.Paused:
-		return "Sync paused: " + oneLine(msg.paused.Message), true
+		return i18n.T(i18n.AppSyncPausedWhy, oneLine(msg.paused.Message)), true
 	}
 	res := msg.res
 	why := oneLine(errText(res.Err))
 	switch res.Outcome {
 	case gitsync.Synced:
-		text := "Synced"
+		text := i18n.T(i18n.AppSynced)
 		if n := len(res.Conflicts); n > 0 {
-			text += fmt.Sprintf(" · %d conflict %s: %s", n, plural(n, "copy", "copies"), strings.Join(res.Conflicts, ", "))
+			text += i18n.N(i18n.AppSyncConflictCopies, n, n, strings.Join(res.Conflicts, ", "))
 		}
 		// The same list the indicator counts and :sync status shows.
 		switch files := fileWarnings(res.Commit); {
 		case len(files) == 1:
 			return text + " · " + files[0], true
 		case len(files) > 1:
-			return text + fmt.Sprintf(" · %d files do not sync as they are · :sync status", len(files)), true
+			return text + i18n.T(i18n.AppSyncFilesOdd, len(files)), true
 		}
 		return text, false
 	case gitsync.SyncOffline:
-		return fmt.Sprintf("Sync: offline, %d pending · %s retries", res.Pending, key), true
+		return i18n.T(i18n.AppSyncOffline, res.Pending, key), true
 	case gitsync.SyncRetry:
-		return "Sync stopped, it tries again next time: " + why, true
+		return i18n.T(i18n.AppSyncRetryWhy, why), true
 	case gitsync.SyncDenied:
 		if msg.signIn != nil {
-			return "Sync paused: GitHub did not let this computer in · " + key + " signs in", true
+			return i18n.T(i18n.AppSyncDeniedSignIn, key), true
 		}
-		return "Sync error: " + why + " · " + key, true
+		return i18n.T(i18n.AppSyncErrorWhyKey, why, key), true
 	}
-	return "Sync failed: " + why, true
+	return i18n.T(i18n.AppSyncFailed, why), true
 }
 
 // maxBarNames is how many notes that arrived the status bar names.
@@ -562,7 +572,7 @@ func withArrivals(summary string, res gitsync.SyncResult) string {
 		return summary
 	}
 	line := arrivalLine(arrivalHead(res), names)
-	if summary == "Synced" {
+	if summary == i18n.T(i18n.AppSynced) {
 		return line
 	}
 	return summary + " · " + line
@@ -571,7 +581,7 @@ func withArrivals(summary string, res gitsync.SyncResult) string {
 // arrivalLine is head followed by the names, a long list cut for the bar.
 func arrivalLine(head string, names []string) string {
 	if n := len(names); n > maxBarNames {
-		return head + ": " + strings.Join(names[:maxBarNames], ", ") + fmt.Sprintf(" ... +%d more · :sync status", n-maxBarNames)
+		return head + ": " + strings.Join(names[:maxBarNames], ", ") + i18n.T(i18n.AppSyncMore, n-maxBarNames)
 	}
 	return head + ": " + strings.Join(names, ", ")
 }
@@ -596,19 +606,12 @@ func (m *Model) barNotice() (compact string, ok bool) {
 func fileWarnings(c gitsync.CommitResult) []string {
 	var lines []string
 	for _, b := range c.Skipped {
-		lines = append(lines, b.Path+" is too big and stays out of sync")
+		lines = append(lines, i18n.T(i18n.AppSyncTooBig, b.Path))
 	}
 	for _, n := range c.Notices {
 		lines = append(lines, n.String())
 	}
 	return lines
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
 }
 
 // syncIndicator is the sync part of the status bar (S9): empty when the
@@ -629,42 +632,68 @@ func (m *Model) syncStateText() (text string, answered, alert bool) {
 		return "", false, false
 	}
 	if m.syncing && (m.syncRun == nil || !m.syncRun.local) {
-		return "󰓦 syncing…", false, false
+		return i18n.T(i18n.AppSyncStateSyncing), false, false
 	}
 	s := m.sync
 	if s.leftover != nil {
-		return "󰓦 sync paused, lock left", true, true
+		return i18n.T(i18n.AppSyncStateLock), true, true
 	}
 	switch s.kind {
 	case syncBusy:
-		return "󰓦 other window syncs", false, false
+		return i18n.T(i18n.AppSyncStateBusy), false, false
 	case syncPaused:
-		return "󰓦 sync paused", s.stop != stopNone, true
+		return i18n.T(i18n.AppSyncStatePaused), s.stop != stopNone, true
 	case syncError:
-		return "󰓦 sync error", s.stop != stopNone, true
+		return i18n.T(i18n.AppSyncStateError), s.stop != stopNone, true
 	case syncRetry:
-		return "󰓦 sync will retry", false, false
+		return i18n.T(i18n.AppSyncStateRetry), false, false
 	case syncOffline:
-		return fmt.Sprintf("󰓦 offline · %d pending", s.pending), true, true
+		return i18n.T(i18n.AppSyncStateOffline, s.pending), true, true
 	case syncOK:
 		if n := len(s.copies); n > 0 {
-			return fmt.Sprintf("󰓦 %d %s", n, plural(n, "conflict", "conflicts")), false, true
+			return i18n.N(i18n.AppSyncStateConflicts, n, n), false, true
 		}
-		text = "󰓦 synced " + ago(m.clock().Sub(s.lastOK))
+		text = i18n.T(i18n.AppSyncStateSynced, ago(m.clock().Sub(s.lastOK)))
 		if n := len(s.files); n > 0 {
-			return text + fmt.Sprintf(" · %d %s to check", n, plural(n, "file", "files")), false, true
+			return text + i18n.N(i18n.AppSyncStateFiles, n, n), false, true
 		}
 		return text, false, false
 	}
 	return "", false, false
 }
 
-var (
-	// homeRestHint is the command after the count of a long list of arrivals.
-	homeRestHint = regexp.MustCompile(`( \.\.\. \+\d+ more) · :sync status`)
-	// homeKeyHint is what syncKey says with no key bound, and what follows it.
-	homeKeyHint = regexp.MustCompile(` · :sync(?: retries| signs in| opens it)?( · |$)`)
-)
+// homeHints are, for one language, the commands the start screen leaves
+// out of the sync lines.
+type homeHints struct {
+	// rest is the command after the count of a long list of arrivals.
+	rest *regexp.Regexp
+	// key is what syncKey says with no key bound, and what follows it.
+	key *regexp.Regexp
+}
+
+// homeHintsOf holds each language's homeHints, built from its words once.
+var homeHintsOf sync.Map // i18n.Lang → homeHints
+
+// homeHintsFor is l's homeHints.
+func homeHintsFor(l i18n.Lang) homeHints {
+	if h, ok := homeHintsOf.Load(l); ok {
+		return h.(homeHints)
+	}
+	// The arrivals' tail with its count as a pattern: the words around it
+	// quoted, the count any number.
+	tail := strings.SplitN(i18n.TFor(l, i18n.AppSyncMore), "%d", 2)
+	rest := `(` + regexp.QuoteMeta(tail[0]) + `\d+` + regexp.QuoteMeta(strings.TrimSuffix(tail[1], " · :sync status")) + `) · :sync status`
+	var after []string
+	for _, k := range []i18n.Key{i18n.AppSyncKeyRetries, i18n.AppSyncKeySignsIn, i18n.AppSyncKeyOpensIt} {
+		after = append(after, regexp.QuoteMeta(strings.TrimPrefix(i18n.TFor(l, k), "%s")))
+	}
+	h := homeHints{
+		rest: regexp.MustCompile(rest),
+		key:  regexp.MustCompile(` · :sync(?:` + strings.Join(after, "|") + `)?( · |$)`),
+	}
+	homeHintsOf.Store(l, h)
+	return h
+}
 
 // barText is text as the bar draws it. The start screen has no command line and
 // typing `:` there runs letters as shortcuts, so it leaves out the sync lines'
@@ -673,37 +702,38 @@ func (m *Model) barText(text string) string {
 	if m.viewMode != viewModeDashboard {
 		return text
 	}
-	text = homeRestHint.ReplaceAllString(text, "$1")
-	return homeKeyHint.ReplaceAllString(text, "$1")
+	h := homeHintsFor(i18n.Current())
+	text = h.rest.ReplaceAllString(text, "$1")
+	return h.key.ReplaceAllString(text, "$1")
 }
 
 // every says how often timed sync runs.
 func every(d time.Duration) string {
 	if d <= 0 {
-		return "off"
+		return i18n.T(i18n.AppSyncEveryOff)
 	}
 	text := strings.TrimSuffix(d.String(), "0s")
 	if strings.HasSuffix(text, "h0m") {
 		text = strings.TrimSuffix(text, "0m")
 	}
-	return "every " + text
+	return i18n.T(i18n.AppSyncEvery, text)
 }
 
 // ago says how long d is, roughly.
 func ago(d time.Duration) string {
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return i18n.T(i18n.AppAgoNow)
 	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d/time.Minute))
+		return i18n.T(i18n.AppAgoMinutes, int(d/time.Minute))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d/time.Hour))
+		return i18n.T(i18n.AppAgoHours, int(d/time.Hour))
 	}
-	return fmt.Sprintf("%dd ago", int(d/(24*time.Hour)))
+	return i18n.T(i18n.AppAgoDays, int(d/(24*time.Hour)))
 }
 
 // lockedText is the leftover index.lock, in plain words.
-const lockedText = "a git lock file is in the way (.git/index.lock)"
+func lockedText() string { return i18n.T(i18n.AppSyncLocked) }
 
 // lockRemovedMsg brings the removal of a leftover lock back to Update.
 type lockRemovedMsg struct{ err error }
@@ -720,15 +750,15 @@ func (m *Model) offerLockRemoval(l gitsync.LeftoverLock, lines []string) {
 		return
 	}
 	lines = append(append(lines, ""),
-		"A git lock file (.git/index.lock) is in this vault, so sync cannot go on.",
-		"It may belong to a git command still running, for example a commit in a terminal:",
-		"remove it only if no git command is running.",
+		i18n.T(i18n.AppSyncLockLine1),
+		i18n.T(i18n.AppSyncLockLine2),
+		i18n.T(i18n.AppSyncLockLine3),
 	)
 	m.tutorDefer("sync_stop_dialog", "")
 	m.confirm = &confirmDialog{
-		title:    "Sync status",
+		title:    i18n.T(i18n.AppSyncStatusTitle),
 		message:  m.wrapLines(lines),
-		buttons:  []string{"Remove the lock and sync", "Cancel"},
+		buttons:  []string{i18n.T(i18n.AppSyncRemoveLock), i18n.T(i18n.AppCancel)},
 		selected: 1, // Enter alone never removes it
 		// No letter may choose Remove: only arrows or Tab, then Enter.
 		deliberate: true,
@@ -744,7 +774,7 @@ func (m *Model) offerLockRemoval(l gitsync.LeftoverLock, lines []string) {
 // lockRemoved syncs once the confirmed lock is gone, or says why it stayed.
 func (m *Model) lockRemoved(msg lockRemovedMsg) tea.Cmd {
 	if msg.err != nil {
-		m.setError("Lock not removed: " + oneLine(msg.err.Error()))
+		m.setError(i18n.T(i18n.AppSyncLockNotRemoved, oneLine(msg.err.Error())))
 		if errors.Is(msg.err, gitsync.ErrLockChanged) {
 			// What was shown is no longer there: the sync key syncs next, and
 			// offers the lock as that sync finds it.
@@ -761,7 +791,7 @@ func (m *Model) syncAfterFix() tea.Cmd {
 	if m.syncing {
 		// A sync started on its own meanwhile: this one follows it.
 		m.syncQueued = true
-		m.showProgress("Syncing…")
+		m.showProgress(i18n.T(i18n.AppSyncing))
 		return nil
 	}
 	return m.askSync()
@@ -815,13 +845,15 @@ func stopCompact(msg syncDoneMsg, key string) (compact, tight string) {
 	_, plain := stopWords[stop]
 	switch {
 	case msg.leftover != nil, plain:
-		return "Sync paused · " + key, "Sync paused · " + key
+		paused := i18n.T(i18n.AppSyncPausedKey, key)
+		return paused, paused
 	case stop == stopAccess && msg.signIn != nil:
-		return "Sync paused · " + key + " signs in", "Sync paused · " + key
+		return i18n.T(i18n.AppSyncPausedKey, i18n.T(i18n.AppSyncKeySignsIn, key)), i18n.T(i18n.AppSyncPausedKey, key)
 	case stop == stopAccess:
-		return "Sync error · " + key, "Sync error · " + key
+		failed := i18n.T(i18n.AppSyncErrorKey, key)
+		return failed, failed
 	case msg.err == nil && !msg.busy && msg.paused.Status != gitsync.Paused && msg.res.Outcome == gitsync.SyncOffline:
-		return "Sync offline · " + key + " retries", "Sync offline · " + key
+		return i18n.T(i18n.AppSyncOfflineKey, i18n.T(i18n.AppSyncKeyRetries, key)), i18n.T(i18n.AppSyncOfflineKey, key)
 	}
 	return "", ""
 }
@@ -829,27 +861,15 @@ func stopCompact(msg syncDoneMsg, key string) (compact, tight string) {
 // stopWords says the stops no button fixes in plain words, naming no command.
 // gitsync's messages keep the commands: the terminal and `:sync status` use
 // them. No button joins the histories: after a force-push that could upload
-// again something deleted on purpose.
+// again something deleted on purpose. The words are keys, read when shown.
 var stopWords = map[syncStop]struct {
-	bar string
-	why []string
+	bar i18n.Key
+	why []i18n.Key
 }{
-	stopRewritten: {"this vault and origin no longer match", []string{
-		"The history in origin was rewritten, so this vault and origin no longer match.",
-		"Joining them could bring back something deleted on purpose, so Misoku does not offer it.",
-	}},
-	stopUnrelated: {"this vault and origin share no history", []string{
-		"This vault and origin share no history: they look like two separate sets of notes.",
-		"Joining them could bring back something deleted on purpose, so Misoku does not offer it.",
-	}},
-	stopInProgress: {"an unfinished merge or rebase is waiting in this vault", []string{
-		"A merge, rebase or similar operation started in this vault is not finished.",
-		"Misoku does not finish or cancel it: it may hold choices only you can make.",
-	}},
-	stopDetached: {"this vault is not on a branch", []string{
-		"This vault is not on a branch right now, so what you write has nowhere to go in origin.",
-		"Misoku does not switch branches: the notes on your screen would change.",
-	}},
+	stopRewritten:  {i18n.AppSyncRewrittenBar, []i18n.Key{i18n.AppSyncRewrittenWhy, i18n.AppSyncNoJoin}},
+	stopUnrelated:  {i18n.AppSyncUnrelatedBar, []i18n.Key{i18n.AppSyncUnrelatedWhy, i18n.AppSyncNoJoin}},
+	stopInProgress: {i18n.AppSyncInProgressBar, []i18n.Key{i18n.AppSyncInProgressWhy, i18n.AppSyncInProgressNo}},
+	stopDetached:   {i18n.AppSyncDetachedBar, []i18n.Key{i18n.AppSyncDetachedWhy, i18n.AppSyncDetachedNo}},
 }
 
 // syncKey names the key that syncs, as the user has it: "space s", "Ctrl+Y".
@@ -859,7 +879,7 @@ func (m *Model) syncKey() string {
 		return ":sync"
 	}
 	if rest, ok := strings.CutPrefix(key, "SPC "); ok {
-		return "space " + rest
+		return i18n.T(i18n.AppSyncKeySpace, rest)
 	}
 	return key
 }
@@ -883,14 +903,18 @@ func (m *Model) askLockRemoval() tea.Cmd {
 // explainStop says why sync stopped and changes nothing. Check again is a
 // normal sync, so a problem the user fixed clears.
 func (m *Model) explainStop() {
-	title, why := "Sync is paused", stopWords[m.sync.stop].why
-	if m.sync.stop == stopAccess {
-		title = "Sync cannot get in"
-		why = []string{"Origin did not let this computer in.", m.sync.lastErr}
+	title := i18n.T(i18n.AppSyncPausedTitle)
+	var why []string
+	for _, k := range stopWords[m.sync.stop].why {
+		why = append(why, i18n.T(k))
 	}
-	lines := append(slices.Clone(why), "Nothing was changed, and your notes are safe here.", "Once it is sorted out, choose Check again.")
+	if m.sync.stop == stopAccess {
+		title = i18n.T(i18n.AppSyncDeniedTitle)
+		why = []string{i18n.T(i18n.AppSyncDeniedWhy), m.sync.lastErr}
+	}
+	lines := append(why, i18n.T(i18n.AppSyncNothingChanged), i18n.T(i18n.AppSyncCheckAgainHint))
 	m.tutorDefer("sync_stop_dialog", "")
-	m.stopDialog(title, lines, []string{"Check again", "Close"}, 1, func(m *Model) tea.Cmd { return m.askSync() })
+	m.stopDialog(title, lines, []string{i18n.T(i18n.AppSyncCheckAgain), i18n.T(i18n.AppClose)}, 1, func(m *Model) tea.Cmd { return m.askSync() })
 }
 
 // offerSignIn offers the setup assistant's sign-in, outside the screen. It
@@ -898,12 +922,12 @@ func (m *Model) explainStop() {
 func (m *Model) offerSignIn() {
 	s := m.sync.signIn
 	lines := []string{
-		"GitHub did not let this computer in, so sync stopped. Your notes are safe here.",
-		"Sign in: gh shows a one-time code and opens your browser. gh keeps the access; Misoku never sees it.",
-		"Sync runs once you are back.",
+		i18n.T(i18n.AppSyncSignInLine1),
+		i18n.T(i18n.AppSyncSignInLine2),
+		i18n.T(i18n.AppSyncSignInLine3),
 	}
 	m.tutorDefer("sync_auth_offer", "")
-	m.stopDialog("Sign in to GitHub", lines, []string{"Sign in", "Cancel"}, 1, func(m *Model) tea.Cmd {
+	m.stopDialog(i18n.T(i18n.AppSyncSignInTitle), lines, []string{i18n.T(i18n.AppSyncSignIn), i18n.T(i18n.AppCancel)}, 1, func(m *Model) tea.Cmd {
 		return m.execOutside(s.SignInCommand(), func(error) tea.Msg {
 			// gh said how it went on the terminal. This runs on the Update
 			// loop, so what asks gh comes back as a command.
@@ -961,7 +985,7 @@ type syncSignedInMsg struct {
 // it did not work, everything stays as it was and the key offers it again.
 func (m *Model) syncSignedIn(msg syncSignedInMsg) tea.Cmd {
 	if !msg.checked {
-		m.setStatus("Checking the sign-in…")
+		m.setStatus(i18n.T(i18n.AppSyncCheckingSignIn))
 		return func() tea.Msg {
 			ctx, cancel := context.WithTimeout(context.Background(), setupStepLimit)
 			defer cancel()
@@ -969,7 +993,7 @@ func (m *Model) syncSignedIn(msg syncSignedInMsg) tea.Cmd {
 		}
 	}
 	if msg.err != nil {
-		m.setError("Sync still paused: " + oneLine(msg.err.Error()) + " · " + m.syncKey())
+		m.setError(i18n.T(i18n.AppSyncStillPaused, oneLine(msg.err.Error()), m.syncKey()))
 		return nil
 	}
 	return m.syncAfterFix()
@@ -986,7 +1010,7 @@ type syncStatusMsg struct {
 // why.
 func (m *Model) requestSyncStatus() tea.Cmd {
 	if m.syncVault == nil {
-		m.openSyncStatus([]string{m.syncOff})
+		m.openSyncStatus([]string{m.syncOffText()})
 		return nil
 	}
 	m.sync.reading = i18n.T(i18n.SyncReadingStatus)
@@ -1013,59 +1037,59 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 	if msg.fromKey && m.keyCount != m.statusKeys {
 		// Keys pressed since the sync key were meant for the note: any dialog
 		// would take them.
-		m.setStatus("Sync paused: " + lockedText + " · " + m.syncKey() + " opens it")
+		m.setStatus(i18n.T(i18n.AppSyncPausedWhyKey, lockedText(), i18n.T(i18n.AppSyncKeyOpensIt, m.syncKey())))
 		return
 	}
 	info, s := msg.info, m.sync
 	state, _, _ := m.syncStateText()
 	state = strings.TrimSpace(strings.TrimPrefix(state, "󰓦"))
 	if state == "" {
-		state = "not synced yet in this window"
+		state = i18n.T(i18n.AppSyncNotYet)
 	}
 	lines := []string{
-		"State: " + state,
-		"Remote: " + orNone(info.Remote),
-		"Branch: " + orNone(info.Branch),
-		"Timed sync: " + every(m.syncVault.Interval),
-		fmt.Sprintf("Pending: %d %s to push", info.Pending, plural(info.Pending, "commit", "commits")),
+		i18n.T(i18n.AppSyncInfoState, state),
+		i18n.T(i18n.AppSyncInfoRemote, orNone(info.Remote)),
+		i18n.T(i18n.AppSyncInfoBranch, orNone(info.Branch)),
+		i18n.T(i18n.AppSyncInfoTimed, every(m.syncVault.Interval)),
+		i18n.N(i18n.AppSyncInfoPending, info.Pending, info.Pending),
 	}
 	if !s.lastOK.IsZero() {
-		lines = append(lines, "Last synced: "+ago(m.clock().Sub(s.lastOK)))
+		lines = append(lines, i18n.T(i18n.AppSyncInfoLastOK, ago(m.clock().Sub(s.lastOK))))
 	}
 	if s.lastErr != "" {
-		lines = append(lines, "Last error ("+ago(m.clock().Sub(s.errAt))+"): "+s.lastErr)
+		lines = append(lines, i18n.T(i18n.AppSyncInfoLastErr, ago(m.clock().Sub(s.errAt)), s.lastErr))
 	} else {
-		lines = append(lines, "Last error: none")
+		lines = append(lines, i18n.T(i18n.AppSyncInfoNoErr))
 	}
 	if info.Err != nil {
-		lines = append(lines, "Could not read: "+oneLine(info.Err.Error()))
+		lines = append(lines, i18n.T(i18n.AppSyncInfoUnreadable, oneLine(info.Err.Error())))
 	}
 	for _, w := range s.warnings {
-		lines = append(lines, "Config: "+w)
+		lines = append(lines, i18n.T(i18n.AppSyncInfoConfig, w))
 	}
 	if n := len(info.Conflicts); n == 0 {
-		lines = append(lines, "Conflict copies: none")
+		lines = append(lines, i18n.T(i18n.AppSyncInfoNoConflicts))
 	} else {
-		lines = append(lines, fmt.Sprintf("Conflict copies (%d), delete each once resolved:", n))
+		lines = append(lines, i18n.T(i18n.AppSyncInfoConflicts, n))
 		lines = appendListed(lines, info.Conflicts)
 	}
 	if n := len(s.files); n > 0 {
-		lines = append(lines, fmt.Sprintf("Files that do not sync as they are (%d):", n))
+		lines = append(lines, i18n.T(i18n.AppSyncInfoFiles, n))
 		lines = appendListed(lines, s.files)
 	}
 	if len(s.arrived) > 0 {
-		lines = append(lines, s.arrivedHead+" ("+ago(m.clock().Sub(s.arrivedAt))+"):")
+		lines = append(lines, i18n.T(i18n.AppSyncInfoArrived, s.arrivedHead, ago(m.clock().Sub(s.arrivedAt))))
 		lines = appendListed(lines, s.arrived)
 	}
 	if s.leftover != nil && !m.syncing {
-		lines = append(lines, "Sync stopped: "+lockedText+".")
+		lines = append(lines, i18n.T(i18n.AppSyncInfoStopped, lockedText()))
 		// Keys pressed since `:sync status` was asked for were meant for
 		// the note: the offer would take them (Tab, then Enter, removes).
 		if m.keyCount == m.statusKeys {
 			m.offerLockRemoval(*s.leftover, lines)
 			return
 		}
-		lines = append(lines, "To remove the lock, run :sync status again.")
+		lines = append(lines, i18n.T(i18n.AppSyncInfoRemoveAgain))
 	}
 	m.openSyncStatus(lines)
 }
@@ -1074,7 +1098,7 @@ func (m *Model) showSyncStatus(msg syncStatusMsg) {
 func appendListed(lines, items []string) []string {
 	for i, item := range items {
 		if i == maxListed {
-			return append(lines, fmt.Sprintf("  … and %d more", len(items)-maxListed))
+			return append(lines, i18n.T(i18n.AppListMore, len(items)-maxListed))
 		}
 		lines = append(lines, "  "+item)
 	}
@@ -1083,7 +1107,7 @@ func appendListed(lines, items []string) []string {
 
 func orNone(s string) string {
 	if s == "" {
-		return "(none)"
+		return i18n.T(i18n.AppNone)
 	}
 	return s
 }
@@ -1098,9 +1122,9 @@ func (m *Model) openSyncStatus(lines []string) {
 	}
 	m.tutorCSyncStatus()
 	m.confirm = &confirmDialog{
-		title:    "Sync status",
+		title:    i18n.T(i18n.AppSyncStatusTitle),
 		message:  m.wrapLines(lines),
-		buttons:  []string{"Close"},
+		buttons:  []string{i18n.T(i18n.AppClose)},
 		onChoose: func(*Model, int) tea.Cmd { return nil },
 	}
 }

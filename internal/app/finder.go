@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -54,7 +55,7 @@ func (m *Model) openFinder() tea.Cmd {
 	th := m.theme
 	in := textinput.New()
 	in.Prompt = ""
-	in.Placeholder = "Search file names and text in every note…"
+	in.Placeholder = i18n.T(i18n.AppFinderPlaceholder)
 	in.CharLimit = 120
 	field := lipgloss.NewStyle().Background(th.Bg2)
 	in.TextStyle = field.Foreground(th.Fg)

@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -88,7 +89,7 @@ func (d *historyDialog) view(m *Model) (string, int, int) {
 	sel := lipgloss.NewStyle().Background(th.OneBg2)
 
 	title := bg.Foreground(th.Blue).Render(" \U000f02da ") +
-		bg.Foreground(th.Fg).Bold(true).Render(ui.Truncate("History of "+d.id, inner-4))
+		bg.Foreground(th.Fg).Bold(true).Render(ui.Truncate(i18n.T(i18n.AppHistoryOf, d.id), inner-4))
 	out := []string{title, bg.Foreground(th.Line).Render(strings.Repeat("─", inner))}
 
 	lines := d.previewLines()
@@ -115,6 +116,6 @@ func (d *historyDialog) view(m *Model) (string, int, int) {
 		out = append(out, left+bg.Foreground(th.Line).Render("│")+
 			ui.FitLine(bg.Foreground(th.GreyFg2).Render(" "+right), textW, bg))
 	}
-	out = append(out, bg.Foreground(th.GreyFg).Render(" j/k move · Enter restore into the editor (u undoes it) · Esc close"))
+	out = append(out, bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppHistoryHelp)))
 	return panel(th, out, inner), x, y
 }

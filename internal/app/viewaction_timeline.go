@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,7 +35,7 @@ func spanLine(name string, start, end time.Time) string {
 func (m *Model) timelineHit(h preview.Hit) tea.Cmd {
 	switch h.Kind {
 	case "tl:add":
-		return m.prompt("New timeline item", "", "Next you'll pick the start and end dates", func(m *Model, v string) tea.Cmd {
+		return m.prompt(i18n.T(i18n.AppTlNew), "", i18n.T(i18n.AppTlNewHint), func(m *Model, v string) tea.Cmd {
 			if v == "" {
 				return nil
 			}
@@ -44,8 +45,8 @@ func (m *Model) timelineHit(h preview.Hit) tea.Cmd {
 			return nil
 		})
 	case "tl:item":
-		items := []string{"Move 1 day later", "Move 1 day earlier", "Move 1 week later", "Move 1 week earlier",
-			"Extend by 1 day", "Shorten by 1 day", "Set dates…", "Rename", "Delete"}
+		items := []string{i18n.T(i18n.AppTlDayLater), i18n.T(i18n.AppTlDayEarlier), i18n.T(i18n.AppTlWeekLater), i18n.T(i18n.AppTlWeekEarlier),
+			i18n.T(i18n.AppTlExtend), i18n.T(i18n.AppTlShorten), i18n.T(i18n.AppTlSetDates), i18n.T(i18n.AppRename), i18n.T(i18n.AppDelete)}
 		m.menu(h.Arg, items, func(m *Model, choice int) tea.Cmd {
 			lines := m.docLines()
 			name, start, end, ok := parseSpan(lines[h.Line])
@@ -80,7 +81,7 @@ func (m *Model) timelineHit(h preview.Hit) tea.Cmd {
 					m.setDocLines(lines)
 				})
 			case 7:
-				return m.prompt("Rename", name, "", func(m *Model, v string) tea.Cmd {
+				return m.prompt(i18n.T(i18n.AppRename), name, "", func(m *Model, v string) tea.Cmd {
 					if v != "" {
 						lines := m.docLines()
 						lines[h.Line] = spanLine(v, start, end)
@@ -99,12 +100,12 @@ func (m *Model) timelineHit(h preview.Hit) tea.Cmd {
 
 // pickDates asks for a start date, then an end date on or after it.
 func (m *Model) pickDates(name string, start, end time.Time, done func(*Model, time.Time, time.Time)) {
-	m.pickDate("Start date · "+name, start, time.Time{}, func(m *Model, s time.Time) tea.Cmd {
+	m.pickDate(i18n.T(i18n.AppTlStart, name), start, time.Time{}, func(m *Model, s time.Time) tea.Cmd {
 		initial := end
 		if initial.IsZero() || initial.Before(s) {
 			initial = s
 		}
-		m.pickDate("End date · "+name, initial, s, func(m *Model, e time.Time) tea.Cmd {
+		m.pickDate(i18n.T(i18n.AppTlEnd, name), initial, s, func(m *Model, e time.Time) tea.Cmd {
 			done(m, s, e)
 			return nil
 		})

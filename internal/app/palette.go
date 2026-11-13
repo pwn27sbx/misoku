@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -35,7 +36,7 @@ func (m *Model) openPalette() tea.Cmd {
 	th := m.theme
 	in := textinput.New()
 	in.Prompt = ""
-	in.Placeholder = "Type to search keys and commands"
+	in.Placeholder = i18n.T(i18n.AppPalPlaceholder)
 	in.CharLimit = 80
 	field := lipgloss.NewStyle().Background(th.Bg2)
 	in.TextStyle = field.Foreground(th.Fg)
@@ -185,7 +186,7 @@ func (p *palette) layout(m *Model) paletteLayout {
 
 // longLines is the selected entry's explanation, wrapped.
 func (p *palette) longLines(inner int) []string {
-	text := "Nothing matches the search."
+	text := i18n.T(i18n.AppPalNoMatch)
 	if e := p.selected(); e != nil {
 		text = e.long
 	}
@@ -204,15 +205,15 @@ func (p *palette) lines(l paletteLayout, all bool) []paletteLine {
 		}
 	}
 	var out []paletteLine
-	group := ""
+	var group paletteGroup
 	for pos, i := range shown {
 		e := p.entries[i]
 		if headings && e.group != group {
-			if group != "" {
+			if group != (paletteGroup{}) {
 				out = append(out, paletteLine{entry: -1})
 			}
 			group = e.group
-			out = append(out, paletteLine{text: e.group, entry: -1})
+			out = append(out, paletteLine{text: e.group.String(), entry: -1})
 		}
 		keyLines, rest := entryLines(e, l)
 		for _, t := range keyLines {
@@ -285,7 +286,7 @@ func (p *palette) view(m *Model) (string, int, int) {
 	textStyle := bg.Foreground(th.Fg)
 	selStyle := lipgloss.NewStyle().Background(th.OneBg2).Foreground(th.Blue).Bold(true)
 
-	rows := []string{bg.Foreground(th.Blue).Render(" ") + bg.Foreground(th.Fg).Bold(true).Render("MISOKU KEYMAPS & COMMANDS")}
+	rows := []string{bg.Foreground(th.Blue).Render(" ") + bg.Foreground(th.Fg).Bold(true).Render(i18n.T(i18n.AppPalTitle))}
 	field := lipgloss.NewStyle().Background(th.Bg2)
 	rows = append(rows, bg.Render(" ")+ui.FitLine(field.Foreground(th.Blue).Bold(true).Render("  ")+p.input.View(), inner-2, field)+bg.Render(" "))
 	rows = append(rows, "")
@@ -296,7 +297,7 @@ func (p *palette) view(m *Model) (string, int, int) {
 		switch {
 		case i >= len(lines):
 			if i == 0 {
-				rows = append(rows, bg.Foreground(th.GreyFg).Render("   Nothing matches"))
+				rows = append(rows, bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppNothingHere)))
 				continue
 			}
 			rows = append(rows, "")
@@ -316,12 +317,12 @@ func (p *palette) view(m *Model) (string, int, int) {
 	for _, ln := range l.long {
 		rows = append(rows, bg.Foreground(th.GreyFg2).Render(" "+ln))
 	}
-	hint := " Enter run · ↑↓ move · Esc close"
+	hint := i18n.T(i18n.AppPalHint)
 	switch e := p.selected(); {
 	case e != nil && e.needsNote:
-		hint = " Needs an open note · Esc close"
+		hint = i18n.T(i18n.AppPalHintNeedsNote)
 	case e == nil || e.run == nil:
-		hint = " Not a command: use the key · Esc close"
+		hint = i18n.T(i18n.AppPalHintKeyOnly)
 	}
 	if n := len(p.shown); n > 0 {
 		count := strconv.Itoa(p.sel+1) + "/" + strconv.Itoa(n) + " "

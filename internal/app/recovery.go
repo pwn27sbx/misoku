@@ -13,6 +13,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // recoveryPrefix and recoverySuffix name one snapshot per session: a file
@@ -93,10 +95,10 @@ func (m Model) SaveRecovery() (string, error) {
 	}
 
 	if err := os.MkdirAll(m.recoveryDir, 0o700); err != nil {
-		return "", fmt.Errorf("failed to create the recovery folder: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryMkdir), err)
 	}
 	if err := os.Chmod(m.recoveryDir, 0o700); err != nil {
-		return "", fmt.Errorf("failed to protect the recovery folder: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryProtectDir), err)
 	}
 	data, err := json.MarshalIndent(RecoverySnapshot{
 		Version: recoveryVersion,
@@ -105,12 +107,12 @@ func (m Model) SaveRecovery() (string, error) {
 		Tabs:    tabs,
 	}, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("failed to encode the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryEncode), err)
 	}
 
 	tmp, err := os.CreateTemp(m.recoveryDir, ".recovery-*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("failed to create the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryCreate), err)
 	}
 	tmpName := tmp.Name()
 	// Best effort: after a successful rename this removes nothing, and after
@@ -118,21 +120,21 @@ func (m Model) SaveRecovery() (string, error) {
 	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return "", fmt.Errorf("failed to write the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryWrite), err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
-		return "", fmt.Errorf("failed to flush the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryFlush), err)
 	}
 	if err := tmp.Close(); err != nil {
-		return "", fmt.Errorf("failed to close the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryClose), err)
 	}
 	if err := os.Chmod(tmpName, 0o600); err != nil {
-		return "", fmt.Errorf("failed to protect the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryProtect), err)
 	}
 	final := filepath.Join(m.recoveryDir, fmt.Sprintf("%s%d-%d%s", recoveryPrefix, time.Now().UnixNano(), os.Getpid(), recoverySuffix))
 	if err := renameRecovery(tmpName, final); err != nil {
-		return "", fmt.Errorf("failed to keep the recovery file: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryKeep), err)
 	}
 	return final, nil
 }
@@ -168,11 +170,11 @@ func LoadRecoveries(dir string) ([]RecoveryFile, error) {
 		}
 		var snap RecoverySnapshot
 		if err := json.Unmarshal(data, &snap); err != nil {
-			errs = append(errs, fmt.Errorf("%s is unreadable: %w", name, err))
+			errs = append(errs, fmt.Errorf("%s: %w", i18n.T(i18n.AppRecoveryUnreadable, name), err))
 			continue
 		}
 		if snap.Version != recoveryVersion {
-			errs = append(errs, fmt.Errorf("%s has version %d", name, snap.Version))
+			errs = append(errs, errors.New(i18n.T(i18n.AppRecoveryVersion, name, snap.Version)))
 			continue
 		}
 		files = append(files, RecoveryFile{Path: path, Snap: snap})
@@ -246,10 +248,10 @@ func (m *Model) applyRecovery(msg recoveryLoadedMsg) {
 		}
 	}
 	if len(other) > 0 {
-		m.setError("Unsaved notes from " + strings.Join(other, ", ") + " are kept in " + m.recoveryDir)
+		m.setError(i18n.T(i18n.AppRecoveryElsewhere, strings.Join(other, ", "), m.recoveryDir))
 	}
 	if msg.err != nil {
-		m.setError("Recovery file could not be read: " + msg.err.Error())
+		m.setError(i18n.T(i18n.AppRecoveryReadFailed, msg.err.Error()))
 	}
 	if len(mine) == 0 {
 		return
@@ -260,7 +262,7 @@ func (m *Model) applyRecovery(msg recoveryLoadedMsg) {
 	}
 	if len(tabs) == 0 {
 		if err := RemoveRecoveryFiles(mine); err != nil {
-			m.setError("Could not remove the recovery file: " + err.Error())
+			m.setError(i18n.T(i18n.AppRecoveryRemove, err.Error()))
 		}
 		return
 	}
@@ -276,15 +278,15 @@ func (m *Model) askRecovery(tabs []Recovery, files []RecoveryFile) {
 	}
 	list := strings.Join(names, ", ")
 	if len(names) > 3 {
-		list = strings.Join(names[:3], ", ") + fmt.Sprintf(" and %d more", len(names)-3)
+		list = i18n.T(i18n.AppQuitMore, strings.Join(names[:3], ", "), len(names)-3)
 	}
 	m.confirm = &confirmDialog{
-		title: "Recover unsaved notes?",
+		title: i18n.T(i18n.AppRecoveryTitle),
 		message: []string{
-			fmt.Sprintf("%d tab(s) were not saved when Misoku closed.", len(tabs)),
+			i18n.N(i18n.AppRecoveryTabs, len(tabs), len(tabs)),
 			list,
 		},
-		buttons:    []string{"Restore", "Discard", "Later"},
+		buttons:    []string{i18n.T(i18n.AppRecoveryRestore), i18n.T(i18n.AppDiscard), i18n.T(i18n.AppRecoveryLater)},
 		deliberate: true, // a stray letter must not throw them away
 		selected:   0,    // Restore is the safe default
 		onChoose: func(m *Model, choice int) tea.Cmd {
@@ -292,16 +294,16 @@ func (m *Model) askRecovery(tabs []Recovery, files []RecoveryFile) {
 			case 0:
 				m.restoreRecovery(tabs)
 				if err := RemoveRecoveryFiles(files); err != nil {
-					m.setError("Recovered, but the file could not be removed: " + err.Error())
+					m.setError(i18n.T(i18n.AppRecoveryNotRemoved, err.Error()))
 					return nil
 				}
-				m.setStatus(fmt.Sprintf("Recovered %d unsaved tab(s)", len(tabs)))
+				m.setStatus(i18n.N(i18n.AppRecoveryRecovered, len(tabs), len(tabs)))
 			case 1:
 				if err := RemoveRecoveryFiles(files); err != nil {
-					m.setError("Could not remove the recovery file: " + err.Error())
+					m.setError(i18n.T(i18n.AppRecoveryRemove, err.Error()))
 					return nil
 				}
-				m.setStatus("Recovery discarded")
+				m.setStatus(i18n.T(i18n.AppRecoveryDiscarded))
 			}
 			return nil
 		},
@@ -334,7 +336,7 @@ func (m *Model) restoreRecovery(tabs []Recovery) {
 			m.draftSeq++
 			title := r.Title
 			if title == "" {
-				title = fmt.Sprintf("Untitled-%d", m.draftSeq)
+				title = i18n.T(i18n.AppUntitled, m.draftSeq)
 			}
 			b = &buffer{id: fmt.Sprintf("%s%d", draftIDPrefix, m.draftSeq), title: title, dir: r.Dir, text: r.Content}
 			m.buffers = append(m.buffers, b)

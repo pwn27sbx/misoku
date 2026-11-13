@@ -7,6 +7,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -160,7 +161,7 @@ func (m *Model) editorLeaderKey(s string, actions []string) tea.Cmd {
 	case m.leaderPending:
 		return wait
 	case guide && s != "esc":
-		m.setStatus(strings.Join(keys, " ") + ": not a leader key")
+		m.setStatus(i18n.T(i18n.AppNotLeaderKey, strings.Join(keys, " ")))
 	}
 	return nil
 }
@@ -186,11 +187,11 @@ func (m *Model) handleDashboardKey(k tea.KeyMsg) tea.Cmd {
 		case slices.Contains(homeActions, a):
 			return m.runHomeAction(a)
 		case a != "":
-			m.setStatus(strings.Join(keys, " ") + ": needs an open note")
+			m.setStatus(i18n.T(i18n.AppNeedsOpenNote, strings.Join(keys, " ")))
 		case m.leaderPending:
 			return wait
 		case guide && s != "esc":
-			m.setStatus(strings.Join(keys, " ") + ": not a leader key")
+			m.setStatus(i18n.T(i18n.AppNotLeaderKey, strings.Join(keys, " ")))
 		}
 		return nil
 	}
@@ -321,7 +322,7 @@ func (m *Model) openProject(id string) tea.Cmd {
 func (m *Model) followEnterLink(l core.WikiLink) tea.Cmd {
 	if l.Target != "" {
 		if _, ok := core.ResolveNote(m.notes, l.Target, m.currentNoteID()); !ok {
-			m.setStatus("No note found for this link")
+			m.setStatus(i18n.T(i18n.AppNoNoteForLink))
 			return nil
 		}
 	}

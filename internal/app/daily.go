@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // dailyDateLayout names a daily note: 2026-11-06.md.
@@ -16,7 +17,7 @@ func WithDailyDir(dir string) Option {
 	return func(m *Model) {
 		d, err := config.VaultFolder(dir, config.DefaultDailyDir)
 		if err != nil {
-			m.setError("daily_dir: " + err.Error() + "; using " + d)
+			m.setError(i18n.T(i18n.AppFolderRefused, "daily_dir", err.Error(), d))
 		}
 		m.dailyDir = d
 	}
@@ -55,5 +56,5 @@ func (m *Model) openDailyNote() tea.Cmd {
 
 // dailyDraftStatus tells that today's note is a draft still to be saved.
 func dailyDraftStatus(name, dir string) string {
-	return "New daily note \"" + name + "\": save to create it in " + dir
+	return i18n.T(i18n.AppDailyDraft, name, dir)
 }

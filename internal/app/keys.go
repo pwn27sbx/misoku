@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -120,7 +121,7 @@ func (m *Model) editCheckboxes(edit func() bool) tea.Cmd {
 // the open note, or says the note has none.
 func (m *Model) jumpLink(dir int) {
 	if m.activeBuffer() != nil && !m.content.JumpLink(dir) {
-		m.setStatus("No links in this note")
+		m.setStatus(i18n.T(i18n.AppNoLinksInNote))
 		return
 	}
 	if dir > 0 {

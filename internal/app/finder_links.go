@@ -11,9 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// linkFinderHelp is the link picker's footer: what "#" and "^" mean there.
-const linkFinderHelp = "# heading · ^ block · Esc type it yourself"
-
 // finderOpenLink finishes a "[[" with the selected suggestion: its text, or
 // the typed name when it matches no note, which following starts. A query
 // with qualifiers names no note and inserts nothing.

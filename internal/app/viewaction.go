@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -96,6 +97,6 @@ func (d *promptDialog) view(m *Model) (string, int, int) {
 	if d.hint != "" {
 		rows = append(rows, bg.Foreground(th.GreyFg2).Render(" "+ui.Truncate(d.hint, inner-2)))
 	}
-	rows = append(rows, bg.Foreground(th.GreyFg).Render(" Enter save · Esc cancel"))
+	rows = append(rows, bg.Foreground(th.GreyFg).Render(i18n.T(i18n.AppPromptHelp)))
 	return panel(th, rows, inner), x, y
 }
