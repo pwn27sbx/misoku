@@ -10,7 +10,7 @@ La valoración es el tipo `(rating)`: cinco estrellas y una respuesta con el nú
 
 ## Tu turno
 
-1. Inserta un formulario con `/Form` y escribe una pregunta de elección con tres opciones (`Cabaña`, `Hotel`, `Apartamento`); marca `Cabaña`, bórrala con otro clic y vuelve a marcarla.
+1. Inserta un formulario con `/Formulario` y escribe una pregunta de elección con tres opciones (`Cabaña`, `Hotel`, `Apartamento`); marca `Cabaña`, bórrala con otro clic y vuelve a marcarla.
 2. Añade una pregunta múltiple con `Bici`, `Tren` y `Coche`, y marca dos opciones.
 3. Añade una pregunta de valoración y pulsa la tercera estrella.
 

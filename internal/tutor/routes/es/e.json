@@ -174,8 +174,8 @@
       "file": "E05 Iconos y bordes.md",
       "steps": [
         {
-          "text": "Prueba los cuatro presets y termina en Numbers",
-          "hint": "La fila Icons & bullets",
+          "text": "Prueba los cuatro presets y termina en Números",
+          "hint": "La fila Iconos y viñetas",
           "ids": [
             "SET-04"
           ],
@@ -189,7 +189,7 @@
         },
         {
           "text": "Cambia el borde a single y déjalo ahí",
-          "hint": "La fila Dialog border",
+          "hint": "La fila Borde de los diálogos",
           "ids": [
             "SET-05"
           ],
@@ -210,7 +210,7 @@
       "file": "E06 Fondo transparente.md",
       "steps": [
         {
-          "text": "Activa y apaga la fila Transparent background",
+          "text": "Activa y apaga la fila Fondo transparente",
           "hint": "Está en :settings",
           "ids": [
             "SET-06"
@@ -269,7 +269,7 @@
       "file": "E07 Números y cursor.md",
       "steps": [
         {
-          "text": "Enciende y apaga Heading numbers y déjalo apagado",
+          "text": "Enciende y apaga Numerar los títulos y déjalo apagado",
           "hint": "La fila del menú :settings",
           "ids": [
             "SET-07"
@@ -560,7 +560,7 @@
       "steps": [
         {
           "text": "Ejecuta :sync status y lee todos los campos",
-          "hint": "Estado, remoto, rama, pendientes",
+          "hint": "Estado, Remoto, Rama, Pendientes",
           "ids": [
             "SYNC-06"
           ],
@@ -589,7 +589,7 @@
       "file": "E15 Cuando se detiene.md",
       "steps": [
         {
-          "text": "Provoca un freno, lee el diálogo y usa Check again",
+          "text": "Provoca un freno, lee el diálogo, usa Comprobar de nuevo",
           "hint": "El diálogo, en palabras llanas",
           "ids": [
             "SYNC-11"
@@ -610,7 +610,7 @@
         },
         {
           "text": "Deja un candado y acepta quitarlo y sincronizar",
-          "hint": "Remove the lock and sync",
+          "hint": "Quitar el bloqueo y sincronizar",
           "ids": [
             "SYNC-13"
           ],
@@ -619,8 +619,8 @@
           }
         },
         {
-          "text": "Con el remoto caducado acepta gh auth login",
-          "hint": "La oferta sale en el diálogo",
+          "text": "Con el remoto caducado, elige Iniciar sesión",
+          "hint": "Ejecuta gh auth login",
           "ids": [
             "SYNC-12"
           ],
@@ -638,7 +638,7 @@
       "steps": [
         {
           "text": "Mira los cuatro estados en la barra",
-          "hint": "syncing, synced, conflicts, offline",
+          "hint": "sincronizando, sincronizado, conflictos, sin conexión",
           "ids": [
             "SYNC-07"
           ],
@@ -744,7 +744,7 @@
         },
         {
           "text": "Ejecuta :graph foo y lee el error",
-          "hint": "E488: Trailing characters",
+          "hint": "E488: Sobran caracteres",
           "ids": [
             "GRF-07"
           ],

@@ -10,8 +10,8 @@ Editar así es más seguro que tocar la sintaxis: el menú mantiene el tipo y la
 
 ## Tu turno
 
-1. Inserta un formulario con `/Form`; haz clic en la primera pregunta, renómbrala a `Equipaje`, cámbiale el tipo, márcala obligatoria, borra su respuesta y borra la otra pregunta.
-2. Pulsa `+ add question`, ponle el nombre `Traslado` y elige el tipo fecha.
+1. Inserta un formulario con `/Formulario`; haz clic en la primera pregunta, renómbrala a `Equipaje`, cámbiale el tipo, márcala obligatoria, borra su respuesta y borra la otra pregunta.
+2. Pulsa `⊕ añadir pregunta`, ponle el nombre `Traslado` y elige el tipo fecha.
 3. Haz clic en el título y en la descripción y cámbialos a `Viaje a la costa` y `Vuelta al pueblo`.
 
 

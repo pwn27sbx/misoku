@@ -6,11 +6,11 @@ Un formulario es un bloque cercado de tipo `form`. Lleva un `title:`, una `descr
 
 Eso significa que las respuestas son texto de la nota: se guardan, se sincronizan y se pueden leer o buscar como cualquier otra línea. Y el tipo de pregunta decide el gesto: una de texto abre un campo, una de fecha abre el calendario, una de opciones se contesta con un clic.
 
-El menú `/` tiene la entrada `Form`, que ya trae el título y dos preguntas de ejemplo. A partir de ahí, es escribir.
+El menú `/` tiene la entrada `Formulario`, que ya trae el título y dos preguntas de ejemplo. A partir de ahí, es escribir.
 
 ## Tu turno
 
-1. Pulsa `/` en una línea vacía, elige `Form` y mira el bloque con su título y sus dos preguntas.
+1. Pulsa `/` en una línea vacía, elige `Formulario` y mira el bloque con su título y sus dos preguntas.
 2. Haz clic en la línea de respuesta de la primera pregunta y escribe `3 días`.
 3. Cambia la segunda pregunta para que sea de tipo `(date)` y elige hoy en el calendario.
 

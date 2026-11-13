@@ -10,7 +10,7 @@ Esta diferencia importa: la tabla es para retocar un dato, el editor es para ree
 
 ## Tu turno
 
-1. Haz clic en el valor `costa` de la tabla, cámbialo por `sierra` y confirma.
+1. Al principio de esta nota escribe un bloque con `---`, `viaje: costa` y otro `---`; luego haz clic en el valor `costa` de la tabla, cámbialo por `sierra` y confirma.
 2. Añade al front matter `tags: [playa, sol]`, intenta editar la lista desde la tabla y, al ver que no se puede, añade `montaña` en el editor.
 
 

@@ -11,7 +11,7 @@ Una nota que no existe pero está enlazada no desaparece: se dibuja hueca, con s
 ## Tu turno
 
 1. Pulsa `space G` (o `:graph all`, o `g` en el inicio) y mira el vault entero por carpetas.
-2. Escribe `[[Maleta]]` en una nota, abre el grafo global, busca el nodo hueco con ese nombre y pulsa `Enter` para empezar la nota.
+2. Escribe `[[Mochila]]` en una nota, abre el grafo global, busca el nodo hueco con ese nombre y pulsa `Enter` para empezar la nota.
 
 
 

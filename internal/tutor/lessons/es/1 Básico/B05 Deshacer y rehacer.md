@@ -6,9 +6,11 @@ Cada inserción o borrado es un cambio, y `u` deshace el último; mantenerlo pul
 
 ## Tu turno
 
-1. En una línea nueva de la zona de pruebas, pulsa `i`, escribe `prueba`, sal con `Esc` y pulsa `u`: la palabra desaparece.
-2. Pulsa `ctrl+r`: la palabra vuelve.
+1. Pon el cursor en la línea `bórrame` y pulsa `dd`: la línea desaparece. Pulsa `u`: vuelve.
+2. En una línea nueva, pulsa `i`, escribe `ups` y sal con `Esc`. Pulsa `u` y la palabra desaparece; pulsa `ctrl+r` y vuelve.
 
 ## Tu zona de pruebas
+
+bórrame
 
 Siguiente: [[B06 Guardar con nombre y cerrar]]

@@ -6,8 +6,8 @@ El preview no es solo para mirar. Debajo de cada tabla del preview hay botones p
 
 ## Tu turno
 
-1. Inserta `/Table`, deja el preview a la vista y haz clic en una celda vacía: escribe `Playa`.
-2. Haz clic en `+ Add row` y en `+ Add column`, debajo de la tabla.
+1. Inserta `/Tabla`, deja el preview a la vista y haz clic en una celda vacía: escribe `Playa`.
+2. Haz clic en `+ Añadir fila` y en `+ Añadir columna`, debajo de la tabla.
 3. Haz clic en el encabezado de la segunda columna y renómbralo a `Coste`.
 
 Siguiente: [[I11 Columnas]]

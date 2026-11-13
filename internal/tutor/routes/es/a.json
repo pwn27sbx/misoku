@@ -198,7 +198,7 @@
           "check": { "kind": "action", "event": "mention_open" }
         },
         {
-          "text": "Convierte una mención en enlace con el botón link",
+          "text": "Convierte una mención en enlace con el botón enlazar",
           "hint": "El botón reescribe todas las menciones de esa nota",
           "ids": ["PRV-32"],
           "check": {
@@ -338,7 +338,7 @@
           "text": "Abre una nota que falta desde un nodo hueco",
           "hint": "Los nodos huecos son enlaces a notas que no existen",
           "ids": ["GRF-06"],
-          "check": { "kind": "action", "event": "new_draft", "value": "Maleta" }
+          "check": { "kind": "action", "event": "new_draft", "value": "Mochila" }
         }
       ]
     },
@@ -373,7 +373,7 @@
       "file": "A14 Portada.md",
       "steps": [
         {
-          "text": "Inserta una portada con el menú Cover",
+          "text": "Inserta una portada con el menú Portada",
           "hint": "Escribe cover: con la ruta si no tienes imagen a mano",
           "ids": ["MD-33"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["cover:"] }
@@ -392,7 +392,7 @@
       "file": "A15 Formularios, crear y responder.md",
       "steps": [
         {
-          "text": "Inserta un formulario con el menú Form",
+          "text": "Inserta un formulario con el menú Formulario",
           "hint": "El bloque trae un título y dos preguntas",
           "ids": ["MD-31"],
           "check": {
@@ -505,7 +505,7 @@
       "steps": [
         {
           "text": "Cambia la nota desde fuera y guarda",
-          "hint": "La barra dice Both kept: y da el nombre de la copia",
+          "hint": "La barra dice Se conservaron las dos: y el nombre de la copia",
           "ids": ["EDT-20"],
           "check": { "kind": "none" }
         },

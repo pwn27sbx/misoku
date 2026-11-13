@@ -6,7 +6,7 @@ Las tablas de Misoku no se editan a mano cuando crecen: hay comandos que saben d
 
 ## Tu turno
 
-1. Inserta `/Table`, pon el cursor dentro y ejecuta `:addrow` (o `:tr`).
+1. Inserta `/Tabla`, pon el cursor dentro y ejecuta `:addrow` (o `:tr`).
 2. Ejecuta `:addcol` (o `:tc`): aparece una columna nueva.
 3. Ejecuta `:delrow`: la tabla pierde una fila.
 4. Ejecuta `:delcol`: cada fila pierde una celda.

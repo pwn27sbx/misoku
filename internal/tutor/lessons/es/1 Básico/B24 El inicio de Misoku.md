@@ -6,8 +6,8 @@
 
 ## Tu turno
 
-1. Pulsa `space d` y mira el inicio: notas recientes, proyectos y menús.
-2. Pulsa `1` para abrir la primera nota reciente; vuelve con `space d` y pulsa `2` para la primera carpeta.
+1. Pulsa `space d` y mira el inicio: **Recientes**, **Carpetas** y los menús.
+2. Pulsa `1` para abrir la primera nota reciente; vuelve con `space d` y pulsa el número de la primera carpeta, el que sigue a la última nota reciente.
 3. Prueba las letras fijas `n`, `f`, `e`, `t`, `?`, `g`, `c`, `s`, `l`, `q` y `Enter`, volviendo con `space d` después de cada una.
 
 La `q` cierra Misoku: déjala para el final y, si sales sin querer, vuelve a abrir `misoku tutor` y sigues aquí.

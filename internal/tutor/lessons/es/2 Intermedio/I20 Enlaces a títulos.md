@@ -12,6 +12,6 @@ Prepara la nota `Viaje` con un título `Equipaje`, otra nota llamada `Plan`, y u
 2. Elige `Equipaje`: queda `[[#Equipaje]]`; pon el cursor en el enlace y pulsa `gd`.
 3. Escribe `[[Viaje#` y mira los títulos de `Viaje`.
 4. Completa `[[Viaje#Equipaje]]` aquí y escribe el mismo enlace dentro de `Plan`.
-5. En `:settings`, pon Link suggestions en Finder, abre `[[` y mira el pie de la lista.
+5. En `:settings`, pon Sugerencias de enlaces en Buscador, abre `[[` y mira el pie de la lista.
 
 Siguiente: [[I21 Enlaces a bloques]]

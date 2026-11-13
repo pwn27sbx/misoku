@@ -129,16 +129,16 @@
       "file": "B05 Deshacer y rehacer.md",
       "steps": [
         {
-          "text": "Escribe prueba, sal con Esc y pulsa u",
+          "text": "Borra la línea bórrame con dd y luego pulsa u",
           "hint": "u deshace el último cambio",
           "ids": ["VIM-23"],
-          "check": { "kind": "text", "pred": "absent", "args": ["prueba"] }
+          "check": { "kind": "text", "pred": "absent", "args": ["bórrame"] }
         },
         {
-          "text": "Pulsa ctrl+r y recupera la línea",
-          "hint": "ctrl+r rehace",
+          "text": "Escribe ups, Esc, u y ctrl+r: ups vuelve",
+          "hint": "ctrl+r rehace lo que u deshizo",
           "ids": ["VIM-24"],
-          "check": { "kind": "text", "pred": "line-contains", "args": ["prueba"] }
+          "check": { "kind": "text", "pred": "line-contains", "args": ["ups"] }
         }
       ]
     },
@@ -330,7 +330,7 @@
           "check": { "kind": "action", "event": "slash_open" }
         },
         {
-          "text": "Filtra con quote y pulsa Enter",
+          "text": "Filtra con cita y pulsa Enter",
           "hint": "el filtro busca en el nombre del bloque",
           "ids": ["MD-01"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["> "] }
@@ -348,7 +348,7 @@
       "file": "B13 Títulos.md",
       "steps": [
         {
-          "text": "Escribe `# Viaje` con `/Heading 1`",
+          "text": "Escribe `# Viaje` con `/Título 1`",
           "ids": ["MD-02"],
           "check": { "kind": "text", "pred": "heading-exists", "args": ["1", "Viaje"] }
         },
@@ -375,17 +375,17 @@
       "file": "B14 Listas.md",
       "steps": [
         {
-          "text": "Escribe una viñeta con /Bulleted list",
+          "text": "Escribe una viñeta con /Lista con viñetas",
           "ids": ["MD-07"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["- "] }
         },
         {
-          "text": "Escribe una lista numerada con /Numbered list",
+          "text": "Escribe una lista numerada con /Lista numerada",
           "ids": ["MD-08"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["1. "] }
         },
         {
-          "text": "Escribe una tarea con /To-do list",
+          "text": "Escribe una tarea con /Lista de tareas",
           "ids": ["MD-09"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["- [ ] "] }
         },
@@ -484,12 +484,12 @@
       "file": "B18 Citas y separador.md",
       "steps": [
         {
-          "text": "Escribe una cita con /Quote",
+          "text": "Escribe una cita con /Cita",
           "ids": ["MD-16"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["> "] }
         },
         {
-          "text": "Separa dos secciones con /Divider",
+          "text": "Separa dos secciones con /Separador",
           "ids": ["MD-21"],
           "check": { "kind": "text", "pred": "line-equals", "args": ["---"] }
         }
@@ -604,8 +604,8 @@
           }
         },
         {
-          "text": "Busca Hotel con mayúscula",
-          "hint": "la búsqueda distingue mayúsculas",
+          "text": "Busca Hotel con H mayúscula",
+          "hint": "una mayúscula hace que la búsqueda las distinga",
           "ids": ["NEW-15"],
           "check": { "kind": "action", "event": "search_hit", "value": "Hotel" }
         },
@@ -652,8 +652,8 @@
           "check": { "kind": "action", "event": "home" }
         },
         {
-          "text": "Pulsa 1 y luego 2 en el inicio",
-          "hint": "los números abren recientes y proyectos",
+          "text": "Pulsa 1 y luego el número de la primera carpeta",
+          "hint": "primero van las notas recientes y luego las carpetas",
           "ids": ["NOTE-26"],
           "check": { "kind": "action", "event": "home_open", "value": ["recent", "project"] }
         },
@@ -676,7 +676,7 @@
       "steps": [
         {
           "text": "Con cambios, pulsa :q y mira la pregunta",
-          "hint": "elige Cancel para seguir en la lección",
+          "hint": "elige Cancelar para seguir en la lección",
           "ids": ["EDT-06"],
           "check": { "kind": "action", "event": "quit", "value": "confirm" }
         },

@@ -6,9 +6,19 @@ version comes from the tag, so nothing else in the tree carries it.
 
 ## [Unreleased]
 
+### Added
+
+- Misoku speaks English and Spanish: menus, dialogs, the status bar, help, the command palette, the slash menu, the sync setup, `misoku --help` and every subcommand. With nothing chosen it follows the system's language (`LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, the macOS or Windows language, then `LANG`), and any other language starts it in English.
+- `:settings` has a **Language** row: **Auto (system)**, **English** or **Español**. The choice applies at once, without a restart, and is saved as `ui.language` in `config.json`; Auto removes the key.
+- The tutorial exists in English, with the same four routes, lessons and steps as the Spanish one, and Misoku plays the one in the interface language. The English tutorial is installed in `tutor-en`, next to the Spanish `tutor`; each keeps its own notes and progress, and `misoku tutor --reset` starts over only the current language's tutorial.
+
 ### Changed
 
 - When a list item, a task, a numbered item or a quote wraps in the editor, its continuation rows start under the item's text instead of at the left edge (a hanging indent, like Vim's `breakindent`); a nested item continues under its own text. The indent is display only: the note's text, copying, search, undo, the cursor and the mouse behave as before. It applies in the editor, the split and the Markdown INSERT shows in the reading view, and a marker wider than half the text width wraps as before.
+- The slash menu inserts its starter text in the interface language (`## Sin empezar`, `? Pregunta 1`, `Ene: 12` in Spanish), and its items also answer to their Spanish names.
+- The Spanish tutorial quotes the Spanish interface (`/Título 1`, `⊕ añadir pregunta`, `Guardar todo`, the `:settings` rows) and fixes steps that could not pass or said something else: B05 now deletes a `bórrame` line, B22 explains that a capital letter makes search case-sensitive, A12 drafts `[[Mochila]]`, and E04 lists the eight `:settings` rows.
+- A player whose system resolves to English and who played the Spanish tutorial now gets the English one; the Spanish notes and progress stay in `tutor` and come back by choosing **Español**.
+- An already installed Spanish tutorial keeps its old lesson text, because installing never overwrites a note: I13, for example, still says «Hecho» while its step now asks for «Terminado», and blocks inserted before the update keep their English starter text. Run `misoku tutor --reset` in Spanish to get the new text; it moves only the Spanish tutorial to the Trash.
 
 ## [0.33.1] - 2026-11-10
 

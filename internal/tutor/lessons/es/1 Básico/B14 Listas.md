@@ -6,9 +6,9 @@
 
 ## Tu turno
 
-1. Escribe una viñeta con `/Bulleted list` (o `- `).
-2. Escribe una lista numerada con `/Numbered list` (o `1. `).
-3. Escribe una tarea con `/To-do list` (o `- [ ] `).
+1. Escribe una viñeta con `/Lista con viñetas` (o `- `).
+2. Escribe una lista numerada con `/Lista numerada` (o `1. `).
+3. Escribe una tarea con `/Lista de tareas` (o `- [ ] `).
 4. Con el cursor en el ítem de la viñeta, pulsa `Tab` y luego `Shift+Tab`.
 
 ## Tu zona de pruebas

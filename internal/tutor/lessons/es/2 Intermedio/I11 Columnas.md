@@ -6,9 +6,9 @@ Un bloque de columnas es una cerca `~~~columns` con un separador `+++` entre col
 
 ## Tu turno
 
-1. Inserta `/2 columns` y escribe una frase en cada columna.
-2. Inserta `/3 columns`.
-3. Inserta `/4 columns`.
+1. Inserta `/2 columnas` y escribe una frase en cada columna.
+2. Inserta `/3 columnas`.
+3. Inserta `/4 columnas`.
 4. Mira las columnas en el preview y estrecha la ventana: se apilan.
 
 Siguiente: [[I12 Ecuaciones]]

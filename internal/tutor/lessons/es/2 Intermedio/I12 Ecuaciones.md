@@ -6,7 +6,7 @@ Una ecuación se escribe en LaTeX dentro de un bloque `math`, y el preview la di
 
 ## Tu turno
 
-1. Inserta `/Equation` y escribe `a^2 + b^2 = c^2` dentro del bloque.
+1. Inserta `/Ecuación` y escribe `a^2 + b^2 = c^2` dentro del bloque.
 2. Escribe a mano un bloque con dos líneas `$$` y, entre ellas, `e^{i\pi} + 1 = 0`.
 3. Mira las dos ecuaciones dibujadas en el preview.
 

@@ -6,8 +6,8 @@ Una cita empieza por `>` y un espacio; en el preview se dibuja con una barra a l
 
 ## Tu turno
 
-1. Escribe una cita con `/Quote` (o `> `).
-2. Separa dos secciones con `/Divider` (o `---`).
+1. Escribe una cita con `/Cita` (o `> `).
+2. Separa dos secciones con `/Separador` (o `---`).
 
 ## Tu zona de pruebas
 

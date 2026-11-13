@@ -2,7 +2,7 @@
 
 **Vas a aprender:** a renombrar una nota sin dejar enlaces rotos y a enlazar la nota correcta cuando dos se llaman igual.
 
-Renombrar en el explorador con `r` no es solo cambiar el archivo. Misoku mira qué notas enlazan a esta y te pregunta `Update N links in M notes?`. Si aceptas, reescribe esos enlaces en todas ellas, en un paso, y no queda ninguno apuntando a un nombre que ya no existe. Si dices que no, el archivo cambia y los enlaces se quedan como estaban.
+Renombrar en el explorador con `r` no es solo cambiar el archivo. Misoku mira qué notas enlazan a esta y te pregunta `¿Actualizar N enlaces en M notas?`. Si aceptas, reescribe esos enlaces en todas ellas, en un paso, y no queda ninguno apuntando a un nombre que ya no existe. Si dices que no, el archivo cambia y los enlaces se quedan como estaban.
 
 Los nombres repetidos son el otro lado. Con dos notas llamadas `Maleta`, una en `Viajes` y otra en `Casa`, el enlace corto sería ambiguo. Por eso, cuando eliges la de una carpeta, la lista de sugerencias escribe la ruta: el enlace lleva la carpeta dentro y señala exactamente esa nota.
 

@@ -6,8 +6,8 @@ Un bloque plegable es HTML pequeño: `<details>` abre el bloque y `<summary>` es
 
 ## Tu turno
 
-1. Inserta `/Toggle list` y escribe un resumen dentro.
-2. Inserta `/Callout`.
+1. Inserta `/Lista desplegable` y escribe un resumen dentro.
+2. Inserta `/Destacado`.
 3. Escribe a mano dos avisos: uno con `> [!TIP]` y otro con `> [!WARNING]`.
 
 Cada aviso es una cita: el `>` y un espacio empiezan la línea, y el texto va debajo.

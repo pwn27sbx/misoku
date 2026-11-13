@@ -13,6 +13,8 @@ Los dos caminos acaban en el mismo sitio: un vault de `sync.vaults` con su remot
 1. Ejecuta `:sync setup` (o `s` en el inicio) y responde a sus preguntas.
 2. Ejecuta `misoku sync init <url>` en una carpeta nueva y comprueba que el repositorio se crea y el vault queda listado.
 
+Apunta aquí abajo qué camino seguiste y la URL de tu repositorio; guardar la nota marca el paso 2.
+
 
 
 Siguiente: [[E18 Grafo global a fondo]]

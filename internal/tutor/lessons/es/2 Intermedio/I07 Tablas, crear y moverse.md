@@ -6,7 +6,7 @@ Una tabla Markdown es texto: una fila de celdas, una fila de guiones que marca d
 
 ## Tu turno
 
-1. Inserta `/Table` en una línea vacía.
+1. Inserta `/Tabla` en una línea vacía.
 2. Rellena dos celdas y pasa de una a otra con `Tab`, y vuelve con `Shift+Tab`.
 3. Con el cursor dentro de la tabla, mira la pista de la barra de estado.
 4. Pulsa `/` dentro de la tabla: el menú abre con las entradas de tabla.

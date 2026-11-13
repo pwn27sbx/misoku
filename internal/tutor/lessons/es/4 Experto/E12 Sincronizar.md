@@ -2,7 +2,7 @@
 
 **Vas a aprender:** el sync a mano, al abrir y por tiempo.
 
-`space s` o `:sync` lanza un sync completo: guarda lo pendiente en un commit, trae lo del remoto, mezcla y empuja. Mientras corre, la barra lo dice; al terminar, `ok` o el motivo por el que se paró. Es el botón que vas a pulsar cuando quieras asegurar tu trabajo antes de cerrar el portátil.
+`space s` o `:sync` lanza un sync completo: guarda lo pendiente en un commit, trae lo del remoto, mezcla y empuja. Mientras corre, la barra dice `Sincronizando…`; al terminar, `Sincronizado` o el motivo por el que se paró. Es el botón que vas a pulsar cuando quieras asegurar tu trabajo antes de cerrar el portátil.
 
 Hay dos syncs automáticos más. Uno al abrir un vault de la lista: si entras a tus notas, Misoku sincroniza una vez sin preguntar. Y otro por tiempo, cada cinco minutos por defecto, mientras la app está abierta. Ese intervalo se cambia por vault con `interval`, con un mínimo de un minuto; `off` lo apaga y deja los otros dos.
 

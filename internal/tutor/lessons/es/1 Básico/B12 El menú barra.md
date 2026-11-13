@@ -7,7 +7,7 @@ En INSERT, al principio de una línea o después de un espacio, `/` abre un men�
 ## Tu turno
 
 1. En una línea vacía, en INSERT, pulsa `/`: el menú se abre.
-2. Filtra escribiendo `quote` y pulsa `Enter`: aparece una cita.
+2. Filtra escribiendo `cita` y pulsa `Enter`: aparece una cita.
 3. Abre el menú otra vez y ciérralo con `Esc` sin insertar nada.
 
 ## Tu zona de pruebas

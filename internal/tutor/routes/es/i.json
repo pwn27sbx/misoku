@@ -60,7 +60,7 @@
         },
         {
           "text": "Selecciona marea y pulsa d: el texto desaparece",
-          "hint": "Escribe viento y marea en una línea y borra solo marea",
+          "hint": "Borra solo marea, hasta que no quede ninguna marea en la nota",
           "ids": ["VIM-22"],
           "check": {
             "kind": "all",
@@ -134,7 +134,7 @@
       "file": "I05 Bloques plegables y avisos.md",
       "steps": [
         {
-          "text": "Inserta /Toggle list y escribe un resumen dentro",
+          "text": "Inserta /Lista desplegable y escribe un resumen dentro",
           "hint": "Es un bloque details con un summary: se pliega al pulsar",
           "ids": ["MD-12"],
           "check": {
@@ -146,7 +146,7 @@
           }
         },
         {
-          "text": "Inserta /Callout",
+          "text": "Inserta /Destacado",
           "hint": "Un aviso es una cita que empieza por [!NOTE]",
           "ids": ["MD-14"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["> [!NOTE]"] }
@@ -171,7 +171,7 @@
       "file": "I06 Páginas y sub-notas.md",
       "steps": [
         {
-          "text": "Con el cursor en Viaje, usa /Page y guarda",
+          "text": "Con el cursor en Viaje, usa /Página y guarda",
           "hint": "La sub-nota va a la carpeta Viaje; llámala Equipaje de playa",
           "ids": ["MD-13"],
           "check": { "kind": "disk", "pred": "exists", "args": ["Viaje/Equipaje de playa"] }
@@ -190,7 +190,7 @@
       "file": "I07 Tablas, crear y moverse.md",
       "steps": [
         {
-          "text": "Inserta /Table",
+          "text": "Inserta /Tabla",
           "hint": "Nace con dos columnas, su fila de guiones y una fila vacía",
           "ids": ["MD-18"],
           "check": { "kind": "text", "pred": "table-shape", "args": ["2"] }
@@ -289,7 +289,7 @@
           "check": { "kind": "text", "pred": "line-contains", "args": ["Playa"] }
         },
         {
-          "text": "Haz clic en + Add row y en + Add column",
+          "text": "Haz clic en + Añadir fila y en + Añadir columna",
           "hint": "Los dos botones viven debajo de la tabla del preview",
           "ids": ["TBL-09"],
           "check": {
@@ -314,19 +314,19 @@
       "file": "I11 Columnas.md",
       "steps": [
         {
-          "text": "Inserta /2 columns y escribe en las dos",
+          "text": "Inserta /2 columnas y escribe en las dos",
           "hint": "El bloque empieza por ~~~columns y separa con +++",
           "ids": ["MD-22"],
           "check": { "kind": "text-fence", "fence": "columns", "pattern": "+++" }
         },
         {
-          "text": "Inserta /3 columns",
+          "text": "Inserta /3 columnas",
           "hint": "Tres columnas llevan dos separadores +++",
           "ids": ["MD-23"],
           "check": { "kind": "text-fence", "fence": "columns", "pattern": "Columna 3" }
         },
         {
-          "text": "Inserta /4 columns",
+          "text": "Inserta /4 columnas",
           "hint": "Cuatro columnas llevan tres separadores +++",
           "ids": ["MD-24"],
           "check": { "kind": "text-fence", "fence": "columns", "pattern": "Columna 4" }
@@ -345,7 +345,7 @@
       "file": "I12 Ecuaciones.md",
       "steps": [
         {
-          "text": "Inserta /Equation y escribe a^2 + b^2 = c^2",
+          "text": "Inserta /Ecuación y escribe a^2 + b^2 = c^2",
           "hint": "El bloque se llama math y dibuja la fórmula en el preview",
           "ids": ["MD-19"],
           "check": { "kind": "text-fence", "fence": "math", "pattern": "a^2 + b^2 = c^2" }
@@ -376,14 +376,14 @@
       "file": "I13 Tableros.md",
       "steps": [
         {
-          "text": "Inserta /Board",
+          "text": "Inserta /Tablero",
           "hint": "Nace con tres columnas: Sin empezar, En curso y Hecho",
           "ids": ["MD-27"],
           "check": { "kind": "text-fence", "fence": "board", "pattern": "## " }
         },
         {
-          "text": "Haz clic en + New page y escribe la tarjeta Mochila",
-          "hint": "+ New page está al pie de cada columna",
+          "text": "Haz clic en + Nueva página y escribe la tarjeta Mochila",
+          "hint": "+ Nueva página está al pie de cada columna",
           "ids": ["PRV-09"],
           "check": { "kind": "text-fence", "fence": "board", "pattern": "Mochila" }
         },
@@ -407,7 +407,7 @@
       "file": "I14 Calendarios.md",
       "steps": [
         {
-          "text": "Inserta /Calendar",
+          "text": "Inserta /Calendario",
           "hint": "El bloque guarda el mes en la línea month",
           "ids": ["MD-28"],
           "check": { "kind": "text-fence", "fence": "calendar", "pattern": "month: " }
@@ -425,8 +425,8 @@
           "check": { "kind": "text-fence", "fence": "calendar", "pattern": ": Museo" }
         },
         {
-          "text": "Haz clic en la cabecera Today del calendario",
-          "hint": "Las flechas de la cabecera cambian de mes",
+          "text": "Haz clic en Hoy, en la cabecera del calendario",
+          "hint": "Las flechas a sus lados cambian de mes",
           "ids": ["PRV-14"],
           "check": { "kind": "action", "event": "calendar_month" }
         },
@@ -444,13 +444,13 @@
       "file": "I15 Líneas de tiempo.md",
       "steps": [
         {
-          "text": "Inserta /Timeline",
+          "text": "Inserta /Cronograma",
           "hint": "El bloque trae dos tramos de ejemplo",
           "ids": ["MD-29"],
           "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Tarjeta 2: " }
         },
         {
-          "text": "Haz clic en + New y crea el tramo Viaje",
+          "text": "Haz clic en + Nueva y crea el tramo Viaje",
           "hint": "Cada tramo es Nombre: fecha -> fecha",
           "ids": ["PRV-15"],
           "check": { "kind": "text-fence", "fence": "timeline", "pattern": "Viaje: " }
@@ -469,7 +469,7 @@
       "file": "I16 Gráficas.md",
       "steps": [
         {
-          "text": "Inserta /Chart",
+          "text": "Inserta /Gráfico",
           "hint": "El bloque dice type: bar y trae valores de ejemplo",
           "ids": ["MD-30"],
           "check": {
@@ -481,7 +481,7 @@
           }
         },
         {
-          "text": "Haz clic en + Add value y añade Playa: 3",
+          "text": "Haz clic en + Añadir valor y añade Playa: 3",
           "hint": "Cada valor es una línea Etiqueta: número",
           "ids": ["PRV-17"],
           "check": { "kind": "text-fence", "fence": "chart", "pattern": "Playa: 3" }
@@ -500,13 +500,13 @@
       "file": "I17 Código y diagramas.md",
       "steps": [
         {
-          "text": "Inserta /Code y escribe echo hola",
+          "text": "Inserta /Código y escribe echo hola",
           "hint": "La línea de código vive dentro de la cerca",
           "ids": ["MD-39"],
           "check": { "kind": "text-fence", "fence": "code", "pattern": "echo hola" }
         },
         {
-          "text": "Inserta /Flowchart y escribe Inicio --> Fin",
+          "text": "Inserta /Diagrama de flujo y escribe Inicio --> Fin",
           "hint": "La flecha es el signo -->",
           "ids": ["MD-32"],
           "check": { "kind": "text-fence", "fence": "flow", "pattern": "Inicio --> Fin" }
@@ -525,13 +525,13 @@
       "file": "I18 Imágenes.md",
       "steps": [
         {
-          "text": "Inserta /Image y elige una imagen de fuera",
+          "text": "Inserta /Imagen y elige una imagen de fuera",
           "hint": "Se copia a assets y deja una línea con ! y corchetes",
           "ids": ["MD-34"],
           "check": { "kind": "text", "pred": "line-starts", "args": ["!["] }
         },
         {
-          "text": "Copia una imagen y usa /Paste image o space i",
+          "text": "Copia una imagen y usa /Pegar imagen o space i",
           "hint": "Se pega como línea propia que empieza por ![",
           "ids": ["MD-35"],
           "check": {
@@ -574,7 +574,7 @@
           "check": { "kind": "text", "pred": "line-contains", "args": ["[♪ "] }
         },
         {
-          "text": "Inserta /File y elige un documento",
+          "text": "Inserta /Archivo y elige un documento",
           "hint": "El enlace empieza por el clip",
           "ids": ["MD-38"],
           "check": { "kind": "text", "pred": "line-contains", "args": ["[📎 "] }
@@ -623,7 +623,7 @@
           }
         },
         {
-          "text": "En el modo Finder, mira el pie de la lista",
+          "text": "En el modo Buscador, mira el pie de la lista",
           "hint": "El pie recuerda: almohadilla título, acento bloque, Esc a mano",
           "ids": ["NEW-10"],
           "check": { "kind": "action", "event": "link_footer" }
@@ -691,14 +691,14 @@
           }
         },
         {
-          "text": "En settings cambia Link suggestions y vuelve",
-          "hint": "Prueba Finder y vuelve a Inline; la fila guarda al instante",
+          "text": "En settings cambia Sugerencias de enlaces y vuelve",
+          "hint": "Prueba Buscador y vuelve a En línea; la fila guarda al instante",
           "ids": ["NEW-11"],
           "check": { "kind": "disk", "pred": "config-changed", "args": ["ui.link_suggestions"] }
         },
         {
-          "text": "En Finder escribe tag:viaje y elige una nota",
-          "hint": "En Inline, tag: es texto normal dentro del enlace",
+          "text": "En el modo Buscador escribe [[tag:viaje y elige una nota",
+          "hint": "En el modo En línea, tag: es texto normal dentro del enlace",
           "ids": ["NEW-09"],
           "check": { "kind": "action", "event": "finder_filter", "value": "tag:" }
         }
@@ -710,7 +710,7 @@
       "file": "I23 Enlaces Markdown y web.md",
       "steps": [
         {
-          "text": "Inserta /Link to page y elige Viaje",
+          "text": "Inserta /Enlace a página y elige Viaje",
           "hint": "Escribe un enlace Markdown con su ruta al archivo",
           "ids": ["MD-25"],
           "check": { "kind": "text", "pred": "line-contains", "args": ["](Viaje.md)"] }
@@ -802,14 +802,14 @@
           "check": { "kind": "action", "event": "tags_list" }
         },
         {
-          "text": "En el buscador escribe tag:viaje",
+          "text": "En el buscador (ctrl+p) escribe tag:viaje",
           "hint": "tag: filtra por etiqueta, no por texto",
           "ids": ["TAG-08"],
           "check": { "kind": "action", "event": "finder_filter", "value": "tag:viaje" }
         },
         {
-          "text": "En ctrl+p escribe #viaje",
-          "hint": "En el buscador normal la almohadilla es de etiqueta",
+          "text": "Bórralo y escribe #viaje",
+          "hint": "En este buscador la almohadilla es de etiqueta, como tag:",
           "ids": ["TAG-09"],
           "check": { "kind": "action", "event": "finder_filter", "value": "#viaje" }
         },
@@ -900,7 +900,7 @@
           }
         },
         {
-          "text": "En otra nota inserta /Template y elige diario",
+          "text": "Aquí, inserta /Plantilla y elige diario",
           "hint": "El texto de la plantilla aparece donde está el cursor",
           "ids": ["DAY-03", "MD-26"],
           "check": { "kind": "text", "pred": "line-contains", "args": ["Plan del día"] }
@@ -918,7 +918,7 @@
           }
         },
         {
-          "text": "Pon estado: nuevo en la plantilla e insértala",
+          "text": "Pon estado: nuevo y lugar: playa en la plantilla; insértala",
           "hint": "La nota conserva estado: en curso y gana las claves nuevas",
           "ids": ["DAY-05"],
           "check": {
@@ -943,7 +943,7 @@
           "check": { "kind": "action", "event": "tree_state", "value": "accordion" }
         },
         {
-          "text": "En settings apaga y enciende Accordion folders",
+          "text": "En settings apaga y enciende Carpetas en acordeón",
           "hint": "La fila guarda ui.accordion al instante",
           "ids": ["SET-02"],
           "check": { "kind": "disk", "pred": "config-changed", "args": ["ui.accordion"] }

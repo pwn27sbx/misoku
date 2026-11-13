@@ -2,11 +2,13 @@
 
 **Vas a aprender:** los ajustes que se aplican y se guardan al instante.
 
-Para lo corriente no hace falta editar `config.json`: `:settings`, o `c` desde el inicio, abre un menú con los siete ajustes que más se tocan. Cada fila muestra su valor actual y, al elegir otro, se aplica en el acto y se escribe en `config.json` sin reiniciar.
+Para lo corriente no hace falta editar `config.json`: `:settings`, o `c` desde el inicio, abre un menú con los ocho ajustes que más se tocan. Cada fila muestra su valor actual y, al elegir otro, se aplica en el acto y se escribe en `config.json` sin reiniciar.
 
-Las filas son Accordion folders, Explorer hide width, Icons & bullets, Dialog border, Transparent background, Heading numbers y Link suggestions. La fila de transparencia vuelve en E06; el resto se practica aquí y en las lecciones siguientes.
+Las filas son Carpetas en acordeón, Ancho para ocultar el explorador, Iconos y viñetas, Borde de los diálogos, Fondo transparente, Numerar los títulos, Sugerencias de enlaces e Idioma. La fila de transparencia vuelve en E06; el resto se practica aquí y en las lecciones siguientes.
 
-Explorer hide width es el ancho del terminal, en columnas, por debajo del cual el explorador se esconde para dejar sitio al editor. Acepta de 1 a 1000; el valor de fábrica es 120. Si lo bajas mucho, el explorador casi nunca se esconde; si lo subes, se esconde antes.
+Idioma elige el idioma de la interfaz y del tutorial: Automático (sistema) sigue el idioma de tu sistema, y English o Español fija uno. El cambio se ve al instante, sin reiniciar.
+
+Ancho para ocultar el explorador es el ancho del terminal, en columnas, por debajo del cual el explorador se esconde para dejar sitio al editor. Acepta de 1 a 1000; el valor de fábrica es 120. Si lo bajas mucho, el explorador casi nunca se esconde; si lo subes, se esconde antes.
 
 ## Tu turno
 

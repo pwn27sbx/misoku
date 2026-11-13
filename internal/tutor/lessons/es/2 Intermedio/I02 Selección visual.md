@@ -9,7 +9,7 @@ Seleccionar es el paso que falta entre «ver» y «cambiar». En NORMAL, `v` emp
 1. Escribe una línea con `viento y marea` y otra con `faro y ola`; entra en NORMAL con `Esc`, pulsa `v` y selecciona unas palabras con `h` `j` `k` `l`.
 2. Pulsa `V` y selecciona una línea entera con `j` o `k`.
 3. Con una selección, pulsa `y` y pégala con `p`.
-4. Escribe `viento y marea` en una línea, selecciona solo `marea` con `v` y bórrala con `d`.
+4. En una línea con `viento y marea`, selecciona solo `marea` con `v` y bórrala con `d`. El paso se apunta cuando no queda ninguna `marea` en la nota, copias incluidas.
 
 La barra de estado dice en qué modo estás; si dudas, mira ahí antes de pulsar otra tecla.
 

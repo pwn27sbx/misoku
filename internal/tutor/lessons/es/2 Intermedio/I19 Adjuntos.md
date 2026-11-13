@@ -8,6 +8,6 @@ Un adjunto es un enlace Markdown con un símbolo delante que dice qué es: `[▶
 
 1. Inserta `/Video` y elige un vídeo.
 2. Inserta `/Audio` y elige un audio.
-3. Inserta `/File` y elige un documento.
+3. Inserta `/Archivo` y elige un documento.
 
 Siguiente: [[I20 Enlaces a títulos]]

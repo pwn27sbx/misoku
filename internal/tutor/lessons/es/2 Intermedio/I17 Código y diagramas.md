@@ -6,8 +6,8 @@ Un bloque de código es una cerca sin lenguaje: todo lo que va dentro se queda t
 
 ## Tu turno
 
-1. Inserta `/Code` y escribe `echo hola` dentro.
-2. Inserta `/Flowchart` y escribe `Inicio --> Fin`.
+1. Inserta `/Código` y escribe `echo hola` dentro.
+2. Inserta `/Diagrama de flujo` y escribe `Inicio --> Fin`.
 3. Mira el diagrama dibujado en el preview.
 
 Siguiente: [[I18 Imágenes]]
