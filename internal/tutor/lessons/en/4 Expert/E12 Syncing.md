@@ -2,7 +2,7 @@
 
 **You will learn:** sync by hand, on open and on a timer.
 
-`space s` or `:sync` runs a full sync: it commits whatever is pending, fetches from the remote, merges and pushes. While it runs, the bar says so; when it ends, `ok` or the reason it stopped. It is the button you will press when you want to secure your work before closing the laptop.
+`space s` or `:sync` runs a full sync: it commits whatever is pending, fetches from the remote, merges and pushes. While it runs, the bar says `Syncing…`; when it ends, `Synced` or the reason it stopped. It is the button you will press when you want to secure your work before closing the laptop.
 
 There are two more automatic syncs. One when you open a vault on the list: if you go into your notes, Misoku syncs once without asking. And one on a timer, every five minutes by default, while the app is open. That interval is changed per vault with `interval`, with a minimum of one minute; `off` turns it off and keeps the other two.
 
