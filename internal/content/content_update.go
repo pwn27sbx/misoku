@@ -141,8 +141,15 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, tea.Batch(focus, func() tea.Msg { return out })
 			}
 		}
+		if ok && m.moveSuggestion(k) {
+			return m, nil
+		}
+		before := m.cmdInput.Value()
 		var cmd tea.Cmd
 		m.cmdInput, cmd = m.cmdInput.Update(msg)
+		if m.cmdInput.Value() != before {
+			m.refilterSuggestions() // typing or deleting drops the selection
+		}
 		return m, cmd
 	}
 
@@ -216,6 +223,7 @@ func (m Model) handleNormalKey(k tea.KeyMsg) (Model, tea.Cmd) {
 		m.search = false
 		m.cmdInput.Prompt = ":"
 		m.cmdInput.SetValue("")
+		m.refilterSuggestions()
 		m.textarea.Blur()
 		m.reportAction("cmdline", "")
 		return m, m.cmdInput.Focus()
