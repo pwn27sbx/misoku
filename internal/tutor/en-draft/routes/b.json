@@ -1,0 +1,724 @@
+{
+  "id": "B",
+  "dir": "1 Basic",
+  "name": "Basic",
+  "index": "B00 Basic.md",
+  "lessons": [
+    {
+      "id": "B01",
+      "title": "Write in 30 seconds",
+      "file": "B01 Write in 30 seconds.md",
+      "steps": [
+        {
+          "text": "Press i and type: Today I start my travel journal",
+          "ids": ["VIM-02"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["Today I start my travel journal"] }
+        },
+        {
+          "text": "Press Esc: you leave INSERT and the cursor steps back",
+          "hint": "Esc is at the top left of the keyboard",
+          "ids": ["VIM-08", "VIM-01"],
+          "check": { "kind": "action", "event": "mode_changed", "value": "normal" }
+        },
+        {
+          "text": "Save the note with ctrl+s",
+          "hint": "ctrl+s is the save key",
+          "ids": ["EDT-02"],
+          "check": { "kind": "disk", "pred": "file-changed", "args": [] }
+        },
+        {
+          "text": "Open a blank note with space n",
+          "hint": "space n opens a new tab",
+          "ids": ["EDT-01"],
+          "check": { "kind": "action", "event": "new_draft" }
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "title": "Insert anywhere",
+      "file": "B02 Insert anywhere.md",
+      "steps": [
+        {
+          "text": "With the cursor on the t of cat, press a and type s",
+          "hint": "a inserts after the cursor",
+          "ids": ["VIM-03"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["cats"] }
+        },
+        {
+          "text": "Press A and type · suitcase",
+          "hint": "A goes to the end of the line",
+          "ids": ["VIM-04"],
+          "check": { "kind": "text", "pred": "line-ends", "args": [" · suitcase"] }
+        },
+        {
+          "text": "Press I and type 01 ·",
+          "hint": "I goes to the start of the line",
+          "ids": ["VIM-05"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["01 · "] }
+        },
+        {
+          "text": "Press o and type packing list below",
+          "hint": "o opens a line below",
+          "ids": ["VIM-06"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["packing list"] }
+        },
+        {
+          "text": "Press O and type — flight — above",
+          "hint": "O opens a line above",
+          "ids": ["VIM-07"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["— flight —"] }
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "title": "Delete without fear",
+      "file": "B03 Delete without fear.md",
+      "steps": [
+        {
+          "text": "Put the cursor on the second t of hottel and press x",
+          "hint": "x deletes the letter under the cursor",
+          "ids": ["VIM-15"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["hotel"] }
+        },
+        {
+          "text": "Put the cursor on draft and press dd",
+          "hint": "dd deletes the whole line",
+          "ids": ["VIM-16"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "text", "pred": "absent", "args": ["draft"] },
+              { "kind": "text", "pred": "line-equals", "args": ["hotel"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B04",
+      "title": "Move without a mouse",
+      "file": "B04 Move without a mouse.md",
+      "steps": [
+        {
+          "text": "Move around the list with h j k l",
+          "ids": ["VIM-09"],
+          "check": { "kind": "action", "event": "motion", "value": "hjkl" }
+        },
+        {
+          "text": "Do the same walk with the arrow keys",
+          "ids": ["VIM-10"],
+          "check": { "kind": "action", "event": "motion", "value": "arrows" }
+        },
+        {
+          "text": "Jump with 0 ^ Home $ End within a line",
+          "ids": ["VIM-12"],
+          "check": { "kind": "action", "event": "motion", "value": "line-bounds" }
+        },
+        {
+          "text": "Jump to the start and the end with gg and G",
+          "ids": ["VIM-13"],
+          "check": { "kind": "action", "event": "motion", "value": "file-bounds" }
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "title": "Undo and redo",
+      "file": "B05 Undo and redo.md",
+      "steps": [
+        {
+          "text": "Type oops, leave with Esc and press u",
+          "hint": "u undoes the last change",
+          "ids": ["VIM-23"],
+          "check": { "kind": "text", "pred": "absent", "args": ["oops"] }
+        },
+        {
+          "text": "Press ctrl+r and get the line back",
+          "hint": "ctrl+r redoes",
+          "ids": ["VIM-24"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["oops"] }
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "title": "Save with a name and close",
+      "file": "B06 Save with a name and close.md",
+      "steps": [
+        {
+          "text": "Press : and run w travel-list",
+          "hint": "type :w travel-list and Enter",
+          "ids": ["EDT-03"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["travel-list"] }
+        },
+        {
+          "text": "Open a note with space n and save: look at the folders",
+          "hint": "the dialog suggests folders as you type",
+          "ids": ["EDT-04", "NOTE-23"],
+          "check": { "kind": "action", "event": "save_dialog" }
+        },
+        {
+          "text": "Close the tab with space x",
+          "hint": "space x closes the current tab",
+          "ids": ["EDT-05"],
+          "check": { "kind": "action", "event": "tab_closed" }
+        }
+      ]
+    },
+    {
+      "id": "B07",
+      "title": "Tabs",
+      "file": "B07 Tabs.md",
+      "steps": [
+        {
+          "text": "With two notes, go forward with L and back with H",
+          "hint": "with the preview focused, H and L move the calendar",
+          "ids": ["NEW-02"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "next_tab" },
+              { "kind": "action", "event": "prev_tab" }
+            ]
+          }
+        },
+        {
+          "text": "Also try ] [ space tab and space shift+tab",
+          "hint": "] and [ switch tabs",
+          "ids": ["NOTE-11"],
+          "check": { "kind": "action", "event": "next_tab", "value": "]" }
+        },
+        {
+          "text": "Click a tab, close it and make another with +",
+          "hint": "the + is to the right of the tabs",
+          "ids": ["NOTE-12"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "tab_closed" },
+              { "kind": "action", "event": "new_draft" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B08",
+      "title": "The explorer and focus",
+      "file": "B08 The explorer and focus.md",
+      "steps": [
+        {
+          "text": "Press space e twice: it opens and closes the explorer",
+          "hint": "the second time closes it and the editor comes back",
+          "ids": ["NEW-01"],
+          "check": { "kind": "action", "event": "focus_explorer" }
+        },
+        {
+          "text": "Narrow the window and close the explorer with Esc",
+          "hint": "in a narrow window the explorer covers the editor",
+          "ids": ["NOTE-15"],
+          "check": { "kind": "action", "event": "focus_explorer", "value": "overlay" }
+        },
+        {
+          "text": "Look at the three areas: explorer, editor and preview",
+          "ids": ["VIEW-01"],
+          "check": { "kind": "action", "event": "split_view" }
+        },
+        {
+          "text": "Drag the divider between editor and preview",
+          "ids": ["NOTE-14"],
+          "check": { "kind": "action", "event": "pane_resized" }
+        },
+        {
+          "text": "Move the focus with tab, shift+tab, ctrl+h and ctrl+l",
+          "hint": "tab goes through the panes in order",
+          "ids": ["NOTE-13"],
+          "check": { "kind": "action", "event": "focus_cycle" }
+        }
+      ]
+    },
+    {
+      "id": "B09",
+      "title": "Open and create notes",
+      "file": "B09 Open and create notes.md",
+      "steps": [
+        {
+          "text": "Walk the tree with j and k and open a note with enter",
+          "ids": ["NOTE-01", "NOTE-02"],
+          "check": { "kind": "action", "event": "note_opened" }
+        },
+        {
+          "text": "Create a note with n and the name groceries",
+          "hint": "n asks for a name in the selected folder",
+          "ids": ["NOTE-07"],
+          "check": { "kind": "disk", "pred": "exists", "args": ["groceries"] }
+        },
+        {
+          "text": "Create a folder with n and the name ideas/",
+          "hint": "the trailing slash makes a folder",
+          "ids": ["NOTE-07"],
+          "check": { "kind": "disk", "pred": "folder-exists", "args": ["ideas"] }
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "title": "Rename and delete",
+      "file": "B10 Rename and delete.md",
+      "steps": [
+        {
+          "text": "Rename groceries to market with r",
+          "hint": "r renames and rewrites the links",
+          "ids": ["NOTE-09"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "disk", "pred": "no-file", "args": ["groceries"] },
+              { "kind": "disk", "pred": "exists", "args": ["market"] }
+            ]
+          }
+        },
+        {
+          "text": "Delete market with d and confirm",
+          "hint": "d asks first and sends it to the Trash",
+          "ids": ["NOTE-10", "EDT-23"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "disk", "pred": "no-file", "args": ["market"] },
+              { "kind": "disk", "pred": "folder-exists", "args": ["ideas"] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B11",
+      "title": "Fold and peek",
+      "file": "B11 Fold and peek.md",
+      "steps": [
+        {
+          "text": "Fold and unfold with l, h, enter and z",
+          "ids": ["NOTE-04"],
+          "check": { "kind": "action", "event": "tree_state" }
+        },
+        {
+          "text": "Close every folder with W",
+          "hint": "capital W closes the whole tree",
+          "ids": ["NOTE-05"],
+          "check": { "kind": "action", "event": "tree_state", "value": "collapsed-all" }
+        },
+        {
+          "text": "With the explorer focused, preview a note with p",
+          "hint": "p shows the note without opening it",
+          "ids": ["NOTE-03"],
+          "check": { "kind": "action", "event": "note_previewed" }
+        }
+      ]
+    },
+    {
+      "id": "B12",
+      "title": "The / menu",
+      "file": "B12 The slash menu.md",
+      "steps": [
+        {
+          "text": "On an empty line, in INSERT, press /",
+          "hint": "the menu opens at the start of a line or after a space",
+          "ids": ["MD-01"],
+          "check": { "kind": "action", "event": "slash_open" }
+        },
+        {
+          "text": "Filter with quote and press Enter",
+          "hint": "the filter searches the block's name",
+          "ids": ["MD-01"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["> "] }
+        },
+        {
+          "text": "Open the menu again and close it with Esc",
+          "ids": ["MD-01"],
+          "check": { "kind": "action", "event": "slash_close" }
+        }
+      ]
+    },
+    {
+      "id": "B13",
+      "title": "Headings",
+      "file": "B13 Headings.md",
+      "steps": [
+        {
+          "text": "Write `# Trip` with `/Heading 1`",
+          "ids": ["MD-02"],
+          "check": { "kind": "text", "pred": "heading-exists", "args": ["1", "Trip"] }
+        },
+        {
+          "text": "Add `## Luggage` below it",
+          "ids": ["MD-03"],
+          "check": { "kind": "text", "pred": "heading-under", "args": ["1", "Trip", "2", "Luggage"] }
+        },
+        {
+          "text": "Add `### Day 1` below it",
+          "ids": ["MD-04"],
+          "check": { "kind": "text", "pred": "heading-under", "args": ["2", "Luggage", "3", "Day 1"] }
+        },
+        {
+          "text": "Add `#### Detail` below it",
+          "ids": ["MD-05"],
+          "check": { "kind": "text", "pred": "heading-under", "args": ["3", "Day 1", "4", "Detail"] }
+        }
+      ]
+    },
+    {
+      "id": "B14",
+      "title": "Lists",
+      "file": "B14 Lists.md",
+      "steps": [
+        {
+          "text": "Write a bullet with /Bulleted list",
+          "ids": ["MD-07"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["- "] }
+        },
+        {
+          "text": "Write a numbered list with /Numbered list",
+          "ids": ["MD-08"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["1. "] }
+        },
+        {
+          "text": "Write a task with /To-do list",
+          "ids": ["MD-09"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["- [ ] "] }
+        },
+        {
+          "text": "On the item, press Tab and then Shift+Tab",
+          "hint": "Tab indents the item by two spaces",
+          "ids": ["EDT-16"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["  "] }
+        }
+      ]
+    },
+    {
+      "id": "B15",
+      "title": "Checkboxes: check off",
+      "file": "B15 Checkboxes, check off.md",
+      "steps": [
+        {
+          "text": "Check off `Buy bread` with `[x]`",
+          "hint": "it becomes - [x] and is no longer pending",
+          "ids": ["MD-10"],
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "Buy bread"] }
+        },
+        {
+          "text": "Check off `Call the hotel` with `space o c`",
+          "hint": "space o c toggles the checkbox",
+          "ids": ["EDT-12"],
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "Call the hotel"] }
+        },
+        {
+          "text": "Check off the three tasks with `V`",
+          "hint": "V selects whole lines",
+          "ids": ["EDT-13"],
+          "check": { "kind": "all", "checks": [
+            { "kind": "text", "pred": "task-status", "args": ["done", "Book the museum"] },
+            { "kind": "text", "pred": "task-status", "args": ["done", "Pack the suitcase"] },
+            { "kind": "text", "pred": "task-status", "args": ["done", "Charge the phone"] }
+          ] }
+        },
+        {
+          "text": "Check off `Water the plants` with Enter",
+          "hint": "Enter toggles the checkbox on the line",
+          "ids": ["EDT-15"],
+          "check": { "kind": "text", "pred": "task-status", "args": ["done", "Water the plants"] }
+        }
+      ]
+    },
+    {
+      "id": "B16",
+      "title": "Checkboxes: remove and click",
+      "file": "B16 Checkboxes, remove and click.md",
+      "steps": [
+        {
+          "text": "On the checked task, press space o C",
+          "hint": "space o C removes the checkbox and keeps the item",
+          "ids": ["EDT-14"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["- Book the museum"] }
+        },
+        {
+          "text": "In the preview, click the box of a task",
+          "hint": "only the box, not the text",
+          "ids": ["PRV-30", "NEW-12"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["- [x] Water the plants"] }
+        }
+      ]
+    },
+    {
+      "id": "B17",
+      "title": "Emphasis",
+      "file": "B17 Emphasis.md",
+      "steps": [
+        {
+          "text": "Write book hotel in bold",
+          "ids": ["MD-40"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["**book hotel**"] }
+        },
+        {
+          "text": "Write beach in italics",
+          "ids": ["MD-41"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["*beach*"] }
+        },
+        {
+          "text": "Write misoku between backticks",
+          "ids": ["MD-42"],
+          "check": { "kind": "text-raw", "pred": "line-contains", "args": ["`misoku`"] }
+        },
+        {
+          "text": "Write cancelled with strikethrough",
+          "ids": ["MD-43"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["~~cancelled~~"] }
+        }
+      ]
+    },
+    {
+      "id": "B18",
+      "title": "Quotes and divider",
+      "file": "B18 Quotes and divider.md",
+      "steps": [
+        {
+          "text": "Write a quote with /Quote",
+          "ids": ["MD-16"],
+          "check": { "kind": "text", "pred": "line-starts", "args": ["> "] }
+        },
+        {
+          "text": "Split two sections with /Divider",
+          "ids": ["MD-21"],
+          "check": { "kind": "text", "pred": "line-equals", "args": ["---"] }
+        }
+      ]
+    },
+    {
+      "id": "B19",
+      "title": "Your first linked note",
+      "file": "B19 Your first linked note.md",
+      "steps": [
+        {
+          "text": "Type [[, type Weekly shopping and press Enter",
+          "hint": "Enter completes the link from the list",
+          "ids": ["LNK-01", "NEW-05"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[[Weekly shopping]]"] }
+        },
+        {
+          "text": "Close the list with Esc and type [[Market]] by hand",
+          "hint": "Esc only closes the list",
+          "ids": ["LNK-02"],
+          "check": { "kind": "text", "pred": "line-contains", "args": ["[[Market]]"] }
+        }
+      ]
+    },
+    {
+      "id": "B20",
+      "title": "Follow a link",
+      "file": "B20 Follow a link.md",
+      "steps": [
+        {
+          "text": "With the cursor on a link, press gd",
+          "ids": ["LNK-13"],
+          "check": { "kind": "action", "event": "followed_link", "value": "gd" }
+        },
+        {
+          "text": "Come back and press gx on the same link",
+          "ids": ["LNK-14"],
+          "check": { "kind": "action", "event": "followed_link", "value": "gx" }
+        },
+        {
+          "text": "Press Enter on the link",
+          "ids": ["VIM-14", "LNK-15"],
+          "check": { "kind": "action", "event": "followed_link", "value": "Enter" }
+        },
+        {
+          "text": "Click the link in the preview",
+          "ids": ["LNK-16"],
+          "check": { "kind": "action", "event": "followed_link", "value": "mouse" }
+        },
+        {
+          "text": "Type [[Beach list]] and press gd",
+          "hint": "the note doesn't exist: a draft opens",
+          "ids": ["LNK-21"],
+          "check": { "kind": "action", "event": "new_draft", "value": "Beach list" }
+        }
+      ]
+    },
+    {
+      "id": "B21",
+      "title": "Reading view and editor view",
+      "file": "B21 Read without editing.md",
+      "steps": [
+        {
+          "text": "Press space p: reading view, rendered and editable",
+          "ids": ["VIEW-02"],
+          "check": { "kind": "action", "event": "reading_view" }
+        },
+        {
+          "text": "Press space r: only the Markdown",
+          "ids": ["VIEW-03"],
+          "check": { "kind": "action", "event": "editor_view" }
+        },
+        {
+          "text": "Press space r again: the split comes back",
+          "hint": "the same key undoes the view",
+          "ids": ["VIEW-04"],
+          "check": { "kind": "action", "event": "split_view" }
+        },
+        {
+          "text": "In reading view, watch the markers hide",
+          "hint": "space p again; the cursor's block stays rendered too",
+          "ids": ["VIEW-05"],
+          "check": { "kind": "action", "event": "reading_view", "value": "concealed" }
+        },
+        {
+          "text": "In reading view, look at headings, lists, quotes, tables",
+          "ids": ["PRV-01"],
+          "check": { "kind": "action", "event": "preview_rendered" }
+        }
+      ]
+    },
+    {
+      "id": "B22",
+      "title": "Search inside the note",
+      "file": "B22 Search inside the note.md",
+      "steps": [
+        {
+          "text": "Press /, type hotel and Enter; repeat in reading view",
+          "hint": "search works in reading view too",
+          "ids": ["NEW-13"],
+          "check": { "kind": "action", "event": "search_hit", "value": "hotel" }
+        },
+        {
+          "text": "Press n and N for next and previous",
+          "ids": ["NEW-14"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "search_next" },
+              { "kind": "action", "event": "search_prev" }
+            ]
+          }
+        },
+        {
+          "text": "Search for Hotel with a capital H",
+          "hint": "search is case-sensitive",
+          "ids": ["NEW-15"],
+          "check": { "kind": "action", "event": "search_hit", "value": "Hotel" }
+        },
+        {
+          "text": "Search for zzz and read both messages",
+          "hint": "with no matches the bar turns red",
+          "ids": ["NEW-16"],
+          "check": {
+            "kind": "all",
+            "checks": [
+              { "kind": "action", "event": "search_error" },
+              { "kind": "action", "event": "search_wrap" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B23",
+      "title": "Paste and make mistakes",
+      "file": "B23 Paste and make mistakes.md",
+      "steps": [
+        {
+          "text": "Copy some text and paste it with ctrl+v",
+          "ids": ["EDT-10"],
+          "check": { "kind": "action", "event": "paste" }
+        },
+        {
+          "text": "Type :graph foo and read the error; close it with Esc",
+          "hint": "the red bar closes with Esc",
+          "ids": ["EDT-19"],
+          "check": { "kind": "action", "event": "error_shown" }
+        }
+      ]
+    },
+    {
+      "id": "B24",
+      "title": "The Misoku home screen",
+      "file": "B24 The Misoku home screen.md",
+      "steps": [
+        {
+          "text": "Press space d and look at the home screen",
+          "ids": ["NOTE-25"],
+          "check": { "kind": "action", "event": "home" }
+        },
+        {
+          "text": "Press 1 and then 2 on the home screen",
+          "hint": "the numbers open recent notes and projects",
+          "ids": ["NOTE-26"],
+          "check": { "kind": "action", "event": "home_open", "value": ["recent", "project"] }
+        },
+        {
+          "text": "Try the letters n f e t ? g c s l q and Enter",
+          "hint": "come back with space d after each one",
+          "ids": ["NOTE-27"],
+          "check": {
+            "kind": "action",
+            "event": "home_key",
+            "value": ["n", "f", "e", "t", "?", "g", "c", "s", "l", "q"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B25",
+      "title": "Quit and come back",
+      "file": "B25 Quit and come back.md",
+      "steps": [
+        {
+          "text": "With changes, press :q and read the question",
+          "hint": "choose Cancel to stay in the lesson",
+          "ids": ["EDT-06"],
+          "check": { "kind": "action", "event": "quit", "value": "confirm" }
+        },
+        {
+          "text": "Press :wq (or :x) to save and quit",
+          "ids": ["EDT-07"],
+          "check": { "kind": "disk", "pred": "file-changed", "args": [] }
+        },
+        {
+          "text": "Open it again and quit with :q!",
+          "hint": ":q! quits without saving",
+          "ids": ["EDT-08"],
+          "check": { "kind": "action", "event": "quit", "value": "discard" }
+        }
+      ]
+    },
+    {
+      "id": "B26",
+      "title": "Basic challenge",
+      "file": "B26 Basic challenge.md",
+      "steps": [
+        {
+          "text": "Create Shopping list with a heading and three tasks",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Check off one task and uncheck another",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Add the link [[Market]] to your shopping list",
+          "ids": [],
+          "check": { "kind": "none" }
+        },
+        {
+          "text": "Switch to reading view with space p",
+          "ids": [],
+          "check": { "kind": "none" }
+        }
+      ]
+    }
+  ]
+}
