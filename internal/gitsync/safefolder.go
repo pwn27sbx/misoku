@@ -1,11 +1,13 @@
 package gitsync
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // The home folder, the root of a disk and the system's folders are no
@@ -37,7 +39,7 @@ func RefuseSyncFolder(dir, home string) error {
 	if !UnsafeFolder(dir, home) {
 		return nil
 	}
-	return fmt.Errorf("%s is your home folder, the root of a disk or a system folder: sync a folder of its own for your notes, such as ~/Notes (misoku sync setup --dir ~/Notes).", dir)
+	return errors.New(i18n.T(i18n.GitUnsafeFolder, dir))
 }
 
 // systemFolder reports whether dir is a folder of the operating system:

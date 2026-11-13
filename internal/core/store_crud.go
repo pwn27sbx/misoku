@@ -7,6 +7,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // childDirFor resolves the relative directory new children of parentID should
@@ -119,7 +121,7 @@ func (s *Store) Create(title, parentID string) (Page, error) {
 
 	absDir := filepath.Join(s.root, filepath.FromSlash(relDir))
 	if err := os.MkdirAll(absDir, 0755); err != nil {
-		return Page{}, fmt.Errorf("failed to create folder: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreMkFolder), err)
 	}
 
 	title = strings.TrimSpace(title)
@@ -137,7 +139,7 @@ func (s *Store) Create(title, parentID string) (Page, error) {
 	}
 
 	if err := os.WriteFile(absFile, []byte(""), 0644); err != nil {
-		return Page{}, fmt.Errorf("failed to create page: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreCreateFailed), err)
 	}
 
 	id := path.Join(relDir, finalTitle+mdExt)
@@ -222,7 +224,7 @@ func (s *Store) ParseNewEntry(parentID, input string) (NewEntry, error) {
 // Empty, ".", ".." and hidden names and absolute paths are refused.
 func SplitEntryPath(input string) (segs []string, folder bool, err error) {
 	input = strings.TrimSpace(input)
-	if err := checkRelative(input, "folder"); err != nil {
+	if err := checkRelative(input, i18n.CoreRelativeFolder); err != nil {
 		return nil, false, err
 	}
 	folder = strings.HasSuffix(input, "/")
@@ -241,10 +243,10 @@ func SplitEntryPath(input string) (segs []string, folder bool, err error) {
 }
 
 // checkRelative refuses an absolute path (leading "/" or "\", or a Windows
-// drive); where names what the path must be relative to.
-func checkRelative(p, where string) error {
+// drive); refusal says what the path must be relative to.
+func checkRelative(p string, refusal i18n.Key) error {
 	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) || hasDriveLetter(p) {
-		return errors.New("the path must be relative to the " + where)
+		return errors.New(i18n.T(refusal))
 	}
 	return nil
 }
@@ -254,11 +256,11 @@ func checkRelative(p, where string) error {
 func checkPathSegment(seg string) error {
 	switch {
 	case seg == "":
-		return errors.New("the path has an empty name")
+		return errors.New(i18n.T(i18n.CoreEmptySegment))
 	case seg == "." || seg == "..":
-		return errors.New(`"." and ".." are not allowed`)
+		return errors.New(i18n.T(i18n.CoreDots))
 	case strings.HasPrefix(seg, "."):
-		return errors.New("hidden files and folders are not allowed")
+		return errors.New(i18n.T(i18n.CoreHidden))
 	}
 	return nil
 }
@@ -279,7 +281,7 @@ func (s *Store) CreateEntry(e NewEntry) (Page, error) {
 			return Page{}, err
 		}
 		if err := os.MkdirAll(abs, 0755); err != nil {
-			return Page{}, fmt.Errorf("failed to create folder: %w", err)
+			return Page{}, fmt.Errorf(i18n.T(i18n.CoreMkFolder), err)
 		}
 		if e.Note.ID == "" {
 			last.UpdatedAt = modTime(abs)
@@ -291,7 +293,7 @@ func (s *Store) CreateEntry(e NewEntry) (Page, error) {
 		return Page{}, err
 	}
 	if fileExists(noteAbs) {
-		return Page{}, fmt.Errorf("%s already exists", e.Note.ID)
+		return Page{}, errors.New(i18n.T(i18n.CoreExists, e.Note.ID))
 	}
 	return s.Create(e.Note.Title, e.Note.ParentID)
 }
@@ -335,7 +337,7 @@ func (s *Store) Update(p Page) (Page, error) {
 		newAbs := filepath.Join(absDir, newTitle+mdExt)
 
 		if fileExists(newAbs) {
-			return Page{}, fmt.Errorf("a page named %q already exists here", newTitle)
+			return Page{}, errors.New(i18n.T(i18n.CorePageExists, newTitle))
 		}
 
 		// The note and its sidecar folder move together. Check both
@@ -347,20 +349,20 @@ func (s *Store) Update(p Page) (Page, error) {
 		hasSidecar := sidecarErr == nil && info.IsDir()
 		if hasSidecar {
 			if _, err := os.Stat(newSidecar); err == nil {
-				return Page{}, fmt.Errorf("a folder named %q already exists here", newTitle)
+				return Page{}, errors.New(i18n.T(i18n.CoreFolderExists, newTitle))
 			}
 		}
 
 		if err := os.Rename(abs, newAbs); err != nil {
-			return Page{}, fmt.Errorf("failed to rename page: %w", err)
+			return Page{}, fmt.Errorf(i18n.T(i18n.CoreRenameFailed), err)
 		}
 
 		if hasSidecar {
 			if err := os.Rename(oldSidecar, newSidecar); err != nil {
 				if backErr := os.Rename(newAbs, abs); backErr != nil {
-					return Page{}, fmt.Errorf("failed to rename sub-pages and could not put the note back: %v: %w", backErr, err)
+					return Page{}, fmt.Errorf(i18n.T(i18n.CoreRenameSubBack), backErr, err)
 				}
-				return Page{}, fmt.Errorf("failed to rename sub-pages, nothing moved: %w", err)
+				return Page{}, fmt.Errorf(i18n.T(i18n.CoreRenameSubNothing), err)
 			}
 		}
 
@@ -369,7 +371,7 @@ func (s *Store) Update(p Page) (Page, error) {
 	}
 
 	if err := writeText(abs, p.Content); err != nil {
-		return Page{}, fmt.Errorf("failed to save page: %w", err)
+		return Page{}, fmt.Errorf(i18n.T(i18n.CoreSaveFailed), err)
 	}
 
 	parentID := parentIDFor(s.root, id)
@@ -398,10 +400,10 @@ func (s *Store) renameFolder(p Page, abs string) (Page, error) {
 		newAbs := filepath.Join(absDir, newTitle)
 
 		if fileExists(newAbs) {
-			return Page{}, fmt.Errorf("a folder named %q already exists here", newTitle)
+			return Page{}, errors.New(i18n.T(i18n.CoreFolderExists, newTitle))
 		}
 		if err := os.Rename(abs, newAbs); err != nil {
-			return Page{}, fmt.Errorf("failed to rename folder: %w", err)
+			return Page{}, fmt.Errorf(i18n.T(i18n.CoreRenameFolder), err)
 		}
 
 		id = path.Join(dir, newTitle)
@@ -432,19 +434,19 @@ func (s *Store) Delete(id string) error {
 
 	if info.IsDir() {
 		if err := removePath(abs); err != nil {
-			return fmt.Errorf("failed to delete folder: %w", err)
+			return fmt.Errorf(i18n.T(i18n.CoreDeleteFolder), err)
 		}
 		return nil
 	}
 
 	if err := removePath(abs); err != nil {
-		return fmt.Errorf("failed to delete page: %w", err)
+		return fmt.Errorf(i18n.T(i18n.CoreDeletePage), err)
 	}
 
 	sidecar := strings.TrimSuffix(abs, mdExt)
 	if sInfo, err := os.Stat(sidecar); err == nil && sInfo.IsDir() {
 		if err := removePath(sidecar); err != nil {
-			return fmt.Errorf("deleted the page but not its sub-pages folder: %w", err)
+			return fmt.Errorf(i18n.T(i18n.CoreDeleteSubHalf), err)
 		}
 	}
 	return nil

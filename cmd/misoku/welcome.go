@@ -14,6 +14,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // The welcome greets someone who runs misoku with no folder and no notes
@@ -157,20 +158,20 @@ const (
 func runWelcome(ctx context.Context, o welcomeOptions) (string, int) {
 	t := &setupTerminal{in: bufio.NewReader(o.Stdin), stdin: o.Stdin, out: o.Out, err: o.Err, interrupt: o.Interrupt}
 	defer classicKeyboard(o.Out, o.ClassicKeys)()
-	fmt.Fprintln(o.Out, "Welcome to Misoku.")
+	fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeTitle))
 	if o.Missing != "" {
-		fmt.Fprintf(o.Out, "I can't find your notes at %s.\n", o.Missing)
+		fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeMissing, o.Missing))
 	}
-	fmt.Fprintln(o.Out, "Where do your notes live?")
-	fmt.Fprintf(o.Out, "  %d) Start my notes\n", choiceStart)
-	fmt.Fprintf(o.Out, "  %d) Bring my notes from another computer\n", choiceBring)
+	fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeQuestion))
+	fmt.Fprintf(o.Out, "  %d) %s\n", choiceStart, i18n.T(i18n.WelcomeStart))
+	fmt.Fprintf(o.Out, "  %d) %s\n", choiceBring, i18n.T(i18n.WelcomeBring))
 	last := choiceBring
 	if o.Cwd != "" {
 		last = choiceUseThis
-		fmt.Fprintf(o.Out, "  %d) Use this folder: %s\n", choiceUseThis, o.Cwd)
+		fmt.Fprintf(o.Out, "  %d) %s\n", choiceUseThis, i18n.T(i18n.WelcomeUseThis, o.Cwd))
 	}
 	for {
-		text, ok := t.prompt("Number (Enter cancels): ")
+		text, ok := t.prompt(i18n.T(i18n.WelcomeNumber))
 		if !ok || text == "" {
 			return stopped(o.Out)
 		}
@@ -182,21 +183,21 @@ func runWelcome(ctx context.Context, o welcomeOptions) (string, int) {
 		case n == choiceUseThis && last == choiceUseThis:
 			return remember(o, o.Cwd, o.Cwd), 0
 		}
-		fmt.Fprintf(o.Out, "! Type %s.\n", choicesText(last))
+		fmt.Fprintln(o.Out, i18n.T(i18n.WelcomeType, choicesText(last)))
 	}
 }
 
 // choicesText is "1 or 2" or "1, 2 or 3".
 func choicesText(last int) string {
 	if last == choiceBring {
-		return "1 or 2"
+		return i18n.T(i18n.WelcomeOneOrTwo)
 	}
-	return "1, 2 or 3"
+	return i18n.T(i18n.WelcomeOneTwoThree)
 }
 
 // stopped ends the welcome when the user stops it.
 func stopped(out io.Writer) (string, int) {
-	fmt.Fprintln(out, "Nothing was changed. Run misoku again when you are ready.")
+	fmt.Fprintln(out, i18n.T(i18n.WelcomeStopped))
 	return "", 0
 }
 
@@ -220,7 +221,7 @@ func (t *setupTerminal) prompt(question string) (string, bool) {
 // stopped.
 func askFolder(t *setupTerminal, home, def string) (written, abs string, ok bool) {
 	for {
-		text, answered := t.prompt("Folder for your notes [" + def + "]: ")
+		text, answered := t.prompt(i18n.T(i18n.WelcomeFolderAsk, def))
 		if !answered {
 			return "", "", false
 		}
@@ -245,9 +246,9 @@ func checkFolder(text, def, home string) (written, abs, problem string) {
 	full, err := config.ExpandHome(text)
 	switch {
 	case err != nil:
-		return "", "", "Type a full path, such as ~/Notes."
+		return "", "", i18n.T(i18n.WelcomeFullPath)
 	case gitsync.UnsafeFolder(full, home):
-		return "", "", full + " is your home folder, the root of a disk or a system folder: choose a folder of its own for your notes, such as ~/Notes."
+		return "", "", i18n.T(i18n.WelcomeUnsafe, full)
 	}
 	if !strings.HasPrefix(text, "~") {
 		text = full
@@ -283,11 +284,11 @@ func makeFolder(dir string) error {
 		if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
 			return nil
 		}
-		return fmt.Errorf("%s is a file, not a folder: choose another name", dir)
+		return errors.New(i18n.T(i18n.WelcomeIsFile, dir))
 	case errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("the folder %s does not exist: create it first, or choose another folder", filepath.Dir(dir))
+		return errors.New(i18n.T(i18n.WelcomeNoParent, filepath.Dir(dir)))
 	}
-	return fmt.Errorf("could not create %s (%w)", dir, err)
+	return fmt.Errorf(i18n.T(i18n.WelcomeCreateFailed), dir, err)
 }
 
 // bringNotes is "Bring my notes from another computer": the setup
@@ -319,7 +320,7 @@ func bringNotes(ctx context.Context, t *setupTerminal, o welcomeOptions) (string
 // says it will ask again next time.
 func remember(o welcomeOptions, written, abs string) string {
 	if err := config.SetNotesDir(o.ConfigPath, written); err != nil {
-		fmt.Fprintf(o.Err, "Could not remember %s as your notes folder (%v); misoku will ask again next time.\n", abs, err)
+		fmt.Fprintln(o.Err, i18n.T(i18n.WelcomeNotRemembered, abs, err))
 	}
 	return abs
 }

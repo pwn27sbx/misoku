@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // mdExt is the file extension used for page content files.
@@ -17,7 +19,7 @@ const mdExt = ".md"
 
 var (
 	// ErrPageNotFound indicates the requested page ID does not exist on disk.
-	ErrPageNotFound = errors.New("page not found")
+	ErrPageNotFound = i18n.Err(i18n.CoreNotFound)
 )
 
 // Store is a thin, filesystem-backed workspace: every Page is a real ".md"
@@ -35,19 +37,19 @@ type Store struct {
 func NewStore(dir string) (*Store, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("invalid workspace path: %w", err)
+		return nil, fmt.Errorf(i18n.T(i18n.CoreBadWorkspace), err)
 	}
 
 	info, statErr := os.Stat(abs)
 	switch {
 	case os.IsNotExist(statErr):
 		if mkErr := os.MkdirAll(abs, 0755); mkErr != nil {
-			return nil, fmt.Errorf("failed to create workspace directory: %w", mkErr)
+			return nil, fmt.Errorf(i18n.T(i18n.CoreMkWorkspace), mkErr)
 		}
 	case statErr != nil:
-		return nil, fmt.Errorf("failed to access workspace directory: %w", statErr)
+		return nil, fmt.Errorf(i18n.T(i18n.CoreWorkspaceAccess), statErr)
 	case !info.IsDir():
-		return nil, fmt.Errorf("workspace path %q is not a directory", abs)
+		return nil, errors.New(i18n.T(i18n.CoreNotADir, abs))
 	}
 
 	return &Store{root: abs}, nil

@@ -1,9 +1,9 @@
 package graph
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -299,7 +299,7 @@ func (m Model) View() string {
 	th := m.th
 	plain := lipgloss.NewStyle()
 	if m.centre == "" {
-		msg := lipgloss.NewStyle().Foreground(th.GreyFg).Render("No notes yet")
+		msg := lipgloss.NewStyle().Foreground(th.GreyFg).Render(i18n.T(i18n.GraphNoNotes))
 		return ui.Fit(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, msg), m.width, m.height, plain)
 	}
 	t := m.tree()
@@ -336,21 +336,31 @@ type button struct {
 
 // hints are the bottom row's layouts, widest first: each button's label
 // (in buttons() order) names its key, then the rest of the keys and what
-// the mouse does. The first that fits the pane is used.
-var hints = []struct {
+// the mouse does. The first that fits the pane is used. They are built
+// when drawn, in the language in use.
+func hints() []struct {
 	labels [5]string
 	tail   string
-}{
-	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl move · enter open · click: preview, again: open · scroll: zoom · drag: move"},
-	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl move · enter open · drag: move"},
-	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl move · enter open"},
-	{[5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}, "  hjkl · enter"},
-	{[5]string{" − ", " + ", " 0 ", " esc ", " reset "}, "  hjkl · enter"},
+} {
+	long := [5]string{" − ", " + ", " 0 " + i18n.T(i18n.GraphCentre) + " ", " esc " + i18n.T(i18n.GraphBack) + " ", " " + i18n.T(i18n.GraphReset) + " "}
+	short := [5]string{" − ", " + ", " 0 ", " esc ", " " + i18n.T(i18n.GraphReset) + " "}
+	keys := i18n.T(i18n.GraphTailKeys)
+	return []struct {
+		labels [5]string
+		tail   string
+	}{
+		{long, i18n.T(i18n.GraphTailFull)},
+		{long, i18n.T(i18n.GraphTailDrag)},
+		{long, i18n.T(i18n.GraphTailOpen)},
+		{long, keys},
+		{short, keys},
+	}
 }
 
 // hint picks the widest bottom-row layout that fits the pane.
 func (m Model) hint() (labels [5]string, tail string) {
-	for _, h := range hints {
+	all := hints()
+	for _, h := range all {
 		w := 1 + len(h.labels) - 1 + ansi.StringWidth(h.tail)
 		for _, l := range h.labels {
 			w += ansi.StringWidth(l)
@@ -359,7 +369,7 @@ func (m Model) hint() (labels [5]string, tail string) {
 			return h.labels, h.tail
 		}
 	}
-	last := hints[len(hints)-1]
+	last := all[len(all)-1]
 	return last.labels, last.tail
 }
 
@@ -386,24 +396,15 @@ func (m Model) buttons() []button {
 // titleLine names the centre note and counts its links.
 func (m Model) titleLine(t tree) string {
 	th := m.th
-	steps := "1 step"
+	links, backlinks := len(m.out[m.centre]), len(m.in[m.centre])
+	info := " · " + i18n.N(i18n.GraphLinks, links, links) + " · " + i18n.N(i18n.GraphBacklinks, backlinks, backlinks) +
+		" · " + i18n.N(i18n.GraphSteps, m.depth, m.depth)
 	if m.depth > 1 {
-		steps = fmt.Sprintf("%d steps", m.depth)
-	}
-	info := fmt.Sprintf(" · %s · %s · %s", plural(len(m.out[m.centre]), "link"), plural(len(m.in[m.centre]), "backlink"), steps)
-	if m.depth > 1 {
-		info += " · " + plural(len(t.nodes)-1, "note")
+		info += " · " + i18n.N(i18n.GraphNotes, len(t.nodes)-1, len(t.nodes)-1)
 	}
 	head := lipgloss.NewStyle().Foreground(th.Blue).Bold(true).Render("󰈙 "+ui.Truncate(m.titles[m.centre], 40)) +
 		lipgloss.NewStyle().Foreground(th.GreyFg2).Render(info)
 	return ui.FitLine(" "+head, m.width, lipgloss.NewStyle())
-}
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	return fmt.Sprintf("%d %ss", n, word)
 }
 
 // helpLine is the bottom row: the buttons, then the other keys and what

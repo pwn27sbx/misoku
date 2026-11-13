@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // MinVersion is the oldest git Misoku syncs with: merge-tree --write-tree,
@@ -182,11 +184,11 @@ func (r *Runner) runWith(parent context.Context, extraEnv []string, stdin []byte
 	}
 	msg := strings.TrimSpace(stderr.String())
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		why := fmt.Sprintf("no answer after %s", r.timeout)
+		why := i18n.T(i18n.GitNoAnswerAfter, r.timeout)
 		if perr := parent.Err(); errors.Is(perr, context.Canceled) {
-			why = "cancelled"
+			why = i18n.T(i18n.GitCancelled)
 		} else if perr != nil {
-			why = "the caller's time limit ran out"
+			why = i18n.T(i18n.GitCallerTimeout)
 		}
 		why = "git " + firstWord(args) + ": " + why
 		if msg != "" {

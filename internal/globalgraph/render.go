@@ -28,6 +28,8 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // MinWidth and MinHeight are the smallest pane the map is drawn in; a
@@ -259,9 +261,9 @@ func (r *Renderer) Render(f Frame) string {
 	}
 	switch {
 	case len(r.l.Nodes) == 0:
-		return message("No notes yet", f.W, f.H, th)
+		return message(i18n.T(i18n.GraphNoNotes), f.W, f.H, th)
 	case f.W < MinWidth || f.H < MinHeight:
-		return message("Graph needs a bigger pane", f.W, f.H, th)
+		return message(i18n.T(i18n.GraphTooSmall), f.W, f.H, th)
 	}
 	return r.picture(f, th)
 }

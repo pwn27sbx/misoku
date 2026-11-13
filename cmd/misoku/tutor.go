@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 )
 
@@ -18,13 +20,13 @@ import (
 func tutorWorkspace(args []string) (dir, route, notice string, err error) {
 	fs := flag.NewFlagSet("tutor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	reset := fs.Bool("reset", false, "start the tutorial over from the bundled lessons")
-	routeFlag := fs.String("route", "", "route to open (B, I, A or E)")
+	reset := fs.Bool("reset", false, i18n.T(i18n.CliTutorFlagReset))
+	routeFlag := fs.String("route", "", i18n.T(i18n.CliTutorFlagRoute))
 	if err := fs.Parse(args); err != nil {
 		return "", "", "", err
 	}
 	if fs.NArg() > 0 {
-		return "", "", "", fmt.Errorf("unexpected argument %q", fs.Arg(0))
+		return "", "", "", errors.New(i18n.T(i18n.CliTutorUnexpected, fs.Arg(0)))
 	}
 	routeSet := false
 	fs.Visit(func(f *flag.Flag) {
@@ -33,12 +35,12 @@ func tutorWorkspace(args []string) (dir, route, notice string, err error) {
 		}
 	})
 	if routeSet && strings.TrimSpace(*routeFlag) == "" {
-		return "", "", "", fmt.Errorf("--route needs B, I, A or E")
+		return "", "", "", errors.New(i18n.T(i18n.CliTutorRouteNeeds))
 	}
 	if *routeFlag != "" {
 		route = strings.ToUpper(*routeFlag)
 		if r, ok := tutor.Default().RouteByID(route); !ok || len(r.Lessons) == 0 {
-			return "", "", "", fmt.Errorf("unknown route %q (want B, I, A or E)", *routeFlag)
+			return "", "", "", errors.New(i18n.T(i18n.CliTutorRouteBad, *routeFlag))
 		}
 	}
 	dir = tutor.Dir()
@@ -49,7 +51,7 @@ func tutorWorkspace(args []string) (dir, route, notice string, err error) {
 	if gitAvailable() {
 		if err := initTutorialGit(dir); err != nil {
 			// The lessons work without :history; say why it is missing.
-			fmt.Fprintf(os.Stderr, "misoku tutor: could not prepare the tutorial's git history: %v\n", err)
+			fmt.Fprintln(os.Stderr, "misoku tutor: "+i18n.T(i18n.CliTutorGitFailed, err))
 		}
 	}
 	return dir, route, notice, nil
@@ -62,10 +64,7 @@ func tutorWorkspace(args []string) (dir, route, notice string, err error) {
 func tutorialProgress(dir string) *tutor.Store {
 	store, err := tutor.Load(dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "misoku tutor: ignoring the progress file: %v\n", err)
+		fmt.Fprintln(os.Stderr, "misoku tutor: "+i18n.T(i18n.CliTutorBadProgress, err))
 	}
 	return store
 }
-
-// tutorUsage is the help of "misoku tutor".
-const tutorUsage = "Usage: misoku tutor [--route B|I|A|E] [--reset]"

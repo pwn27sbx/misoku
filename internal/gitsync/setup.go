@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // The setup assistant (`misoku sync setup` and `:sync setup`) connects a
@@ -232,10 +233,6 @@ type Setup struct {
 	pending Repo
 }
 
-// appleGitProblem is AskStart's Problem while Apple's installer for git
-// runs.
-const appleGitProblem = "Apple is installing git; press Enter when it finishes."
-
 // NewSetup returns the assistant for opts.Dir. Nothing runs until Begin.
 func NewSetup(opts SetupOptions) *Setup {
 	if opts.GH == "" {
@@ -314,7 +311,7 @@ func withGHHelper(env []string) []string {
 func (s *Setup) Begin(ctx context.Context) SetupStep {
 	cfg, err := config.Load(s.opts.ConfigPath)
 	if err != nil {
-		return failed(fmt.Sprintf("The config file %s could not be read (%v); fix it, then run setup again.", s.opts.ConfigPath, err))
+		return failed(i18n.T(i18n.SetupBadConfig, s.opts.ConfigPath, err))
 	}
 	vaults, _ := cfg.Sync.Parse()
 	s.vault, s.listed = Listed(vaults, s.opts.Dir)
@@ -340,26 +337,17 @@ func (s *Setup) Begin(ctx context.Context) SetupStep {
 func (s *Setup) startStep() SetupStep {
 	s.at = AskStart
 	if s.opts.Bring {
-		return SetupStep{Ask: AskStart, Title: "Bring your notes", Lines: []string{
-			"Your notes come from the private GitHub repository your other computer syncs with, and stay in sync from then on.",
-			ghAccessLine,
+		return SetupStep{Ask: AskStart, Title: i18n.T(i18n.SetupBringTitle), Lines: []string{
+			i18n.T(i18n.SetupBringLine),
+			i18n.T(i18n.SetupGHAccess),
 		}}
 	}
-	return SetupStep{Ask: AskStart, Title: "Sync this vault", Lines: []string{
-		"Your notes will be kept in a private GitHub repository and reach your other computers on their own.",
-		ghAccessLine,
-		"In the repository your notes are not encrypted, so it stays private.",
+	return SetupStep{Ask: AskStart, Title: i18n.T(i18n.SetupSyncTitle), Lines: []string{
+		i18n.T(i18n.SetupSyncLine),
+		i18n.T(i18n.SetupGHAccess),
+		i18n.T(i18n.SetupPrivateLine),
 	}}
 }
-
-// ghAccessLine says who keeps the access to GitHub.
-const ghAccessLine = "You need a GitHub account. Misoku signs in with gh, GitHub's command-line tool, which keeps the access: Misoku never sees or stores it."
-
-// Labels of AskRepo's last choice (SetupStep.NewChoice).
-const (
-	createChoice = "Create a new private repository"
-	freshChoice  = "I don't have notes on another computer → Start my notes"
-)
 
 // inspect looks at the folder: when it already has an origin, or is one
 // setup must not touch, the run ends with done and the step saying why.
@@ -375,13 +363,13 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 		// A new computer's vault: InitVault creates it, if its parent is
 		// there.
 		if p, err := os.Stat(filepath.Dir(dir)); err != nil || !p.IsDir() {
-			return true, failed(fmt.Sprintf("%s does not exist, nor does its folder %s; create it first, or choose another folder.", dir, filepath.Dir(dir)))
+			return true, failed(i18n.T(i18n.SetupNoParent, dir, filepath.Dir(dir)))
 		}
 		return s.inspectNew(ctx)
 	case err != nil:
 		return true, failed(err.Error())
 	case !info.IsDir():
-		return true, failed(dir + " is not a folder.")
+		return true, failed(i18n.T(i18n.SetupNotFolder, dir))
 	}
 	r := New(dir, s.opts.Timeout)
 	if _, ok, err := r.Version(ctx); err != nil || !ok {
@@ -401,24 +389,24 @@ func (s *Setup) inspect(ctx context.Context) (bool, SetupStep) {
 	}
 	shown := RedactURL(origin)
 	if s.listed {
-		lines := []string{fmt.Sprintf("This vault is already set up: it syncs with %s; nothing changed.", shown)}
+		lines := []string{i18n.T(i18n.SetupAlreadySynced, shown)}
 		if st := Detect(ctx, r); st.Status != Ready {
-			lines = append(lines, "Sync is paused, though: "+st.Message+".")
+			lines = append(lines, i18n.T(i18n.SetupPausedThough, st.Message))
 		}
-		lines = append(lines, "`:sync status` in Misoku shows how it is going.")
-		return true, SetupStep{Outcome: SetupAlready, Title: "Sync setup", Lines: lines, Repo: shown}
+		lines = append(lines, i18n.T(i18n.SetupStatusHint))
+		return true, SetupStep{Outcome: SetupAlready, Title: i18n.T(i18n.SetupTitle), Lines: lines, Repo: shown}
 	}
-	return true, SetupStep{Outcome: SetupAlready, Title: "Sync setup", Repo: shown, Lines: []string{
-		fmt.Sprintf("This folder is already set up with the git repository %s, though Misoku does not sync it yet; nothing changed.", shown),
-		fmt.Sprintf("To sync it with that repository, run `misoku sync init %s`.", shown),
+	return true, SetupStep{Outcome: SetupAlready, Title: i18n.T(i18n.SetupTitle), Repo: shown, Lines: []string{
+		i18n.T(i18n.SetupAlreadyRepo, shown),
+		i18n.T(i18n.SetupAlreadyRepoHint, shown),
 	}}
 }
 
 // ownRepoStep offers the folder inside nested's repository a repository
 // of its own (AskOwnRepo): what is wrong, said once, then the question.
 func ownRepoStep(nested *nestedError) SetupStep {
-	return SetupStep{Ask: AskOwnRepo, Title: "A repository for your notes", Confirm: ownRepoQuestion, Lines: []string{
-		fmt.Sprintf("This folder is inside the git repository at %s, which does not track it: syncing it as it is would commit that whole repository. A separate repository leaves that one as it is.", nested.top),
+	return SetupStep{Ask: AskOwnRepo, Title: i18n.T(i18n.SetupOwnRepoTitle), Confirm: i18n.T(i18n.SetupOwnRepoQuestion), Lines: []string{
+		i18n.T(i18n.SetupOwnRepoLine, nested.top),
 	}}
 }
 
@@ -434,11 +422,11 @@ func (s *Setup) inspectNew(ctx context.Context) (bool, SetupStep) {
 		return false, SetupStep{} // the git check after AskStart says how to fix git
 	}
 	if err := os.Mkdir(dir, 0o755); err != nil {
-		return true, failed(fmt.Sprintf("Setup could not look at %s (%v). Setup changed nothing.", dir, err))
+		return true, failed(i18n.T(i18n.SetupLookFailed, dir, err))
 	}
 	_, _, err := folderState(ctx, New(dir, s.opts.Timeout))
 	if rerr := os.Remove(dir); rerr != nil {
-		return true, failed(fmt.Sprintf("Setup made the empty folder %s to look at it and could not remove it again (%v); delete it, then run setup again.", dir, rerr))
+		return true, failed(i18n.T(i18n.SetupRemoveFailed, dir, rerr))
 	}
 	var nested *nestedError
 	switch {
@@ -453,16 +441,13 @@ func (s *Setup) inspectNew(ctx context.Context) (bool, SetupStep) {
 	return false, SetupStep{}
 }
 
-// ownRepoQuestion is AskOwnRepo's question.
-const ownRepoQuestion = "Create a separate repository for your notes here?"
-
 // refusal is folderState's refusal in setup's words.
 func refusal(err error) string {
 	var nested *nestedError
 	if errors.As(err, &nested) {
 		return nested.message("setup") + "."
 	}
-	return redactText(err.Error()) + ". Setup changed nothing."
+	return i18n.T(i18n.SetupChangedNothing, redactText(err.Error()))
 }
 
 // Next takes the answer to the step the previous call returned and goes
@@ -472,7 +457,7 @@ func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 	if !ans.OK {
 		s.at = SetupFinished
 		s.undo(ctx)
-		return SetupStep{Outcome: SetupCancelled, Title: "Sync setup", Lines: []string{s.StopText("Setup cancelled")}}
+		return SetupStep{Outcome: SetupCancelled, Title: i18n.T(i18n.SetupTitle), Lines: []string{s.StopText(i18n.T(i18n.SetupCancelled))}}
 	}
 	switch s.at {
 	case AskOwnRepo:
@@ -490,7 +475,7 @@ func (s *Setup) Next(ctx context.Context, ans SetupAnswer) SetupStep {
 	case AskUnrelated:
 		return s.use(ctx, s.pending)
 	}
-	return s.fail(ctx, "Setup has already ended; run it again.")
+	return s.fail(ctx, i18n.T(i18n.SetupEnded))
 }
 
 // MadeRepo reports whether this run created the folder's git repository,
@@ -517,12 +502,12 @@ func (s *Setup) ownRepo(ctx context.Context) SetupStep {
 	switch {
 	case errors.As(err, &nested) && !nested.tracks():
 		if _, err := r.Run(ctx, "init", "--quiet", "--initial-branch=main"); err != nil {
-			return s.fail(ctx, fmt.Sprintf("git could not create a repository in this folder (%v).", redact(err)))
+			return s.fail(ctx, i18n.T(i18n.SetupInitFailed, redact(err)))
 		}
 		s.madeRepo, s.madeAt = true, len(s.changed)
-		s.changed = append(s.changed, "A git repository of its own was created in this folder")
+		s.changed = append(s.changed, i18n.T(i18n.SetupMadeOwnRepo))
 		step := s.startStep()
-		step.Notes = []string{"✓ created a git repository of its own for your notes"}
+		step.Notes = []string{i18n.T(i18n.SetupMadeOwnRepoNote)}
 		return step
 	case err != nil:
 		return s.fail(ctx, refusal(err))
@@ -539,7 +524,7 @@ func (s *Setup) ownRepo(ctx context.Context) SetupStep {
 func (s *Setup) noteFolder(made bool) {
 	if made && !s.madeDir {
 		s.madeDir, s.dirAt = true, len(s.changed)
-		s.changed = append(s.changed, "The folder "+s.opts.Dir+" was created")
+		s.changed = append(s.changed, i18n.T(i18n.SetupMadeFolder, s.opts.Dir))
 	}
 }
 
@@ -549,7 +534,7 @@ func (s *Setup) noteInit(res InitResult) {
 	s.noteFolder(res.CreatedFolder)
 	if res.CreatedRepo && !s.madeRepo {
 		s.madeRepo, s.madeAt = true, len(s.changed)
-		s.changed = append(s.changed, "A git repository was created in "+s.opts.Dir)
+		s.changed = append(s.changed, i18n.T(i18n.SetupMadeRepo, s.opts.Dir))
 	}
 }
 
@@ -567,13 +552,13 @@ func (s *Setup) undo(ctx context.Context) {
 	s.madeDir = false
 	if err := os.Remove(s.opts.Dir); err != nil {
 		if entries, rerr := os.ReadDir(s.opts.Dir); rerr == nil && len(entries) > 0 {
-			s.changed[s.dirAt] += "; it was left in place, as it is not empty"
+			s.changed[s.dirAt] += i18n.T(i18n.SetupLeftNotEmpty)
 			return
 		}
-		s.changed[s.dirAt] += fmt.Sprintf("; it could not be removed again (%v)", err)
+		s.changed[s.dirAt] += i18n.T(i18n.SetupNotRemoved, err)
 		return
 	}
-	s.changed[s.dirAt] = "The folder " + s.opts.Dir + " it created was removed"
+	s.changed[s.dirAt] = i18n.T(i18n.SetupFolderRemoved, s.opts.Dir)
 }
 
 // undoRepo removes the repository this run created, when it still has
@@ -588,21 +573,21 @@ func (s *Setup) undoRepo(ctx context.Context) {
 	gitDir := filepath.Join(s.opts.Dir, ".git")
 	switch {
 	case err != nil:
-		s.changed[s.madeAt] += fmt.Sprintf("; it was left in place, as git could not tell whether it has commits (%v)", redact(err))
+		s.changed[s.madeAt] += i18n.T(i18n.SetupLeftUnknown, redact(err))
 	case head != "":
-		s.changed[s.madeAt] += "; it already has commits, so it was left in place"
+		s.changed[s.madeAt] += i18n.T(i18n.SetupLeftCommits)
 	default:
 		// Only the folder git init made: a .git that is a file or a link
 		// now is not ours to delete.
 		if info, err := os.Lstat(gitDir); err != nil || !info.IsDir() {
-			s.changed[s.madeAt] += "; it was left in place, as " + gitDir + " is no longer the folder it created"
+			s.changed[s.madeAt] += i18n.T(i18n.SetupLeftNotOurs, gitDir)
 			return
 		}
 		if err := os.RemoveAll(gitDir); err != nil {
-			s.changed[s.madeAt] += fmt.Sprintf("; it could not be removed again (%v): delete %s by hand", err, gitDir)
+			s.changed[s.madeAt] += i18n.T(i18n.SetupRepoNotRemoved, err, gitDir)
 			return
 		}
-		s.changed[s.madeAt] = "The git repository it created was removed"
+		s.changed[s.madeAt] = i18n.T(i18n.SetupRepoRemoved)
 	}
 }
 
@@ -627,14 +612,14 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 		// started: Start (Enter) checks again once they are in.
 		s.waitedGit = true
 		step := s.startStep()
-		step.Problem = appleGitProblem
+		step.Problem = i18n.T(i18n.SetupAppleGit)
 		return step
 	}
 	if err != nil {
-		return s.fail(ctx, fmt.Sprintf("git did not run (%v). Install git %s or newer, then run setup again.", err, MinVersion))
+		return s.fail(ctx, i18n.T(i18n.SetupGitDidNotRun, err, MinVersion))
 	}
 	if !ok {
-		return s.fail(ctx, fmt.Sprintf("git %s is too old: sync needs git %s or newer. Update git, then run setup again.", version, MinVersion))
+		return s.fail(ctx, i18n.T(i18n.SetupGitTooOld, version, MinVersion))
 	}
 	notes := []string{"✓ git " + version}
 	if s.waitedGit {
@@ -648,7 +633,7 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 	path, err := lookGH(s.opts.GH)
 	if err != nil {
 		return s.fail(ctx,
-			"gh, GitHub's command-line tool, is not installed: setup uses it to sign in to GitHub.",
+			i18n.T(i18n.SetupNoGH),
 			GHInstallHint(s.opts.OS),
 		)
 	}
@@ -666,13 +651,13 @@ func (s *Setup) checkGit(ctx context.Context) SetupStep {
 // identityStep asks for git's name and email; fromGitHub says a missing
 // one was filled in from the GitHub account.
 func identityStep(name, email, problem string, notes []string, fromGitHub bool) SetupStep {
-	lines := []string{"git does not know your name and email yet: it writes them in every change it records (your notes' history)."}
+	lines := []string{i18n.T(i18n.SetupIdentityLine)}
 	if fromGitHub {
-		lines = append(lines, "Misoku filled them in from your GitHub account (the email is GitHub's private address for you); change them if you like.")
+		lines = append(lines, i18n.T(i18n.SetupIdentityGitHub))
 	}
-	return SetupStep{Ask: AskIdentity, Title: "Your name for git", Notes: notes, Name: name, Email: email, Problem: problem,
+	return SetupStep{Ask: AskIdentity, Title: i18n.T(i18n.SetupIdentityTitle), Notes: notes, Name: name, Email: email, Problem: problem,
 		FromGitHub: fromGitHub, Lines: lines,
-		Confirm: "Save them in git's global settings (git config --global), for every repository on this computer?"}
+		Confirm: i18n.T(i18n.SetupIdentitySave)}
 }
 
 // askIdentity checks git's identity once signed in (step 4): when git
@@ -747,21 +732,21 @@ func (s *Setup) saveIdentity(ctx context.Context, ans SetupAnswer) SetupStep {
 	again := func(problem string) SetupStep { return identityStep(name, email, problem, nil, false) }
 	switch {
 	case name == "" || strings.ContainsAny(name, "\n<>"):
-		return again("Type your name (any name: it is only shown in the history).")
+		return again(i18n.T(i18n.SetupTypeName))
 	case !validEmail(email):
-		return again("Type an email such as you@example.com.")
+		return again(i18n.T(i18n.SetupTypeEmail))
 	}
 	r := s.gitRunner()
 	if _, err := r.Run(ctx, "config", "--global", "user.name", name); err != nil {
-		return s.fail(ctx, fmt.Sprintf("git could not save user.name (%v).", redact(err)))
+		return s.fail(ctx, i18n.T(i18n.SetupNameNotSaved, redact(err)))
 	}
 	if _, err := r.Run(ctx, "config", "--global", "user.email", email); err != nil {
-		s.changed = append(s.changed, "Your git name was saved")
-		return s.fail(ctx, fmt.Sprintf("git could not save user.email (%v).", redact(err)))
+		s.changed = append(s.changed, i18n.T(i18n.SetupNameSaved))
+		return s.fail(ctx, i18n.T(i18n.SetupEmailNotSaved, redact(err)))
 	}
-	s.changed = append(s.changed, "Your git name and email were saved")
+	s.changed = append(s.changed, i18n.T(i18n.SetupIdentitySaved))
 	step := s.listRepos(ctx)
-	step.Notes = append([]string{"✓ git knows you: " + name + " <" + email + ">"}, step.Notes...)
+	step.Notes = append([]string{i18n.T(i18n.SetupKnowsYou, name, email)}, step.Notes...)
 	return step
 }
 
@@ -779,20 +764,20 @@ func (s *Setup) checkSignIn(ctx context.Context) SetupStep {
 	}
 	s.at = AskSignIn
 	lines := []string{
-		"Sign in to GitHub: gh shows a one-time code and opens your browser.",
-		"Sign in there and enter the code. gh keeps the access in your system's keychain; Misoku never sees it.",
+		i18n.T(i18n.SetupSignInLine),
+		i18n.T(i18n.SetupSignInKeychain),
 	}
 	if browserMissing(s.opts.OS) {
-		lines = append(lines, "This computer has no browser gh can open: when gh shows the address https://github.com/login/device, open it on any device (your phone works), sign in and enter the code.")
+		lines = append(lines, i18n.T(i18n.SetupNoBrowser))
 	}
-	return SetupStep{Ask: AskSignIn, Title: "Sign in to GitHub", Lines: lines}
+	return SetupStep{Ask: AskSignIn, Title: i18n.T(i18n.SetupSignInTitle), Lines: lines}
 }
 
 // afterSignIn goes on once gh is signed in: the identity, then the
 // repositories.
 func (s *Setup) afterSignIn(ctx context.Context) SetupStep {
 	step := s.askIdentity(ctx)
-	step.Notes = append([]string{"✓ signed in to GitHub"}, step.Notes...)
+	step.Notes = append([]string{i18n.T(i18n.SetupSignedIn)}, step.Notes...)
 	return step
 }
 
@@ -822,11 +807,11 @@ var ghVersionRe = regexp.MustCompile(`gh version (\S+)`)
 func GHInstallHint(goos string) string {
 	switch goos {
 	case "darwin":
-		return "Install it with `brew install gh` (see https://cli.github.com), then run setup again."
+		return i18n.T(i18n.SetupInstallMac)
 	case "windows":
-		return "Install it with `winget install --id GitHub.cli` (see https://cli.github.com), then run setup again."
+		return i18n.T(i18n.SetupInstallWindows)
 	}
-	return "Install it with your package manager, for example `sudo apt install gh` (see https://cli.github.com), then run setup again."
+	return i18n.T(i18n.SetupInstallLinux)
 }
 
 // signedInNow reports whether gh is signed in to GitHub. Its output
@@ -840,7 +825,7 @@ func (s *Setup) signedInNow(ctx context.Context) bool {
 // signedIn goes on after the front end ran SignInCommand.
 func (s *Setup) signedIn(ctx context.Context) SetupStep {
 	if !s.signedInNow(ctx) {
-		return s.fail(ctx, "You are not signed in to GitHub (the sign-in did not finish). Run setup again to try once more.")
+		return s.fail(ctx, i18n.T(i18n.SetupNotSignedIn))
 	}
 	return s.afterSignIn(ctx)
 }
@@ -849,11 +834,11 @@ func (s *Setup) signedIn(ctx context.Context) SetupStep {
 func (s *Setup) listRepos(ctx context.Context) SetupStep {
 	out, err := s.gh(ctx, "repo", "list", "--json", "nameWithOwner,visibility,url", "--limit", "1000")
 	if err != nil {
-		return s.fail(ctx, fmt.Sprintf("gh could not list your repositories (%v).", err))
+		return s.fail(ctx, i18n.T(i18n.SetupListFailed, err))
 	}
 	var repos []Repo
 	if err := json.Unmarshal(out, &repos); err != nil {
-		return s.fail(ctx, fmt.Sprintf("gh listed your repositories in a way Misoku does not understand (%v).", err))
+		return s.fail(ctx, i18n.T(i18n.SetupListUnreadable, err))
 	}
 	// Private first: they are the ones that can be picked.
 	sort.SliceStable(repos, func(i, j int) bool { return repos[i].Private() && !repos[j].Private() })
@@ -865,12 +850,12 @@ func (s *Setup) listRepos(ctx context.Context) SetupStep {
 func (s *Setup) askRepo(problem string) SetupStep {
 	s.at = AskRepo
 	if s.opts.Bring {
-		return SetupStep{Ask: AskRepo, Title: "Which repository has your notes?", Repos: s.repos, NewChoice: freshChoice, Problem: problem, Lines: []string{
-			"Pick the repository your other computer syncs with.",
+		return SetupStep{Ask: AskRepo, Title: i18n.T(i18n.SetupWhichBring), Repos: s.repos, NewChoice: i18n.T(i18n.SetupFreshChoice), Problem: problem, Lines: []string{
+			i18n.T(i18n.SetupPickBring),
 		}}
 	}
-	return SetupStep{Ask: AskRepo, Title: "Which repository keeps this vault?", Repos: s.repos, NewChoice: createChoice, NewFirst: true, Problem: problem, Lines: []string{
-		"Pick the repository your other computer already syncs with, or create a new private one.",
+	return SetupStep{Ask: AskRepo, Title: i18n.T(i18n.SetupWhich), Repos: s.repos, NewChoice: i18n.T(i18n.SetupCreateChoice), NewFirst: true, Problem: problem, Lines: []string{
+		i18n.T(i18n.SetupPick),
 	}}
 }
 
@@ -881,24 +866,24 @@ func (s *Setup) pick(ctx context.Context, ans SetupAnswer) SetupStep {
 	choice := ans.Choice
 	if text := strings.TrimSpace(ans.Text); text != "" {
 		if choice = FindRepo(s.repos, text); choice < 0 {
-			return s.askRepo(text + " is not one of your repositories.")
+			return s.askRepo(i18n.T(i18n.SetupNotYours, text))
 		}
 	}
 	switch {
 	case choice == len(s.repos) && s.opts.Bring:
 		s.at = SetupFinished
 		s.undo(ctx)
-		return SetupStep{Outcome: SetupStartNotes, Title: "Start my notes", Lines: []string{s.StopText("No notes to bring")}}
+		return SetupStep{Outcome: SetupStartNotes, Title: i18n.T(i18n.SetupStartTitle), Lines: []string{s.StopText(i18n.T(i18n.SetupNoNotes))}}
 	case choice == len(s.repos):
 		s.at = AskRepoName
-		return SetupStep{Ask: AskRepoName, Title: "Name of the new private repository", Default: RepoName(s.opts.Dir),
-			Lines: []string{"Misoku creates it private on GitHub and pushes your notes to it."}}
+		return SetupStep{Ask: AskRepoName, Title: i18n.T(i18n.SetupNewTitle), Default: RepoName(s.opts.Dir),
+			Lines: []string{i18n.T(i18n.SetupNewLine)}}
 	case choice < 0 || choice > len(s.repos):
-		return s.askRepo("Choose one of the listed repositories.")
+		return s.askRepo(i18n.T(i18n.SetupChooseListed))
 	}
 	repo := s.repos[choice]
 	if !repo.Private() {
-		return s.askRepo(fmt.Sprintf("%s is public: anyone could read your notes, which are stored unencrypted. Choose a private repository or create a new one (or make it private on GitHub first).", repo.Name))
+		return s.askRepo(i18n.T(i18n.SetupPublic, repo.Name))
 	}
 	// The guard first: a repository it refuses leaves everything as it
 	// was, git's access included.
@@ -956,15 +941,15 @@ func (s *Setup) create(ctx context.Context, ans SetupAnswer) SetupStep {
 		name = RepoName(s.opts.Dir)
 	}
 	again := func(problem string) SetupStep {
-		return SetupStep{Ask: AskRepoName, Title: "Name of the new private repository", Default: name, Problem: problem,
-			Lines: []string{"Misoku creates it private on GitHub and pushes your notes to it."}}
+		return SetupStep{Ask: AskRepoName, Title: i18n.T(i18n.SetupNewTitle), Default: name, Problem: problem,
+			Lines: []string{i18n.T(i18n.SetupNewLine)}}
 	}
 	if !repoNameRe.MatchString(name) || name == "." || name == ".." {
-		return again("Use only letters, digits, '-', '_' and '.' (GitHub's rule).")
+		return again(i18n.T(i18n.SetupNameRule))
 	}
 	for _, r := range s.repos {
 		if _, short, _ := strings.Cut(r.Name, "/"); strings.EqualFold(short, name) {
-			return again(fmt.Sprintf("You already have a repository named %s: pick it from the list (run setup again), or choose another name.", r.Name))
+			return again(i18n.T(i18n.SetupNameYours, r.Name))
 		}
 	}
 	// Before creating anything: a repository made for a vault that then
@@ -975,9 +960,9 @@ func (s *Setup) create(ctx context.Context, ans SetupAnswer) SetupStep {
 	out, err := s.gh(ctx, "repo", "create", name, "--private")
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "already exists") {
-			return again(fmt.Sprintf("A repository named %s already exists in your GitHub account; choose another name.", name))
+			return again(i18n.T(i18n.SetupNameTaken, name))
 		}
-		return s.fail(ctx, fmt.Sprintf("GitHub did not create the repository (%v).", err))
+		return s.fail(ctx, i18n.T(i18n.SetupCreateFailed, err))
 	}
 	page := ""
 	for _, f := range strings.Fields(string(out)) {
@@ -988,10 +973,10 @@ func (s *Setup) create(ctx context.Context, ans SetupAnswer) SetupStep {
 	u := strings.TrimPrefix(page, "https://")
 	host, path, _ := strings.Cut(u, "/")
 	if host == "" || strings.Count(strings.Trim(path, "/"), "/") != 1 {
-		s.changed = append(s.changed, "the private repository "+name+" was created on GitHub")
-		return s.fail(ctx, fmt.Sprintf("GitHub created the repository %s, but gh did not say where it is. Run setup again and pick it from the list.", name))
+		s.changed = append(s.changed, i18n.T(i18n.SetupCreatedOnGitHub, name))
+		return s.fail(ctx, i18n.T(i18n.SetupCreatedNowhere, name))
 	}
-	s.changed = append(s.changed, "the private repository "+strings.TrimSuffix(strings.Trim(path, "/"), ".git")+" was created on GitHub")
+	s.changed = append(s.changed, i18n.T(i18n.SetupCreatedOnGitHub, strings.TrimSuffix(strings.Trim(path, "/"), ".git")))
 	return s.connect(ctx, Repo{Name: strings.TrimSuffix(strings.Trim(path, "/"), ".git"), Visibility: "PRIVATE", URL: page}, true)
 }
 
@@ -1004,10 +989,10 @@ func (s *Setup) setupGit(ctx context.Context) error {
 		return nil
 	}
 	if _, err := s.gh(ctx, "auth", "setup-git", "--hostname", githubHost); err != nil {
-		return fmt.Errorf("gh could not give git the access to GitHub (%v)", err)
+		return errors.New(i18n.T(i18n.SetupGitAccessFailed, err))
 	}
 	s.gitReady = true
-	s.changed = append(s.changed, "GitHub access for git was set up with gh")
+	s.changed = append(s.changed, i18n.T(i18n.SetupGitAccess))
 	return nil
 }
 
@@ -1019,48 +1004,48 @@ func (s *Setup) connect(ctx context.Context, repo Repo, created bool) SetupStep 
 	shown := RedactURL(url)
 	var lines []string
 	if created {
-		lines = append(lines, "✓ Created the private repository "+repo.Name+".")
+		lines = append(lines, i18n.T(i18n.SetupCreated, repo.Name))
 	}
-	again := fmt.Sprintf("The repository %s is on GitHub: fix that, then run setup again and pick it.", repo.Name)
+	again := i18n.T(i18n.SetupFixAndPick, repo.Name)
 	res, err := InitVault(ctx, s.opts.Dir, InitOptions{URL: url, Device: s.vault.Device, Timeout: s.opts.InitTimeout, Now: s.opts.Now, NoPrompt: !s.opts.Interactive})
 	if err != nil {
 		s.noteInit(res)
 		return s.fail(ctx, append(lines, err.Error()+".", again)...)
 	}
 	if res.CreatedFolder {
-		lines = append(lines, "Created the folder "+s.opts.Dir+".")
+		lines = append(lines, i18n.T(i18n.GitCreatedFolder, s.opts.Dir))
 	}
 	lines = append(lines, res.Report(shown)...)
 	if res.Sync.Outcome != Synced {
 		s.noteInit(res)
-		return s.fail(ctx, append(lines, errText(res.Sync.Err)+"; nothing was lost.", again)...)
+		return s.fail(ctx, append(lines, i18n.T(i18n.SetupNothingLost, errText(res.Sync.Err)), again)...)
 	}
 	interval := s.vault.Interval
 	if !s.listed {
 		if _, err := config.AddSyncVault(s.opts.ConfigPath, s.opts.Dir); err != nil {
 			key, _ := json.Marshal(s.opts.Dir)
-			return s.fail(ctx, append(lines, fmt.Sprintf("The vault is set up, but it could not be listed in the config (%v); add it to sync.vaults by hand: {\"sync\": {\"vaults\": {%s: {}}}}", err, key))...)
+			return s.fail(ctx, append(lines, i18n.T(i18n.SetupNotListed, err, key))...)
 		}
-		lines = append(lines, fmt.Sprintf("Added %s to sync.vaults in %s.", s.opts.Dir, s.opts.ConfigPath))
+		lines = append(lines, i18n.T(i18n.GitAddedToVaults, s.opts.Dir, s.opts.ConfigPath))
 	}
-	when := "while it is open"
+	when := i18n.T(i18n.SetupWhileOpen)
 	if interval > 0 {
 		text := strings.TrimSuffix(interval.String(), "0s")
 		if strings.HasSuffix(text, "h0m") {
 			text = strings.TrimSuffix(text, "0m")
 		}
-		when = "every " + text + " while it is open"
+		when = i18n.T(i18n.SetupEvery, text)
 	}
 	lines = append(lines,
-		fmt.Sprintf("Done: Misoku syncs this vault with %s %s, when it opens it and when you quit.", repo.Name, when),
-		fmt.Sprintf("On your other computer: install Misoku, run misoku and choose \"Bring my notes from another computer\", then pick %s.", repo.Name),
+		i18n.T(i18n.SetupDone, repo.Name, when),
+		i18n.T(i18n.SetupOtherComputer, i18n.T(i18n.WelcomeBring), repo.Name),
 	)
-	return SetupStep{Outcome: SetupDone, Title: "Sync is set up", Lines: lines, Repo: repo.Name}
+	return SetupStep{Outcome: SetupDone, Title: i18n.T(i18n.SetupDoneTitle), Lines: lines, Repo: repo.Name}
 }
 
 func errText(err error) string {
 	if err == nil {
-		return "the sync did not finish"
+		return i18n.T(i18n.SetupDidNotFinish)
 	}
 	return err.Error()
 }
@@ -1071,9 +1056,9 @@ func errText(err error) string {
 func (s *Setup) fail(ctx context.Context, lines ...string) SetupStep {
 	s.at = SetupFinished
 	s.undo(ctx)
-	last := "Nothing was changed."
+	last := i18n.T(i18n.SetupNothingChanged)
 	if len(s.changed) > 0 {
-		last = "Setup stopped. " + s.changes()
+		last = i18n.T(i18n.SetupStopped, s.changes())
 	}
 	return failed(append(lines, last)...)
 }
@@ -1084,19 +1069,19 @@ func (s *Setup) fail(ctx context.Context, lines ...string) SetupStep {
 // it changed and "Nothing else changed.".
 func (s *Setup) StopText(what string) string {
 	if len(s.changed) == 0 {
-		return what + "; nothing was changed."
+		return i18n.T(i18n.SetupStopNothing, what)
 	}
-	return what + ". " + s.changes()
+	return i18n.T(i18n.SetupStopChanged, what, s.changes())
 }
 
 // changes says what the run changed, and that nothing else did.
 func (s *Setup) changes() string {
-	return strings.Join(s.changed, "; ") + ". Nothing else changed."
+	return i18n.T(i18n.SetupChanges, strings.Join(s.changed, "; "))
 }
 
 // failed ends the run with lines saying what went wrong.
 func failed(lines ...string) SetupStep {
-	return SetupStep{Outcome: SetupFailed, Title: "Sync setup stopped", Lines: lines}
+	return SetupStep{Outcome: SetupFailed, Title: i18n.T(i18n.SetupStoppedTitle), Lines: lines}
 }
 
 // tokenRe matches GitHub tokens (classic, OAuth, app and fine-grained).
@@ -1138,7 +1123,7 @@ func (s *Setup) gh(parent context.Context, args ...string) ([]byte, error) {
 	msg := strings.TrimSpace(stderr.String())
 	switch {
 	case ctx.Err() != nil:
-		msg = fmt.Sprintf("gh %s: no answer after %s", args[0], s.opts.Timeout)
+		msg = i18n.T(i18n.SetupNoAnswer, args[0], s.opts.Timeout)
 	case msg == "":
 		msg = err.Error()
 	}
@@ -1166,7 +1151,7 @@ func (s *Setup) FindGH() bool {
 // (`gh auth setup-git`). gh keeps the access; nothing here sees it.
 func (s *Setup) FinishSignIn(ctx context.Context) error {
 	if !s.signedInNow(ctx) {
-		return errors.New("the sign-in did not finish")
+		return errors.New(i18n.T(i18n.SetupSignInUnfinished))
 	}
 	return s.setupGit(ctx)
 }

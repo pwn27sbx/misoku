@@ -16,28 +16,29 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/gitsync"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // initTimeout bounds each git command of `misoku sync init`: long enough
 // to type a password or check an SSH host key. Ctrl+C stops it at once.
 const initTimeout = 10 * time.Minute
 
-const syncInitUsage = "Usage: misoku sync init <url> [--dir <folder>]"
-
 // syncUsage lists the sync commands.
-const syncUsage = syncInitUsage + "\n       misoku sync setup [--dir <folder>]   (recommended: connects a private GitHub repository for you)"
+func syncUsage() string {
+	return i18n.T(i18n.CliSyncInitUsage) + "\n" + i18n.T(i18n.CliSyncSetupLine)
+}
 
 // runSync handles "misoku sync init <url>" and "misoku sync setup".
 func runSync(args []string) int {
 	if len(args) > 0 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help") {
-		fmt.Fprintln(os.Stdout, syncUsage)
+		fmt.Fprintln(os.Stdout, syncUsage())
 		return 0
 	}
 	if len(args) > 0 && args[0] == "setup" {
 		return syncSetup(context.Background(), args[1:], os.Stdin, os.Stdout, os.Stderr, config.DefaultPath())
 	}
 	if len(args) == 0 || args[0] != "init" {
-		fmt.Fprintln(os.Stderr, syncUsage)
+		fmt.Fprintln(os.Stderr, syncUsage())
 		return 2
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -52,9 +53,9 @@ func runSync(args []string) int {
 func syncInit(ctx context.Context, args []string, stdout, stderr io.Writer, cfgPath string) int {
 	fs := flag.NewFlagSet("sync init", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dirFlag := fs.String("dir", "", "vault folder (defaults to $MISOKU_WORKSPACE, then the current directory)")
+	dirFlag := fs.String("dir", "", i18n.T(i18n.CliSyncFlagDir))
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, syncInitUsage)
+		fmt.Fprintln(stderr, i18n.T(i18n.CliSyncInitUsage))
 		fs.PrintDefaults()
 	}
 	// Allow the flag after the URL as well as before it.
@@ -70,19 +71,19 @@ func syncInit(ctx context.Context, args []string, stdout, stderr io.Writer, cfgP
 		return 2
 	}
 	url := urls[0]
-	fail := func(format string, a ...any) int {
-		fmt.Fprintf(stderr, "misoku sync init: "+format+"\n", a...)
+	fail := func(msg string) int {
+		fmt.Fprintln(stderr, "misoku sync init: "+msg)
 		return 1
 	}
 	dir, err := filepath.Abs(resolveWorkspace(*dirFlag))
 	if err != nil {
-		return fail("%v", err)
+		return fail(err.Error())
 	}
 	// Read first: a config that cannot be read could not list the vault
 	// either, so nothing is set up until it is fixed.
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		return fail("the config file %s could not be read (%v); fix it, then run init again", cfgPath, err)
+		return fail(i18n.T(i18n.CliInitBadConfig, cfgPath, err))
 	}
 	vaults, _ := cfg.Sync.Parse()
 	vault, listed := gitsync.Listed(vaults, dir)
@@ -93,36 +94,36 @@ func syncInit(ctx context.Context, args []string, stdout, stderr io.Writer, cfgP
 		}
 		// Only a new vault is refused: one already listed keeps syncing.
 		if err := gitsync.RefuseSyncFolder(dir, ""); err != nil {
-			return fail("%v", err)
+			return fail(err.Error())
 		}
 	}
 
 	shown := gitsync.RedactURL(url)
-	fmt.Fprintf(stdout, "Setting up sync of %s with %s…\n", dir, shown)
-	fmt.Fprintln(stdout, "Your notes are stored unencrypted in that repository: keep it private.")
+	fmt.Fprintln(stdout, i18n.T(i18n.CliInitSettingUp, dir, shown))
+	fmt.Fprintln(stdout, i18n.T(i18n.CliInitUnencrypted))
 	res, err := gitsync.InitVault(ctx, dir, gitsync.InitOptions{URL: url, Device: vault.Device, Timeout: initTimeout})
 	if err != nil {
-		return fail("%v", err)
+		return fail(err.Error())
 	}
 	if res.CreatedFolder {
-		fmt.Fprintf(stdout, "Created the folder %s.\n", dir)
+		fmt.Fprintln(stdout, i18n.T(i18n.GitCreatedFolder, dir))
 	}
 	report(stdout, res, shown)
 	if res.Sync.Outcome != gitsync.Synced {
-		return fail("%v\nNothing was lost; fix that, then run `misoku sync init <url>` again.", res.Sync.Err)
+		return fail(i18n.T(i18n.CliInitNothingLost, res.Sync.Err))
 	}
 	if !listed {
 		if _, err := config.AddSyncVault(cfgPath, dir); err != nil {
 			key, _ := json.Marshal(dir)
-			return fail("the vault is set up, but it could not be listed in the config (%v); add it to sync.vaults by hand:\n  {\"sync\": {\"vaults\": {%s: {}}}}", err, key)
+			return fail(i18n.T(i18n.CliInitNotListed, err, key))
 		}
-		fmt.Fprintf(stdout, "Added %s to sync.vaults in %s.\n", dir, cfgPath)
+		fmt.Fprintln(stdout, i18n.T(i18n.GitAddedToVaults, dir, cfgPath))
 	}
 	if res.AlreadySetUp && listed {
-		fmt.Fprintf(stdout, "Already set up: this folder syncs with %s (branch %s); nothing changed.\n", shown, res.Sync.Branch)
+		fmt.Fprintln(stdout, i18n.T(i18n.CliInitAlready, shown, res.Sync.Branch))
 		return 0
 	}
-	fmt.Fprintln(stdout, "Done: Misoku syncs this folder when it opens it, and with :sync.")
+	fmt.Fprintln(stdout, i18n.T(i18n.CliInitDone))
 	return 0
 }
 
@@ -136,18 +137,7 @@ func report(w io.Writer, res gitsync.InitResult, url string) {
 
 // usage is `misoku --help`: the commands, then the flags.
 func usage(w io.Writer) {
-	fmt.Fprint(w, `Usage:
-  misoku [folder] [flags]                  open your notes: the folder given, else $MISOKU_WORKSPACE,
-                                           else notes_dir in the config, else the current folder
-  misoku export <note.md> [-o out.pdf]     export a note to PDF
-  misoku paste-image [--dir <folder>]      save the picture in the clipboard under <folder>/assets
-                                           and print the path to link it (--link prints the link)
-  misoku sync setup [--dir <folder>]       sync a folder through a private GitHub repository (recommended)
-  misoku sync init <url> [--dir <folder>]  set up git sync of a folder with any git URL (SSH, other services)
-  misoku tutor [--route B|I|A|E] [--reset]  learn Misoku and Markdown by routes (--reset starts over)
-
-Flags:
-`)
+	fmt.Fprint(w, i18n.T(i18n.CliUsage))
 	fs := flag.NewFlagSet("misoku", flag.ContinueOnError)
 	defineFlags(fs)
 	fs.SetOutput(w)

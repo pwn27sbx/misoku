@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // Attributes is the .gitattributes `misoku sync init` writes: git keeps
@@ -110,10 +112,10 @@ func initVault(ctx context.Context, dir string, opts InitOptions) (InitResult, e
 
 	version, ok, err := r.Version(ctx)
 	if err != nil {
-		return res, fmt.Errorf("git did not run (%w); install git %s or newer", err, MinVersion)
+		return res, fmt.Errorf(i18n.T(i18n.GitInitDidNotRun), err, MinVersion)
 	}
 	if !ok {
-		return res, fmt.Errorf("git %s is too old; sync needs git %s or newer, update git", version, MinVersion)
+		return res, errors.New(i18n.T(i18n.GitInitTooOld, version, MinVersion))
 	}
 	if key, err := missingIdentity(ctx, r); err != nil {
 		return res, err
@@ -146,7 +148,7 @@ func initVault(ctx context.Context, dir string, opts InitOptions) (InitResult, e
 		return res, err
 	}
 	if !ok {
-		return res, errors.New("another Misoku window is syncing this vault; close it, then run `misoku sync init <url>` again")
+		return res, errors.New(i18n.T(i18n.GitAnotherWindow))
 	}
 	defer lock.Unlock()
 	if origin == "" {
@@ -163,7 +165,7 @@ func initVault(ctx context.Context, dir string, opts InitOptions) (InitResult, e
 		// again, so a mistyped URL can be fixed by running init again.
 		if res.AddedOrigin {
 			if _, rerr := r.Run(ctx, "remote", "remove", "origin"); rerr != nil {
-				res.Sync.Err = errors.Join(res.Sync.Err, redact(fmt.Errorf("could not remove origin again: %w", rerr)))
+				res.Sync.Err = errors.Join(res.Sync.Err, redact(fmt.Errorf(i18n.T(i18n.GitRemoveOrigin), rerr)))
 			} else {
 				res.AddedOrigin = false
 			}
@@ -236,7 +238,7 @@ func inspectFolder(ctx context.Context, r *Runner, url string) (isRepo bool, ori
 		return isRepo, origin, err
 	}
 	if origin != url {
-		return false, "", fmt.Errorf("this repository already has origin %s, not %s; init changed nothing. To sync with %s, run `git remote set-url origin <url>` first, or choose another folder", RedactURL(origin), RedactURL(url), RedactURL(url))
+		return false, "", errors.New(i18n.T(i18n.GitOtherOrigin, RedactURL(origin), RedactURL(url)))
 	}
 	return true, origin, nil
 }
@@ -260,7 +262,7 @@ func folderState(ctx context.Context, r *Runner) (isRepo bool, origin string, er
 		return false, "", nestedIn(ctx, r)
 	}
 	if st.Status != Ready {
-		return false, "", fmt.Errorf("%s; then run `misoku sync init <url>` again", st.Message)
+		return false, "", errors.New(i18n.T(i18n.GitThenInitAgain, st.Message))
 	}
 	out, err := r.Run(ctx, "remote")
 	if err != nil {
@@ -301,14 +303,14 @@ func (e *nestedError) tracks() bool { return e.submodule || e.tracked != "" }
 // nothing ("init" or "setup"). A folder the outer repository does not
 // track is told to get a repository of its own; one it tracks, not.
 func (e *nestedError) message(what string) string {
-	reason := fmt.Sprintf("the git repository at %s tracks files in this folder (%s)", e.top, e.tracked)
+	reason := i18n.T(i18n.GitTracksFiles, e.top, e.tracked)
 	if e.submodule {
-		reason = fmt.Sprintf("this folder is a submodule of the git repository at %s", e.top)
+		reason = i18n.T(i18n.GitSubmoduleOf, e.top)
 	}
 	if e.tracks() {
-		return fmt.Sprintf("%s, so a repository of its own would put your notes in two repositories; %s changed nothing. Move the notes to a folder outside %s, then run %s again", reason, what, e.top, what)
+		return i18n.T(i18n.GitTwoRepos, reason, what, e.top)
 	}
-	return fmt.Sprintf("this folder is inside the git repository at %s, and syncing it would commit that whole repository; %s changed nothing. Give the vault a repository of its own: move it outside %s, or run `git init` in this folder (the outer repository then sees it as a nested one), then run %s again; `misoku sync setup` offers to run `git init` for you", e.top, what, e.top, what)
+	return i18n.T(i18n.GitInsideRepo, e.top, what)
 }
 
 // Error is the refusal in init's words.
@@ -386,7 +388,7 @@ func makeFolder(dir string) (bool, error) {
 	info, err := os.Stat(dir)
 	if err == nil {
 		if !info.IsDir() {
-			return false, fmt.Errorf("%s is not a folder", dir)
+			return false, errors.New(i18n.T(i18n.GitNotAFolder, dir))
 		}
 		return false, nil
 	}
@@ -395,7 +397,7 @@ func makeFolder(dir string) (bool, error) {
 	}
 	parent := filepath.Dir(dir)
 	if info, err := os.Stat(parent); err != nil || !info.IsDir() {
-		return false, fmt.Errorf("%s does not exist, nor does its folder %s; create it first, or choose another folder", dir, parent)
+		return false, errors.New(i18n.T(i18n.GitNoParent, dir, parent))
 	}
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return false, err
@@ -427,7 +429,7 @@ func hasNotes(ctx context.Context, r *Runner) (bool, error) {
 func originAttributes(ctx context.Context, r *Runner, branch string) (string, SyncOutcome, error) {
 	tracking := "refs/remotes/origin/" + branch
 	if _, err := r.Run(ctx, "fetch", "--quiet", "--no-tags", "origin", "+refs/heads/"+branch+":"+tracking); err != nil {
-		o, err := remoteFailure(r, "could not fetch from origin", err)
+		o, err := remoteFailure(r, i18n.T(i18n.GitCouldNotFetch), err)
 		return "", o, err
 	}
 	out, err := r.Run(ctx, "cat-file", "-e", tracking+":.gitattributes")
@@ -466,19 +468,19 @@ func writeAttributes(p, content string) (bool, error) {
 func (res InitResult) Report(url string) []string {
 	var lines []string
 	if res.CreatedRepo {
-		lines = append(lines, fmt.Sprintf("Created a git repository (branch %s).", res.Branch))
+		lines = append(lines, i18n.T(i18n.GitReportRepo, res.Branch))
 	}
 	if res.AddedOrigin {
-		lines = append(lines, fmt.Sprintf("Added origin %s.", url))
+		lines = append(lines, i18n.T(i18n.GitReportOrigin, url))
 	}
 	if res.WroteAttributes {
-		lines = append(lines, "Wrote .gitattributes (* -text): files stay byte for byte, with no line-ending conversion.")
+		lines = append(lines, i18n.T(i18n.GitReportAttrs))
 	}
 	if res.KeptAttributes {
-		lines = append(lines, "Kept your .gitattributes as it is; add the line `* -text` to it so line endings never change between systems.")
+		lines = append(lines, i18n.T(i18n.GitReportKeptAttrs))
 	}
 	for _, big := range res.Sync.Commit.Skipped {
-		lines = append(lines, fmt.Sprintf("Left out %s (%d MB): files that big do not sync.", big.Path, big.Size>>20))
+		lines = append(lines, i18n.T(i18n.GitReportLeftOut, big.Path, big.Size>>20))
 	}
 	// The files that do not sync as plain files (S15), in the words
 	// `:sync status` uses.
@@ -486,24 +488,20 @@ func (res InitResult) Report(url string) []string {
 		lines = append(lines, n.String())
 	}
 	if res.Files > 0 {
-		noun := "files"
-		if res.Files == 1 {
-			noun = "file"
-		}
-		lines = append(lines, fmt.Sprintf("Committed %d %s.", res.Files, noun))
+		lines = append(lines, i18n.N(i18n.GitReportCommitted, res.Files, res.Files))
 	}
 	if res.Sync.Updated {
-		lines = append(lines, "Brought origin's notes.")
+		lines = append(lines, i18n.T(i18n.GitReportBrought))
 	}
 	if n := len(res.Sync.Conflicts); n > 0 {
-		lines = append(lines, fmt.Sprintf("Kept both versions of %d note(s) changed on both sides; the other version is in:", n))
+		lines = append(lines, i18n.T(i18n.GitReportConflicts, n))
 		for _, c := range res.Sync.Conflicts {
 			lines = append(lines, "  "+c)
 		}
-		lines = append(lines, "Resolve each by deleting the copy (or copying what you want into the note).")
+		lines = append(lines, i18n.T(i18n.GitReportResolve))
 	}
 	if res.Sync.Pushed {
-		lines = append(lines, fmt.Sprintf("Pushed to origin (branch %s).", res.Sync.Branch))
+		lines = append(lines, i18n.T(i18n.GitReportPushed, res.Sync.Branch))
 	}
 	return lines
 }

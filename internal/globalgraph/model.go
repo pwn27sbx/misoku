@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 )
@@ -649,30 +650,31 @@ func (m Model) View() string {
 // included: the toggles only say they hide them. A filter shows with its
 // number of matches. In a narrow pane fitTitle decides what is left out.
 func (m Model) titleLine(th theme.Theme) string {
-	name := "All notes"
+	name := i18n.T(i18n.GraphAllNotes)
 	if n, ok := m.l.Lookup(m.sel); ok {
 		name = n.Label
 	}
-	orphans, unresolved := plural(m.orphans, "orphan"), fmt.Sprintf("%d unresolved", m.unresolved)
+	orphans, unresolved := i18n.N(i18n.GraphOrphans, m.orphans, m.orphans), i18n.N(i18n.GraphUnresolved, m.unresolved, m.unresolved)
 	orphansDrop, unresolvedDrop := 3, 4
 	if m.hideOrphans {
-		orphans, orphansDrop = orphans+" hidden", 0
+		orphans, orphansDrop = i18n.N(i18n.GraphOrphansHidden, m.orphans, m.orphans), 0
 	}
 	if m.hideUnresolved {
-		unresolved, unresolvedDrop = unresolved+" hidden", 0
+		unresolved, unresolvedDrop = i18n.N(i18n.GraphUnresolvedHidden, m.unresolved, m.unresolved), 0
 	}
 	parts := []titlePart{
 		{text: " "},
 		{text: "󰈙 " + ui.Truncate(name, 40), style: titleName, cut: true, keep: 2},
-		{text: " · " + plural(m.notes, "note"), style: titleInfo, drop: 2},
-		{text: " · " + plural(m.links, "link"), style: titleInfo, drop: 1},
+		{text: " · " + i18n.N(i18n.GraphNotes, m.notes, m.notes), style: titleInfo, drop: 2},
+		{text: " · " + i18n.N(i18n.GraphLinks, m.links, m.links), style: titleInfo, drop: 1},
 		{text: " · " + orphans, style: titleInfo, drop: orphansDrop},
 		{text: " · " + unresolved, style: titleInfo, drop: unresolvedDrop},
 	}
 	if m.filter != "" {
+		on, matches := i18n.T(i18n.GraphFilterOn), m.matches()
 		parts = append(parts,
-			titlePart{text: fmt.Sprintf(" · filter %q", m.filter), style: titleInfo, cut: true, keep: ansi.StringWidth(` · filter "`)},
-			titlePart{text: ": " + plural(m.matches(), "match"), style: titleInfo})
+			titlePart{text: on + fmt.Sprintf("%q", m.filter), style: titleInfo, cut: true, keep: ansi.StringWidth(on + `"`)},
+			titlePart{text: ": " + i18n.N(i18n.GraphMatches, matches, matches), style: titleInfo})
 	}
 	styles := [...]lipgloss.Style{
 		titlePlain: lipgloss.NewStyle(),
@@ -767,16 +769,6 @@ func fitTitle(parts []titlePart, w int, styles [3]lipgloss.Style) string {
 // titleMore ends a title row that left counters out.
 const titleMore = " · …"
 
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	if strings.HasSuffix(word, "ch") {
-		return fmt.Sprintf("%d %ses", n, word)
-	}
-	return fmt.Sprintf("%d %ss", n, word)
-}
-
 // matches counts the nodes shown that the filter matches.
 func (m Model) matches() int {
 	q, n := strings.ToLower(m.filter), 0
@@ -795,46 +787,43 @@ type button struct {
 	enabled       bool
 }
 
-var (
-	longLabels  = [5]string{" − ", " + ", " 0 centre ", " esc back ", " reset "}
-	shortLabels = [5]string{" − ", " + ", " 0 ", " esc ", " reset "}
-	// The filter's and the toggles' buttons come after those, only where
-	// the pane has room for them as well.
-	longExtra  = []string{" / filter ", " o orphans ", " u unresolved "}
-	shortExtra = []string{" / ", " o ", " u "}
-)
-
-// Hint row tails, longest first.
-const (
-	tailFull   = "  hjkl move · n/N links · enter open · click: preview, again: open · scroll: zoom · drag: move"
-	tailDrag   = "  hjkl move · n/N links · enter open · drag: move"
-	tailOpen   = "  hjkl move · n/N links · enter open"
-	tailKeys   = "  hjkl · n/N · enter"
-	tailNarrow = "  hjkl · enter"
-)
-
 // hints are the hint row's layouts, widest first: the buttons' labels (in
 // buttons() order), then the other keys and what the mouse does. The
-// first that fits the pane is used; the last fits MinWidth.
-var hints = []struct {
+// first that fits the pane is used; the last fits MinWidth. The filter's
+// and the toggles' buttons come after the first five, only where the pane
+// has room for them as well. They are built when drawn, in the language
+// in use.
+func hints() []hintLayout {
+	long := [5]string{" − ", " + ", " 0 " + i18n.T(i18n.GraphCentre) + " ", " esc " + i18n.T(i18n.GraphBack) + " ", " " + i18n.T(i18n.GraphReset) + " "}
+	short := [5]string{" − ", " + ", " 0 ", " esc ", " " + i18n.T(i18n.GraphReset) + " "}
+	longExtra := []string{" / " + i18n.T(i18n.GraphFilter) + " ", " o " + i18n.T(i18n.GraphOrphansBtn) + " ", " u " + i18n.T(i18n.GraphUnresBtn) + " "}
+	shortExtra := []string{" / ", " o ", " u "}
+	full, drag, open := i18n.T(i18n.GraphMapTailFull), i18n.T(i18n.GraphMapTailDrag), i18n.T(i18n.GraphMapTailOpen)
+	const keys, narrow = "  hjkl · n/N · enter", "  hjkl · enter"
+	return []hintLayout{
+		{long, longExtra, full},
+		{long, longExtra, drag},
+		{long, longExtra, open},
+		{long, shortExtra, drag},
+		{long, shortExtra, open},
+		{long, shortExtra, keys},
+		{long, nil, keys},
+		{short, nil, keys},
+		{short, nil, narrow},
+		{short, nil, ""},
+	}
+}
+
+// hintLayout is one layout of the hint row.
+type hintLayout struct {
 	labels [5]string
 	extra  []string
 	tail   string
-}{
-	{longLabels, longExtra, tailFull},
-	{longLabels, longExtra, tailDrag},
-	{longLabels, longExtra, tailOpen},
-	{longLabels, shortExtra, tailDrag},
-	{longLabels, shortExtra, tailOpen},
-	{longLabels, shortExtra, tailKeys},
-	{longLabels, nil, tailKeys},
-	{shortLabels, nil, tailKeys},
-	{shortLabels, nil, tailNarrow},
-	{shortLabels, nil, ""},
 }
 
 func (m Model) hint() (labels []string, tail string) {
-	for _, h := range hints {
+	all := hints()
+	for _, h := range all {
 		labels = append(h.labels[:], h.extra...)
 		w := 1 + len(labels) - 1 + ansi.StringWidth(h.tail)
 		for _, l := range labels {
@@ -844,7 +833,7 @@ func (m Model) hint() (labels []string, tail string) {
 			return labels, h.tail
 		}
 	}
-	last := hints[len(hints)-1]
+	last := all[len(all)-1]
 	return last.labels[:], last.tail
 }
 

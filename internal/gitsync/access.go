@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // accessProblems are what git, ssh or a credential helper print when
@@ -16,21 +18,18 @@ import (
 // user already runs init in a terminal.
 var accessProblems = []struct {
 	signs    []string // any of them, lowercased
-	hint     string
-	initHint string
+	hint     i18n.Key
+	initHint i18n.Key
 }{
 	{[]string{"remote host identification has changed", "has changed and you have requested strict checking"},
-		"origin's SSH host key changed, which can mean an attack or a reinstalled server: check the key with ssh in a terminal before syncing again", ""},
+		i18n.GitHostKeyChanged, ""},
 	{[]string{"host key verification failed", "host key is known for", "no ed25519 host key is known", "no rsa host key is known", "no ecdsa host key is known"},
-		"origin's SSH host key is not known yet: run `misoku sync init <url>` in a terminal once to accept it",
-		"origin's SSH host key was not accepted: check that the address is right and accept the key when ssh asks, then run init again"},
+		i18n.GitHostKeyUnknown, i18n.GitHostKeyRefused},
 	{[]string{"permission denied (publickey", "permission denied, please try again"},
-		"origin refused your SSH key: add the key to your account (and to ssh-agent), or run `misoku sync init <url>` in a terminal",
-		"origin refused your SSH key: add the key to your account (and to ssh-agent), then run init again"},
+		i18n.GitKeyRefused, i18n.GitKeyRefusedInit},
 	{[]string{"could not read username", "could not read password", "authentication failed", "terminal prompts disabled",
 		"invalid username or password", "http basic: access denied", "returned error: 401", "returned error: 403", "repository not found"},
-		"could not sign in to origin: run `gh auth setup-git` (GitHub over HTTPS) or set up your git credentials, then `misoku sync init <url>` in a terminal if it still fails",
-		"could not sign in to origin: check the URL, then run `gh auth setup-git` (GitHub over HTTPS) or set up your git credentials, then run init again"},
+		i18n.GitSignInFailed, i18n.GitSignInFailedInit},
 }
 
 // remoteFailure is the outcome of a talk with origin that failed (what
@@ -46,7 +45,7 @@ func remoteFailure(r *Runner, what string, err error) (SyncOutcome, error) {
 				if r.interactive && p.initHint != "" {
 					hint = p.initHint
 				}
-				return SyncDenied, fmt.Errorf("%s (%s: %w)", hint, what, err)
+				return SyncDenied, fmt.Errorf("%s (%s: %w)", i18n.T(hint), what, err)
 			}
 		}
 	}
@@ -72,7 +71,7 @@ func pushRefusal(porcelain []byte) (rejected bool, refused string) {
 			return true, ""
 		}
 		if summary == "" {
-			summary = "no reason given"
+			summary = i18n.T(i18n.GitNoReason)
 		}
 		return false, summary
 	}

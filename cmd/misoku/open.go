@@ -3,11 +3,11 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"io/fs"
 	"os"
 
 	"github.com/pwn27sbx/misoku/internal/config"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 )
 
 // workspaceSource says where the folder misoku opens came from.
@@ -60,7 +60,7 @@ func pickWorkspace(in workspaceInput) workspaceChoice {
 	notes, err := in.Config.NotesFolder()
 	switch {
 	case err != nil:
-		warning = fmt.Sprintf("Ignoring %v", err)
+		warning = i18n.T(i18n.CliIgnoring, err)
 	case notes != "":
 		// Only a folder that is surely gone counts as missing; any other
 		// trouble is reported when the folder is opened.
@@ -100,5 +100,5 @@ func parseOpenArgs(fs *flag.FlagSet, args []string) (*options, string, error) {
 
 // missingNotesMessage explains a remembered notes folder that is gone.
 func missingNotesMessage(dir string) string {
-	return fmt.Sprintf("Your notes folder %s is missing; open another with misoku <folder>", dir)
+	return i18n.T(i18n.CliNotesMissing, dir)
 }
