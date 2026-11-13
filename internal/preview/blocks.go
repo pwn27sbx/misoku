@@ -1,9 +1,11 @@
 package preview
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
 	"github.com/charmbracelet/lipgloss"
@@ -54,8 +56,28 @@ type CalendarView struct {
 	Notes NoteLookup
 }
 
-// calendarNav is the clickable header on every calendar.
-const calendarNav = "‹  Today  ›"
+// calendarNav is the clickable header on every calendar, in the interface
+// language.
+func calendarNav() string { return "‹  " + i18n.T(i18n.PreviewToday) + "  ›" }
+
+// monthName is m's name in the interface language: "January", or "Jan" when
+// short.
+func monthName(m time.Month, short bool) string {
+	key := i18n.PreviewMonths
+	if short {
+		key = i18n.PreviewMonthsShort
+	}
+	if names := strings.Split(i18n.T(key), ","); int(m) >= 1 && int(m) <= len(names) {
+		return names[m-1]
+	}
+	return m.String()
+}
+
+// monthYear names t's month and year: "January 2026", or "Jan 2026" when
+// short.
+func monthYear(t time.Time, short bool) string {
+	return monthName(t.Month(), short) + " " + strconv.Itoa(t.Year())
+}
 
 // renderBlock draws the special fenced blocks (board, calendar, timeline,
 // chart, form, flow, math). ok is false for ordinary code.

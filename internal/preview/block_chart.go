@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/ui"
 
@@ -92,9 +93,11 @@ func renderChart(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 	if t := meta["title"]; t != "" {
 		out = append(out, lipgloss.NewStyle().Foreground(th.Fg).Bold(true).Render(t), "")
 	}
+	add := i18n.T(i18n.PreviewAddValue)
+	addW := ansi.StringWidth(add) + 2 // the click reaches a little past the label
 	if len(data) == 0 {
-		addHit(hs, Hit{Row: len(out) + 1, X1: 13, Kind: "chart:add", Line: -1})
-		return append(out, muted.Render("(empty chart: add \"Label: 12\" lines)"), muted.Render("+ Add value"))
+		addHit(hs, Hit{Row: len(out) + 1, X1: addW, Kind: "chart:add", Line: -1})
+		return append(out, muted.Render(i18n.T(i18n.PreviewChartEmpty)), muted.Render(add))
 	}
 	height := 10
 	if h, err := strconv.Atoi(meta["height"]); err == nil && h >= 3 && h <= 30 {
@@ -117,8 +120,8 @@ func renderChart(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 		addHit(hs, h)
 	}
 	out = append(out, chart...)
-	addHit(hs, Hit{Row: len(out), X1: 13, Kind: "chart:add", Line: -1})
-	return append(out, muted.Render("+ Add value"))
+	addHit(hs, Hit{Row: len(out), X1: addW, Kind: "chart:add", Line: -1})
+	return append(out, muted.Render(add))
 }
 
 func maxValue(data []datum) float64 {

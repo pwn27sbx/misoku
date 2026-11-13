@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
@@ -153,7 +154,7 @@ func drawFlowBox(cv *flowCanvas, n *flowNode) {
 func renderFlow(body []string, th theme.Theme, width int, _ *[]Hit) []string {
 	g := parseFlow(body)
 	if len(g.nodes) == 0 {
-		return []string{lipgloss.NewStyle().Foreground(th.GreyFg).Render("Empty flowchart: write lines like  a[Start] --> b[Next]")}
+		return []string{lipgloss.NewStyle().Foreground(th.GreyFg).Render(i18n.T(i18n.PreviewFlowEmpty))}
 	}
 	// Shrink the boxes until the diagram fits; a left-to-right diagram
 	// that still doesn't fit is drawn top to bottom instead.

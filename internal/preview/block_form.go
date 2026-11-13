@@ -1,7 +1,7 @@
 package preview
 
 import (
-	"fmt"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 	"strconv"
 	"strings"
@@ -65,14 +65,14 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 	}
 	title := meta["title"]
 	if title == "" {
-		title = "Form title"
+		title = i18n.T(i18n.PreviewFormTitle)
 	}
 	addHit(hs, Hit{Row: 0, X1: w, Kind: "form:title", Line: lineOf("title"), Arg: meta["title"]})
 	out := []string{text.Bold(true).Render(strings.ToUpper(title[:1]) + title[1:])}
 	desc := meta["description"]
 	addHit(hs, Hit{Row: 1, X1: w, Kind: "form:desc", Line: lineOf("description"), Arg: desc})
 	if desc == "" {
-		out = append(out, faint.Render("Description (optional)"))
+		out = append(out, faint.Render(i18n.T(i18n.PreviewFormDescription)))
 	} else {
 		out = append(out, muted.Render(desc))
 	}
@@ -121,7 +121,7 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 		}
 		switch q.kind {
 		case "choice", "select", "radio":
-			lines = append(lines, faint.Render("(Respondents can select up to 1)"))
+			lines = append(lines, faint.Render(i18n.T(i18n.PreviewFormUpTo, 1)))
 			for i, o := range q.options {
 				mark("form:option", 1, i)
 				if chosen[o] {
@@ -131,9 +131,9 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 				}
 			}
 			mark("form:addopt", 1, 0)
-			lines = append(lines, faint.Render("+ Add option"))
+			lines = append(lines, faint.Render(i18n.T(i18n.PreviewFormAddOption)))
 		case "multi", "checkbox", "checkboxes":
-			lines = append(lines, faint.Render(fmt.Sprintf("(Respondents can select up to %d)", len(q.options))))
+			lines = append(lines, faint.Render(i18n.T(i18n.PreviewFormUpTo, len(q.options))))
 			for i, o := range q.options {
 				mark("form:multi", 1, i)
 				if chosen[o] {
@@ -143,7 +143,7 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 				}
 			}
 			mark("form:addopt", 1, 0)
-			lines = append(lines, faint.Render("+ Add option"))
+			lines = append(lines, faint.Render(i18n.T(i18n.PreviewFormAddOption)))
 		case "rating":
 			n, _ := strconv.Atoi(q.answer)
 			var stars []string
@@ -157,13 +157,13 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 			}
 			lines = append(lines, lipgloss.NewStyle().Foreground(th.Yellow).Render(strings.Join(stars, " ")))
 		case "date":
-			answerBox("󰃭 Pick a date (YYYY-MM-DD)", 1)
+			answerBox("󰃭 "+i18n.T(i18n.PreviewFormDate), 1)
 		case "long", "paragraph":
-			answerBox("Long answer", 3)
+			answerBox(i18n.T(i18n.PreviewFormLong), 3)
 		case "email":
-			answerBox("name@example.com", 1)
+			answerBox(i18n.T(i18n.PreviewFormEmail), 1)
 		default:
-			answerBox("Respondent's answer", 1)
+			answerBox(i18n.T(i18n.PreviewFormAnswer), 1)
 		}
 		cardStart := len(out)
 		for _, h := range local {
@@ -174,9 +174,9 @@ func renderForm(body []string, th theme.Theme, width int, hs *[]Hit) []string {
 		out = append(out, "")
 	}
 	if len(qs) == 0 {
-		out = append(out, faint.Render("(add questions: \"? Question\", \"? Pick one (choice): A | B\")"))
+		out = append(out, faint.Render(i18n.T(i18n.PreviewFormNoQuestions)))
 	}
 	addHit(hs, Hit{Row: len(out), X1: w, Kind: "form:addq", Line: -1})
-	out = append(out, center(accent.Render("⊕ add question"), w))
+	out = append(out, center(accent.Render(i18n.T(i18n.PreviewFormAddQuestion)), w))
 	return out
 }

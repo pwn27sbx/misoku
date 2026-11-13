@@ -1,25 +1,51 @@
 package preview
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 // The helpers below let other renderers (the PDF export) reuse the preview's
 // parsing and block drawing.
 
-// controls are the clickable bits of the views, which mean nothing on paper;
-// longer labels come first so "+ New page" goes before "+ New".
-var controls = []string{"⊕ add question", "+ Add option", "+ Add value", "+ New page", calendarNav, "+ New"}
+// controls are the clickable bits of the views, which mean nothing on paper,
+// in the interface language; longer labels come first so "+ New page" goes
+// before "+ New".
+func controls() []string {
+	c := []string{
+		i18n.T(i18n.PreviewFormAddQuestion), i18n.T(i18n.PreviewFormAddOption), i18n.T(i18n.PreviewAddValue),
+		i18n.T(i18n.PreviewNewPage), calendarNav(), i18n.T(i18n.PreviewTimelineNew),
+	}
+	sort.SliceStable(c, func(i, j int) bool { return len(c[i]) > len(c[j]) })
+	return c
+}
+
+// editingHint reports whether the plain text of a row is one of the views'
+// editing hints ("(empty board: …)"), maybe cut short.
+func editingHint(text string) bool {
+	text = strings.TrimSuffix(text, "…")
+	if text == "" {
+		return false
+	}
+	for _, key := range []i18n.Key{i18n.PreviewBoardEmpty, i18n.PreviewChartEmpty, i18n.PreviewTimelineEmpty, i18n.PreviewFormNoQuestions} {
+		if strings.HasPrefix(i18n.T(key), text) {
+			return true
+		}
+	}
+	return false
+}
 
 // PrintBlockLines draws a special fenced block (board, calendar, timeline,
 // chart, form, flow) as styled terminal lines width cells wide, without its
 // clickable controls or editing hints. ok is false for ordinary code.
 func PrintBlockLines(lang string, body []string, th theme.Theme, width int) (lines []string, ok bool) {
 	drawn, _, ok := renderBlock(lang, body, th, width, CalendarView{})
+	controls := controls()
 	for _, l := range drawn {
 		plain := ansi.Strip(l)
 		rest, found := plain, false
@@ -29,7 +55,7 @@ func PrintBlockLines(lang string, body []string, th theme.Theme, width int) (lin
 			}
 		}
 		hint := strings.TrimSpace(plain)
-		if found && strings.Trim(rest, " │") == "" || strings.HasPrefix(hint, "(empty ") || strings.HasPrefix(hint, "(add questions") {
+		if found && strings.Trim(rest, " │") == "" || editingHint(hint) {
 			continue // a row holding only controls or an editing hint
 		}
 		if found {

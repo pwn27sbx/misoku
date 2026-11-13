@@ -1,7 +1,7 @@
 package preview
 
 import (
-	"fmt"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/ui"
 	"regexp"
 	"sort"
@@ -294,7 +294,7 @@ func compileBlocks(input string, th theme.Theme, look Look, contentWidth int, ba
 	defer endImages()
 	defer func() {
 		if r := recover(); r != nil {
-			out = fmt.Sprintf("Error rendering preview: %v", r)
+			out = i18n.T(i18n.PreviewRenderError, r)
 			hits, blocks, failed = nil, nil, true
 		}
 	}()
@@ -479,7 +479,7 @@ func (c *compiler) compile(input string) {
 			if folded {
 				c.pending[len(c.pending)-1].Folded = true
 				hidden := sectionLength(lines, i, level)
-				heading[len(heading)-1] += c.st.muted.Render(fmt.Sprintf("  … %d lines", hidden))
+				heading[len(heading)-1] += c.st.muted.Render("  " + i18n.N(i18n.PreviewHiddenLines, hidden, hidden))
 				c.emit(heading...)
 				i = end - 1 // the section's lines draw nothing
 				continue

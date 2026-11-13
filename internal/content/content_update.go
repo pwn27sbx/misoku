@@ -8,6 +8,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/clipimage"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 
 	"github.com/atotto/clipboard"
@@ -126,7 +127,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 					m.closeCommandLine()
 					focus := m.focusTextarea()
 					if !m.tableOp(op) {
-						return m, tea.Batch(focus, func() tea.Msg { return core.StatusMsg{Text: "Not in a table", Error: true} })
+						return m, tea.Batch(focus, func() tea.Msg { return core.StatusMsg{Text: i18n.T(i18n.EditorNotInTable), Error: true} })
 					}
 					return m, focus
 				}
@@ -432,7 +433,7 @@ func (m Model) handleVisualKey(k tea.KeyMsg) (Model, tea.Cmd) {
 func (m *Model) paste(before bool) tea.Cmd {
 	text, err := readClipboard()
 	if err != nil || text == "" {
-		return func() tea.Msg { return core.StatusMsg{Text: "Clipboard is empty or unavailable", Error: err != nil} }
+		return func() tea.Msg { return core.StatusMsg{Text: i18n.T(i18n.EditorClipboardEmpty), Error: err != nil} }
 	}
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if from, to, ok := m.cursorBlock(); ok {
@@ -511,7 +512,7 @@ func (m Model) pasteCmd() tea.Cmd {
 		msg := pasteText()
 		if err != nil && errors.Is(err, clipimage.ErrNoTool) {
 			if _, failed := msg.(error); failed || msg == nil {
-				return core.StatusMsg{Text: "Paste image needs " + pasteHint(), Error: true}
+				return core.StatusMsg{Text: i18n.T(i18n.EditorPasteNeeds, pasteHint()), Error: true}
 			}
 		}
 		if _, refused := msg.(core.StatusMsg); !refused {

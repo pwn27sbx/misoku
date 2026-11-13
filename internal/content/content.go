@@ -10,6 +10,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/highlight"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 	"github.com/pwn27sbx/misoku/internal/theme"
@@ -64,7 +65,7 @@ type Model struct {
 // New constructs a Content Model.
 func New(th theme.Theme) Model {
 	ta := textarea.New()
-	ta.Placeholder = "Start writing… (i to insert)"
+	ta.Placeholder = i18n.T(i18n.EditorPlaceholder)
 	ta.Prompt = ""
 	ta.ShowLineNumbers = true
 	ta.EndOfBufferCharacter = '~'

@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/textarea"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
@@ -51,7 +52,7 @@ func parseVimCommand(cmdStr, content string) any {
 	// The catalog (Commands) lists every command, so the palette shows
 	// them all: a name it lacks is not a command.
 	if name != "" && !isCommand(name) {
-		return core.StatusMsg{Text: "E492: Not an editor command: " + cmdStr, Error: true}
+		return core.StatusMsg{Text: i18n.T(i18n.EditorNotACommand, cmdStr), Error: true}
 	}
 	switch name {
 	case "":
@@ -77,26 +78,26 @@ func parseVimCommand(cmdStr, content string) any {
 		case "all":
 			return core.GlobalGraphMsg{}
 		}
-		return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :graph or :graph all)", Error: true}
+		return core.StatusMsg{Text: i18n.T(i18n.EditorTrailingGraph, arg), Error: true}
 	case "daily":
 		if arg != "" {
-			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :daily)", Error: true}
+			return core.StatusMsg{Text: i18n.T(i18n.EditorTrailing, arg, ":daily"), Error: true}
 		}
 		return core.DailyNoteMsg{}
 	case "history":
 		if arg != "" {
-			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :history)", Error: true}
+			return core.StatusMsg{Text: i18n.T(i18n.EditorTrailing, arg, ":history"), Error: true}
 		}
 		return core.HistoryMsg{}
 	case "tags":
 		if arg != "" {
-			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :tags)", Error: true}
+			return core.StatusMsg{Text: i18n.T(i18n.EditorTrailing, arg, ":tags"), Error: true}
 		}
 		return core.TagsMsg{}
 	case "status":
 		st := core.ParseStatus(arg)
 		if arg != "" && st == core.StatusNone {
-			return core.StatusMsg{Text: "E474: Invalid argument: " + arg + " (use active, onhold, completed or dropped)", Error: true}
+			return core.StatusMsg{Text: i18n.T(i18n.EditorBadStatus, arg), Error: true}
 		}
 		return core.StatusFilterMsg{Status: st}
 	case "mes", "messages":
@@ -110,12 +111,12 @@ func parseVimCommand(cmdStr, content string) any {
 		case "setup":
 			return core.SyncSetupMsg{}
 		}
-		return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :sync, :sync status or :sync setup)", Error: true}
+		return core.StatusMsg{Text: i18n.T(i18n.EditorTrailingSync, arg), Error: true}
 	case "colorscheme", "colo", "theme":
 		return core.ThemeMsg{Name: arg}
 	case "settings":
 		if arg != "" {
-			return core.StatusMsg{Text: "E488: Trailing characters: " + arg + " (use :settings)", Error: true}
+			return core.StatusMsg{Text: i18n.T(i18n.EditorTrailing, arg, ":settings"), Error: true}
 		}
 		return core.SettingsMsg{}
 	case "enew", "new":
@@ -128,7 +129,7 @@ func parseVimCommand(cmdStr, content string) any {
 		}
 		return core.VimEditMsg{Target: arg}
 	}
-	return core.StatusMsg{Text: "E492: Not an editor command: " + cmdStr, Error: true}
+	return core.StatusMsg{Text: i18n.T(i18n.EditorNotACommand, cmdStr), Error: true}
 }
 
 func createCommandInput(th theme.Theme) textinput.Model {

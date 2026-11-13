@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -86,7 +87,7 @@ func (c *compiler) inlineText(s string, base lipgloss.Style, withTags bool) stri
 
 		case strings.HasPrefix(rest, "!["):
 			if text, _, n, ok := linkAt(rest[1:]); ok {
-				emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 " + orDefault(text, "image")))
+				emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 " + orDefault(text, i18n.T(i18n.PreviewImage))))
 				i += 1 + n
 				continue
 			}
@@ -120,7 +121,7 @@ func (c *compiler) inlineText(s string, base lipgloss.Style, withTags bool) stri
 			case strings.HasPrefix(lower, "<http"):
 				emit(markLink("url", tag[1:len(tag)-1], c.st.link.Render(tag[1:len(tag)-1])))
 			case strings.HasPrefix(lower, "<img"):
-				emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 " + orDefault(attr(altAttr, tag), "image")))
+				emit(lipgloss.NewStyle().Foreground(c.st.th.Purple).Render("󰋩 " + orDefault(attr(altAttr, tag), i18n.T(i18n.PreviewImage))))
 			case strings.HasPrefix(lower, "<a "):
 				closeIdx := strings.Index(strings.ToLower(rest), "</a>")
 				if closeIdx > end {

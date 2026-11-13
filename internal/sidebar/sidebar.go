@@ -9,6 +9,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/dirbuf"
 	"github.com/pwn27sbx/misoku/internal/dirplan"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
@@ -67,7 +68,7 @@ type Model struct {
 func New(th theme.Theme) Model {
 	ti := textinput.New()
 	ti.Prompt = ""
-	ti.Placeholder = "name"
+	ti.Placeholder = i18n.T(i18n.SidebarNamePlaceholder)
 	ti.CharLimit = 128
 
 	return Model{
