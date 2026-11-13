@@ -9,6 +9,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/content"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -310,7 +311,7 @@ func (m *Model) tutorChanged(l tutor.Lesson, before []bool) tea.Cmd {
 			continue
 		}
 		if g.store.Passed(l, i+1) {
-			g.flash = fmt.Sprintf("✓ Paso %d", i+1)
+			g.flash = i18n.T(i18n.TutorStepFlash, i+1)
 			g.flashSeq++
 			cmds = append(cmds, tutorFlashCmd(g.flashSeq))
 			break
@@ -369,14 +370,14 @@ func (m *Model) tutorLine() string {
 		}
 	}
 	if skipped == len(l.Steps) {
-		return l.ID + " · Necesitas git para esta lección"
+		return i18n.T(i18n.TutorNeedsGit, l.ID)
 	}
 	if g.store.LessonDone(l) {
 		r, ok := g.cat.RouteOfLesson(l.ID)
 		if ok && g.store.RouteDone(r) {
-			return "🏆 Ruta " + r.Name + " completa"
+			return i18n.T(i18n.TutorRouteDone, r.Name)
 		}
-		next := "Después del tutorial"
+		next := i18n.T(i18n.TutorAfterTutorial)
 		if ok {
 			if n, yes := g.cat.NextLesson(r.ID, l.ID); yes {
 				next = n.Title
@@ -389,13 +390,13 @@ func (m *Model) tutorLine() string {
 				}
 			}
 		}
-		return fmt.Sprintf("✓ %s superado · siguiente: %s", l.ID, next)
+		return i18n.T(i18n.TutorLessonPassed, l.ID, next)
 	}
 	step := g.store.NextStep(l)
 	if step == 0 {
 		return ""
 	}
-	return fmt.Sprintf("%s · Paso %d/%d · %s", l.ID, step, len(l.Steps), l.Steps[step-1].Text)
+	return i18n.T(i18n.TutorStepLine, l.ID, step, len(l.Steps), l.Steps[step-1].Text)
 }
 
 // tutorBadge is the statusline's "Tutor k/n" for the current route, or for

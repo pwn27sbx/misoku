@@ -1,12 +1,12 @@
 package app
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/pwn27sbx/misoku/internal/config"
 	"github.com/pwn27sbx/misoku/internal/dashboard"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -114,7 +114,7 @@ func (l *learnState) entries() []dashboard.LearnEntry {
 			continue
 		}
 		done, total := l.store.RouteCount(r)
-		label := fmt.Sprintf("Learn · %s %d/%d", r.Name, done, total)
+		label := i18n.T(i18n.TutorLearnEntry, r.Name, done, total)
 		if done == total {
 			label += " ✓"
 		}
@@ -160,7 +160,7 @@ func (l *learnState) routeOrFirst(route string) string {
 func (m *Model) startTutorial(route string) tea.Cmd {
 	exe, err := os.Executable()
 	if err != nil {
-		m.setError("Could not start the tutorial: " + err.Error())
+		m.setError(i18n.T(i18n.TutorStartFailed, err.Error()))
 		return nil
 	}
 	args := []string{"tutor"}
@@ -193,6 +193,17 @@ func scanTutorial() *learnState {
 	return &learnState{store: store, cat: cat}
 }
 
+// reloadLearn reads the home screen's Learn entries again, off the update
+// loop: after the interface language changes they belong to the other
+// language's tutorial, in its own folder with its own progress (A3, S9).
+// Inside a tutorial session there are none, and it does nothing.
+func (m *Model) reloadLearn() tea.Cmd {
+	if m.learn == nil {
+		return nil
+	}
+	return func() tea.Msg { return tutorialDoneMsg{learn: scanTutorial()} }
+}
+
 // tutorialDoneMsg ends a tutorial run: err is what `misoku tutor` exited
 // with, and learn what the tutorial holds now.
 type tutorialDoneMsg struct {
@@ -209,6 +220,6 @@ func (m *Model) finishTutorial(msg tutorialDoneMsg) {
 		m.dashboard.SetLearn(msg.learn.entries())
 	}
 	if msg.err != nil {
-		m.setError("Tutorial: " + msg.err.Error())
+		m.setError(i18n.T(i18n.TutorFailed, msg.err.Error()))
 	}
 }

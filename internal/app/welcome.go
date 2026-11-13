@@ -1,9 +1,9 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 	"github.com/pwn27sbx/misoku/internal/ui"
@@ -24,19 +24,21 @@ type welcomeDialog struct {
 // muted line under it.
 type welcomeOption struct{ key, title, desc string }
 
-// welcomeOptions lists the answers in order; the first two start the tutorial
-// on a route, and the last goes straight to the notes.
+// welcomeOptions lists the answers in order, in the interface language; the
+// first two start the tutorial on a route, and the last goes straight to the
+// notes. The letters stay the same in every language.
 func welcomeOptions() []welcomeOption {
-	b, _ := tutor.Default().RouteByID("B")
-	lessons := len(b.Lessons)
-	word := "lecciones"
-	if lessons == 1 {
-		word = "lección"
+	cat := tutor.Default()
+	b, _ := cat.RouteByID("B")
+	i, ok := cat.RouteByID("I")
+	if !ok {
+		i = b // routeOrFirst sends the answer to the first route then
 	}
+	lessons := len(b.Lessons)
 	return []welcomeOption{
-		{"n", "Soy nuevo", fmt.Sprintf("Ruta Básico · %d %s", lessons, word)},
-		{"e", "Ya tengo experiencia", "Ruta Intermedio"},
-		{"a", "Ahora no", "Vas directo a tus notas"},
+		{"n", i18n.T(i18n.WelcomeNew), i18n.N(i18n.WelcomeNewRoute, lessons, b.Name, lessons)},
+		{"e", i18n.T(i18n.WelcomeExperienced), i18n.T(i18n.WelcomeExperiencedRoute, i.Name)},
+		{"a", i18n.T(i18n.WelcomeLater), i18n.T(i18n.WelcomeLaterDesc)},
 	}
 }
 
@@ -48,10 +50,7 @@ var (
 	welcomeCatMini = []string{` /\_/\  `, `( o.o ) `, ` > ^ <  `}
 )
 
-const (
-	welcomeIndent = 3 // columns before the content
-	welcomeHint   = "j/k mover · enter elegir"
-)
+const welcomeIndent = 3 // columns before the content
 
 // welcomeFullRows and welcomeCompactRows are the inner heights of the two
 // variants (see rows).
@@ -70,8 +69,13 @@ func (d *welcomeDialog) innerWidth() int {
 	w = welcomeIndent + 5 + w + 1
 	// The full banner and its cat share one row: keep room for both.
 	banner := welcomeIndent + lipgloss.Width(welcomeCat[0]) + 4 + lipgloss.Width(welcomeBanner[0])
-	tagline := welcomeIndent + lipgloss.Width("Tus notas en Markdown, en la terminal,") + 1
-	return max(w, banner, tagline)
+	tagline := welcomeIndent + max(lipgloss.Width(i18n.T(i18n.WelcomeTagline)), lipgloss.Width(i18n.T(i18n.WelcomeTaglineVim))) + 1
+	// The question, the compact variant's question beside its cat, and the
+	// hint: translations differ in length, so each one is measured.
+	question := welcomeIndent + max(lipgloss.Width(i18n.T(i18n.WelcomeQuestion))+1,
+		lipgloss.Width(welcomeCatMini[1])+2+lipgloss.Width(i18n.T(i18n.WelcomeQuestionCompact)),
+		lipgloss.Width(i18n.T(i18n.WelcomeHint)))
+	return max(w, banner, tagline, question)
 }
 
 // compact reports whether a W x H terminal takes the compact variant.
@@ -112,7 +116,7 @@ func (d *welcomeDialog) view(th theme.Theme, W, H int) (string, int, int) {
 	var rows []string
 	if d.compact(H) {
 		cat := bg.Foreground(th.Purple)
-		question := bg.Foreground(th.Fg).Bold(true).Render("  ¿Es tu primera vez en Misoku?")
+		question := bg.Foreground(th.Fg).Bold(true).Render("  " + i18n.T(i18n.WelcomeQuestionCompact))
 		for i, l := range welcomeCatMini {
 			row := pad + cat.Render(l)
 			if i == 1 {
@@ -135,10 +139,10 @@ func (d *welcomeDialog) view(th theme.Theme, W, H int) (string, int, int) {
 		}
 		rows = append(rows,
 			pad+muted.Render(strings.Repeat("─", inner-2*welcomeIndent-1)),
-			pad+muted.Render("Tus notas en Markdown, en la terminal,"),
-			pad+muted.Render("al estilo de Vim."),
+			pad+muted.Render(i18n.T(i18n.WelcomeTagline)),
+			pad+muted.Render(i18n.T(i18n.WelcomeTaglineVim)),
 			"",
-			pad+bg.Foreground(th.Fg).Bold(true).Render("¿Es tu primera vez aquí?"),
+			pad+bg.Foreground(th.Fg).Bold(true).Render(i18n.T(i18n.WelcomeQuestion)),
 			"",
 		)
 	}
@@ -155,8 +159,9 @@ func (d *welcomeDialog) view(th theme.Theme, W, H int) (string, int, int) {
 		desc := st.Render(strings.Repeat(" ", 5)) + st.Foreground(th.GreyFg2).Render(o.desc)
 		rows = append(rows, pad+ui.FitLine(head, band, st), pad+ui.FitLine(desc, band, st))
 	}
-	hint := muted.Render(welcomeHint)
-	left := (inner - lipgloss.Width(welcomeHint)) / 2
+	hintText := i18n.T(i18n.WelcomeHint)
+	hint := muted.Render(hintText)
+	left := (inner - lipgloss.Width(hintText)) / 2
 	rows = append(rows, "", bg.Render(strings.Repeat(" ", left))+hint)
 	return panel(th, rows, inner), x, y
 }

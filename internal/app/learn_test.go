@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,8 +19,10 @@ import (
 // temporary HOME and returns that folder, so nothing here touches the real
 // config, vault or binary. On Windows os.UserConfigDir, os.UserCacheDir and
 // os.UserHomeDir read %AppData%, %LocalAppData% and %UserProfile% instead.
+// The interface, and so the tutorial, is Spanish for the rest of the test.
 func tutorialVault(t *testing.T) string {
 	t.Helper()
+	useLang(t, i18n.ES)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
@@ -180,5 +183,53 @@ func TestTutorialReturnReportsAFailedExit(t *testing.T) {
 	}
 	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/26") {
 		t.Fatalf("a failed exit must not lose the progress:\n%s", v)
+	}
+}
+
+// S9/A3/A5: after a language change the home screen's Learn entries are the
+// other language's tutorial, read off the update loop from its own folder
+// with its own progress; switching back finds the Spanish progress intact.
+func TestLearnEntriesFollowTheLanguage(t *testing.T) {
+	dir := tutorialVault(t)
+	passLevel(t, dir, "1 Básico/B13 Títulos.md")
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)))
+	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/26") {
+		t.Fatalf("the Spanish entry should count its progress:\n%s", v)
+	}
+
+	i18n.Set(i18n.EN)
+	if tutor.Dir() == dir {
+		t.Fatalf("the English tutorial would read the Spanish folder %q", dir)
+	}
+	h.send(cmdMsg(app.ReloadLearn(h.m))...)
+	v := h.view()
+	if !strings.Contains(v, "Learn · Basic 0/26") || strings.Contains(v, "Básico") {
+		t.Fatalf("in English the entry is the English tutorial, with its own progress:\n%s", v)
+	}
+
+	i18n.Set(i18n.ES)
+	h.send(cmdMsg(app.ReloadLearn(h.m))...)
+	if v := h.view(); !strings.Contains(v, "Learn · Básico 1/26") {
+		t.Fatalf("back in Spanish the entry should find its progress:\n%s", v)
+	}
+
+	// Inside a tutorial session the home screen has no entries to reload.
+	if cmd := app.ReloadLearn(newHarness(t, newTestStore(t)).m); cmd != nil {
+		t.Fatal("without Learn entries there is nothing to reload")
+	}
+}
+
+// A5: in English, Learn reads the English tutorial's folder and names its
+// routes in English.
+func TestLearnEntryInEnglish(t *testing.T) {
+	tutorialVault(t) // the Spanish tutorial exists and must not count
+	i18n.Set(i18n.EN)
+	dir := tutor.Dir()
+	if err := tutor.Install(tutor.Bundled(), dir, false); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, newTestStore(t), app.WithLearn(tutorialLearn(t, dir)))
+	if v := h.view(); !strings.Contains(v, "Learn · Basic 0/26") || !strings.Contains(v, "Learn · Intermediate 0/30") {
+		t.Fatalf("the English entries should show:\n%s", v)
 	}
 }

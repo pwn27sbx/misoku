@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/app"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -114,6 +115,7 @@ func TestExperienceOffersIntermedioOrBasico(t *testing.T) {
 
 // D5: finishing a route says so on the bar.
 func TestTutorRouteCompleteLine(t *testing.T) {
+	useLang(t, i18n.ES)
 	cat := tutor.Catalog{Routes: []tutor.Route{{
 		ID: "B", Name: "Básico", Index: "B00 Básico.md",
 		Lessons: []tutor.Lesson{{
