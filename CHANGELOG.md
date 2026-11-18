@@ -4,6 +4,13 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Changed
+
+- On a wide terminal the reading view (`space p`) and the preview no longer draw the note as a thin strip in the middle: the page grows with the pane, 60 % of its width, never under 88 nor over 120 columns, and stays centred. Up to 148 columns nothing changes.
+- Tables and code blocks wider than the page may use the room on its right, from the page's left edge up to the pane's narrowest margin, instead of being cut with `…`; a table is cut only when it is wider than that, and a code block's box grows only for lines longer than the page. Paragraphs, headings, lists, callouts, columns, embeds and the other blocks keep the page width, and the Markdown INSERT shows in the reading view still wraps at it. Clicks, hover handles, drag and drop and table controls work on the wider blocks as before.
+
 ## [0.35.0] - 2026-11-13
 
 ### Added

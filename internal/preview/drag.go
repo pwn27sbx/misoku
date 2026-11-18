@@ -203,7 +203,7 @@ func (m Model) DecorateRows(lines []string, rowY func(row int) (int, bool)) {
 		blue := lipgloss.NewStyle().Foreground(th.Blue)
 		pad := strings.Repeat(" ", m.margin)
 		if m.dropGap {
-			lines[r] = pad + blue.Render(strings.Repeat("━", m.viewport.Width))
+			lines[r] = pad + blue.Render(strings.Repeat("━", m.prose))
 		} else if m.margin >= 1 {
 			next := r + min(1, len(lines)-1-r)
 			lines[next] = blue.Render(strings.Repeat(" ", m.margin-1)+"▸") + ansi.TruncateLeft(lines[next], m.margin, "")

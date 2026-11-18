@@ -34,6 +34,7 @@ type Model struct {
 	dimmed     bool // text greyed out while another pane has the focus
 	ready      bool
 	margin     int // blank columns left of the page
+	prose      int // the page's text width; the viewport may be wider (wideWidth)
 
 	// mentions are the notes naming note mentionsFor without linking it.
 	mentions    []core.UnlinkedMention
@@ -49,22 +50,46 @@ type Model struct {
 	dropGap  bool // the marker sits on a blank row between blocks
 }
 
-// pageWidth is the widest the preview text gets; wider panes centre the
-// page with equal margins, like a sheet of paper.
-const pageWidth = 88
+// The prose page: never narrower than proseMin columns while the pane has
+// room, a proseShare percent of wider panes, and never wider than proseMax,
+// so lines stay readable. Wider panes centre the page with equal margins,
+// like a sheet of paper.
+const (
+	proseMin   = 88
+	proseMax   = 120
+	proseShare = 60
+)
 
-// pageMargin returns the left margin for a pane w columns wide. It is
-// wide enough for the block handles ("⠿" from 40 columns, "+ ⠿" from 70),
-// and grows to centre the page once the pane is wider than pageWidth.
-func pageMargin(w int) int {
-	minMargin := 1
+// proseWidth is the page width the prose of a pane w columns wide aims for:
+// proseShare percent of w, clamped to [proseMin, proseMax].
+func proseWidth(w int) int {
+	return min(max(w*proseShare/100, proseMin), proseMax)
+}
+
+// minMargin is the narrowest margin a pane w columns wide keeps each side:
+// wide enough for the block handles ("⠿" from 40 columns, "+ ⠿" from 70).
+func minMargin(w int) int {
 	switch {
 	case w >= 70:
-		minMargin = 4
+		return 4
 	case w >= 40:
-		minMargin = 2
+		return 2
 	}
-	return max((w-pageWidth)/2, minMargin)
+	return 1
+}
+
+// pageMargin returns the left margin for a pane w columns wide: at least
+// minMargin, and wider to centre a page of proseWidth columns.
+func pageMargin(w int) int {
+	return max((w-proseWidth(w))/2, minMargin(w))
+}
+
+// wideWidth is the room tables and code blocks of a pane w columns wide may
+// use: from the page's left edge, past the prose, to minMargin columns short
+// of the pane's right edge. Starting where the prose starts keeps one left
+// margin for every row, which mouse hits and block handles rely on.
+func wideWidth(w int) int {
+	return w - pageMargin(w) - minMargin(w)
 }
 
 // New constructs a Preview Model.
@@ -89,7 +114,8 @@ func (m *Model) SetSize(w, h int) {
 	m.height = max(h, 0)
 
 	m.margin = pageMargin(m.width)
-	m.viewport.Width = max(m.width-2*m.margin, 10)
+	m.prose = max(m.width-2*m.margin, 10)
+	m.viewport.Width = max(wideWidth(m.width), m.prose)
 	m.viewport.Height = max(h, 1)
 	m.ready = true
 	m.recompile()
@@ -170,10 +196,11 @@ func (m *Model) recompile() {
 	// One image scope for the body and the footer's snippets: a footer compile
 	// of its own would release the pictures the body just drew.
 	defer beginImageRender()()
-	vpWidth := m.viewport.Width
+	vpWidth, wide := m.prose, m.viewport.Width
 	if vpWidth <= 0 {
 		vpWidth = m.width - 2*m.margin
 	}
+	wide = max(wide, vpWidth)
 	cal := m.cal
 	if m.notes != nil {
 		self := Note{ID: m.pageID, Title: m.title, Content: m.rawContent, Dir: m.baseDir}
@@ -184,7 +211,7 @@ func (m *Model) recompile() {
 			return m.notes(target)
 		}
 	}
-	compiled, hits, blocks, failed := compileBlocks(m.rawContent, m.theme, m.look, vpWidth, m.baseDir, cal)
+	compiled, hits, blocks, failed := compileBlocks(m.rawContent, m.theme, m.look, vpWidth, wide, m.baseDir, cal)
 	bodyRows := len(compiledRows(compiled))
 	if len(m.backlinks) > 0 {
 		compiled, hits = m.appendBacklinks(compiled, hits, vpWidth)

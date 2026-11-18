@@ -77,8 +77,11 @@ func newStyles(th theme.Theme) styles {
 
 // compiler accumulates rendered lines, collapsing runs of blank lines.
 type compiler struct {
-	st      styles
-	width   int
+	st    styles
+	width int // prose width
+	// wide is the width tables and code blocks may use; zero, as in the
+	// sub-compilers of embeds and columns, means width (see wideWidth).
+	wide    int
 	baseDir string // folder relative image paths resolve against
 	hits    []Hit
 	seen    map[string]int // occurrence counters for fold keys
@@ -104,6 +107,10 @@ type Block struct {
 	Line, End int  // document lines [Line, End)
 	Folded    bool // a folded heading: the block's other lines are not drawn
 }
+
+// wideWidth is the width a table or code block may use: c.wide, never less
+// than the prose width.
+func (c *compiler) wideWidth() int { return max(c.wide, c.width) }
 
 // openBlock starts a block covering document lines [line, end) of the
 // current input; it is closed once the loop passes end.
@@ -283,13 +290,14 @@ func CompileHits(input string, th theme.Theme, contentWidth int, baseDir string,
 // CompileBlocks is CompileHits that also returns the note's draggable
 // blocks, sorted by row (a list item's children follow it).
 func CompileBlocks(input string, th theme.Theme, look Look, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block) {
-	out, hits, blocks, _ = compileBlocks(input, th, look, contentWidth, baseDir, cal)
+	out, hits, blocks, _ = compileBlocks(input, th, look, contentWidth, contentWidth, baseDir, cal)
 	return out, hits, blocks
 }
 
 // compileBlocks is CompileBlocks that also reports whether the compile
-// panicked, in which case out is the error's text.
-func compileBlocks(input string, th theme.Theme, look Look, contentWidth int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block, failed bool) {
+// panicked, in which case out is the error's text. Prose wraps at
+// contentWidth; tables and code blocks may use up to wide columns.
+func compileBlocks(input string, th theme.Theme, look Look, contentWidth, wide int, baseDir string, cal CalendarView) (out string, hits []Hit, blocks []Block, failed bool) {
 	endImages := beginImageRender()
 	defer endImages()
 	defer func() {
@@ -299,11 +307,11 @@ func compileBlocks(input string, th theme.Theme, look Look, contentWidth int, ba
 		}
 	}()
 	if contentWidth < 10 {
-		contentWidth = 40
+		contentWidth, wide = 40, 40
 	}
 	st := newStyles(th)
 	st.look = look.withDefaults()
-	c := &compiler{st: st, width: contentWidth, baseDir: baseDir, cal: cal}
+	c := &compiler{st: st, width: contentWidth, wide: wide, baseDir: baseDir, cal: cal}
 	c.compile(input)
 
 	for len(c.out) > 0 && c.out[len(c.out)-1] == "" {

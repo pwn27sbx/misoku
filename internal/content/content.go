@@ -53,6 +53,7 @@ type Model struct {
 	width      int
 	height     int
 	margin     int // blank columns each side of the text; see SetMargin
+	wide       int // columns rendered rows may show; see SetWideWidth
 	focused    bool
 	dimmed     bool // greyed out while another pane has the focus
 	realCursor bool // the terminal draws the cursor; see SetRealCursor
@@ -152,6 +153,15 @@ func (m *Model) fitText() {
 		w = m.width - m.margin
 	}
 	m.textarea.SetWidth(max(w, 10))
+	m.textarea.SetViewWidth(m.wide)
+}
+
+// SetWideWidth lets rendered rows (wide tables and code blocks) show n
+// columns from the left margin, while raw text still wraps at the page
+// width; 0, the default, shows the page width only.
+func (m *Model) SetWideWidth(n int) {
+	m.wide = max(n, 0)
+	m.fitText()
 }
 
 // SetPage loads a document into the editor. draft marks an unsaved buffer

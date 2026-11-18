@@ -67,15 +67,19 @@ func (c *compiler) codeBlock(lang string, code []string) {
 		return
 	}
 	c.emit(c.st.codeLang.Render("▾ " + info))
-	inner := max(c.width-4, 6)
+	// The box is as wide as the prose, or wider up to the wide budget when a
+	// line needs it; only lines past that budget are cut.
+	inner, most := max(c.width-4, 6), max(c.wideWidth()-4, 6)
 	colors := highlight.Code(lang, strings.Join(code, "\n"), c.st.th)
 	text := lipgloss.NewStyle().Foreground(c.st.th.Fg)
 	for i, l := range code {
-		painted := highlight.Render([]rune(l), colors[i], text)
+		code[i] = highlight.Render([]rune(l), colors[i], text)
+		inner = max(inner, min(ansi.StringWidth(code[i]), most))
+	}
+	for i, painted := range code {
 		if ansi.StringWidth(painted) > inner {
-			painted = ansi.Truncate(painted, inner-1, "…")
+			code[i] = ansi.Truncate(painted, inner-1, "…")
 		}
-		code[i] = painted
 	}
 	box := c.st.codeBox.Width(inner + 2).Render(strings.Join(code, "\n"))
 	c.emit(strings.Split(box, "\n")...)
@@ -382,8 +386,8 @@ func (c *compiler) table(rows [][]string, docStart int) {
 			widths[j] = max(widths[j], ansi.StringWidth(cell))
 		}
 	}
-	// Shrink the widest columns until the table fits the pane.
-	avail := c.width - (3*cols + 1)
+	// Shrink the widest columns until the table fits the wide budget.
+	avail := c.wideWidth() - (3*cols + 1)
 	for sum(widths) > avail && avail > cols {
 		wi := 0
 		for j := range widths {

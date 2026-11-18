@@ -321,6 +321,7 @@ func (m *Model) updateLayout() {
 	m.sidebar.SetSize(m.explorerW(l), l.BodyH)
 	m.content.SetSize(l.EditorW, l.NoteH())
 	m.content.SetMargin(m.editorMargin(l))
+	m.content.SetWideWidth(m.editorWideWidth(l))
 	m.preview.SetSize(m.hiddenPreviewW(l), l.NoteH())
 	m.graph.SetSize(l.EditorW, l.BodyH)
 	m.globalGraph.SetSize(l.EditorW, l.BodyH)
@@ -478,6 +479,16 @@ func (m *Model) editorMargin(l Layout) int {
 		return 0
 	}
 	return preview.PageMargin(l.EditorW)
+}
+
+// editorWideWidth is the columns the editor shows rendered rows in, from
+// its left margin: the preview's wide width (tables, code) in the reading
+// view, and 0, the text's own width, elsewhere.
+func (m *Model) editorWideWidth(l Layout) int {
+	if m.noteView != viewReading {
+		return 0
+	}
+	return preview.WideWidth(l.EditorW)
 }
 
 // hiddenPreviewW is the width the preview compiles at: its own column, or in

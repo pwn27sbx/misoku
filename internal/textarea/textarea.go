@@ -317,6 +317,11 @@ type Model struct {
 	// input.
 	viewport *viewport.Model
 
+	// misoku: setWidth is the width SetWidth was last given, and viewWidth
+	// the text columns the window shows (SetViewWidth), when wider than the
+	// wrap width.
+	setWidth, viewWidth int
+
 	// rune sanitizer for input.
 	rsan runeutil.Sanitizer
 }
@@ -972,6 +977,7 @@ func (m *Model) moveToEnd() {
 // It is important that the width of the textarea be exactly the given width
 // and no more.
 func (m *Model) SetWidth(w int) {
+	m.setWidth = w
 	// Update prompt width only if there is no prompt function as SetPromptFunc
 	// updates the prompt width when it is called.
 	if m.promptFunc == nil {
@@ -1006,6 +1012,19 @@ func (m *Model) SetWidth(w int) {
 
 	m.viewport.Width = inputWidth - reservedOuter
 	m.width = inputWidth - reservedOuter - reservedInner
+	// misoku: a wider window shows rows drawn wider than the text wraps.
+	m.viewport.Width += max(m.viewWidth-m.width, 0)
+}
+
+// SetViewWidth shows w text columns, past the prompt and line numbers, while
+// raw lines still wrap at Width: rows a Display draws wider than the text
+// (a wide table) are not cut at the wrap width. A w no wider than Width, such
+// as 0, shows exactly Width.
+//
+// misoku: added for the reading view's wide tables and code blocks.
+func (m *Model) SetViewWidth(w int) {
+	m.viewWidth = max(w, 0)
+	m.SetWidth(m.setWidth)
 }
 
 // SetPromptFunc supersedes the Prompt field and sets a dynamic prompt

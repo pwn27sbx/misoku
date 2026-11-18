@@ -85,3 +85,9 @@ func isHex(s string) bool {
 // pane w columns wide. Other panes that draw a note as a page (the editor in
 // reading mode) use it to match the preview's margins and centring.
 func PageMargin(w int) int { return pageMargin(w) }
+
+// WideWidth is the width tables and code blocks may use in a pane w columns
+// wide, measured from the page's left margin: wider than the prose, up to
+// the narrowest margin on the right. The reading view widens the editor's
+// visible window to it.
+func WideWidth(w int) int { return wideWidth(w) }
