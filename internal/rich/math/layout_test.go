@@ -129,3 +129,27 @@ func TestMathEnvironmentsLayout(t *testing.T) {
 		}
 	}
 }
+
+// TeX sets a superscript or subscript in script style even in a display
+// formula: display->script, never display->text. The whole group must be the
+// script, so exactly one glyph of \theta_{t+1} sits at body size.
+func TestDisplayScriptsAreSetInScriptStyle(t *testing.T) {
+	b := layoutSource(t, `\theta_{t+1}`)
+	body, script := 0, 0
+	for _, it := range b.items {
+		if it.kind != itGlyph {
+			continue
+		}
+		switch {
+		case it.size >= 16:
+			body++
+		case it.size <= 12:
+			script++
+		default:
+			t.Fatalf("glyph %q drawn at unexpected size %v", it.r, it.size)
+		}
+	}
+	if body != 1 || script != 3 {
+		t.Fatalf("glyph sizes: %d at body, %d at script size; want 1 and 3 for theta_{t+1}", body, script)
+	}
+}

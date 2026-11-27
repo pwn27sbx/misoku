@@ -342,6 +342,44 @@ func (f *Fonts) Measure(s string, sizePx float64, mono bool) fixed.Int26_6 {
 	return w
 }
 
+// MeasureStyled is Measure for a run drawn in the bold or italic face: their
+// advances come from that face, the same ones the raster uses to move the pen,
+// so the cells a run claims hold its ink. Without a bold or italic face the
+// run draws with the body face (synthetic bold keeps the body advances) and
+// Measure is exact.
+func (f *Fonts) MeasureStyled(s string, sizePx float64, mono, bold, italic bool) int {
+	face, styled := f.styledFace(sizePx, bold, italic)
+	if !styled {
+		return int(f.Measure(s, sizePx, mono)) / 64
+	}
+	w := 0
+	for _, r := range s {
+		adv, ok := face.GlyphAdvance(r)
+		if !ok {
+			continue
+		}
+		w += adv.Round()
+	}
+	return w
+}
+
+// styledFace is the face a run draws with and whether it differs from the
+// shaped body face (only then do advances come from the face).
+func (f *Fonts) styledFace(sizePx float64, bold, italic bool) (font.Face, bool) {
+	if bold {
+		if face, ok := f.BoldFace(sizePx); ok {
+			return face, true
+		}
+		return f.Face(sizePx, false), false
+	}
+	if italic {
+		if face, ok := f.ItalicFace(sizePx); ok {
+			return face, true
+		}
+	}
+	return f.Face(sizePx, false), false
+}
+
 // Wrap breaks s into lines no wider than maxPx, honouring the note's own
 // breaks. A word wider than the line is split by rune, never overflowed.
 func (f *Fonts) Wrap(s string, maxPx int, sizePx float64, mono bool) []string {

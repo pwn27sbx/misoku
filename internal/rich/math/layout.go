@@ -28,6 +28,17 @@ func (s style) script() style {
 	return styleScriptScript
 }
 
+// scriptStyle is the style a superscript, a subscript or an annotation is set
+// in: TeX steps display and text to script, and script to scriptscript. Only a
+// fraction's numerator and denominator step through text, so script() is for
+// those and this one for everything attached to a base.
+func (s style) scriptStyle() style {
+	if s >= styleScript {
+		return styleScriptScript
+	}
+	return styleScript
+}
+
 func (s style) size(base float64) float64 {
 	switch s {
 	case styleScript:
@@ -319,7 +330,8 @@ func (l *layouter) sqrt(s *Sqrt, size float64, st style, sup Font) box {
 	// The index sits in script style at the top left of the radical.
 	var idx box
 	if len(s.Index) > 0 {
-		idx = l.list(s.Index, st.script().size(l.base), st.script(), sup)
+		// TeX sets a root's index in scriptscript style.
+		idx = l.list(s.Index, styleScriptScript.size(l.base), styleScriptScript, sup)
 	}
 	// The font ships real radical sizes; use the smallest one that covers the
 	// body, and only scale the base glyph when the table has none.
@@ -363,7 +375,7 @@ func (l *layouter) sqrt(s *Sqrt, size float64, st style, sup Font) box {
 
 func (l *layouter) script(s *Script, size float64, st style, sup Font) box {
 	base := l.list(s.Base, size, st, sup)
-	ss := st.script()
+	ss := st.scriptStyle()
 	ssize := ss.size(l.base)
 	var sub, supBox box
 	if len(s.Sub) > 0 {
@@ -751,7 +763,7 @@ func (l *layouter) styled(s *Styled, size float64, st style, f Font) box {
 func (l *layouter) stack(s *Stack, size float64, st style, f Font) box {
 	base := l.list(s.Base, size, st, f)
 	out := base
-	ss := st.script()
+	ss := st.scriptStyle()
 	ssize := ss.size(l.base)
 	if len(s.Over) > 0 {
 		over := l.list(s.Over, ssize, ss, f)
@@ -771,7 +783,7 @@ func (l *layouter) stack(s *Stack, size float64, st style, f Font) box {
 }
 
 func (l *layouter) xarrow(x *XArrow, size float64, st style, f Font) box {
-	ss := st.script()
+	ss := st.scriptStyle()
 	ssize := ss.size(l.base)
 	above := l.list(x.Above, ssize, ss, f)
 	var below box

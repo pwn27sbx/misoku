@@ -75,17 +75,18 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 		return
 	}
 	face := r.Fonts.Face(it.SizePx, it.Mono)
+	styledFace := false
 	syntheticBold := false
 	switch {
 	case it.Bold:
 		if bold, ok := r.Fonts.BoldFace(it.SizePx); ok {
-			face = bold
+			face, styledFace = bold, true
 		} else {
 			syntheticBold = true
 		}
 	case it.Italic:
 		if italic, ok := r.Fonts.ItalicFace(it.SizePx); ok {
-			face = italic
+			face, styledFace = italic, true
 		}
 	}
 	d := &font.Drawer{Dst: img, Src: image.NewUniform(it.Color), Face: face}
@@ -94,6 +95,13 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 	limit := it.X*r.Fonts.CellW + it.W*r.Fonts.CellW
 	for _, g := range r.Fonts.Shape(it.Text, it.SizePx, it.Mono) {
 		step := g.Advance.Round()
+		if styledFace {
+			// A bold or italic glyph advances by its own face, the same
+			// advance the layout measured, or the next run starts inside it.
+			if adv, ok := face.GlyphAdvance(g.R); ok {
+				step = adv.Round()
+			}
+		}
 		if pen+g.X.Round() >= limit && step > 0 {
 			break
 		}

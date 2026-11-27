@@ -431,7 +431,7 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 			if run.Box != nil {
 				px = run.Box.WidthPx
 			} else {
-				px = int(l.f.Measure(run.Text, runSize, run.Code)) / 64
+				px = l.f.MeasureStyled(run.Text, runSize, run.Code, run.Bold, run.Italic)
 			}
 			xCells := l.x0 + indent + prefixPx/l.f.CellW
 			xOff := prefixPx % l.f.CellW
@@ -508,7 +508,7 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 		if w.box != nil {
 			return w.box.WidthPx
 		}
-		return int(l.f.Measure(w.text, size, false)) / 64
+		return l.f.MeasureStyled(w.text, size, w.code, w.bold, w.italic)
 	}
 	var lines [][]styledText
 	var line []styledText

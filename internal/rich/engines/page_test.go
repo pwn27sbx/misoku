@@ -1,12 +1,15 @@
 package engines
 
 import (
+	"image/draw"
 	"strings"
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/rich"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/goregular"
 )
@@ -15,7 +18,8 @@ import (
 // machine's installed faces.
 func testFonts(t *testing.T) *rich.Fonts {
 	t.Helper()
-	f, err := rich.NewFonts(goregular.TTF, gomono.TTF, rich.FontConfig{CellW: 12, CellH: 24, BodyPx: 16})
+	f, err := rich.NewFontsWithStyles(goregular.TTF, gomono.TTF, gobold.TTF, goitalic.TTF,
+		rich.FontConfig{CellW: 12, CellH: 24, BodyPx: 16})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,5 +161,82 @@ func TestPageWithoutAnEngineDrawsTheSource(t *testing.T) {
 		if r >= 0xE000 && r <= 0xF8FF {
 			t.Fatalf("a marker character reached the page text: %q", got)
 		}
+	}
+}
+
+// The page hands the engine the formula exactly as the note wrote it: a
+// display block keeps its braces, underscores and backslashes. Only the
+// engine decides how a group is drawn, so a broken subscript can never be the
+// Markdown layer eating characters.
+func TestPageHandsTheEngineTheExactFormula(t *testing.T) {
+	f := testFonts(t)
+	pal := rich.PaletteFromTheme(theme.DefaultTheme())
+	doc := rich.Parse([]byte("Intro text.\n\n$$\n\\theta_{t+1} = \\theta_t - \\eta \\frac{\\partial L}{\\partial \\theta}\n$$\n"))
+	var blockSrc, inlineSrc []string
+	page := rich.Layout(doc, rich.LayoutOptions{
+		Width: 70, Fonts: f, Palette: pal,
+		Math: func(b rich.Block) *rich.Box {
+			blockSrc = append(blockSrc, strings.Join(b.Code, "\n"))
+			return &rich.Box{W: 4, H: 1, Draw: func(dst draw.Image, x, y int) {}}
+		},
+		MathInline: func(src string, sizePx float64) *rich.InlineBox {
+			inlineSrc = append(inlineSrc, src)
+			return &rich.InlineBox{WidthPx: 12, DepthPx: 2, Draw: func(dst draw.Image, x, baselineY int) {}}
+		},
+	})
+	if len(blockSrc) != 1 {
+		t.Fatalf("engine received %d display formulas, want 1", len(blockSrc))
+	}
+	want := `\theta_{t+1} = \theta_t - \eta \frac{\partial L}{\partial \theta}`
+	if blockSrc[0] != want {
+		t.Fatalf("engine source = %q, want %q", blockSrc[0], want)
+	}
+	if page.Height <= 0 {
+		t.Fatal("page is empty")
+	}
+}
+
+// A bold run claims the width its bold face draws: the space after it must
+// start past the ink, or "learning rate" collapses into "learningrate".
+func TestPageKeepsTheSpaceAfterABoldRun(t *testing.T) {
+	f := testFonts(t)
+	pal := rich.PaletteFromTheme(theme.DefaultTheme())
+	doc := rich.Parse([]byte("The update uses the **learning rate** here.\n"))
+	p := Page(doc, 70, f, pal, rich.ImageOptions{})
+	bold, ok := f.BoldFace(f.BodyPx)
+	if !ok {
+		t.Skip("no bold face in the test stack")
+	}
+	boldW := 0
+	for _, r := range "learning" {
+		adv, _ := bold.GlyphAdvance(r)
+		boldW += adv.Round()
+	}
+	var learning, space, rate *rich.Item
+	for i := range p.Items {
+		it := &p.Items[i]
+		if it.Kind != rich.ItemText {
+			continue
+		}
+		switch it.Text {
+		case "learning":
+			learning = it
+		case "rate":
+			rate = it
+		}
+		if it.Text == " " && learning != nil && space == nil {
+			space = it
+		}
+	}
+	if learning == nil || space == nil || rate == nil {
+		t.Fatalf("runs missing: learning %v space %v rate %v", learning, space, rate)
+	}
+	inkEnd := learning.X*f.CellW + learning.XOffPx + boldW
+	spaceStart := space.X*f.CellW + space.XOffPx
+	if spaceStart < inkEnd {
+		t.Fatalf("space starts at %d px, inside the bold ink ending at %d", spaceStart, inkEnd)
+	}
+	if gap := rate.X*f.CellW + rate.XOffPx - spaceStart; gap <= 0 {
+		t.Fatalf("\"rate\" starts at the space's own pixel (gap %d)", gap)
 	}
 }
