@@ -51,20 +51,33 @@ func tagsOf(fm FrontMatter) []string {
 			add(it)
 		}
 	}
-	fence, inComment := "", false
+	var fenceCh byte
+	fenceLen := 0
+	inComment, prevBlank, inIndented := false, true, false
 	for _, line := range strings.Split(fm.Body, "\n") {
 		if !inComment {
 			t := strings.TrimSpace(line)
-			if fence != "" {
-				if strings.HasPrefix(t, fence) {
-					fence = ""
+			if fenceLen > 0 {
+				if isClosingFence(t, fenceCh, fenceLen) {
+					fenceLen = 0
 				}
+				prevBlank, inIndented = false, false
 				continue
 			}
-			if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
-				fence = t[:3]
+			if ch, n := openingFence(t); n >= 3 {
+				fenceCh, fenceLen = ch, n
+				prevBlank, inIndented = false, false
 				continue
 			}
+			if t == "" {
+				prevBlank = true
+				continue
+			}
+			if (prevBlank || inIndented) && isIndentedCodeLine(line) {
+				prevBlank, inIndented = false, true
+				continue
+			}
+			prevBlank, inIndented = false, false
 		}
 		var masked string
 		masked, inComment = maskTagLine(line, inComment)
@@ -73,6 +86,54 @@ func tagsOf(fm FrontMatter) []string {
 		}
 	}
 	return out
+}
+
+// openingFence returns the fence character ('`' or '~') and run length when t
+// opens a fenced code block (3 or more identical fence characters).
+func openingFence(trimmed string) (byte, int) {
+	if len(trimmed) < 3 || (trimmed[0] != '`' && trimmed[0] != '~') {
+		return 0, 0
+	}
+	ch := trimmed[0]
+	n := 0
+	for n < len(trimmed) && trimmed[n] == ch {
+		n++
+	}
+	if n < 3 {
+		return 0, 0
+	}
+	// Backtick info strings may not contain backticks (CommonMark).
+	if ch == '`' && strings.IndexByte(trimmed[n:], '`') >= 0 {
+		return 0, 0
+	}
+	return ch, n
+}
+
+// isClosingFence reports whether trimmed closes a fence opened with ch of
+// length minLen (at least minLen repetitions of ch and nothing else).
+func isClosingFence(trimmed string, ch byte, minLen int) bool {
+	if len(trimmed) < minLen {
+		return false
+	}
+	for i := 0; i < len(trimmed); i++ {
+		if trimmed[i] != ch {
+			return false
+		}
+	}
+	return true
+}
+
+// isIndentedCodeLine reports whether line starts with 4 spaces or a tab and is
+// not a list item continuation.
+func isIndentedCodeLine(line string) bool {
+	if !strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "\t") {
+		return false
+	}
+	t := strings.TrimSpace(line)
+	if t == "" {
+		return false
+	}
+	return !strings.HasPrefix(t, "- ") && !strings.HasPrefix(t, "* ") && !strings.HasPrefix(t, "+ ")
 }
 
 // maskTagLine blanks the parts of line that hold no tags (code spans, HTML

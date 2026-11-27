@@ -25,12 +25,14 @@ type UnlinkedMention struct {
 // mentionMatcher finds one title in notes; build it once per title.
 type mentionMatcher struct{ re *regexp.Regexp }
 
-// newMentionMatcher matches title in any letter case. A title a wiki link
-// can't hold ("[", "]", "|", "#" or a line break) matches nothing: its
-// mentions could never become links.
+// newMentionMatcher matches title in any letter case. A title shorter than
+// three runes (such as "A", "Go", "To") or one a wiki link can't hold ("[",
+// "]", "|", "#" or a line break) matches nothing: short common words would
+// flag every occurrence across the vault, and illegal characters could never
+// become links.
 func newMentionMatcher(title string) mentionMatcher {
 	title = strings.TrimSpace(title)
-	if title == "" || strings.ContainsAny(title, "[]|#\n\r") {
+	if utf8.RuneCountInString(title) < 3 || strings.ContainsAny(title, "[]|#\n\r") {
 		return mentionMatcher{}
 	}
 	return mentionMatcher{re: regexp.MustCompile(`(?i)` + regexp.QuoteMeta(title))}
@@ -56,7 +58,9 @@ func (mm mentionMatcher) find(text string) [][2]int {
 	var out [][2]int
 	lines := strings.Split(text, "\n")
 	first := FrontMatterEnd(lines) + 1 // 0 without front matter
-	fence, inComment, off := "", false, 0
+	var fenceCh byte
+	fenceLen := 0
+	inComment, prevBlank, inIndented, off := false, true, false, 0
 	for i, line := range lines {
 		start := off
 		off += len(line) + 1
@@ -65,16 +69,27 @@ func (mm mentionMatcher) find(text string) [][2]int {
 		}
 		if !inComment {
 			t := strings.TrimSpace(line)
-			if fence != "" {
-				if strings.HasPrefix(t, fence) {
-					fence = ""
+			if fenceLen > 0 {
+				if isClosingFence(t, fenceCh, fenceLen) {
+					fenceLen = 0
 				}
+				prevBlank, inIndented = false, false
 				continue
 			}
-			if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
-				fence = t[:3]
+			if ch, n := openingFence(t); n >= 3 {
+				fenceCh, fenceLen = ch, n
+				prevBlank, inIndented = false, false
 				continue
 			}
+			if t == "" {
+				prevBlank = true
+				continue
+			}
+			if (prevBlank || inIndented) && isIndentedCodeLine(line) {
+				prevBlank, inIndented = false, true
+				continue
+			}
+			prevBlank, inIndented = false, false
 		}
 		// The same masking as tags: code spans, comments, links and URLs
 		// are blanked, keeping byte offsets; then the tags themselves.
