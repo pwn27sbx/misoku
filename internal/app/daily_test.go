@@ -9,6 +9,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/app"
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/i18n"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -48,19 +49,19 @@ func TestDailyNoteStartsADraftAndSavingCreatesIt(t *testing.T) {
 	if bar := statusBar(h); !strings.Contains(bar, `New daily note "2026-11-06"`) {
 		t.Fatalf("the bar should say it is a new daily note to save:\n%s", bar)
 	}
-	if _, err := os.Stat(filepath.Join(store.Root(), "Diario")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(store.Root(), "Daily")); !os.IsNotExist(err) {
 		t.Fatalf("nothing should be written before saving: %v", err)
 	}
 	h.keys("today")
 	h.key(tea.KeyEsc)
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if v := h.view(); !strings.Contains(v, "Diario") {
+	if v := h.view(); !strings.Contains(v, "Daily") {
 		t.Fatalf("Save As should offer the daily folder:\n%s", v)
 	}
 	h.key(tea.KeyEnter)
-	p, err := store.Get("Diario/2026-11-06.md")
+	p, err := store.Get("Daily/2026-11-06.md")
 	if err != nil || p.Content != "today" {
-		t.Fatalf("Diario/2026-11-06.md = %q, %v", p.Content, err)
+		t.Fatalf("Daily/2026-11-06.md = %q, %v", p.Content, err)
 	}
 }
 
@@ -124,7 +125,7 @@ func TestDailyNoteRejectsAFolderOutsideTheVault(t *testing.T) {
 	h.key(tea.KeyEsc)
 	h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
 	h.key(tea.KeyEnter)
-	if _, err := store.Get("Diario/2026-11-06.md"); err != nil {
+	if _, err := store.Get("Daily/2026-11-06.md"); err != nil {
 		t.Fatalf("the default folder should be used: %v\n%s", err, h.view())
 	}
 }
@@ -136,4 +137,67 @@ func TestSpaceDStillGoesHome(t *testing.T) {
 	if v := h.view(); !strings.Contains(v, "HOME") {
 		t.Fatalf("space d should show the home screen:\n%s", v)
 	}
+}
+
+func TestDefaultDailyAndTemplatesDirFollowLanguageWithLegacyFallback(t *testing.T) {
+	orig := i18n.Current()
+	t.Cleanup(func() { i18n.Set(orig) })
+
+	t.Run("english empty vault uses Daily and Templates", func(t *testing.T) {
+		i18n.Set(i18n.EN)
+		store := newTestStore(t)
+		h := dailyHarness(t, store)
+		h.keys(" od")
+		h.keys("hi")
+		h.key(tea.KeyEsc)
+		h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+		h.key(tea.KeyEnter)
+		if _, err := store.Get("Daily/2026-11-06.md"); err != nil {
+			t.Fatalf("expected Daily/2026-11-06.md in English empty vault: %v", err)
+		}
+		h.keys("i/template")
+		h.key(tea.KeyEnter)
+		if bar := statusBar(h); !strings.Contains(bar, "folder Template") {
+			t.Fatalf("expected status bar to name Templates folder, got:\n%s", bar)
+		}
+	})
+
+	t.Run("english vault with existing Diario and Plantillas keeps legacy folders", func(t *testing.T) {
+		i18n.Set(i18n.EN)
+		store := newTestStore(t)
+		if err := os.MkdirAll(filepath.Join(store.Root(), "Diario"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(store.Root(), "Plantillas"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		h := dailyHarness(t, store)
+		h.keys(" od")
+		h.keys("legacy")
+		h.key(tea.KeyEsc)
+		h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+		h.key(tea.KeyEnter)
+		if _, err := store.Get("Diario/2026-11-06.md"); err != nil {
+			t.Fatalf("expected legacy Diario/2026-11-06.md: %v", err)
+		}
+		h.keys("i/template")
+		h.key(tea.KeyEnter)
+		if bar := statusBar(h); !strings.Contains(bar, "Plantil") {
+			t.Fatalf("expected status bar to name legacy Plantillas folder, got:\n%s", bar)
+		}
+	})
+
+	t.Run("spanish empty vault uses Diario and Plantillas", func(t *testing.T) {
+		i18n.Set(i18n.ES)
+		store := newTestStore(t)
+		h := dailyHarness(t, store)
+		h.keys(" od")
+		h.keys("hola")
+		h.key(tea.KeyEsc)
+		h.send(tea.KeyMsg{Type: tea.KeyCtrlS})
+		h.key(tea.KeyEnter)
+		if _, err := store.Get("Diario/2026-11-06.md"); err != nil {
+			t.Fatalf("expected Diario/2026-11-06.md in Spanish vault: %v", err)
+		}
+	})
 }

@@ -51,12 +51,21 @@ type Config struct {
 	TemplatesDir string `json:"templates_dir,omitempty"`
 }
 
-// DefaultDailyDir is the daily notes' folder when daily_dir is not set.
+// DefaultDailyDir is the daily notes' folder when daily_dir is not set in
+// Spanish vaults or vaults with an existing Diario/ directory.
 const DefaultDailyDir = "Diario"
 
-// DefaultTemplatesDir is the templates' folder when templates_dir is not
-// set.
+// DefaultDailyDirEN is the daily notes' folder when daily_dir is not set in
+// English vaults without a legacy Diario/ directory.
+const DefaultDailyDirEN = "Daily"
+
+// DefaultTemplatesDir is the templates' folder when templates_dir is not set
+// in Spanish vaults or vaults with an existing Plantillas/ directory.
 const DefaultTemplatesDir = "Plantillas"
+
+// DefaultTemplatesDirEN is the templates' folder when templates_dir is not set
+// in English vaults without a legacy Plantillas/ directory.
+const DefaultTemplatesDirEN = "Templates"
 
 // VaultFolder checks a folder setting that names a place inside the vault,
 // such as daily_dir, and returns it /-separated without "." segments or
