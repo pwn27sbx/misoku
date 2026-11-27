@@ -184,12 +184,18 @@ func LinkMentions(text, title, target string) (string, int) {
 // fails on are left out. read returns a note's text and may be called
 // from any goroutine the caller allows.
 func FindUnlinkedMentions(notes []Page, target Page, read func(id string) (string, error), skip func(id string) bool) []UnlinkedMention {
+	return FindUnlinkedMentionsIn(notes, notes, target, read, skip)
+}
+
+// FindUnlinkedMentionsIn scans only subset for unlinked mentions of target,
+// while resolving links against allNotes so link checks stay accurate.
+func FindUnlinkedMentionsIn(allNotes, subset []Page, target Page, read func(id string) (string, error), skip func(id string) bool) []UnlinkedMention {
 	mm := newMentionMatcher(target.Title)
 	if mm.re == nil {
 		return nil
 	}
 	var out []UnlinkedMention
-	for _, p := range notes {
+	for _, p := range subset {
 		if p.IsFolder || p.ID == target.ID || (skip != nil && skip(p.ID)) {
 			continue
 		}
@@ -198,7 +204,7 @@ func FindUnlinkedMentions(notes []Page, target Page, read func(id string) (strin
 			continue
 		}
 		ms := mm.find(text)
-		if len(ms) == 0 || linksTo(notes, Page{ID: p.ID, Title: p.Title, Content: text}, target.ID) {
+		if len(ms) == 0 || linksTo(allNotes, Page{ID: p.ID, Title: p.Title, Content: text}, target.ID) {
 			continue
 		}
 		lineStart := strings.LastIndexByte(text[:ms[0][0]], '\n') + 1

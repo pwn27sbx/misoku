@@ -60,6 +60,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case linkIndexedMsg:
 		m.applyLinkIndex(msg)
 		return m, nil
+	case finderLinesLoadedMsg:
+		m.applyFinderLines(msg)
+		return m, nil
 	case mentionsScannedMsg:
 		m.applyMentions(msg)
 		return m, nil

@@ -57,6 +57,16 @@ func NewLinkIndex(isAttachment func(target string) bool) *LinkIndex {
 	return &LinkIndex{isAttachment: isAttachment, entries: map[string]*indexEntry{}}
 }
 
+// LinkIndexDiff summarises what changed during a LinkIndex.UpdateWithDiff call.
+type LinkIndexDiff struct {
+	// SetChanged is true when any note was added, removed or renamed.
+	SetChanged bool
+	// Changed lists the IDs whose content was re-read from disk.
+	Changed []string
+	// Removed lists the IDs that were present before the update and are now gone.
+	Removed []string
+}
+
 // Update brings the index up to date with notes, as listed by Store.List
 // (folders are skipped). read returns a note's text; it is called only for
 // notes that are new or whose UpdatedAt changed, and always for notes with
@@ -67,16 +77,34 @@ func NewLinkIndex(isAttachment func(target string) bool) *LinkIndex {
 // because a new or renamed note can capture a link in a note that did not
 // change.
 func (x *LinkIndex) Update(notes []Page, read func(id string) (string, error)) {
+	_ = x.UpdateWithDiff(notes, read)
+}
+
+// UpdateWithDiff updates the index like Update and returns which notes changed
+// or were removed, so callers (such as unlinked-mention scans) can skip
+// unchanged notes.
+func (x *LinkIndex) UpdateWithDiff(notes []Page, read func(id string) (string, error)) LinkIndexDiff {
 	var list []Page
 	for _, p := range notes {
 		if !p.IsFolder {
 			list = append(list, p)
 		}
 	}
+	prevNotes := x.notes
 	setChanged := !sameNoteIDs(x.notes, list)
 	x.notes = list
 	if setChanged {
 		x.buildLookup()
+	}
+
+	var diff LinkIndexDiff
+	diff.SetChanged = setChanged
+	if setChanged {
+		for _, prev := range prevNotes {
+			if _, ok := x.byID[prev.ID]; !ok {
+				diff.Removed = append(diff.Removed, prev.ID)
+			}
+		}
 	}
 
 	entries := make(map[string]*indexEntry, len(list))
@@ -88,6 +116,7 @@ func (x *LinkIndex) Update(notes []Page, read func(id string) (string, error)) {
 				continue
 			}
 			e = newIndexEntry(p.ID, content, p.UpdatedAt)
+			diff.Changed = append(diff.Changed, p.ID)
 		}
 		entries[p.ID] = e
 	}
@@ -98,6 +127,7 @@ func (x *LinkIndex) Update(notes []Page, read func(id string) (string, error)) {
 		}
 	}
 	x.rebuild()
+	return diff
 }
 
 // SetContent replaces the text of note id, such as the unsaved text of an
@@ -354,6 +384,15 @@ func (x *LinkIndex) Status(id string) NoteStatus {
 		return e.status
 	}
 	return StatusNone
+}
+
+// NoteTags returns the parsed tags of note id, or nil if unread or excluded.
+// The returned slice must not be modified.
+func (x *LinkIndex) NoteTags(id string) []string {
+	if e := x.entry(id); e != nil {
+		return e.tags
+	}
+	return nil
 }
 
 // Statuses maps the ID of every note that has a status to that status.

@@ -739,6 +739,7 @@ const (
 	AppFinderNoNotes     Key = "app.finder.no_notes"
 	AppFinderNoLinks     Key = "app.finder.no_links"
 	AppFinderHelp        Key = "app.finder.help"
+	AppFinderLoading     Key = "app.finder.loading"
 	AppOpenedNewTab      Key = "app.finder.opened_new_tab"
 	AppFinderLinkTitle   Key = "app.finder.link_title"
 	AppFinderTitle       Key = "app.finder.title"
@@ -839,6 +840,7 @@ func init() {
 		AppFinderNoNotes:     "   No matching notes",
 		AppFinderNoLinks:     "   No matching links",
 		AppFinderHelp:        "↑↓ move · Enter open here (jumps to the line) · Ctrl+T new tab · Esc close",
+		AppFinderLoading:     "Indexing text…",
 		AppOpenedNewTab:      "Opened in a new tab — %s has unsaved changes",
 		AppFinderLinkTitle:   "Link to Note",
 		AppFinderTitle:       "Find Note",
@@ -937,6 +939,7 @@ func init() {
 		AppFinderNoNotes:     "   Ninguna nota coincide",
 		AppFinderNoLinks:     "   Ningún enlace coincide",
 		AppFinderHelp:        "↑↓ mueve · Enter abre aquí (salta a la línea) · Ctrl+T pestaña nueva · Esc cierra",
+		AppFinderLoading:     "Indexando texto…",
 		AppOpenedNewTab:      "Se abrió en una pestaña nueva — %s tiene cambios sin guardar",
 		AppFinderLinkTitle:   "Enlazar a una nota",
 		AppFinderTitle:       "Buscar nota",

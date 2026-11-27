@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/core"
@@ -18,18 +19,24 @@ import (
 // link index builds (linkIndexState), and only the latest one asked for is
 // applied: a slower, older scan that arrives late is dropped.
 type mentionState struct {
-	gen    uint64 // number of the latest scan started
-	wanted bool   // a scan is due; Update starts it, see startMentionScan
-	target string // the note the latest scan was asked for
-	shown  string // the note rows are for
-	rows   []core.UnlinkedMention
+	gen         uint64 // number of the latest scan started
+	wanted      bool   // a scan is due; Update starts it, see startMentionScan
+	target      string // the note the latest scan was asked for
+	shown       string // the note rows are for
+	rows        []core.UnlinkedMention
+	incremental bool     // when true, scan only onlyIDs and merge into rows
+	onlyIDs     []string // changed note IDs to scan incrementally
+	removedIDs  []string // removed note IDs to drop from rows
 }
 
 // mentionsScannedMsg is a finished scan of the notes mentioning target.
 type mentionsScannedMsg struct {
-	gen    uint64
-	target string
-	rows   []core.UnlinkedMention
+	gen         uint64
+	target      string
+	rows        []core.UnlinkedMention
+	incremental bool
+	scanned     []string
+	removed     []string
 }
 
 // mentionsLinkedMsg carries what linking one note's mentions wrote.
@@ -47,12 +54,37 @@ func (m *Model) requestMentions(force bool) {
 	id := m.currentNoteID()
 	if id == "" {
 		m.mentions.target = ""
+		m.mentions.wanted = false
+		m.mentions.incremental = false
+		m.mentions.onlyIDs = nil
+		m.mentions.removedIDs = nil
 		return
 	}
 	if force || id != m.mentions.target {
 		m.mentions.target = id
 		m.mentions.wanted = true
+		m.mentions.incremental = false
+		m.mentions.onlyIDs = nil
+		m.mentions.removedIDs = nil
 	}
+}
+
+// requestMentionsIncremental schedules a targeted mention scan of only the
+// changed note IDs, merging results into the already-shown rows.
+func (m *Model) requestMentionsIncremental(changed, removed []string) {
+	id := m.currentNoteID()
+	if id == "" {
+		return
+	}
+	// If a full scan is already queued, keep it as a full scan.
+	if m.mentions.wanted && !m.mentions.incremental && m.mentions.target == id {
+		return
+	}
+	m.mentions.target = id
+	m.mentions.wanted = true
+	m.mentions.incremental = true
+	m.mentions.onlyIDs = append(m.mentions.onlyIDs, changed...)
+	m.mentions.removedIDs = append(m.mentions.removedIDs, removed...)
 }
 
 // startMentionScan starts the scan requestMentions asked for, if any. The
@@ -63,6 +95,13 @@ func (m *Model) startMentionScan() tea.Cmd {
 		return nil
 	}
 	m.mentions.wanted = false
+	incremental := m.mentions.incremental
+	onlyIDs := m.mentions.onlyIDs
+	removedIDs := m.mentions.removedIDs
+	m.mentions.incremental = false
+	m.mentions.onlyIDs = nil
+	m.mentions.removedIDs = nil
+
 	b := m.activeBuffer()
 	if b == nil || b.draft() || b.id != m.mentions.target {
 		return nil
@@ -70,6 +109,32 @@ func (m *Model) startMentionScan() tea.Cmd {
 	m.mentions.gen++
 	gen, store, notes, dir := m.mentions.gen, m.store, m.notes, m.templatesFolder()
 	target := core.Page{ID: b.id, Title: b.title}
+	if incremental {
+		want := make(map[string]bool, len(onlyIDs))
+		for _, id := range onlyIDs {
+			want[id] = true
+		}
+		var subset []core.Page
+		for _, p := range notes {
+			if want[p.ID] {
+				subset = append(subset, p)
+			}
+		}
+		return func() tea.Msg {
+			rows := core.FindUnlinkedMentionsIn(notes, subset, target, func(id string) (string, error) {
+				p, err := store.Get(id)
+				return p.Content, err
+			}, func(id string) bool { return inTemplates(id, dir) })
+			return mentionsScannedMsg{
+				gen:         gen,
+				target:      target.ID,
+				rows:        rows,
+				incremental: true,
+				scanned:     onlyIDs,
+				removed:     removedIDs,
+			}
+		}
+	}
 	return func() tea.Msg {
 		rows := core.FindUnlinkedMentions(notes, target, func(id string) (string, error) {
 			p, err := store.Get(id)
@@ -82,6 +147,28 @@ func (m *Model) startMentionScan() tea.Cmd {
 // applyMentions shows a finished scan, unless a newer one was started.
 func (m *Model) applyMentions(msg mentionsScannedMsg) {
 	if msg.gen != m.mentions.gen {
+		return
+	}
+	if msg.incremental && m.mentions.shown == msg.target {
+		drop := make(map[string]bool, len(msg.scanned)+len(msg.removed))
+		for _, id := range msg.scanned {
+			drop[id] = true
+		}
+		for _, id := range msg.removed {
+			drop[id] = true
+		}
+		merged := make([]core.UnlinkedMention, 0, len(m.mentions.rows)+len(msg.rows))
+		for _, r := range m.mentions.rows {
+			if !drop[r.ID] {
+				merged = append(merged, r)
+			}
+		}
+		merged = append(merged, msg.rows...)
+		sort.SliceStable(merged, func(i, j int) bool {
+			return strings.ToLower(merged[i].Title) < strings.ToLower(merged[j].Title)
+		})
+		m.mentions.rows = merged
+		m.preview.SetMentions(msg.target, merged)
 		return
 	}
 	m.mentions.shown, m.mentions.rows = msg.target, msg.rows

@@ -65,8 +65,9 @@ type linkIndexState struct {
 
 // linkIndexedMsg is a finished build of the link index.
 type linkIndexedMsg struct {
-	gen uint64
-	idx *core.LinkIndex
+	gen  uint64
+	idx  *core.LinkIndex
+	diff core.LinkIndexDiff
 }
 
 // refreshGraph asks for the links of every note to be read again from
@@ -96,11 +97,11 @@ func (m *Model) startLinkIndex() tea.Cmd {
 	// of ":tags", the explorer's status icons and the finder's qualifiers.
 	idx.SetExcluded(m.templatesFolder())
 	return func() tea.Msg {
-		idx.Update(store.List(), func(id string) (string, error) {
+		diff := idx.UpdateWithDiff(store.List(), func(id string) (string, error) {
 			p, err := store.Get(id)
 			return p.Content, err
 		})
-		return linkIndexedMsg{gen: gen, idx: idx}
+		return linkIndexedMsg{gen: gen, idx: idx, diff: diff}
 	}
 }
 
@@ -125,13 +126,39 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		return
 	}
 	var back []core.Backlink
-	if id := m.currentNoteID(); id != "" {
+	id := m.currentNoteID()
+	if id != "" {
 		back = m.backlinks(id)
 	}
 	m.preview.SetBacklinks(back)
 	m.tutorCBacklinks(back)
-	// The notes changed on disk: their mentions may have too.
-	m.requestMentions(true)
+	// Only rescan unlinked mentions when notes other than the open note changed,
+	// or when the note set itself changed (add/remove/rename). Saving the active
+	// note alone cannot change another note's unlinked mentions of it.
+	switch {
+	case msg.diff.SetChanged:
+		m.requestMentions(true)
+	case id == "":
+		m.requestMentions(false)
+	case m.mentions.target != id:
+		m.requestMentions(false)
+	default:
+		var otherChanged []string
+		for _, cid := range msg.diff.Changed {
+			if cid != id {
+				otherChanged = append(otherChanged, cid)
+			}
+		}
+		if len(otherChanged) == 0 && len(msg.diff.Removed) == 0 {
+			// Active note save only (or no content changes): 0 disk reads.
+			return
+		}
+		if m.mentions.shown == id {
+			m.requestMentionsIncremental(otherChanged, msg.diff.Removed)
+		} else {
+			m.requestMentions(true)
+		}
+	}
 }
 
 // applyStatuses hands the note statuses of the index in use to the explorer

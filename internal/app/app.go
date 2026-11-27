@@ -73,12 +73,13 @@ type Model struct {
 	active   string
 	draftSeq int
 
-	confirm *confirmDialog
-	saveAs  *saveAsDialog
-	finder  *finder
-	themes  *themePicker
-	browser *fileBrowser
-	history *historyDialog // ":history", see history.go
+	confirm   *confirmDialog
+	saveAs    *saveAsDialog
+	finder    *finder
+	finderGen uint64 // monotonic counter to drop stale async finder text loads
+	themes    *themePicker
+	browser   *fileBrowser
+	history   *historyDialog // ":history", see history.go
 
 	promptBox *promptDialog
 	menuBox   *menuDialog
