@@ -264,9 +264,13 @@ func (m *Model) showBuffer(b *buffer) {
 		m.content.CommitChange()
 	}
 	b.relinkedFrom, b.relinkedHist = "", nil
-	m.preview.SetBaseDir(m.noteDir(b))
-	m.preview.SetPage(b.page())
-	m.refreshLinks()
+	// One compile for the page opening: its content, how its links resolve
+	// and its backlinks all change at once.
+	m.preview.Batch(func() {
+		m.preview.SetBaseDir(m.noteDir(b))
+		m.preview.SetPage(b.page())
+		m.refreshLinks()
+	})
 	if b.isGraph() {
 		m.content.SetBuffer(core.Page{}, false)
 		m.previewNote(m.graphSelected())

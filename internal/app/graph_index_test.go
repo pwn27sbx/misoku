@@ -108,16 +108,20 @@ func TestLinkIndexKeepsNewerResultWhenOlderArrivesLate(t *testing.T) {
 	}
 }
 
-// Before the first build arrives, backlinks and the graph are read from
-// the disk as before.
-func TestLinkIndexFallsBackToTheDiskBeforeTheFirstBuild(t *testing.T) {
+// Before the first build arrives, no backlinks are shown: they come from the
+// index, so opening a note never reads the whole vault. The graph still
+// falls back to the disk, since only the graph tab asks for it.
+func TestLinkIndexShowsNoBacklinksBeforeTheFirstBuild(t *testing.T) {
 	store := indexStore(t)
 	m := New(store)
 	if m.index.idx != nil {
 		t.Fatal("no build should have arrived yet")
 	}
-	if got := backlinkIDs(m.backlinks("B.md")); !reflect.DeepEqual(got, []string{"A.md"}) {
-		t.Fatalf("backlinks of B = %v, want [A.md]", got)
+	if got := m.backlinks("B.md"); got != nil {
+		t.Fatalf("backlinks of B = %v before the first build, want none", got)
+	}
+	if !m.index.wanted {
+		t.Fatal("backlinks with no index yet should ask for a build")
 	}
 	notes, edges := m.linkGraph()
 	wantNotes, wantEdges := store.LinkGraph()

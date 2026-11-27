@@ -61,6 +61,7 @@ type linkIndexState struct {
 	gen     uint64          // number of the latest build started
 	applied uint64          // number of the build idx came from
 	wanted  bool            // a build is due; Update starts it, see startLinkIndex
+	running bool            // a started build has not come back yet
 }
 
 // linkIndexedMsg is a finished build of the link index.
@@ -88,6 +89,7 @@ func (m *Model) startLinkIndex() tea.Cmd {
 	}
 	m.index.wanted = false
 	m.index.gen++
+	m.index.running = true
 	gen, store := m.index.gen, m.store
 	idx := core.NewLinkIndex(preview.IsImageName)
 	if m.index.idx != nil {
@@ -112,6 +114,7 @@ func (m *Model) applyLinkIndex(msg linkIndexedMsg) {
 		return
 	}
 	m.index.idx, m.index.applied = msg.idx, msg.gen
+	m.index.running = false
 	m.applyStatuses()
 	if m.bufferIndex(graphID) >= 0 {
 		m.graphNotes, m.graphEdges = m.linkGraph()
@@ -209,13 +212,24 @@ func (m *Model) linkGraph() ([]core.Page, []core.Edge) {
 	return m.store.LinkGraph()
 }
 
-// backlinks lists the notes linking to id, from the index, or read from
-// disk while the first build has not arrived.
+// backlinks lists the notes linking to id, from the index. Before the first
+// build arrives there are none to show yet: reading every note on the update
+// loop to answer here is what froze opening a note on a big vault, so the
+// build is asked for and the backlinks show when it lands (applyLinkIndex).
 func (m *Model) backlinks(id string) []core.Backlink {
 	if m.index.idx != nil {
 		return m.index.idx.Backlinks(id)
 	}
-	return m.store.Backlinks(id)
+	m.requestLinkIndex()
+	return nil
+}
+
+// requestLinkIndex asks for a build of the link index when none is running:
+// asking while one runs would replace it, and start the whole vault again.
+func (m *Model) requestLinkIndex() {
+	if !m.index.running {
+		m.index.wanted = true
+	}
 }
 
 // liveGraph updates the edited note's links from the editor, so links show
