@@ -22,6 +22,8 @@ type Raster struct {
 	// Overlay draws after the page: search marks and the selection. It never
 	// changes the layout, only the pixels it touches.
 	Overlay []Item
+	// OffX scrolls the page's wide blocks (code, tables) sideways, in cells.
+	OffX int
 }
 
 // Tile draws rows [first, first+rows) of the page at the cell size of Fonts.
@@ -36,6 +38,9 @@ func (r *Raster) Tile(first, rows int) *image.RGBA {
 	for _, it := range items {
 		if it.Y+max(it.H, 1) <= first || it.Y >= first+rows {
 			continue
+		}
+		if r.OffX != 0 && wideRow(r.Page, it.Y) {
+			it.X -= r.OffX
 		}
 		switch it.Kind {
 		case ItemRect:
@@ -94,6 +99,16 @@ func EncodePNG(img *image.RGBA) []byte {
 		return nil
 	}
 	return buf.Bytes()
+}
+
+// wideRow reports whether a page row belongs to a wide block.
+func wideRow(p *Page, row int) bool {
+	for _, w := range p.Wide {
+		if row >= w.Row && row < w.Row+w.Rows {
+			return true
+		}
+	}
+	return false
 }
 
 // tileRows is how many cell rows one image holds: one screenful, rounded up to
