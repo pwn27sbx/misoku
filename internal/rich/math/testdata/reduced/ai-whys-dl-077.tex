@@ -1,0 +1,1 @@
+R_t = \sigma(X_tW_{xr}+H_{t-1}W_{hr}+B_r) \\ Z_t = \sigma(X_tW_{xz}+H_{t-1}W_{hz}+B_z) \\ \tilde{H_t} = tanh(X_tW_{xh}+(R_t \odot H_{t-1})W_{hh}+B_h) \\ H_t = Z_t \odot H_{t-1} + (1-Z_t) \odot \tilde{H_t}
