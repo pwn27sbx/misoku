@@ -74,11 +74,11 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 	pen := it.X * r.Fonts.CellW
 	limit := pen + it.W*r.Fonts.CellW
 	for _, g := range r.Fonts.Shape(it.Text, it.SizePx, it.Mono) {
-		step := int(g.Advance)
-		if pen+int(g.X) >= limit && step > 0 {
+		step := g.Advance.Round()
+		if pen+g.X.Round() >= limit && step > 0 {
 			break
 		}
-		d.Dot = fixed.P(pen+int(g.X), baseline)
+		d.Dot = fixed.P(pen+g.X.Round(), baseline)
 		d.DrawString(string(g.R))
 		pen += step
 	}
