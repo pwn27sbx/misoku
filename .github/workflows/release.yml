@@ -6,9 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  # The release gate reads the CI runs of the tagged commit.
-  actions: read
+  contents: read
 
 jobs:
   # A tag does not start CI: the tagged commit's run came from its push to
@@ -16,19 +14,28 @@ jobs:
   ci-green:
     name: Require green CI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Require green CI for the tagged commit
         env:
           GH_TOKEN: ${{ github.token }}
-        run: sh scripts/require-green-ci.sh "${{ github.repository }}" "${{ github.sha }}"
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: sh scripts/require-green-ci.sh "$REPO" "$SHA"
 
   goreleaser:
     name: GoReleaser
     needs: ci-green
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
