@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -77,7 +78,7 @@ func TestImageOutsideTheVaultIsRefused(t *testing.T) {
 }
 
 func TestImageSymlinkOutOfTheVaultIsRefused(t *testing.T) {
-	if os.Getenv("GOOS") == "windows" {
+	if runtime.GOOS == "windows" {
 		t.Skip("symlinks need privileges on Windows")
 	}
 	root := t.TempDir()
@@ -129,5 +130,26 @@ func TestRemoteImageRefusesPrivateAddresses(t *testing.T) {
 	opts.Client = srv.Client()
 	if _, err := fetchRemote(srv.URL, opts); err != nil {
 		t.Fatalf("fetch with a widened policy: %v", err)
+	}
+}
+
+func TestSVGImageDrawsWithCanvas(t *testing.T) {
+	vault := t.TempDir()
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50" fill="#3366cc"/><circle cx="25" cy="25" r="15" fill="#ffcc00"/></svg>`
+	if err := os.WriteFile(filepath.Join(vault, "pic.svg"), []byte(svg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := testFonts(t)
+	doc := Document{Blocks: []Block{{Kind: KindImage, Src: "pic.svg", Lines: []string{"svg"}, Line: 0, End: 1}}}
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette(),
+		Images: ImageOptions{BaseDir: vault, Root: vault}})
+	box := blockFor(t, p)
+	if box == nil {
+		t.Fatal("the SVG was not placed in the page")
+	}
+	img := (&Raster{Page: p, Fonts: f, Palette: testPalette()}).Tile(box.Y, box.H)
+	got := img.RGBAAt(box.X*f.CellW+2, 2)
+	if got.B < 150 || got.R > 80 {
+		t.Fatalf("SVG pixel = %v, want the blue rectangle", got)
 	}
 }

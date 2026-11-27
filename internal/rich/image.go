@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	tdcanvas "github.com/tdewolff/canvas"
+	"github.com/tdewolff/canvas/renderers/rasterizer"
 	xdraw "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
@@ -30,6 +32,10 @@ import (
 
 // maxRemoteBytes caps one download, as the plan fixes.
 const maxRemoteBytes = 8 << 20
+
+// maxImagePixels caps a decoded picture (4096×4096): a stitched screenshot or
+// a hostile file must not allocate the heap during a page render.
+const maxImagePixels = 4096 * 4096
 
 // ImageOptions says what a page may load and where from.
 type ImageOptions struct {
@@ -51,9 +57,10 @@ func publicOnly(ip net.IP) bool {
 }
 
 var remoteCache = struct {
-	mu sync.Mutex
-	m  map[string]*image.RGBA
-}{m: map[string]*image.RGBA{}}
+	mu    sync.Mutex
+	m     map[string]image.Image
+	order []string
+}{m: map[string]image.Image{}}
 
 // imageBox builds the page's box for an image block. ok is false when the
 // source cannot be used (outside the vault, unsupported format, remote and
@@ -78,16 +85,28 @@ func imageBox(b Block, opts ImageOptions, widthCells, cellW, cellH int) (*Box, b
 		if !ok {
 			return nil, false
 		}
-		f, err := os.Open(p)
-		if err != nil {
-			return nil, false
+		if strings.EqualFold(filepath.Ext(p), ".svg") {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return nil, false
+			}
+			drawn, err := svgImage(data, widthCells*cellW)
+			if err != nil {
+				return nil, false
+			}
+			img = drawn
+		} else {
+			f, err := os.Open(p)
+			if err != nil {
+				return nil, false
+			}
+			defer f.Close()
+			decoded, _, err := image.Decode(f)
+			if err != nil {
+				return nil, false
+			}
+			img = decoded
 		}
-		defer f.Close()
-		decoded, _, err := image.Decode(f)
-		if err != nil {
-			return nil, false
-		}
-		img = decoded
 	}
 	bounds := img.Bounds()
 	widthPx := widthCells * cellW
@@ -150,15 +169,17 @@ func fetchRemote(src string, opts ImageOptions) (image.Image, error) {
 	if check == nil {
 		check = publicOnly
 	}
-	if img, ok := cachedRemote(src); ok {
-		return img, nil
-	}
 	u, err := url.Parse(src)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, fmt.Errorf("rich: bad image URL")
 	}
+	// The address policy runs before the cache: an entry stored by a caller
+	// that widened it is never served to one that did not.
 	if err := checkHost(u, check); err != nil {
 		return nil, err
+	}
+	if img, ok := cachedRemote(src); ok {
+		return img, nil
 	}
 	client := opts.Client
 	if client == nil {
@@ -205,11 +226,19 @@ func fetchRemote(src string, opts ImageOptions) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	scaled := scaleImage(img, img.Bounds().Dx(), img.Bounds().Dy())
+	if b := img.Bounds(); b.Dx()*b.Dy() > maxImagePixels {
+		return nil, errors.New("rich: image too large")
+	}
 	remoteCache.mu.Lock()
-	remoteCache.m[src] = scaled
+	if len(remoteCache.order) >= 32 {
+		oldest := remoteCache.order[0]
+		remoteCache.order = remoteCache.order[1:]
+		delete(remoteCache.m, oldest)
+	}
+	remoteCache.m[src] = img
+	remoteCache.order = append(remoteCache.order, src)
 	remoteCache.mu.Unlock()
-	return scaled, nil
+	return img, nil
 }
 
 func checkHost(u *url.URL, check func(net.IP) bool) error {
@@ -240,6 +269,20 @@ func cachedRemote(src string) (image.Image, bool) {
 	defer remoteCache.mu.Unlock()
 	img, ok := remoteCache.m[src]
 	return img, ok
+}
+
+// svgImage rasterises an SVG at widthPx with tdewolff/canvas, which draws
+// text and gradients where oksvg drew no text at all.
+func svgImage(data []byte, widthPx int) (image.Image, error) {
+	c, err := tdcanvas.ParseSVG(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if c.W <= 0 || c.H <= 0 || widthPx <= 0 {
+		return nil, errors.New("rich: empty SVG")
+	}
+	res := float64(widthPx) / c.W
+	return rasterizer.Draw(c, tdcanvas.Resolution(res), tdcanvas.LinearColorSpace{}), nil
 }
 
 // scaleImage resizes img to w×h with a good filter.
