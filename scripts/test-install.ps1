@@ -25,7 +25,11 @@ if (-not $ghv) { throw 'ghVersion not found in install.ps1' }
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ('misoku-install-test-' + [Guid]::NewGuid())
 New-Item -ItemType Directory -Path $work | Out-Null
-$savedUserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+$envReg = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+$hadSavedPath = $envReg.GetValueNames() -contains 'Path'
+$savedUserPath = if ($hadSavedPath) { [string]$envReg.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { $null }
+$savedUserPathKind = if ($hadSavedPath) { $envReg.GetValueKind('Path') } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+$envReg.Close()
 $server = $null
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -293,9 +297,28 @@ try {
     $null = Run 'tmpfail' @{ TMP = "$work\tmp-fail"; TEMP = "$work\tmp-fail"; MISOKU_GH_SHA256 = $null }
     Expect 'tmp: failure exits non-zero' ($code -ne 0)
     Expect 'tmp: failure leaves nothing' (-not (Get-ChildItem -Force "$work\tmp-fail" -Filter 'misoku-*'))
+    # 13. Existing %VAR% (REG_EXPAND_SZ) entries in user PATH stay unexpanded.
+    $rk = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    try {
+        $rk.SetValue('Path', '%USERPROFILE%\bin', [Microsoft.Win32.RegistryValueKind]::ExpandString)
+    } finally { $rk.Close() }
+    $d = Run 'expandpath' @{}
+    $rk = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $false)
+    try {
+        $rawPath = [string]$rk.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $rawKind = $rk.GetValueKind('Path')
+    } finally { $rk.Close() }
+    Expect 'expand path: exits 0' ($code -eq 0)
+    Expect 'expand path: stays REG_EXPAND_SZ' ($rawKind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString)
+    Expect 'expand path: keeps literal %USERPROFILE%\bin' (($rawPath -split ';') -contains '%USERPROFILE%\bin')
+    Expect 'expand path: appends install dir' (($rawPath -split ';') -contains $d)
 } finally {
     if ($server) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
-    [Environment]::SetEnvironmentVariable('Path', $savedUserPath, 'User')
+    $rk = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    try {
+        if ($hadSavedPath) { $rk.SetValue('Path', $savedUserPath, $savedUserPathKind) }
+        elseif ($rk.GetValueNames() -contains 'Path') { $rk.DeleteValue('Path') }
+    } finally { $rk.Close() }
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
 

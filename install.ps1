@@ -181,11 +181,26 @@ function Install-Misoku {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
         Place $newMisoku (Join-Path $dir 'misoku.exe')
 
-        $userPath = [string][Environment]::GetEnvironmentVariable('Path', 'User')
-        if (-not (($userPath -split ';') -contains $dir)) {
-            [Environment]::SetEnvironmentVariable('Path', ($userPath.TrimEnd(';') + ';' + $dir).TrimStart(';'), 'User')
-            $env:Path = "$env:Path;$dir"
-            Write-Host "Added $dir to your PATH (open a new terminal to use it everywhere)."
+        # Read and write HKCU:\Environment\Path without expanding %VAR% entries
+        # (REG_EXPAND_SZ) so existing user PATH variables are never mangled.
+        $envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+        try {
+            $userPath = [string]$envKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+            if ($envKey.GetValueNames() -contains 'Path') {
+                $existingKind = $envKey.GetValueKind('Path')
+                if ($existingKind -eq [Microsoft.Win32.RegistryValueKind]::String -and $userPath -notlike '*%*') {
+                    $kind = [Microsoft.Win32.RegistryValueKind]::String
+                }
+            }
+            if (-not (($userPath -split ';') -contains $dir)) {
+                $newPath = ($userPath.TrimEnd(';') + ';' + $dir).TrimStart(';')
+                $envKey.SetValue('Path', $newPath, $kind)
+                $env:Path = "$env:Path;$dir"
+                Write-Host "Added $dir to your PATH (open a new terminal to use it everywhere)."
+            }
+        } finally {
+            if ($envKey) { $envKey.Close() }
         }
 
         $ver = & (Join-Path $dir 'misoku.exe') --version
