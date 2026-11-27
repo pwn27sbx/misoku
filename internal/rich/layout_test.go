@@ -3,6 +3,7 @@ package rich
 import (
 	"image"
 	"image/draw"
+	"math"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -254,7 +255,12 @@ func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
 	if box.Y != wordRow {
 		t.Fatalf("box row = %d, want the line's row %d", box.Y, wordRow)
 	}
-	wantX := pageMargin + int(f.Measure("Before ", f.BodyPx, false)/64)/f.CellW
+	// "Before" plus the word gap the layout now guarantees.
+	space := int(f.Measure(" ", f.BodyPx, false)) / 64
+	if minSpace := int(math.Round(f.BodyPx * 0.33)); space < minSpace {
+		space = minSpace
+	}
+	wantX := pageMargin + (int(f.Measure("Before", f.BodyPx, false))/64+space)/f.CellW
 	if box.X != wantX {
 		t.Fatalf("box column = %d, want %d (after \"Before \")", box.X, wantX)
 	}
@@ -266,7 +272,7 @@ func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
 	}
 	// The ink lands at the run's exact pixel, once: the cell's left edge plus
 	// the sub-cell offset, on the line's baseline.
-	wantPx := pageMargin*f.CellW + int(f.Measure("Before ", f.BodyPx, false)/64)
+	wantPx := pageMargin*f.CellW + int(f.Measure("Before", f.BodyPx, false))/64 + space
 	box.Box.Draw(image.NewRGBA(image.Rect(0, 0, 200, 60)), box.X*f.CellW, 0)
 	if drawX != wantPx {
 		t.Fatalf("formula drawn at x = %d, want %d (cell %d)", drawX, wantPx, box.X)

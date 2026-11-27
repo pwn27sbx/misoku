@@ -170,6 +170,19 @@ func (l *layouter) list(nodes []Node, size float64, st style, f Font) box {
 	return out
 }
 
+// scriptClass is the class a scripted atom keeps from its base.
+func scriptClass(s *Script) Class {
+	if len(s.Base) == 1 {
+		switch b := s.Base[0].(type) {
+		case *Sym:
+			return b.Class
+		case *BigOp:
+			return Op
+		}
+	}
+	return Inner
+}
+
 func (l *layouter) atom(n Node, size float64, st style, f Font) (box, Class) {
 	switch t := n.(type) {
 	case *Sym:
@@ -185,7 +198,10 @@ func (l *layouter) atom(n Node, size float64, st style, f Font) (box, Class) {
 	case *Sqrt:
 		return l.sqrt(t, size, st, f), Inner
 	case *Script:
-		return l.script(t, size, st, f), Inner
+		// TeX gives a scripted atom its nucleus's class, so "mc^2" has no
+		// space between m and c: the superscript does not turn c into an
+		// inner atom.
+		return l.script(t, size, st, f), scriptClass(t)
 	case *Fenced:
 		return l.fenced(t, size, st, f), Inner
 	case *BigOp:
@@ -598,8 +614,24 @@ func (l *layouter) accent(a *Accent, size float64, st style, sup Font) box {
 		out.d = maxf(out.d, body.d+0.15*size+m.depth)
 		return out
 	}
+	// Centre the accent over the ink, not the advance: an italic y's ink sits
+	// right of its advance's centre, and a hat on the advance looks shifted.
+	x := (body.w - m.advance*sx) / 2
+	if len(a.Body) == 1 {
+		if sym, ok := a.Body[0].(*Sym); ok {
+			fs := size
+			if sym.Scale > 0 {
+				fs = size * sym.Scale
+			}
+			gm := metrics(glyphFont(sym.R, sym.Font), fs)
+			if gm.ok {
+				x += (gm.left + gm.right) / 2
+				x -= body.w / 2
+			}
+		}
+	}
 	y := body.h + 0.12*size + m.depth
-	out.addItem(item{kind: itGlyph, r: g, size: size, sx: sx, sy: sy}, (body.w-m.advance*sx)/2, y)
+	out.addItem(item{kind: itGlyph, r: g, size: size, sx: sx, sy: sy}, x, y)
 	out.h = maxf(out.h, y+m.height)
 	return out
 }

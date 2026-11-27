@@ -94,6 +94,11 @@ func DetectIn(env func(string) string, isTTY bool, passthrough func() bool) Mode
 // outerGraphics reports whether the terminal around us draws Kitty graphics,
 // from the variables it passes through tmux and herdr.
 func outerGraphics(env func(string) string) bool {
+	// herdr draws Kitty graphics itself, so it is a graphics terminal for the
+	// program under it — including a tmux that runs inside herdr.
+	if env("HERDR_ENV") == "1" {
+		return true
+	}
 	switch strings.ToLower(env("TERM_PROGRAM")) {
 	case "ghostty", "kitty", "wezterm", "iterm.app", "rex":
 		return true

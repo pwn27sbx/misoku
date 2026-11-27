@@ -268,3 +268,26 @@ func TestRichViewRebuildLeavesTheZoom(t *testing.T) {
 		t.Fatal("the page was not rebuilt after the resize")
 	}
 }
+
+// A refusal is never silent: the bar names the missing piece.
+func TestRichViewSaysWhyItCannotOpen(t *testing.T) {
+	preview.ConfigureImages("blocks", false)
+	t.Cleanup(func() { preview.ConfigureImages("blocks", false) })
+	m := richModel(t, nil)
+	openRich(m)
+	if m.noteView == viewRich {
+		t.Fatal("the rich view opened without images or an output")
+	}
+	if m.status == "" {
+		t.Fatal("no reason in the bar")
+	}
+
+	// The caller's hint (tmux) wins over the generic message.
+	withImages(t)
+	hinted := richModel(t, &richSender{})
+	hinted.richHint = "tmux passthrough is off"
+	openRich(hinted)
+	if hinted.status != "tmux passthrough is off" {
+		t.Fatalf("status = %q, want the hint", hinted.status)
+	}
+}

@@ -84,12 +84,25 @@ func TestCoreRoundedRectangleIsVerticallySymmetric(t *testing.T) {
 	fill := color.RGBA{R: 20, G: 40, B: 60, A: 255}
 	stroke := color.RGBA{R: 220, G: 220, B: 220, A: 255}
 	drawRounded(img, 2, 2, 9, 5, 2, fill, stroke)
+	// Antialiased coverage lets a level of rounding differ, never the shape:
+	// a lopsided corner is tens of levels off.
+	delta := func(a, b uint8) int {
+		if a > b {
+			return int(a - b)
+		}
+		return int(b - a)
+	}
 	for y := 0; y < 2; y++ {
 		for x := 0; x < 9; x++ {
 			top := img.RGBAAt(2+x, 2+y)
 			bottom := img.RGBAAt(2+x, 2+4-y)
-			if top != bottom {
-				t.Fatalf("rounded rectangle is not symmetric at column %d: top %v, bottom %v", x, top, bottom)
+			for _, d := range []int{
+				delta(top.R, bottom.R), delta(top.G, bottom.G),
+				delta(top.B, bottom.B), delta(top.A, bottom.A),
+			} {
+				if d > 4 {
+					t.Fatalf("rounded rectangle is not symmetric at column %d: top %v, bottom %v", x, top, bottom)
+				}
 			}
 		}
 	}

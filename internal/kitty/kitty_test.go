@@ -370,6 +370,7 @@ func TestDetectInTmux(t *testing.T) {
 		{"tmux on inside kitty", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "kitty"}, on, kitty.Graphics},
 		{"tmux on inside konsole", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "KONSOLE_VERSION": "240800"}, on, kitty.Graphics},
 		{"tmux on inside plain xterm", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color"}, on, kitty.Blocks},
+		{"tmux inside herdr", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "HERDR_ENV": "1"}, on, kitty.Graphics},
 		{"tmux passthrough off", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, off, kitty.Blocks},
 		{"tmux unknown passthrough", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, nil, kitty.Blocks},
 		{"screen stays text", map[string]string{"TERM": "screen-256color", "TERM_PROGRAM": "ghostty"}, on, kitty.Blocks},

@@ -49,16 +49,32 @@ func (m *Model) toggleRichView() tea.Cmd {
 		m.setNoteView(viewReading)
 		return m.focusPane(focusEditor)
 	}
-	if !m.richAvailable(true) {
-		if m.richHint != "" {
-			m.setStatus(m.richHint)
-		} else {
-			m.setStatus(i18n.T(i18n.AppRichUnavailable))
-		}
+	// A refusal is never silent: say which piece is missing.
+	if reason := m.richRefusal(); reason != "" {
+		m.setStatus(reason)
 		return nil
 	}
 	m.setNoteView(viewRich)
 	return m.focusPane(focusEditor)
+}
+
+// richRefusal is why the page cannot open here, or "" when it can. The reason
+// names the first missing piece: the caller's hint (tmux), the image output,
+// the terminal's graphics, or the pane width.
+func (m *Model) richRefusal() string {
+	if m.richHint != "" {
+		return m.richHint
+	}
+	if m.richSender == nil {
+		return i18n.T(i18n.AppRichNoOutput)
+	}
+	if !preview.GraphicsOK() {
+		return i18n.T(i18n.AppRichUnavailable)
+	}
+	if w := m.layout().EditorW; w < minRichForce {
+		return i18n.T(i18n.AppRichNarrow, w, minRichForce)
+	}
+	return ""
 }
 
 // refreshRich lays the active note out for the current width and theme. It is

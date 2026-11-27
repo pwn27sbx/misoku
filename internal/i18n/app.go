@@ -762,6 +762,8 @@ const (
 	AppReading           Key = "app.reading"
 	AppRichUnavailable   Key = "app.rich_unavailable"
 	AppRichTmuxOff       Key = "app.rich_tmux_off"
+	AppRichNoOutput      Key = "app.rich_no_output"
+	AppRichNarrow        Key = "app.rich_narrow"
 	AppRichFailed        Key = "app.rich_failed"
 	AppNoLinksInNote     Key = "app.no_links_in_note"
 	AppLeaderFooter      Key = "app.leader.footer"
@@ -866,6 +868,8 @@ func init() {
 		AppReading:           "Reading…",
 		AppRichUnavailable:   "Rich view unavailable: this terminal or pane cannot draw images",
 		AppRichTmuxOff:       "Rich view needs tmux passthrough: run tmux set -g allow-passthrough on, then reopen the terminal",
+		AppRichNoOutput:      "Rich view unavailable: the program has no image output",
+		AppRichNarrow:        "Rich view needs at least %d columns; this pane has %d",
 		AppRichFailed:        "Rich view failed: %s",
 		AppNoLinksInNote:     "No links in this note",
 		AppLeaderFooter:      " These keys come from config.json · Esc to close",
@@ -968,6 +972,8 @@ func init() {
 		AppReading:           "Leyendo…",
 		AppRichUnavailable:   "La vista rica no está disponible: esta terminal o este panel no pueden dibujar imágenes",
 		AppRichTmuxOff:       "La vista rica necesita passthrough en tmux: ejecuta tmux set -g allow-passthrough on y vuelve a abrir la terminal",
+		AppRichNoOutput:      "La vista rica no está disponible: el programa no tiene salida de imágenes",
+		AppRichNarrow:        "La vista rica necesita al menos %d columnas; este panel tiene %d",
 		AppRichFailed:        "La vista rica falló: %s",
 		AppNoLinksInNote:     "No hay enlaces en esta nota",
 		AppLeaderFooter:      " Estas teclas vienen de config.json · Esc cierra",

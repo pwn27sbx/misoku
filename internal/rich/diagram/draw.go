@@ -6,9 +6,9 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
-	"sort"
 
 	"github.com/pwn27sbx/misoku/internal/rich"
+	"golang.org/x/image/vector"
 )
 
 const (
@@ -173,13 +173,15 @@ func fillRect(img *image.RGBA, x, y, w, h int, c color.RGBA) {
 }
 
 func strokeRect(img *image.RGBA, x, y, w, h int, c color.RGBA) {
-	if w <= 0 || h <= 0 {
+	if w <= 0 || h <= 0 || c.A == 0 {
 		return
 	}
-	drawLine(img, x, y, x+w-1, y, c, false, false)
-	drawLine(img, x, y+h-1, x+w-1, y+h-1, c, false, false)
-	drawLine(img, x, y, x, y+h-1, c, false, false)
-	drawLine(img, x+w-1, y, x+w-1, y+h-1, c, false, false)
+	strokeAA(img, []float64{
+		float64(x) + 0.5, float64(y) + 0.5,
+		float64(x+w) - 0.5, float64(y) + 0.5,
+		float64(x+w) - 0.5, float64(y+h) - 0.5,
+		float64(x) + 0.5, float64(y+h) - 0.5,
+	}, true, 1, c)
 }
 
 func drawRounded(img *image.RGBA, x, y, w, h, radius int, fill, stroke color.RGBA) {
@@ -187,42 +189,33 @@ func drawRounded(img *image.RGBA, x, y, w, h, radius int, fill, stroke color.RGB
 		return
 	}
 	radius = min(max(radius, 0), min(w, h)/2)
-	if fill.A != 0 {
-		for row := 0; row < h; row++ {
-			inset := 0
-			if row < radius {
-				dy := radius - row
-				inset = radius - int(math.Sqrt(float64(radius*radius-dy*dy)))
-			} else if row >= h-radius {
-				dy := row - (h - radius - 1)
-				inset = radius - int(math.Sqrt(float64(radius*radius-dy*dy)))
-			}
-			fillRect(img, x+inset, y+row, w-2*inset, 1, fill)
+	fillPolyAA(img, roundedRectPath(float64(x), float64(y), float64(w), float64(h), float64(radius)), fill)
+	// The border sits inside the shape: half a pixel in keeps the antialiased
+	// edge on the pixel grid, and the top and bottom rows match.
+	border := math.Min(float64(radius), float64(min(w, h))/2-0.5)
+	strokeAA(img, roundedRectPath(
+		float64(x)+0.5, float64(y)+0.5, float64(w)-1, float64(h)-1, math.Max(border, 0)), true, 1, stroke)
+}
+
+// roundedRectPath is the outline of a rounded rectangle, clockwise, with
+// enough segments per corner that the antialiased curve reads as an arc.
+func roundedRectPath(x, y, w, h, r float64) []float64 {
+	if r <= 0 {
+		return []float64{x, y, x + w, y, x + w, y + h, x, y + h}
+	}
+	const seg = 8
+	out := make([]float64, 0, 4*(seg+1)*2)
+	arc := func(cx, cy, from, to float64) {
+		for i := 0; i <= seg; i++ {
+			a := from + (to-from)*float64(i)/seg
+			out = append(out, cx+r*math.Cos(a), cy+r*math.Sin(a))
 		}
 	}
-	if stroke.A == 0 {
-		return
-	}
-	if radius == 0 {
-		strokeRect(img, x, y, w, h, stroke)
-		return
-	}
-	drawLine(img, x+radius, y, x+w-radius-1, y, stroke, false, false)
-	drawLine(img, x+radius, y+h-1, x+w-radius-1, y+h-1, stroke, false, false)
-	drawLine(img, x, y+radius, x, y+h-radius-1, stroke, false, false)
-	drawLine(img, x+w-1, y+radius, x+w-1, y+h-radius-1, stroke, false, false)
-	corners := []struct {
-		point Point
-		start float64
-	}{
-		{Point{X: x + radius, Y: y + radius}, math.Pi},
-		{Point{X: x + w - radius - 1, Y: y + radius}, 1.5 * math.Pi},
-		{Point{X: x + radius, Y: y + h - radius - 1}, math.Pi / 2},
-		{Point{X: x + w - radius - 1, Y: y + h - radius - 1}, 0},
-	}
-	for _, corner := range corners {
-		drawArc(img, corner.point.X, corner.point.Y, radius, corner.start, corner.start+math.Pi/2, stroke)
-	}
+	arc(x+w-r, y+r, -math.Pi/2, 0)
+	arc(x+w-r, y+h-r, 0, math.Pi/2)
+	arc(x+r, y+h-r, math.Pi/2, math.Pi)
+	arc(x+r, y+r, math.Pi, 3*math.Pi/2)
+	return out
 }
 
 func drawEllipse(img *image.RGBA, x, y, w, h int, circle bool, fill, stroke color.RGBA) {
@@ -235,9 +228,107 @@ func drawEllipse(img *image.RGBA, x, y, w, h int, circle bool, fill, stroke colo
 		y += (h - d) / 2
 		w, h = d, d
 	}
-	points := ellipsePoints(x, y, w, h, 72)
-	drawPolygon(img, points, fill, stroke)
+	// Enough segments that the antialiased outline reads as a curve, not a
+	// polygon with visible corners.
+	segments := clampInt(24+w+h/2, 48, 360)
+	xy := make([]float64, 0, segments*2)
+	cx, cy := float64(x)+float64(w)/2, float64(y)+float64(h)/2
+	rx, ry := float64(w)/2, float64(h)/2
+	for i := 0; i < segments; i++ {
+		a := 2 * math.Pi * float64(i) / float64(segments)
+		xy = append(xy, cx+rx*math.Cos(a), cy+ry*math.Sin(a))
+	}
+	fillPolyAA(img, xy, fill)
+	strokeAA(img, xy, true, 1, stroke)
 }
+
+// rasterAA runs one vector rasterisation over the whole shape: the fill or
+// every stroke quad is added as a subpath and composited once, so a circle
+// costs two rasteriser setups, not one per segment.
+func rasterAA(dst *image.RGBA, c color.RGBA, build func(r *vector.Rasterizer, ox, oy float64)) {
+	if c.A == 0 {
+		return
+	}
+	b := dst.Bounds()
+	var r vector.Rasterizer
+	r.Reset(b.Dx(), b.Dy())
+	r.DrawOp = draw.Over
+	build(&r, float64(b.Min.X), float64(b.Min.Y))
+	r.Draw(dst, b, image.NewUniform(c), image.Point{})
+}
+
+// fillPolyAA fills a closed polygon, given as x,y pairs, with antialiasing:
+// the vector rasteriser covers partial pixels instead of the staircase a
+// scanline fill leaves, which is what made pie slices and circles jagged.
+func fillPolyAA(dst *image.RGBA, xy []float64, c color.RGBA) {
+	if len(xy) < 6 {
+		return
+	}
+	rasterAA(dst, c, func(r *vector.Rasterizer, ox, oy float64) {
+		r.MoveTo(float32(xy[0]-ox), float32(xy[1]-oy))
+		for i := 2; i+1 < len(xy); i += 2 {
+			r.LineTo(float32(xy[i]-ox), float32(xy[i+1]-oy))
+		}
+		r.ClosePath()
+	})
+}
+
+// strokeAA draws an antialiased line along the points, width pixels thick,
+// with small round joins so corners do not pinch.
+func strokeAA(dst *image.RGBA, xy []float64, closed bool, width float64, c color.RGBA) {
+	if len(xy) < 4 || width <= 0 {
+		return
+	}
+	h := width / 2
+	n := len(xy) / 2
+	segments := n - 1
+	if closed {
+		segments++
+	}
+	rasterAA(dst, c, func(r *vector.Rasterizer, ox, oy float64) {
+		quad := func(ax, ay, bx, by, nx, ny float64) {
+			r.MoveTo(float32(ax+nx-ox), float32(ay+ny-oy))
+			r.LineTo(float32(bx+nx-ox), float32(by+ny-oy))
+			r.LineTo(float32(bx-nx-ox), float32(by-ny-oy))
+			r.LineTo(float32(ax-nx-ox), float32(ay-ny-oy))
+			r.ClosePath()
+		}
+		for i := 0; i < segments; i++ {
+			j := (i + 1) % n
+			ax, ay := xy[2*i], xy[2*i+1]
+			bx, by := xy[2*j], xy[2*j+1]
+			dx, dy := bx-ax, by-ay
+			l := math.Hypot(dx, dy)
+			if l == 0 {
+				continue
+			}
+			quad(ax, ay, bx, by, -dy/l*h, dx/l*h)
+		}
+		if width > 1.2 {
+			for i := 0; i < len(xy); i += 2 {
+				cx, cy := xy[i], xy[i+1]
+				join := ringAA(h)
+				r.MoveTo(float32(cx+join[0]-ox), float32(cy+join[1]-oy))
+				for k := 2; k < len(join); k += 2 {
+					r.LineTo(float32(cx+join[k]-ox), float32(cy+join[k+1]-oy))
+				}
+				r.ClosePath()
+			}
+		}
+	})
+}
+
+// ringAA is a small octagon of radius r, the round join of two stroked lines.
+func ringAA(r float64) []float64 {
+	out := make([]float64, 0, 16)
+	for i := 0; i < 8; i++ {
+		a := 2 * math.Pi * float64(i) / 8
+		out = append(out, r*math.Cos(a), r*math.Sin(a))
+	}
+	return out
+}
+
+func clampInt(v, lo, hi int) int { return max(lo, min(v, hi)) }
 
 func ellipsePoints(x, y, w, h, segments int) []Point {
 	points := make([]Point, segments)
@@ -260,47 +351,29 @@ func drawSector(img *image.RGBA, x, y, w, h int, start, end float64, fill color.
 	end = min(end, start+2*math.Pi)
 	r := float64(min(w, h)-1) / 2
 	cx, cy := float64(x)+float64(w-1)/2, float64(y)+float64(h-1)/2
-	segments := max(int((end-start)*24), 12)
-	points := make([]Point, 0, segments+2)
-	points = append(points, Point{X: int(math.Round(cx)), Y: int(math.Round(cy))})
+	segments := max(int((end-start)*48), 24)
+	xy := make([]float64, 0, segments*2+2)
+	xy = append(xy, cx, cy)
 	for i := 0; i <= segments; i++ {
 		a := start + (end-start)*float64(i)/float64(segments)
-		points = append(points, Point{X: int(math.Round(cx + r*math.Cos(a))), Y: int(math.Round(cy + r*math.Sin(a)))})
+		xy = append(xy, cx+r*math.Cos(a), cy+r*math.Sin(a))
 	}
-	drawPolygon(img, points, fill, color.RGBA{})
+	fillPolyAA(img, xy, fill)
 }
 
 func drawPolygon(img *image.RGBA, points []Point, fill, stroke color.RGBA) {
 	if len(points) < 2 {
 		return
 	}
+	xy := make([]float64, 0, len(points)*2)
+	for _, p := range points {
+		xy = append(xy, float64(p.X), float64(p.Y))
+	}
 	if fill.A != 0 && len(points) >= 3 {
-		minY, maxY := points[0].Y, points[0].Y
-		for _, p := range points {
-			minY, maxY = min(minY, p.Y), max(maxY, p.Y)
-		}
-		for y := minY; y <= maxY; y++ {
-			var xs []int
-			for i, a := range points {
-				b := points[(i+1)%len(points)]
-				if (a.Y <= y && b.Y > y) || (b.Y <= y && a.Y > y) {
-					x := int(math.Round(float64(a.X) + float64(y-a.Y)*float64(b.X-a.X)/float64(b.Y-a.Y)))
-					xs = append(xs, x)
-				}
-			}
-			sort.Ints(xs)
-			for i := 0; i+1 < len(xs); i += 2 {
-				if xs[i+1] > xs[i] {
-					fillRect(img, xs[i], y, xs[i+1]-xs[i]+1, 1, fill)
-				}
-			}
-		}
+		fillPolyAA(img, xy, fill)
 	}
 	if stroke.A != 0 {
-		for i, a := range points {
-			b := points[(i+1)%len(points)]
-			drawLine(img, a.X, a.Y, b.X, b.Y, stroke, false, false)
-		}
+		strokeAA(img, xy, true, 1, stroke)
 	}
 }
 

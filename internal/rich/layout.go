@@ -441,9 +441,13 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 				runSize = size * 0.85
 			}
 			px := 0
-			if run.Box != nil {
+			switch {
+			case run.Box != nil:
 				px = run.Box.WidthPx
-			} else {
+			case strings.TrimSpace(run.Text) == "":
+				// The gap between words follows the same rule the wrap used.
+				px = l.wordSpace(size)
+			default:
 				px = l.f.MeasureStyled(run.Text, runSize, run.Code, run.Bold, run.Italic)
 			}
 			xCells := l.x0 + indent + prefixPx/l.f.CellW
@@ -483,6 +487,17 @@ func (l *layouter) inlineItem(run styledText, xCells, xOff, w, rows, base int) I
 		}}}
 }
 
+// wordSpace is the gap between words: the font's own space, but never
+// narrower than a third of the em, so words stay apart at the terminal's size
+// instead of reading glued ("Fórmulaenlínea").
+func (l *layouter) wordSpace(size float64) int {
+	px := int(l.f.Measure(" ", size, false)) / 64
+	if minSpace := int(math.Round(size * 0.33)); px < minSpace {
+		px = minSpace
+	}
+	return px
+}
+
 // wrapRuns wraps styled runs to maxPx, word by word, keeping each word's
 // style and splitting a word that cannot fit on a line of its own. An inline
 // maths run is one unbreakable word measured by its ink, whatever spaces its
@@ -516,7 +531,7 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 		}
 		prevEndedSpace = strings.HasSuffix(r.Text, " ") || strings.HasSuffix(r.Text, "\n")
 	}
-	spacePx := func() int { return int(l.f.Measure(" ", size, false)) / 64 }
+	spacePx := func() int { return l.wordSpace(size) }
 	widthOf := func(w word) int {
 		if w.box != nil {
 			return w.box.WidthPx
