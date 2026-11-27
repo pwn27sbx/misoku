@@ -1,6 +1,7 @@
 package rich
 
 import (
+	"image"
 	"image/draw"
 	"strings"
 	"testing"
@@ -219,18 +220,19 @@ func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
 	f := testFonts(t)
 	doc := Parse([]byte("Before $x^2$ after.\n"))
 	var called []string
+	drawX, drawBase := -1, -1
 	p := Layout(doc, LayoutOptions{Width: 50, Fonts: f, Palette: testPalette(),
 		MathInline: func(src string, sizePx float64) *InlineBox {
 			called = append(called, src)
 			return &InlineBox{WidthPx: 30, DepthPx: 4,
-				Draw: func(dst draw.Image, x, baselineY int) {}}
+				Draw: func(dst draw.Image, x, baselineY int) { drawX, drawBase = x, baselineY }}
 		}})
 	if len(called) != 1 || called[0] != "x^2" {
 		t.Fatalf("inline hook calls = %q, want one x^2", called)
 	}
 	var box *Item
 	var text strings.Builder
-	wordRow := -1
+	wordRow, textBase := -1, 0
 	for i := range p.Items {
 		it := &p.Items[i]
 		switch it.Kind {
@@ -239,7 +241,7 @@ func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
 		case ItemText:
 			text.WriteString(it.Text)
 			if it.Text == "Before" {
-				wordRow = it.Y
+				wordRow, textBase = it.Y, it.BaselinePx
 			}
 		}
 	}
@@ -261,5 +263,66 @@ func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
 	}
 	if strings.Contains(text.String(), "x^2") {
 		t.Fatalf("the maths source was drawn as text: %q", text.String())
+	}
+	// The ink lands at the run's exact pixel, once: the cell's left edge plus
+	// the sub-cell offset, on the line's baseline.
+	wantPx := pageMargin*f.CellW + int(f.Measure("Before ", f.BodyPx, false)/64)
+	box.Box.Draw(image.NewRGBA(image.Rect(0, 0, 200, 60)), box.X*f.CellW, 0)
+	if drawX != wantPx {
+		t.Fatalf("formula drawn at x = %d, want %d (cell %d)", drawX, wantPx, box.X)
+	}
+	if textBase != drawBase || drawBase <= 0 {
+		t.Fatalf("formula baseline = %d, want the words' %d px", drawBase, textBase)
+	}
+}
+
+// A formula deeper than its text line claims the rows it needs, so the next
+// line starts below the ink instead of on top of it.
+func TestLayoutGivesTallInlineMathItsRows(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("A tall $\\frac{1}{2}$ here.\n\nNext paragraph.\n"))
+	p := Layout(doc, LayoutOptions{Width: 50, Fonts: f, Palette: testPalette(),
+		MathInline: func(src string, sizePx float64) *InlineBox {
+			return &InlineBox{WidthPx: 24, DepthPx: f.CellH * 2,
+				Draw: func(dst draw.Image, x, baselineY int) {}}
+		}})
+	var box, next *Item
+	for i := range p.Items {
+		it := &p.Items[i]
+		if it.Kind == ItemBox {
+			box = it
+		}
+		if it.Kind == ItemText && strings.HasPrefix(it.Text, "Next") {
+			next = it
+		}
+	}
+	if box == nil || next == nil {
+		t.Fatalf("page has no formula box (%v) or no next line (%v)", box, next)
+	}
+	if box.H < 3 {
+		t.Fatalf("box rows = %d, want the two-cell depth to be claimed", box.H)
+	}
+	if next.Y < box.Y+box.H {
+		t.Fatalf("next line at row %d overlaps the formula rows %d..%d", next.Y, box.Y, box.Y+box.H)
+	}
+}
+
+// A formula the engine refuses keeps its source: the pane is never blank.
+func TestLayoutKeepsSourceWhenTheInlineEngineFails(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("A formula $\\frac{1}{2}$ that cannot be laid out.\n"))
+	p := Layout(doc, LayoutOptions{Width: 50, Fonts: f, Palette: testPalette(),
+		MathInline: func(src string, sizePx float64) *InlineBox { return nil }})
+	var text strings.Builder
+	for _, it := range p.Items {
+		if it.Kind == ItemBox {
+			t.Fatal("a refused formula still claimed a box")
+		}
+		if it.Kind == ItemText {
+			text.WriteString(it.Text)
+		}
+	}
+	if !strings.Contains(text.String(), `$\frac{1}{2}$`) {
+		t.Fatalf("the refused formula lost its source: %q", text.String())
 	}
 }

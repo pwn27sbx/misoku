@@ -3,6 +3,7 @@ package rich
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestParseBlocksAndSourceLines(t *testing.T) {
@@ -156,7 +157,7 @@ func TestParseLinkSpans(t *testing.T) {
 // Inline maths is parsed into a marker span: the page lays the formula out
 // instead of drawing its source, while prices and code stay literal text.
 func TestParseMarksInlineMath(t *testing.T) {
-	src := "Energy $E=mc^2$ and \\(a+b\\) here; prices $5 and $6 stay; code `$x$` stays; a \\$9 bill; emphasis $a*b*c + x_1 + x_2$ kept.\n"
+	src := "Energy $E=mc^2$ and \\(a+b\\) here; prices $5 and $6 stay; code `$x$` stays; a \\$9 bill; emphasis $a*b*c + x_1 + x_2$ and braces $\\{x\\}$ kept.\n"
 	doc := Parse([]byte(src))
 	if len(doc.Blocks) == 0 {
 		t.Fatal("no blocks parsed")
@@ -176,9 +177,14 @@ func TestParseMarksInlineMath(t *testing.T) {
 			t.Fatalf("maths span %q does not cover its literal %q", sp.Math, literal)
 		}
 	}
-	want := []string{"E=mc^2", "a+b", "a*b*c + x_1 + x_2"}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+	want := []string{"E=mc^2", "a+b", "a*b*c + x_1 + x_2", `\{x\}`}
+	if len(got) != len(want) {
 		t.Fatalf("maths spans = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("maths span %d = %q, want %q", i, got[i], want[i])
+		}
 	}
 	// The flattened text keeps a readable literal of every formula; the spans
 	// carry the source the engine draws instead.
@@ -202,5 +208,70 @@ func TestParseLeavesFencedMathAlone(t *testing.T) {
 	}
 	if doc.Blocks[1].Code[0] != `x := "$y$"` {
 		t.Fatalf("code line = %q, want the dollar signs untouched", doc.Blocks[1].Code[0])
+	}
+}
+
+// The pre-pass must leave code alone whatever fence it uses: a longer fence is
+// not closed by a shorter one, and the indented form counts as code too.
+func TestParseInlineMathSkipsEveryKindOfCode(t *testing.T) {
+	src := "````md\n```go\n$x$ is documented\n```\n````\n\n    $y$ is indent code\n\nAfter $z$ maths.\n"
+	doc := Parse([]byte(src))
+	var text string
+	for _, b := range doc.Blocks {
+		text += strings.Join(b.Lines, "") + "\n"
+		text += strings.Join(b.Code, "") + "\n"
+	}
+	if !strings.Contains(text, "$y$ is indent code") {
+		t.Fatalf("indented code lost its dollars: %q", text)
+	}
+	var maths []string
+	for _, b := range doc.Blocks {
+		for _, sp := range b.Spans {
+			if sp.Math != "" {
+				maths = append(maths, sp.Math)
+			}
+		}
+	}
+	if len(maths) != 1 || maths[0] != "z" {
+		t.Fatalf("maths spans = %q, want only z after the fences", maths)
+	}
+}
+
+// A marker rune the note already carried never reaches the page as tofu, and a
+// lone one cannot pair with a later formula.
+func TestParseStrayMathMarkerDoesNotLeak(t *testing.T) {
+	doc := Parse([]byte("A lone \uE004 marker and $x$ maths.\n"))
+	text := doc.Blocks[0].Lines[0]
+	for _, r := range text {
+		if r == mathMarkOpen || r == mathMarkClose {
+			t.Fatalf("marker reached the page: %q", text)
+		}
+	}
+	if !strings.ContainsRune(text, utf8.RuneError) {
+		t.Fatalf("stray marker was not marked as invalid: %q", text)
+	}
+	if len(doc.Blocks[0].Spans) != 1 || doc.Blocks[0].Spans[0].Math != "x" {
+		t.Fatalf("spans = %+v, want one x formula", doc.Blocks[0].Spans)
+	}
+}
+
+// Table cells and footnotes draw their text without spans, but a formula
+// there still reads as its source: no marker rune ever reaches them.
+func TestParseTableAndFootnoteKeepMathsReadable(t *testing.T) {
+	doc := Parse([]byte("| a | b |\n|---|---|\n| $x^2$ | y |\n\nA note[^1].\n\n[^1]: with $y_1$ inside.\n"))
+	var cells []string
+	for _, b := range doc.Blocks {
+		for _, row := range b.Rows {
+			cells = append(cells, row...)
+		}
+	}
+	joined := strings.Join(cells, " | ")
+	if !strings.Contains(joined, "$x^2$") || !strings.Contains(joined, "$y_1$") {
+		t.Fatalf("table/footnote text lost a formula: %q", joined)
+	}
+	for _, r := range joined {
+		if r >= 0xE000 && r <= 0xE01E {
+			t.Fatalf("a marker reached a table or footnote: %q", joined)
+		}
 	}
 }

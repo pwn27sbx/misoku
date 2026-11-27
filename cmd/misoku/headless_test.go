@@ -93,3 +93,31 @@ func TestHeadlessDrawsMath(t *testing.T) {
 		}
 	}
 }
+
+// Zero columns or rows take the documented defaults before the page is laid
+// out, so the payload and the tile pixels agree.
+func TestHeadlessDefaultsBeforeLayout(t *testing.T) {
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("", "Head", "A paragraph.\n"); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if code := runHeadless(store, "Head.md", 0, 0, "onedark", "test", &out); code != 0 {
+		t.Fatalf("runHeadless exit %d", code)
+	}
+	var p headlessPayload
+	if err := json.Unmarshal(out.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Cols != 100 || p.Rows != 40 {
+		t.Fatalf("payload cols/rows = %d/%d, want the 100x40 defaults", p.Cols, p.Rows)
+	}
+	for _, tile := range p.Tiles {
+		if tile.Width != p.WidthPx {
+			t.Fatalf("tile width %d, want %d", tile.Width, p.WidthPx)
+		}
+	}
+}

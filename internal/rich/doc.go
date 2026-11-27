@@ -22,8 +22,9 @@ import (
 func Parse(src []byte) Document {
 	body, props, consumed := splitFrontMatter(src)
 	body, lineMap := fenceMathBlocks(body, consumed)
-	body = expandWikiLinks(body)
+	body = sanitizeReserved(body)
 	body = markInlineMath(body)
+	body = expandWikiLinks(body)
 
 	var doc Document
 	if len(props) > 0 {
@@ -549,23 +550,57 @@ const (
 	mathMarkClose = '\uE005'
 )
 
-// markInlineMath marks inline formulas on every line outside a code fence.
-// Inline code spans keep their dollars: a documented `$x$` is a literal.
+// markInlineMath marks inline formulas on every line outside code. Fenced
+// blocks are tracked by their own character and length (a four-backtick fence
+// is not closed by three), and the four-space indented form is left alone too.
+// The private-use range U+E000..U+E01E is reserved for these markers and for
+// the stand-ins that keep Markdown from eating a formula's characters;
+// sanitizeReserved replaces any the note already carries.
 func markInlineMath(src []byte) []byte {
 	lines := strings.Split(string(src), "\n")
-	inFence := false
+	var fence rune // 0 outside a fence
+	fenceLen := 0
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
+		if fence != 0 {
+			if r, n := fenceRun(trimmed); r == fence && n >= fenceLen {
+				fence, fenceLen = 0, 0
+			}
 			continue
 		}
-		if inFence {
+		if isIndentedCode(line) {
+			continue
+		}
+		if r, n := fenceRun(trimmed); n >= 3 {
+			fence, fenceLen = r, n
 			continue
 		}
 		lines[i] = markMathInLine(line)
 	}
 	return []byte(strings.Join(lines, "\n"))
+}
+
+// fenceRun reports the fence character and its run length at the start of a
+// trimmed line, or 0 when the line does not open with a fence.
+func fenceRun(s string) (rune, int) {
+	if s == "" || (s[0] != '`' && s[0] != '~') {
+		return 0, 0
+	}
+	r := rune(s[0])
+	n := 0
+	for _, c := range s {
+		if c != r {
+			break
+		}
+		n++
+	}
+	return r, n
+}
+
+// isIndentedCode reports Markdown's indented code form: four spaces or a tab
+// before any other character.
+func isIndentedCode(line string) bool {
+	return strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "    ")
 }
 
 // markMathInLine replaces every inline formula of one line with its markers.
@@ -661,8 +696,69 @@ func markMathSegment(text string) string {
 
 func writeMathMark(b *strings.Builder, src string) {
 	b.WriteRune(mathMarkOpen)
-	b.WriteString(strings.TrimSpace(src))
+	b.WriteString(escapeMath(strings.TrimSpace(src)))
 	b.WriteRune(mathMarkClose)
+}
+
+// markdownActive maps each character Markdown treats as inline syntax to a
+// private-use stand-in: one rune for one rune, so the flattened text keeps its
+// offsets and the formula reaches the engine exactly as written. Without it,
+// "$a*b*c$" loses "*b*" to emphasis and "$\{x\}$" loses its backslash.
+var markdownActive = map[rune]rune{
+	'\\': '\uE010', '`': '\uE011', '*': '\uE012', '_': '\uE013',
+	'[': '\uE014', ']': '\uE015', '(': '\uE016', ')': '\uE017',
+	'!': '\uE018', '<': '\uE019', '>': '\uE01A', '&': '\uE01B',
+	'~': '\uE01C', '|': '\uE01D', '#': '\uE01E',
+}
+
+var markdownRestored = func() map[rune]rune {
+	m := make(map[rune]rune, len(markdownActive))
+	for r, stand := range markdownActive {
+		m[stand] = r
+	}
+	return m
+}()
+
+func escapeMath(src string) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	for _, r := range src {
+		if stand, ok := markdownActive[r]; ok {
+			b.WriteRune(stand)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func unescapeMath(src string) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	for _, r := range src {
+		if real, ok := markdownRestored[r]; ok {
+			b.WriteRune(real)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// sanitizeReserved replaces the private-use runes the page reserves for its
+// own markers. They are invisible junk in a note, and left alone they would
+// pair with a real formula or reach the page as tofu.
+func sanitizeReserved(src []byte) []byte {
+	var b strings.Builder
+	b.Grow(len(src))
+	for _, r := range string(src) {
+		if r >= 0xE000 && r <= 0xE01E {
+			b.WriteRune(utf8.RuneError)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return []byte(b.String())
 }
 
 // parenMathEnd finds the \) that closes a \(…\) formula, or -1.
@@ -715,13 +811,20 @@ func resolveMathMarkers(text string) (string, []Span) {
 	for i := 0; i < len(runes); {
 		if runes[i] == mathMarkOpen {
 			if j := indexRune(runes, mathMarkClose, i+1); j > i {
-				src := string(runes[i+1 : j])
+				src := unescapeMath(string(runes[i+1 : j]))
 				literal := "$" + src + "$"
 				spans = append(spans, Span{Start: i, End: i + len([]rune(literal)), Math: src})
 				b.WriteString(literal)
 				i = j + 1
 				continue
 			}
+		}
+		if runes[i] == mathMarkOpen || runes[i] == mathMarkClose {
+			// An unpaired marker is not the reader's text: show a replacement
+			// rune and keep the offsets stable.
+			b.WriteRune(utf8.RuneError)
+			i++
+			continue
 		}
 		b.WriteRune(runes[i])
 		i++

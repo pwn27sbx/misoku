@@ -159,9 +159,16 @@ func TestStyledLineKeepsEverySpace(t *testing.T) {
 		}
 		rows[it.Y].WriteString(it.Text)
 	}
+	// Rows are assembled in page order: a map's iteration order is random and
+	// made this assertion fail at random.
+	order := make([]int, 0, len(rows))
+	for y := range rows {
+		order = append(order, y)
+	}
+	sort.Ints(order)
 	var lines []string
-	for _, b := range rows {
-		lines = append(lines, b.String())
+	for _, y := range order {
+		lines = append(lines, rows[y].String())
 	}
 	joined := strings.Join(lines, " ")
 	want := "Some bold text and a wiki link in a paragraph that wraps across the page width."

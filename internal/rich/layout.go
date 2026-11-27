@@ -315,30 +315,46 @@ func (s styledText) sameStyle(o styledText) bool {
 
 // runsOf splits a block's first line into styled runs from its spans. The cuts
 // are every span boundary, so an emphasis wrapped around a maths span keeps
-// both: the inner run carries the formula, the outer its style.
+// both: the inner run carries the formula, the outer its style. Spans are
+// swept once in start order, so a line with many spans stays cheap.
 func runsOf(b Block) []styledText {
 	if len(b.Lines) == 0 {
 		return nil
 	}
 	runes := []rune(b.Lines[0])
+	spans := make([]Span, 0, len(b.Spans))
 	cuts := []int{0, len(runes)}
 	for _, sp := range b.Spans {
 		start, end := clampSpan(sp.Start, sp.End, len(runes))
-		if end > start {
-			cuts = append(cuts, start, end)
+		if end <= start {
+			continue
 		}
+		sp.Start, sp.End = start, end
+		spans = append(spans, sp)
+		cuts = append(cuts, start, end)
 	}
 	sort.Ints(cuts)
+	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
 	var out []styledText
+	var active []Span
+	next := 0
 	for i := 0; i+1 < len(cuts); i++ {
 		start, end := cuts[i], cuts[i+1]
 		if end <= start {
 			continue
 		}
+		for next < len(spans) && spans[next].Start <= start {
+			active = append(active, spans[next])
+			next++
+		}
 		r := styledText{Text: string(runes[start:end])}
-		for _, sp := range b.Spans {
-			s, e := clampSpan(sp.Start, sp.End, len(runes))
-			if s > start || end > e {
+		kept := active[:0]
+		for _, sp := range active {
+			if sp.End <= start {
+				continue
+			}
+			kept = append(kept, sp)
+			if sp.Start > start {
 				continue
 			}
 			r.Bold = r.Bold || sp.Bold
@@ -349,6 +365,7 @@ func runsOf(b Block) []styledText {
 				r.Math = sp.Math
 			}
 		}
+		active = kept
 		if n := len(out); n > 0 && out[n-1].sameStyle(r) {
 			out[n-1].Text += r.Text
 			continue
@@ -389,6 +406,17 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 	lineCells := max(int(math.Ceil(l.f.LineHeightPx(size, false)/float64(l.f.CellH))), 1)
 	base := l.baseline(size)
 	for _, line := range lines {
+		// A formula taller than the text line gets the rows its ink needs, so
+		// a fraction never paints over the line below it.
+		lineRows := lineCells
+		for _, run := range line {
+			if run.Box == nil {
+				continue
+			}
+			if need := (base + run.Box.DepthPx + l.f.CellH - 1) / l.f.CellH; need > lineRows {
+				lineRows = need
+			}
+		}
 		prefixPx := 0
 		for _, run := range line {
 			runCol := col
@@ -411,7 +439,7 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 			// too: otherwise the raster's clip drops the run's last glyph.
 			w := max((px+xOff+l.f.CellW-1)/l.f.CellW, 1)
 			if run.Box != nil {
-				l.emit(l.inlineItem(run, xCells, xOff, w, lineCells, base))
+				l.emit(l.inlineItem(run, xCells, xOff, w, lineRows, base))
 				prefixPx += px
 				continue
 			}
@@ -425,23 +453,19 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 				Color: runCol, BaselinePx: base, XOffPx: xOff})
 			prefixPx += px
 		}
-		l.y += lineCells
+		l.y += lineRows
 	}
 }
 
 // inlineItem turns an inline formula into a page item: a box on the text
 // line, drawn with its baseline at the line's baseline and its exact pixel
 // offset inside the cells it claims.
-func (l *layouter) inlineItem(run styledText, xCells, xOff, w, lineCells, base int) Item {
+func (l *layouter) inlineItem(run styledText, xCells, xOff, w, rows, base int) Item {
 	box := run.Box
-	h := lineCells
-	// A fraction in text style can be taller than one line; the item claims
-	// the rows its ink needs so a tile boundary never cuts it.
-	if need := (base + box.DepthPx + l.f.CellH - 1) / l.f.CellH; need > h {
-		h = need
-	}
-	return Item{Kind: ItemBox, X: xCells, Y: l.y, W: w, H: h, XOffPx: xOff,
-		Box: &Box{W: w, H: h, Draw: func(dst draw.Image, x, y int) {
+	// XOffPx stays zero: a box is drawn from its cell's left edge, and the
+	// sub-cell offset lives inside Draw, so nothing shifts it twice.
+	return Item{Kind: ItemBox, X: xCells, Y: l.y, W: w, H: rows,
+		Box: &Box{W: w, H: rows, Draw: func(dst draw.Image, x, y int) {
 			box.Draw(dst, x+xOff, y+base)
 		}}}
 }
