@@ -75,7 +75,7 @@ func (s *slowWriter) interleaved() bool {
 // waits for the lock the upload holds.
 func TestCursorWritesWaitForAnImageUpload(t *testing.T) {
 	dst := &slowWriter{started: make(chan struct{})}
-	out, images, cur := chain(dst, true)
+	out, images, cur := chain(dst, true, false)
 	if cur == nil {
 		t.Fatal("no cursor writer")
 	}
@@ -111,7 +111,7 @@ func TestCursorWritesWaitForAnImageUpload(t *testing.T) {
 // Without a cursor writer the program output is the picture writer itself, so
 // Bubble Tea still finds the terminal through it.
 func TestChainWithoutTheCursor(t *testing.T) {
-	out, images, cur := chain(&slowWriter{}, false)
+	out, images, cur := chain(&slowWriter{}, false, false)
 	if cur != nil {
 		t.Fatal("a cursor writer was built with the feature off")
 	}

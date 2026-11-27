@@ -46,12 +46,12 @@ type headlessTile struct {
 
 // headlessPage lays a note out for headless mode. It goes through the same
 // page constructor as the app, so both draw the same fonts, palette and maths.
-func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme) (*rich.Page, *rich.Fonts, rich.Palette, string, error) {
+func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme, cellW, cellH int) (*rich.Page, *rich.Fonts, rich.Palette, string, error) {
 	note, err := store.Get(noteID)
 	if err != nil {
 		return nil, nil, rich.Palette{}, "", err
 	}
-	fonts, err := rich.LoadFonts(rich.FontConfig{})
+	fonts, err := rich.LoadFonts(rich.FontConfig{CellW: cellW, CellH: cellH})
 	if err != nil {
 		return nil, nil, rich.Palette{}, "", err
 	}
@@ -66,7 +66,7 @@ func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme) (*
 
 // runHeadless lays the note out at cols cells, writes one PNG per screenful
 // and prints the payload. It returns the process exit code.
-func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, version string, out io.Writer) int {
+func runHeadless(store *core.Store, noteID string, cols, rows, cellW, cellH int, themeName, version string, out io.Writer) int {
 	th, ok := theme.Get(themeName)
 	if !ok {
 		th = theme.DefaultTheme()
@@ -77,7 +77,7 @@ func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, ve
 	if cols <= 0 {
 		cols = 100
 	}
-	page, fonts, pal, id, err := headlessPage(store, noteID, cols, th)
+	page, fonts, pal, id, err := headlessPage(store, noteID, cols, th, cellW, cellH)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "misoku --headless: %v\n", err)
 		return 1

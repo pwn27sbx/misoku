@@ -129,3 +129,25 @@ func TestMeasureStyledMatchesTheDrawnAdvance(t *testing.T) {
 		}
 	}
 }
+
+// Without an explicit size the body follows the cell: a terminal cell is about
+// 1.2 times its font, so the page's text reads at the terminal's own size.
+func TestFontsDefaultBodyMatchesTheCell(t *testing.T) {
+	f, err := NewFonts(goregular.TTF, gomono.TTF, FontConfig{CellW: 10, CellH: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := 17.0; f.BodyPx != want {
+		t.Fatalf("body = %v px at a 20 px cell, want %v", f.BodyPx, want)
+	}
+	if f.MonoPx != f.BodyPx*0.85 {
+		t.Fatalf("mono = %v, want 0.85 of the body", f.MonoPx)
+	}
+	// An explicit size still wins (tests and callers that know better).
+	if f, err = NewFonts(goregular.TTF, gomono.TTF, FontConfig{CellW: 12, CellH: 24, BodyPx: 16}); err != nil {
+		t.Fatal(err)
+	}
+	if f.BodyPx != 16 {
+		t.Fatalf("explicit body = %v, want 16", f.BodyPx)
+	}
+}

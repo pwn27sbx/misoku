@@ -42,11 +42,21 @@ page at the row you left.
 
 ## Terminals
 
-Kitty graphics are chosen from the environment only (`internal/kitty`):
-Ghostty, kitty, WezTerm, iTerm2, Konsole and Rex, plus herdr panes, which
-render graphics themselves. `MISOKU_IMAGES=kitty|graphics|on` forces them and
-`blocks|half|off` disables them. tmux, screen and zellij are not rendered
-through (they get the text view); Warp is not supported.
+Kitty graphics are chosen from the environment (`internal/kitty`): Ghostty,
+kitty, WezTerm, iTerm2, Konsole and Rex, plus herdr panes, which render
+graphics themselves. `MISOKU_IMAGES=kitty|graphics|on` forces them and
+`blocks|half|off` disables them. screen and zellij are not rendered through
+(they get the text view); Warp is not supported.
+
+tmux 3.3 or newer works when it lets graphics through: with
+`set -g allow-passthrough on`, the transmissions go wrapped in tmux's
+passthrough DCS (the Unicode placeholders survive tmux's redraws), and with it
+off `space V` says how to turn it on.
+
+The page is drawn at the terminal's real cell size in pixels (TIOCGWINSZ):
+body text is 0.83 of the cell height, the terminal's own size. A terminal that
+reports no pixels (some multiplexers answer zeros) falls back to 12x24; set
+`ui.rich_cell_px` (or `MISOKU_RICH_CELL_PX`, e.g. `10x19`) to tell it.
 
 Without graphics the rich view refuses to open and says why; the text reading
 view is always one key away and never blank.

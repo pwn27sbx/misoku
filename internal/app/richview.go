@@ -50,7 +50,11 @@ func (m *Model) toggleRichView() tea.Cmd {
 		return m.focusPane(focusEditor)
 	}
 	if !m.richAvailable(true) {
-		m.setStatus(i18n.T(i18n.AppRichUnavailable))
+		if m.richHint != "" {
+			m.setStatus(m.richHint)
+		} else {
+			m.setStatus(i18n.T(i18n.AppRichUnavailable))
+		}
 		return nil
 	}
 	m.setNoteView(viewRich)

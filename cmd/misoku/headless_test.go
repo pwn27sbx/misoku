@@ -23,7 +23,7 @@ func TestHeadlessPrintsOnePayloadWithTiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if code := runHeadless(store, "Head.md", 60, 10, "onedark", "test", &out); code != 0 {
+	if code := runHeadless(store, "Head.md", 60, 10, 0, 0, "onedark", "test", &out); code != 0 {
 		t.Fatalf("runHeadless exit %d", code)
 	}
 	var p headlessPayload
@@ -71,7 +71,7 @@ func TestHeadlessDrawsMath(t *testing.T) {
 	if _, err := store.SaveAs("", "Math", body); err != nil {
 		t.Fatal(err)
 	}
-	page, _, _, id, err := headlessPage(store, "Math.md", 60, theme.DefaultTheme())
+	page, _, _, id, err := headlessPage(store, "Math.md", 60, theme.DefaultTheme(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestHeadlessDefaultsBeforeLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if code := runHeadless(store, "Head.md", 0, 0, "onedark", "test", &out); code != 0 {
+	if code := runHeadless(store, "Head.md", 0, 0, 0, 0, "onedark", "test", &out); code != 0 {
 		t.Fatalf("runHeadless exit %d", code)
 	}
 	var p headlessPayload
@@ -136,7 +136,7 @@ func TestHeadlessDrawsDiagrams(t *testing.T) {
 	if _, err := store.SaveAs("", "Diagrams", body); err != nil {
 		t.Fatal(err)
 	}
-	page, _, _, _, err := headlessPage(store, "Diagrams.md", 80, theme.DefaultTheme())
+	page, _, _, _, err := headlessPage(store, "Diagrams.md", 80, theme.DefaultTheme(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

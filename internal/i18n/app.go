@@ -761,6 +761,7 @@ const (
 	AppHistoryRestored   Key = "app.history.restored"
 	AppReading           Key = "app.reading"
 	AppRichUnavailable   Key = "app.rich_unavailable"
+	AppRichTmuxOff       Key = "app.rich_tmux_off"
 	AppRichFailed        Key = "app.rich_failed"
 	AppNoLinksInNote     Key = "app.no_links_in_note"
 	AppLeaderFooter      Key = "app.leader.footer"
@@ -864,6 +865,7 @@ func init() {
 		AppHistoryRestored:   "Restored the version of %s (%s): u undoes it, save to keep it",
 		AppReading:           "Reading…",
 		AppRichUnavailable:   "Rich view unavailable: this terminal or pane cannot draw images",
+		AppRichTmuxOff:       "Rich view needs tmux passthrough: run tmux set -g allow-passthrough on, then reopen the terminal",
 		AppRichFailed:        "Rich view failed: %s",
 		AppNoLinksInNote:     "No links in this note",
 		AppLeaderFooter:      " These keys come from config.json · Esc to close",
@@ -965,6 +967,7 @@ func init() {
 		AppHistoryRestored:   "Se restauró la versión del %s (%s): u lo deshace, guarda para conservarla",
 		AppReading:           "Leyendo…",
 		AppRichUnavailable:   "La vista rica no está disponible: esta terminal o este panel no pueden dibujar imágenes",
+		AppRichTmuxOff:       "La vista rica necesita passthrough en tmux: ejecuta tmux set -g allow-passthrough on y vuelve a abrir la terminal",
 		AppRichFailed:        "La vista rica falló: %s",
 		AppNoLinksInNote:     "No hay enlaces en esta nota",
 		AppLeaderFooter:      " Estas teclas vienen de config.json · Esc cierra",

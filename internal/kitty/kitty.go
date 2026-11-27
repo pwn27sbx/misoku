@@ -41,6 +41,15 @@ const maxID = 255
 // The six terminals mddog lists are covered by environment alone: Ghostty,
 // WezTerm, kitty, iTerm2 and Rex by TERM_PROGRAM, Konsole by KONSOLE_VERSION.
 func Detect(env func(string) string, isTTY bool) Mode {
+	return DetectIn(env, isTTY, nil)
+}
+
+// DetectIn is Detect with what tmux answers about passthrough. Inside tmux,
+// graphics only reach the outer terminal when tmux lets them through: with
+// passthrough on (and a kitty-capable outer terminal) the rich view draws, and
+// the writer wraps every transmit for tmux. passthrough may be nil, which
+// keeps tmux on the text view.
+func DetectIn(env func(string) string, isTTY bool, passthrough func() bool) Mode {
 	if env == nil {
 		return Blocks
 	}
@@ -55,7 +64,19 @@ func Detect(env func(string) string, isTTY bool) Mode {
 	}
 	term := env("TERM")
 	herdr := env("HERDR_ENV") == "1"
-	if env("TMUX") != "" || strings.HasPrefix(term, "screen") || strings.HasPrefix(term, "tmux") {
+	inTmux := env("TMUX") != "" || strings.HasPrefix(term, "tmux")
+	if inTmux {
+		// tmux keeps the outer terminal's identity in the environment, but it
+		// drops the graphics unless passthrough lets them through.
+		if passthrough == nil || !passthrough() {
+			return Blocks
+		}
+		if outerGraphics(env) {
+			return Graphics
+		}
+		return Blocks
+	}
+	if strings.HasPrefix(term, "screen") {
 		return Blocks
 	}
 	if !herdr && (env("ZELLIJ") != "" || env("CMUX_SOCKET") != "" || env("CMUX_PANE_ID") != "") {
@@ -64,21 +85,28 @@ func Detect(env func(string) string, isTTY bool) Mode {
 	if herdr {
 		return Graphics
 	}
-	switch strings.ToLower(env("TERM_PROGRAM")) {
-	case "ghostty", "kitty", "wezterm", "iterm.app", "rex":
-		return Graphics
-	}
-	// Konsole exports its version and nothing else in the environment.
-	if env("KONSOLE_VERSION") != "" {
-		return Graphics
-	}
-	if strings.Contains(term, "kitty") || strings.Contains(term, "ghostty") {
-		return Graphics
-	}
-	if env("KITTY_WINDOW_ID") != "" || env("KITTY_PID") != "" {
+	if outerGraphics(env) {
 		return Graphics
 	}
 	return Blocks
+}
+
+// outerGraphics reports whether the terminal around us draws Kitty graphics,
+// from the variables it passes through tmux and herdr.
+func outerGraphics(env func(string) string) bool {
+	switch strings.ToLower(env("TERM_PROGRAM")) {
+	case "ghostty", "kitty", "wezterm", "iterm.app", "rex":
+		return true
+	}
+	// Konsole exports its version and nothing else in the environment.
+	if env("KONSOLE_VERSION") != "" {
+		return true
+	}
+	term := env("TERM")
+	if strings.Contains(term, "kitty") || strings.Contains(term, "ghostty") {
+		return true
+	}
+	return env("KITTY_WINDOW_ID") != "" || env("KITTY_PID") != ""
 }
 
 // Sender is the one output the program has: frames and graphics go through it so

@@ -691,3 +691,30 @@ func basicTextRows(s Scene, labels ...string) []int {
 	}
 	return rows
 }
+
+// Mermaid writes the title on the header line as often as on its own:
+// "pie title Pets" is valid and must draw, with or without showData.
+func TestBasicPieInlineTitle(t *testing.T) {
+	for _, src := range []string{
+		"pie title Mascotas\n\"Perros\" : 60\n\"Gatos\" : 40",
+		"pie showData title Mascotas\n\"Perros\" : 60\n\"Gatos\" : 40",
+	} {
+		d, err := Parse(src)
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if d.Kind != KindPie || d.Title != "Mascotas" {
+			t.Fatalf("%q: kind %q title %q", src, d.Kind, d.Title)
+		}
+		data, ok := d.Data.(PieData)
+		if !ok || len(data.Slices) != 2 {
+			t.Fatalf("%q: data %+v", src, d.Data)
+		}
+	}
+	if _, err := Parse("pie title\n\"A\" : 1"); err == nil {
+		t.Fatal("an empty inline title was accepted")
+	}
+	if _, err := Parse("pie nonsense\n\"A\" : 1"); err == nil {
+		t.Fatal("a bogus header was accepted")
+	}
+}

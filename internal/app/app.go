@@ -114,6 +114,7 @@ type Model struct {
 	richEngines   *engines.Engines // maths and diagrams, caches kept across rebuilds
 	richZoomBack  *rich.Page       // the page a diagram zoom will return to, nil when not zoomed
 	richZoomTop   int              // the page row the reader was on when the zoom opened
+	richHint      string           // why the rich view cannot open here, when the reason is specific
 	richSender    rich.Sender
 	richFontBody  string
 	richFontMono  string
@@ -258,6 +259,23 @@ func WithOpener(open func(string) error) Option {
 // inside a frame. Passing nil leaves the rich view unavailable.
 func WithImageSender(s rich.Sender) Option {
 	return func(m *Model) { m.richSender = s }
+}
+
+// WithRichHint replaces the generic "unavailable" message with a specific
+// reason (tmux without passthrough, for one).
+func WithRichHint(msg string) Option {
+	return func(m *Model) { m.richHint = msg }
+}
+
+// WithCellSize tells the rich view the terminal's real cell size in pixels:
+// the page is drawn at that size, so body text matches the terminal's text and
+// a tile maps one pixel to one screen pixel instead of being stretched.
+func WithCellSize(cellW, cellH int) Option {
+	return func(m *Model) {
+		if cellW > 0 && cellH > 0 {
+			m.richCellW, m.richCellH = cellW, cellH
+		}
+	}
 }
 
 // WithRichFonts names the faces and the cell size of the rich view; empty

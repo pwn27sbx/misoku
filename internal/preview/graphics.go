@@ -91,7 +91,13 @@ func ClearImages() {
 // ConfigureImages applies the "ui.images" setting, with MISOKU_IMAGES still
 // winning over it. Called once, before the program starts.
 func ConfigureImages(setting string, isTTY bool) {
-	mode := kitty.Detect(os.Getenv, isTTY)
+	ConfigureImagesIn(setting, isTTY, nil)
+}
+
+// ConfigureImagesIn is ConfigureImages with tmux passthrough: nil keeps tmux on
+// the text view, and a pass-through probe lets the rich view draw inside tmux.
+func ConfigureImagesIn(setting string, isTTY bool, passthrough func() bool) {
+	mode := kitty.DetectIn(os.Getenv, isTTY, passthrough)
 	if os.Getenv("MISOKU_IMAGES") == "" {
 		switch strings.ToLower(strings.TrimSpace(setting)) {
 		case "kitty", "graphics", "on":

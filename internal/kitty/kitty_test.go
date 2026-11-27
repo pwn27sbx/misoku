@@ -344,3 +344,61 @@ func TestWriterKeepsTheTerminalVisibleToBubbleTea(t *testing.T) {
 		t.Fatalf("a buffer has no descriptor, got %d", got)
 	}
 }
+
+// tmux only passes graphics through its DCS, with every escape byte inside
+// the payload doubled.
+func TestWrapPassthrough(t *testing.T) {
+	seq := "\x1b_Ga=T,f=100;AAAA\x1b\\"
+	want := "\x1bPtmux;\x1b\x1b_Ga=T,f=100;AAAA\x1b\x1b\\\x1b\\"
+	if got := kitty.WrapPassthrough(seq); got != want {
+		t.Fatalf("wrapped = %q, want %q", got, want)
+	}
+}
+
+// Inside tmux the rich view draws only when passthrough is on and the outer
+// terminal speaks Kitty; every other mix stays on the text view.
+func TestDetectInTmux(t *testing.T) {
+	on := func() bool { return true }
+	off := func() bool { return false }
+	cases := []struct {
+		name string
+		env  map[string]string
+		pass func() bool
+		want kitty.Mode
+	}{
+		{"tmux on inside ghostty", map[string]string{"TMUX": "/tmp/tmux-1/default,1,0", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, on, kitty.Graphics},
+		{"tmux on inside kitty", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "kitty"}, on, kitty.Graphics},
+		{"tmux on inside konsole", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "KONSOLE_VERSION": "240800"}, on, kitty.Graphics},
+		{"tmux on inside plain xterm", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color"}, on, kitty.Blocks},
+		{"tmux passthrough off", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, off, kitty.Blocks},
+		{"tmux unknown passthrough", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, nil, kitty.Blocks},
+		{"screen stays text", map[string]string{"TERM": "screen-256color", "TERM_PROGRAM": "ghostty"}, on, kitty.Blocks},
+		{"herdr is unchanged", map[string]string{"HERDR_ENV": "1", "TERM": "xterm-256color"}, on, kitty.Graphics},
+		{"plain ghostty is unchanged", map[string]string{"TERM_PROGRAM": "ghostty"}, on, kitty.Graphics},
+	}
+	for _, c := range cases {
+		if got := kitty.DetectIn(envOf(c.env), true, c.pass); got != c.want {
+			t.Errorf("%s: mode %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// Send wraps the transmit and nothing else: frames never carry a DCS.
+func TestPassthroughWriterWrapsOnlyGraphics(t *testing.T) {
+	var buf bytes.Buffer
+	w := kitty.NewWriter(&buf)
+	w.SetPassthrough(true)
+	if err := w.Send("\x1b_Ga=T;x\x1b\\"); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); !strings.HasPrefix(got, "\x1bPtmux;") || !strings.HasSuffix(got, "\x1b\\") {
+		t.Fatalf("send not wrapped: %q", got)
+	}
+	buf.Reset()
+	if _, err := w.Write([]byte("frame")); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != "frame" {
+		t.Fatalf("frame wrapped: %q", got)
+	}
+}

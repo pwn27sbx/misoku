@@ -77,6 +77,10 @@ type JourneyTask struct {
 	Actors []string
 }
 
+// isSpace reports whether b starts whitespace, for the word checks in the
+// header parsers.
+func isSpace(b byte) bool { return b == ' ' || b == '\t' }
+
 func init() {
 	registerWithHeader(KindPie, parsePie, layoutPie)
 	register(KindQuadrant, parseQuadrant, layoutQuadrant)
@@ -86,11 +90,30 @@ func init() {
 
 func parsePie(header string, lines []string) (Diagram, error) {
 	fields := strings.Fields(header)
-	if len(fields) == 0 || !strings.EqualFold(fields[0], "pie") || len(fields) > 2 || (len(fields) == 2 && fields[1] != "showData") {
+	if len(fields) == 0 || !strings.EqualFold(fields[0], "pie") {
 		return Diagram{}, unknown(KindPie, 1, header)
 	}
 	d := Diagram{Kind: KindPie}
-	data := PieData{ShowData: len(fields) == 2}
+	data := PieData{}
+	// Mermaid accepts the title on the header line ("pie title Pets"), after
+	// an optional showData, as well as on a line of its own.
+	rest := strings.TrimSpace(header[len(fields[0]):])
+	if len(rest) >= len("showData") && strings.EqualFold(rest[:len("showData")], "showData") &&
+		(len(rest) == len("showData") || isSpace(rest[len("showData")])) {
+		data.ShowData = true
+		rest = strings.TrimSpace(rest[len("showData"):])
+	}
+	if rest != "" {
+		if len(rest) < len("title") || !strings.EqualFold(rest[:len("title")], "title") ||
+			(len(rest) > len("title") && !isSpace(rest[len("title")])) {
+			return Diagram{}, unknown(KindPie, 1, header)
+		}
+		title := unquote(strings.TrimSpace(rest[len("title"):]))
+		if title == "" {
+			return Diagram{}, unknown(KindPie, 1, header)
+		}
+		d.Title = title
+	}
 	var firstLine sourceLine
 	var firstSlice sourceLine
 	for _, line := range numberedNonBlank(lines) {

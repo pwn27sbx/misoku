@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,7 +79,13 @@ func NewFontsWithStyles(body, mono, bold, italic []byte, cfg FontConfig) (*Fonts
 		f.CellH = 24
 	}
 	if f.BodyPx <= 0 {
-		f.BodyPx = 16
+		// The body text has to read like the terminal's own: a terminal cell
+		// is about 1.2 times its font size, so 0.83 of the cell height is the
+		// size the reader sees in the file list beside the page.
+		f.BodyPx = math.Round(float64(f.CellH) * 0.83)
+		if f.BodyPx < 8 {
+			f.BodyPx = 8
+		}
 	}
 	if f.MonoPx <= 0 {
 		f.MonoPx = f.BodyPx * 0.85

@@ -269,6 +269,10 @@ type UI struct {
 	// ModifiedMark goes before the tab name of a note with unsaved changes,
 	// like incline's "[+]".
 	ModifiedMark string `json:"modified_mark,omitempty"`
+	// RichCellPx overrides the rich view's cell size in pixels ("10x19") for
+	// a terminal that does not report its pixel geometry (herdr). Unset uses
+	// the terminal's answer, then 12x24. MISOKU_RICH_CELL_PX wins over it.
+	RichCellPx string `json:"rich_cell_px,omitempty"`
 	// Images chooses how the preview draws pictures: "auto" (default, from
 	// the terminal), "kitty" (Kitty graphics protocol) or "blocks" (half
 	// blocks). MISOKU_IMAGES wins over it.
