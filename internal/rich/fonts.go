@@ -28,7 +28,15 @@ type Fonts struct {
 
 	bodySh, monoSh *gtfont.Face
 	bodyDr, monoDr font.Face
+	bodyBytes      []byte
+	monoBytes      []byte
+	faces          map[faceKey]font.Face
 	shaper         shaping.HarfbuzzShaper
+}
+
+type faceKey struct {
+	size float64
+	mono bool
 }
 
 // FontConfig says where the faces come from. Empty paths resolve the system's
@@ -45,7 +53,8 @@ type FontConfig struct {
 
 // NewFonts builds a Fonts from font bytes; tests use it with the Go fonts.
 func NewFonts(body, mono []byte, cfg FontConfig) (*Fonts, error) {
-	f := &Fonts{CellW: cfg.CellW, CellH: cfg.CellH, BodyPx: cfg.BodyPx, MonoPx: cfg.MonoPx}
+	f := &Fonts{CellW: cfg.CellW, CellH: cfg.CellH, BodyPx: cfg.BodyPx, MonoPx: cfg.MonoPx,
+		bodyBytes: body, monoBytes: mono, faces: map[faceKey]font.Face{}}
 	if f.CellW <= 0 {
 		f.CellW = 12
 	}
@@ -108,6 +117,7 @@ func LoadFonts(cfg FontConfig) (*Fonts, error) {
 // macOS and Windows. Bold and italic faces are left to the drawing face's
 // synthetic styles; the plan keeps one face per family until the text task.
 func systemFont(family string) string {
+	found := ""
 	if runtime.GOOS == "linux" {
 		if out, err := exec.Command("fc-match", "-f", "%{file}", family).Output(); err == nil {
 			p := strings.TrimSpace(string(out))
@@ -153,8 +163,6 @@ func systemFont(family string) string {
 	}
 	return ""
 }
-
-var found string
 
 func firstExisting(paths ...string) string {
 	for _, p := range paths {
@@ -265,21 +273,41 @@ func (f *Fonts) Wrap(s string, maxPx int, sizePx float64, mono bool) []string {
 	return out
 }
 
+// Face returns the drawing face at size px, cached: headings need a bigger
+// face than body text, and shaping already uses the same size.
+func (f *Fonts) Face(sizePx float64, mono bool) font.Face {
+	if !mono && sizePx == f.BodyPx {
+		return f.bodyDr
+	}
+	if mono && sizePx == f.MonoPx {
+		return f.monoDr
+	}
+	key := faceKey{size: sizePx, mono: mono}
+	if face, ok := f.faces[key]; ok {
+		return face
+	}
+	b := f.bodyBytes
+	if mono {
+		b = f.monoBytes
+	}
+	face, err := drawFace(b, sizePx)
+	if err != nil {
+		if mono {
+			return f.monoDr
+		}
+		return f.bodyDr
+	}
+	f.faces[key] = face
+	return face
+}
+
 // LineHeightPx is the height of one text line at size px.
 func (f *Fonts) LineHeightPx(sizePx float64, mono bool) float64 {
-	face := f.bodyDr
-	if mono {
-		face = f.monoDr
-	}
-	m := face.Metrics()
+	m := f.Face(sizePx, mono).Metrics()
 	return float64(m.Ascent+m.Descent) / 64
 }
 
 // AscentPx is the distance from the line's top to the baseline.
 func (f *Fonts) AscentPx(sizePx float64, mono bool) float64 {
-	face := f.bodyDr
-	if mono {
-		face = f.monoDr
-	}
-	return float64(face.Metrics().Ascent) / 64
+	return float64(f.Face(sizePx, mono).Metrics().Ascent) / 64
 }

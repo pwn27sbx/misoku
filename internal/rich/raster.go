@@ -19,6 +19,9 @@ type Raster struct {
 	Page    *Page
 	Fonts   *Fonts
 	Palette Palette
+	// Overlay draws after the page: search marks and the selection. It never
+	// changes the layout, only the pixels it touches.
+	Overlay []Item
 }
 
 // Tile draws rows [first, first+rows) of the page at the cell size of Fonts.
@@ -29,7 +32,8 @@ func (r *Raster) Tile(first, rows int) *image.RGBA {
 	if r.Palette.Bg.A != 0 {
 		draw.Draw(img, img.Bounds(), image.NewUniform(r.Palette.Bg), image.Point{}, draw.Src)
 	}
-	for _, it := range r.Page.Items {
+	items := append(append([]Item(nil), r.Page.Items...), r.Overlay...)
+	for _, it := range items {
 		if it.Y+max(it.H, 1) <= first || it.Y >= first+rows {
 			continue
 		}
@@ -65,11 +69,7 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 	if it.Color.A == 0 {
 		return
 	}
-	face := r.Fonts.bodyDr
-	if it.Mono {
-		face = r.Fonts.monoDr
-	}
-	d := &font.Drawer{Dst: img, Src: image.NewUniform(it.Color), Face: face}
+	d := &font.Drawer{Dst: img, Src: image.NewUniform(it.Color), Face: r.Fonts.Face(it.SizePx, it.Mono)}
 	baseline := (it.Y-first)*r.Fonts.CellH + it.BaselinePx
 	pen := it.X * r.Fonts.CellW
 	limit := pen + it.W*r.Fonts.CellW

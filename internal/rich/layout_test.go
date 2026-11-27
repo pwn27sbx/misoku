@@ -2,6 +2,7 @@ package rich
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
@@ -134,4 +135,77 @@ func contains(all []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestLayoutStripesAndDiffColours(t *testing.T) {
+	f := testFonts(t)
+	pal := testPalette()
+	doc := Parse([]byte("| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n\n```diff\n+added\n-removed\n```\n"))
+	p := Layout(doc, LayoutOptions{Width: 60, Fonts: f, Palette: pal})
+	var stripes, seps int
+	added, removed := false, false
+	for _, it := range p.Items {
+		switch {
+		case it.Kind == ItemRect && it.Color == pal.Stripe && !it.Thin:
+			stripes++
+		case it.Kind == ItemRect && it.Thin:
+			seps++
+		case it.Kind == ItemText && it.Text == "+added":
+			added = it.Color == pal.Alert[1]
+		case it.Kind == ItemText && it.Text == "-removed":
+			removed = it.Color == pal.Alert[4]
+		}
+	}
+	if stripes == 0 {
+		t.Fatal("no table stripe")
+	}
+	if seps < 2 {
+		t.Fatalf("separators = %d, want the column lines and the header rule", seps)
+	}
+	if !added || !removed {
+		t.Fatalf("diff colours: added=%v removed=%v", added, removed)
+	}
+}
+
+func TestNestedListsDrawEveryItem(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("- a\n  - b\n    - c\n"))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	var texts []string
+	for _, it := range p.Items {
+		if it.Kind == ItemText {
+			texts = append(texts, it.Text)
+		}
+	}
+	for _, want := range []string{"a", "b", "c"} {
+		if !contains(texts, want) {
+			t.Fatalf("nested list lost %q: %v", want, texts)
+		}
+	}
+}
+
+func TestTableColumnsFitThePage(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("| key | value |\n|---|---|\n| a | a long value that needs room |\n"))
+	p := Layout(doc, LayoutOptions{Width: 30, Fonts: f, Palette: testPalette()})
+	for _, it := range p.Items {
+		if it.Kind != ItemText {
+			continue
+		}
+		if it.X+it.W > p.Width {
+			t.Fatalf("table cell %q ends at %d, over the page %d", it.Text, it.X+it.W, p.Width)
+		}
+		if !utf8.ValidString(it.Text) {
+			t.Fatalf("table cell %q is not valid UTF-8", it.Text)
+		}
+	}
+}
+
+func TestHeadingsDrawAtTheirSize(t *testing.T) {
+	f := testFonts(t)
+	body := f.Face(f.BodyPx, false).Metrics()
+	head := f.Face(f.BodyPx*2, false).Metrics()
+	if head.Height <= body.Height {
+		t.Fatalf("heading face %v is not bigger than body %v", head.Height, body.Height)
+	}
 }

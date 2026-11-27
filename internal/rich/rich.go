@@ -63,6 +63,7 @@ type Palette struct {
 	Muted   color.RGBA
 	Link    color.RGBA
 	CodeBg  color.RGBA
+	Stripe  color.RGBA // every other table row
 	Rule    color.RGBA
 	Heading [6]color.RGBA
 	Alert   [5]color.RGBA // NOTE, TIP, IMPORTANT, WARNING, CAUTION
@@ -78,6 +79,7 @@ func PaletteFromTheme(th theme.Theme) Palette {
 		Muted:  hexColor(string(th.GreyFg)),
 		Link:   hexColor(string(th.Blue)),
 		CodeBg: hexColor(string(th.Bg2)),
+		Stripe: hexColor(string(th.OneBg)),
 		Rule:   hexColor(string(th.Line)),
 	}
 	heads := []string{string(th.Blue), string(th.Purple), string(th.Green), string(th.Yellow), string(th.Orange), string(th.Red)}

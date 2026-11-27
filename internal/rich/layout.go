@@ -49,6 +49,16 @@ type Page struct {
 	Height int // cells
 
 	rows []rowSpan
+
+	Headings []Heading
+}
+
+// Heading is one outline entry: its level, text, source line and page row.
+type Heading struct {
+	Level int
+	Text  string
+	Line  int
+	Row   int
 }
 
 type rowSpan struct {
@@ -91,6 +101,9 @@ type LayoutOptions struct {
 	// in a bordered box instead, which is what the text fallback shows.
 	Math    func(Block) *Box
 	Diagram func(Block) *Box
+	// Images says what pictures the page may draw and from where. A source it
+	// refuses keeps the placeholder box.
+	Images ImageOptions
 }
 
 const (
@@ -105,7 +118,7 @@ const (
 // the page can be scrolled, searched and edited in place later.
 func Layout(doc Document, opts LayoutOptions) *Page {
 	p := &Page{Width: max(opts.Width, 8)}
-	l := &layouter{page: p, f: opts.Fonts, pal: opts.Palette, math: opts.Math, diagram: opts.Diagram}
+	l := &layouter{page: p, f: opts.Fonts, pal: opts.Palette, math: opts.Math, diagram: opts.Diagram, images: opts.Images}
 	content := p.Width - 2*pageMargin
 	if content < 8 {
 		content = p.Width
@@ -128,6 +141,7 @@ type layouter struct {
 	content int
 	x0      int
 	y       int
+	images  ImageOptions
 }
 
 func (l *layouter) emit(it Item) { l.page.Items = append(l.page.Items, it) }
@@ -173,6 +187,11 @@ func (l *layouter) block(b Block, indent int) {
 		l.y += blockGap
 	case KindImage:
 		l.gapIfNeeded(0)
+		if box, ok := imageBox(b, l.images, l.content-indent, l.f.CellW, l.f.CellH); ok {
+			l.emit(Item{Kind: ItemBox, X: l.x0 + indent, Y: l.y, W: box.W, H: box.H, Box: box})
+			l.y += box.H + blockGap
+			break
+		}
 		l.placeholder("🖼 "+firstLine(b.Lines), indent, 4)
 		l.y += blockGap
 	}
@@ -196,7 +215,9 @@ func (l *layouter) heading(b Block, indent int) {
 	if col.A == 0 {
 		col = l.pal.Fg
 	}
-	lines := l.f.Wrap(firstLine(b.Lines), (l.content-indent)*l.f.CellW, size, false)
+	text := firstLine(b.Lines)
+	l.page.Headings = append(l.page.Headings, Heading{Level: level, Text: text, Line: b.Line, Row: l.y})
+	lines := l.f.Wrap(text, (l.content-indent)*l.f.CellW, size, false)
 	l.textLines(lines, indent, size, col, false)
 	l.y++
 }
@@ -222,10 +243,19 @@ func (l *layouter) textLines(lines []string, indent int, size float64, col color
 }
 
 func (l *layouter) list(b Block, indent int) {
-	items := b.Blocks
-	if len(items) == 0 && b.Kind == KindListItem {
-		items = []Block{b}
+	if b.Kind == KindListItem {
+		l.listItems([]Block{b}, indent)
+		return
 	}
+	l.listItems(b.Blocks, indent)
+	if b.Kind == KindParagraph {
+		l.y += blockGap
+	}
+}
+
+// listItems draws every item at indent and then its children one level in, so
+// a nested item is never skipped for the sake of its own children.
+func (l *layouter) listItems(items []Block, indent int) {
 	for _, it := range items {
 		text := firstLine(it.Lines)
 		bullet := "•"
@@ -240,12 +270,7 @@ func (l *layouter) list(b Block, indent int) {
 		start := l.y
 		l.textLines(wrapped, indent+listIndent, l.f.BodyPx, l.pal.Fg, false)
 		_ = start
-		for _, child := range it.Blocks {
-			l.list(child, indent+listIndent)
-		}
-	}
-	if b.Kind == KindParagraph {
-		l.y += blockGap
+		l.listItems(it.Blocks, indent+listIndent)
 	}
 }
 
@@ -298,6 +323,16 @@ func (l *layouter) code(b Block, indent int) {
 		col := l.pal.Fg
 		if b.Kind != KindCode && line == lines[0] {
 			col = l.pal.Muted
+		}
+		if b.Lang == "diff" {
+			switch {
+			case strings.HasPrefix(line, "+"):
+				col = l.pal.Alert[1] // added: green
+			case strings.HasPrefix(line, "-"):
+				col = l.pal.Alert[4] // removed: red
+			case strings.HasPrefix(line, "@@"):
+				col = l.pal.Link
+			}
 		}
 		l.emit(Item{Kind: ItemText, X: l.x0 + indent + 1, Y: l.y, W: l.content - indent - 2, H: 1,
 			Text: line, SizePx: size, Mono: true, Color: col, BaselinePx: l.baseline(size)})
@@ -355,7 +390,9 @@ func (l *layouter) table(rows [][]string, indent int) {
 	widths := make([]int, cols)
 	for _, r := range rows {
 		for i, c := range r {
-			widths[i] = max(widths[i], int(math.Ceil(float64(l.f.Measure(c, l.f.BodyPx, false))/64))+2)
+			px := int(math.Ceil(float64(l.f.Measure(c, l.f.BodyPx, false)) / 64))
+			cells := max((px+l.f.CellW-1)/l.f.CellW, 1) + 1 // one blank either side
+			widths[i] = max(widths[i], cells)
 		}
 	}
 	total := 0
@@ -367,12 +404,15 @@ func (l *layouter) table(rows [][]string, indent int) {
 	}
 	for ri, r := range rows {
 		x := l.x0 + indent
+		if ri > 0 && ri%2 == 0 {
+			l.emit(Item{Kind: ItemRect, X: l.x0 + indent, Y: l.y, W: l.content - indent, H: 1, Color: l.pal.Stripe})
+		}
 		for ci, c := range r {
 			if ci >= len(widths) {
 				break
 			}
 			if ci == cols-1 && len(r) == cols {
-				c = fitCell(c, widths[ci]-2)
+				c = fitCellPx(l.f, c, (widths[ci]-1)*l.f.CellW)
 			}
 			col := l.pal.Fg
 			if ri == 0 {
@@ -381,6 +421,14 @@ func (l *layouter) table(rows [][]string, indent int) {
 			l.emit(Item{Kind: ItemText, X: x, Y: l.y, W: widths[ci], H: 1, Text: c,
 				SizePx: l.f.BodyPx, Color: col, BaselinePx: l.baseline(l.f.BodyPx)})
 			x += widths[ci]
+		}
+		// Column separators sit under the text of the row.
+		if cols > 1 {
+			sx := l.x0 + indent
+			for ci := 0; ci < cols-1; ci++ {
+				sx += widths[ci]
+				l.emit(Item{Kind: ItemRect, X: sx, Y: l.y, W: 1, H: 1, Thin: true, Color: l.pal.Rule})
+			}
 		}
 		l.y++
 		if ri == 0 {
@@ -412,14 +460,23 @@ func firstLine(lines []string) string {
 	return lines[0]
 }
 
-func fitCell(s string, cells int) string {
-	if len(s) <= cells {
+// fitCellPx cuts s to the pixels the column has, counting glyphs, never
+// bytes, and marks the cut with an ellipsis when one fits.
+func fitCellPx(f *Fonts, s string, px int) string {
+	if px <= 0 || int(f.Measure(s, f.BodyPx, false))/64 <= px {
 		return s
 	}
-	if cells <= 1 {
-		return "…"
+	runes := []rune(s)
+	for len(runes) > 0 {
+		runes = runes[:len(runes)-1]
+		if px > f.CellW && int(f.Measure(string(runes)+"…", f.BodyPx, false))/64 <= px {
+			return string(runes) + "…"
+		}
+		if int(f.Measure(string(runes), f.BodyPx, false))/64 <= px {
+			return string(runes)
+		}
 	}
-	return s[:cells-1] + "…"
+	return ""
 }
 
 func trimLeftSpace(s string) string {

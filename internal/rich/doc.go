@@ -27,7 +27,7 @@ func Parse(src []byte) Document {
 		doc.Blocks = append(doc.Blocks, Block{Kind: KindProperties, Rows: props, Line: 0, End: 0})
 	}
 
-	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	md := goldmark.New(goldmark.WithExtensions(extension.GFM, extension.Footnote))
 	tree := md.Parser().Parse(text.NewReader(body))
 	starts := lineStarts(body)
 	// The pre-passes may add lines (a one-line $$…$$ becomes a fence); the
@@ -67,6 +67,12 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 		b.Level = t.Level
 		b.Lines = []string{inlineText(t, src)}
 	case *ast.Paragraph:
+		if summary, body, ok := detailsText(strings.TrimSpace(inlineText(t, src))); ok {
+			b.Kind = KindQuote
+			b.Lines = []string{"▸ " + summary}
+			b.Blocks = []Block{{Kind: KindParagraph, Lines: []string{body}, Line: b.Line, End: b.End}}
+			return b, true
+		}
 		if img, ok := onlyImage(t); ok {
 			b.Kind = KindImage
 			b.Src = string(img.Destination)
@@ -107,8 +113,22 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 	case *ast.CodeBlock:
 		b.Kind = KindCode
 		b.Code = codeLines(t, src)
+	case *ast.HTMLBlock:
+		// A block of raw HTML: <details> keeps its summary and body, the
+		// rest of the tag soup draws nothing (the text compiler strips it).
+		text := codeLines(t, src)
+		summary, body, ok := detailsText(strings.Join(text, "\n"))
+		if !ok {
+			return b, false
+		}
+		b.Kind = KindQuote
+		b.Lines = []string{"▸ " + summary}
+		b.Blocks = []Block{{Kind: KindParagraph, Lines: []string{body}, Line: b.Line, End: b.End}}
 	case *ast.ThematicBreak:
 		b.Kind = KindRule
+	case *extast.FootnoteList:
+		b.Kind = KindTable
+		b.Rows = footnoteRows(t, src)
 	case *extast.Table:
 		b.Kind = KindTable
 		b.Rows = tableRows(t, src)
@@ -273,7 +293,7 @@ func codeLines(n ast.Node, src []byte) []string {
 	var out []string
 	for i := 0; i < lines.Len(); i++ {
 		s := lines.At(i)
-		out = append(out, string(s.Value(src)))
+		out = append(out, strings.TrimRight(string(s.Value(src)), "\r\n"))
 	}
 	return out
 }
@@ -340,13 +360,26 @@ var wikiRe = regexp.MustCompile(`!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
 // "[[Note]]" into its target, so the page draws readable text; the link
 // itself becomes clickable when inline runs land.
 func expandWikiLinks(src []byte) []byte {
-	return wikiRe.ReplaceAllFunc(src, func(m []byte) []byte {
-		parts := wikiRe.FindSubmatch(m)
-		if len(parts) > 2 && len(parts[2]) > 0 {
-			return parts[2]
+	lines := strings.Split(string(src), "\n")
+	inFence := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
 		}
-		return parts[1]
-	})
+		if inFence {
+			continue
+		}
+		lines[i] = string(wikiRe.ReplaceAllFunc([]byte(line), func(m []byte) []byte {
+			parts := wikiRe.FindSubmatch(m)
+			if len(parts) > 2 && len(parts[2]) > 0 {
+				return parts[2]
+			}
+			return parts[1]
+		}))
+	}
+	return []byte(strings.Join(lines, "\n"))
 }
 
 // fenceMathBlocks turns standalone "$$ … $$" blocks into ```math fences, so
@@ -403,6 +436,48 @@ func fenceMathBlocks(src []byte, baseLine int) ([]byte, []int) {
 		mapOut = append(mapOut, baseLine+i)
 	}
 	return []byte(strings.Join(out, "\n")), mapOut
+}
+
+// footnoteRows turns the footnote list into a two-column table: the label and
+// its text, so the page draws them under a rule like a published note.
+func footnoteRows(list *extast.FootnoteList, src []byte) [][]string {
+	var rows [][]string
+	for n := list.FirstChild(); n != nil; n = n.NextSibling() {
+		label := ""
+		text := ""
+		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+			switch c.Kind() {
+			case extast.KindFootnoteLink:
+				label = inlineText(c, src)
+			default:
+				if t := inlineText(c, src); t != "" && text == "" {
+					text = t
+				}
+			}
+		}
+		if label != "" || text != "" {
+			rows = append(rows, []string{label, text})
+		}
+	}
+	return rows
+}
+
+// detailsBlock reads the raw "<details><summary>…</summary>body" form the text
+// compiler strips: the page keeps the summary and the body, folded.
+func detailsText(text string) (summary, body string, ok bool) {
+	lower := strings.ToLower(text)
+	if !strings.HasPrefix(lower, "<details") {
+		return "", "", false
+	}
+	start := strings.Index(lower, "<summary>")
+	end := strings.Index(lower, "</summary>")
+	if start < 0 || end < 0 || end < start {
+		return "", "", false
+	}
+	summary = strings.TrimSpace(text[start+len("<summary>") : end])
+	body = strings.TrimSpace(text[end+len("</summary>"):])
+	body = strings.ReplaceAll(body, "</details>", "")
+	return summary, strings.TrimSpace(body), true
 }
 
 // lineStarts returns the byte offset where each 0-based line begins.
