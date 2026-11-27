@@ -280,6 +280,7 @@ func (m *Model) showBuffer(b *buffer) {
 		m.sidebar.SetSelectedID(b.id)
 	}
 	m.viewMode = viewModeWorkspace
+	m.refreshRich()
 }
 
 // clearEditor shows the empty state when no tabs are left.
@@ -591,6 +592,9 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 		return nil
 	}
 	dirty := m.dirtyBuffers()
+	if m.rich != nil {
+		m.rich.Close() // leave no images behind in the terminal
+	}
 	if force || len(dirty) == 0 {
 		if force {
 			// :q! is the discard form of quitting, changes or none: the

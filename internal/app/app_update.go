@@ -28,6 +28,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
 		nm.syncNoteDisplay()
+		nm.prepareRich()
 		build, layout, mentions := nm.startLinkIndex(), nm.startGlobalMap(), nm.startMentionScan()
 		tutor := nm.tutorSyncCurrent()
 		hooks := nm.tutorAfterUpdate()
@@ -106,6 +107,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.flushPreview()
 		m.updateLayout()
+		m.refreshRich()
 		m.offerLearn()
 		return m, nil
 	case tutorialDoneMsg:
@@ -230,6 +232,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flushPreview()
 	}
 
+	if m.noteView == viewRich {
+		if cmd, handled := m.richKey(msg); handled {
+			return m, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case core.PageSelectedMsg:
 		if msg.Preview {
@@ -243,6 +251,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openFile(msg.ID)
 	case core.FindRequestMsg:
 		return m, m.openFinder()
+	case core.RichViewMsg:
+		return m, m.toggleRichView()
 	case core.GraphMsg:
 		return m, m.openGraph()
 	case core.GlobalGraphMsg:

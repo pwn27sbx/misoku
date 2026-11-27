@@ -36,6 +36,7 @@ var Commands = []Command{
 	{id: "enew", Usage: ":enew", Names: []string{"enew", "new", "e", "edit"}, Run: "enew", NoNote: true},
 	{id: "e", Usage: ":e name", Names: []string{"e", "edit"}},
 	{id: "export", Usage: ":export [file]", Names: []string{"export", "pdf"}, Run: "export"},
+	{id: "rich", Usage: ":rich", Names: []string{"rich"}, Run: "rich"},
 	{id: "graph", Usage: ":graph", Names: []string{"graph"}, Run: "graph", NoNote: true},
 	{id: "graph_all", Usage: ":graph all", Names: []string{"graph"}, Run: "graph all", NoNote: true},
 	{id: "daily", Usage: ":daily", Names: []string{"daily"}, Run: "daily", NoNote: true},

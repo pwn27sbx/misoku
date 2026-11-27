@@ -16,7 +16,7 @@ import (
 // S4: the insert text of every catalog row, as the spec lists it.
 func TestCommandInsertTextForEveryCatalogRow(t *testing.T) {
 	want := []string{
-		"w", "w ", "wq", "q", "bd", "enew", "e ", "export ", "graph", "graph all",
+		"w", "w ", "wq", "q", "bd", "enew", "e ", "export ", "rich", "graph", "graph all",
 		"daily", "history", "tags", "status ", "messages", "colo ", "settings",
 		"sync", "sync status", "sync setup", "addrow", "addcol", "delrow", "tablefmt",
 	}

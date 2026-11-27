@@ -19,6 +19,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
+	"github.com/pwn27sbx/misoku/internal/rich"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
@@ -105,10 +106,19 @@ type Model struct {
 	themeStamp     string             // user theme files as last seen, see syncUserTheme
 	keyClash       bool               // the keymap warned of a key bound twice at startup, see tutorCKeyClash
 	syncOpen       bool               // the sync this window started by opening the vault, see syncOnOpen
-	tutorCSeen     string             // the lesson whose look-only state was already caught up, see tutorCCaughtUp
-	treeGen        uint64             // bumps on every applyTree, see workspaceScannedMsg
-	scanning       bool               // a workspace scan is in flight, see CheckWorkspaceMsg
-	leavingEditor  bool               // the folder editor's batch was asked for on leaving, see settleEditor
+	// The rich reading view (richview.go): its tiles, faces, the output that
+	// carries them, and the font paths and cell size it uses.
+	rich          *rich.View
+	richFonts     *rich.Fonts
+	richSender    rich.Sender
+	richFontBody  string
+	richFontMono  string
+	richCellW     int
+	richCellH     int
+	tutorCSeen    string // the lesson whose look-only state was already caught up, see tutorCCaughtUp
+	treeGen       uint64 // bumps on every applyTree, see workspaceScannedMsg
+	scanning      bool   // a workspace scan is in flight, see CheckWorkspaceMsg
+	leavingEditor bool   // the folder editor's batch was asked for on leaving, see settleEditor
 
 	toast    string
 	toastSeq int
@@ -238,6 +248,22 @@ func WithOpener(open func(string) error) Option {
 	return func(m *Model) { m.openURL = open }
 }
 
+// WithImageSender is the one output the rich view's tiles go through: the same
+// writer the frames and the preview's pictures use, so an upload never lands
+// inside a frame. Passing nil leaves the rich view unavailable.
+func WithImageSender(s rich.Sender) Option {
+	return func(m *Model) { m.richSender = s }
+}
+
+// WithRichFonts names the faces and the cell size of the rich view; empty
+// paths let it discover the system's own fonts.
+func WithRichFonts(body, mono string, cellW, cellH int) Option {
+	return func(m *Model) {
+		m.richFontBody, m.richFontMono = body, mono
+		m.richCellW, m.richCellH = cellW, cellH
+	}
+}
+
 // WithConfigPath saves theme changes to the given config file, and reads
 // its "sync" section to decide whether this folder syncs.
 func WithConfigPath(path string) Option {
@@ -311,7 +337,8 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m *Model) layout() Layout {
-	return CalculateLayout(m.width, m.height, m.sidebarOpen && !m.narrowWindow(), m.noteView == viewSplit, m.noteView == viewReading, m.split)
+	full := m.noteView == viewReading || m.noteView == viewRich
+	return CalculateLayout(m.width, m.height, m.sidebarOpen && !m.narrowWindow(), m.noteView == viewSplit, full, m.split)
 }
 
 // updateLayout recalculates dimensions across child panes.
@@ -470,6 +497,7 @@ const (
 	viewSplit   noteView = iota // the editor and the side preview
 	viewReading                 // Space p: the note rendered and editable, full width
 	viewEditor                  // Space r: the Markdown editor alone, full width
+	viewRich                    // Space V: the note drawn as a page of pixels
 )
 
 // editorMargin is the editor's blank columns each side of the text: the
@@ -525,10 +553,16 @@ func (m *Model) setNoteView(v noteView) {
 	m.preview.ClearHover() // the handles belong to the view the mouse was over
 	m.tutorBView(v)
 	m.content.SetLive(v == viewReading)
-	if v == viewEditor {
+	if v == viewEditor || v == viewRich {
 		preview.ClearImages() // no compile is shown: drop its terminal images
 	}
+	if v != viewRich && m.rich != nil {
+		m.rich.Close() // the pane stops showing the page: free its tiles
+	}
 	m.updateLayout() // after SetLive: SetSize recomputes the text width
+	if v == viewRich {
+		m.refreshRich()
+	}
 }
 
 // leaveReading goes from the reading view back to the split, for a graph,

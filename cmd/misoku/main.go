@@ -168,7 +168,7 @@ func main() {
 	out, images, cur := chain(syncout.ForTerminal(os.Stdout, os.Getenv),
 		cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)))
 	appOpts := []app.Option{app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI),
-		app.WithDailyDir(cfg.DailyDir), app.WithTemplatesDir(cfg.TemplatesDir)}
+		app.WithDailyDir(cfg.DailyDir), app.WithTemplatesDir(cfg.TemplatesDir), app.WithImageSender(images)}
 	// Unsaved tabs survive a closed terminal or a SIGTERM in the cache
 	// folder, never next to the notes; the next start offers them back.
 	if recDir := app.RecoveryDir(); recDir != "" {

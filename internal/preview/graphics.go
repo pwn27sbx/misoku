@@ -36,7 +36,6 @@ var (
 	graphicsSeen  = map[graphicsKey]*graphicsImage{}
 	graphicsOrder []*graphicsImage
 	graphicsBytes int
-	graphicsID    = 1
 
 	// renderDepth counts nested compiles (embeds and columns compile inside
 	// one another) and renderUsed holds the images the current render draws:
@@ -104,6 +103,10 @@ func ConfigureImages(setting string, isTTY bool) {
 	SetImageMode(mode)
 }
 
+// GraphicsOK reports whether pictures are drawn with the Kitty graphics
+// protocol. The rich view needs it: without images it has no page to show.
+func GraphicsOK() bool { return imageMode() == kitty.Graphics }
+
 // imageMode reports the renderer in use.
 func imageMode() kitty.Mode {
 	graphicsMu.Lock()
@@ -118,6 +121,7 @@ func releaseLocked() {
 	if graphicsSink != nil {
 		for _, img := range graphicsOrder {
 			_ = graphicsSink.Send(kitty.Delete(img.id))
+			kitty.ReleaseID(img.id)
 		}
 	}
 	graphicsSeen = map[graphicsKey]*graphicsImage{}
@@ -224,7 +228,7 @@ func registerGraphics(key graphicsKey, data []byte, cols, rows int) (*graphicsIm
 			return nil, errImageFallback
 		}
 	}
-	id, ok := nextGraphicsIDLocked()
+	id, ok := kitty.AcquireID()
 	if !ok {
 		return nil, errImageFallback
 	}
@@ -260,6 +264,7 @@ func releaseStaleLocked() bool {
 				return false
 			}
 		}
+		kitty.ReleaseID(img.id)
 		graphicsOrder = append(graphicsOrder[:i], graphicsOrder[i+1:]...)
 		delete(graphicsSeen, img.key)
 		graphicsBytes -= img.size
@@ -290,27 +295,4 @@ func beginImageRender() func() {
 		}
 		renderUsed = nil
 	}
-}
-
-// nextGraphicsIDLocked hands out an id the placeholder colour can carry (a
-// 256-colour foreground holds 1…255) that no live image is using.
-func nextGraphicsIDLocked() (int, bool) {
-	for tries := 0; tries < 255; tries++ {
-		id := graphicsID
-		graphicsID++
-		if graphicsID > 255 {
-			graphicsID = 1
-		}
-		used := false
-		for _, img := range graphicsOrder {
-			if img.id == id {
-				used = true
-				break
-			}
-		}
-		if !used {
-			return id, true
-		}
-	}
-	return 0, false
 }

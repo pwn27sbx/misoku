@@ -760,6 +760,8 @@ const (
 	AppHistorySame       Key = "app.history.same"
 	AppHistoryRestored   Key = "app.history.restored"
 	AppReading           Key = "app.reading"
+	AppRichUnavailable   Key = "app.rich_unavailable"
+	AppRichFailed        Key = "app.rich_failed"
 	AppNoLinksInNote     Key = "app.no_links_in_note"
 	AppLeaderFooter      Key = "app.leader.footer"
 	AppLeaderEnlarge     Key = "app.leader.enlarge"
@@ -861,6 +863,8 @@ func init() {
 		AppHistorySame:       "The note already holds the version of %s",
 		AppHistoryRestored:   "Restored the version of %s (%s): u undoes it, save to keep it",
 		AppReading:           "Reading…",
+		AppRichUnavailable:   "Rich view unavailable: this terminal or pane cannot draw images",
+		AppRichFailed:        "Rich view failed: %s",
 		AppNoLinksInNote:     "No links in this note",
 		AppLeaderFooter:      " These keys come from config.json · Esc to close",
 		AppLeaderEnlarge:     " … enlarge the terminal to see all",
@@ -960,6 +964,8 @@ func init() {
 		AppHistorySame:       "La nota ya tiene la versión del %s",
 		AppHistoryRestored:   "Se restauró la versión del %s (%s): u lo deshace, guarda para conservarla",
 		AppReading:           "Leyendo…",
+		AppRichUnavailable:   "La vista rica no está disponible: esta terminal o este panel no pueden dibujar imágenes",
+		AppRichFailed:        "La vista rica falló: %s",
 		AppNoLinksInNote:     "No hay enlaces en esta nota",
 		AppLeaderFooter:      " Estas teclas vienen de config.json · Esc cierra",
 		AppLeaderEnlarge:     " … agranda la terminal para verlas todas",

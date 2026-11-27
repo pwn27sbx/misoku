@@ -36,6 +36,7 @@ const (
 	CloseTab       = "close_tab"
 	ReadingView    = "reading_view"
 	EditorView     = "editor_view"
+	RichView       = "rich_view"
 	ExportPDF      = "export_pdf"
 	Themes         = "themes"
 	Graph          = "graph"
@@ -125,6 +126,7 @@ var Actions = []Info{
 	{Action: CloseTab, Section: "general", Group: GroupNote, defaults: []string{"space x"}},
 	{Action: ReadingView, Section: "general", Group: GroupView, defaults: []string{"space p"}},
 	{Action: EditorView, Section: "general", Group: GroupView, defaults: []string{"space r"}},
+	{Action: RichView, Section: "general", Group: GroupView, defaults: []string{"space V"}},
 	{Action: ExportPDF, Section: "general", Group: GroupNote, defaults: []string{"space P"}},
 	{Action: Themes, Section: "general", Group: GroupView, defaults: []string{"space t"}},
 	{Action: Graph, Section: "general", Group: GroupView, defaults: []string{"space g"}},
