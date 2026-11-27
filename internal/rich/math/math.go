@@ -117,56 +117,25 @@ func Inline(src string, cfg Config) *rich.InlineBox {
 		return nil
 	}
 	b := &rich.InlineBox{
-		WidthPx:  w,
-		AscentPx: int(math.Ceil(ink.Ascent)),
-		DepthPx:  int(math.Ceil(ink.Depth)),
-		Draw:     ink.Draw,
+		WidthPx: w,
+		DepthPx: int(math.Ceil(ink.Depth)),
+		Draw:    ink.Draw,
 	}
 	inlineCachePut(src, cfg, b)
 	return b
 }
 
-// A page rebuild after a keystroke reuses every inline formula that did not
-// change; the key is everything that changes its pixels.
-type inlineKey struct {
-	src    string
-	size   float64
-	fg     color.RGBA
-	cw, ch int
-}
-
-const inlineCacheCap = 128
-
-var (
-	inlineMu   sync.Mutex
-	inlineMap  = map[inlineKey]*rich.InlineBox{}
-	inlineKeys []inlineKey
-)
-
 func inlineCacheGet(src string, cfg Config) (*rich.InlineBox, bool) {
-	inlineMu.Lock()
-	defer inlineMu.Unlock()
-	b, ok := inlineMap[inlineKey{src, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}]
-	return b, ok
+	return inlineCache.get(cacheKey{src: src, size: cfg.SizePx, fg: cfg.Fg, cw: cfg.CellW, ch: cfg.CellH})
 }
 
 func inlineCachePut(src string, cfg Config, b *rich.InlineBox) {
-	inlineMu.Lock()
-	defer inlineMu.Unlock()
-	k := inlineKey{src, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}
-	if _, ok := inlineMap[k]; ok {
-		return
-	}
-	if len(inlineKeys) >= inlineCacheCap {
-		delete(inlineMap, inlineKeys[0])
-		inlineKeys = inlineKeys[1:]
-	}
-	inlineMap[k] = b
-	inlineKeys = append(inlineKeys, k)
+	inlineCache.put(cacheKey{src: src, size: cfg.SizePx, fg: cfg.Fg, cw: cfg.CellW, ch: cfg.CellH}, b)
 }
 
-// The cache key is the formula plus everything that changes its pixels. A
-// page rebuild after a keystroke reuses every formula that did not change.
+// cache is a small bounded FIFO of laid-out formulas, keyed by everything that
+// changes their pixels: a page rebuilt after a keystroke reuses every formula
+// that did not change. Both the block and the inline formulas share it.
 type cacheKey struct {
 	src    string
 	width  int
@@ -177,39 +146,56 @@ type cacheKey struct {
 
 const cacheCap = 64
 
+type cache[T any] struct {
+	mu   sync.Mutex
+	m    map[cacheKey]T
+	keys []cacheKey
+}
+
+func (c *cache[T]) get(k cacheKey) (T, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.m[k]
+	return v, ok
+}
+
+func (c *cache[T]) put(k cacheKey, v T) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.m[k]; ok {
+		return
+	}
+	if len(c.keys) >= cacheCap {
+		delete(c.m, c.keys[0])
+		c.keys = c.keys[1:]
+	}
+	c.m[k] = v
+	c.keys = append(c.keys, k)
+}
+
+func (c *cache[T]) reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.m = map[cacheKey]T{}
+	c.keys = nil
+}
+
 var (
-	cacheMu   sync.Mutex
-	cacheMap  = map[cacheKey]*rich.Box{}
-	cacheKeys []cacheKey
+	blockCache  = &cache[*rich.Box]{m: map[cacheKey]*rich.Box{}}
+	inlineCache = &cache[*rich.InlineBox]{m: map[cacheKey]*rich.InlineBox{}}
 )
 
 func cacheGet(src string, width int, cfg Config) (*rich.Box, bool) {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	b, ok := cacheMap[cacheKey{src, width, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}]
-	return b, ok
+	return blockCache.get(cacheKey{src, width, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH})
 }
 
 func cachePut(src string, width int, cfg Config, b *rich.Box) {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	k := cacheKey{src, width, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}
-	if _, ok := cacheMap[k]; ok {
-		return
-	}
-	if len(cacheKeys) >= cacheCap {
-		delete(cacheMap, cacheKeys[0])
-		cacheKeys = cacheKeys[1:]
-	}
-	cacheMap[k] = b
-	cacheKeys = append(cacheKeys, k)
+	blockCache.put(cacheKey{src, width, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}, b)
 }
 
-// ResetCache empties the formula cache; tests use it when they change the
+// ResetCache empties the formula caches; tests use it when they change the
 // colour or cell size on purpose.
 func ResetCache() {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	cacheMap = map[cacheKey]*rich.Box{}
-	cacheKeys = nil
+	blockCache.reset()
+	inlineCache.reset()
 }

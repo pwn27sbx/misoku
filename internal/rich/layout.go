@@ -47,13 +47,13 @@ type Box struct {
 }
 
 // InlineBox is an inline formula laid out for a text baseline: its width in
-// pixels, its ink above and below the baseline, and a draw function that puts
-// that ink's baseline at baselineY. The page places it inside a text line, so
-// a formula keeps its size and sits on the same baseline as the words.
+// pixels, how deep its ink reaches below the baseline, and a draw function
+// that puts that ink's baseline at baselineY. The page places it inside a text
+// line, so a formula keeps its size and sits on the same baseline as the words.
 type InlineBox struct {
-	WidthPx           int
-	AscentPx, DepthPx int
-	Draw              func(dst draw.Image, x, baselineY int)
+	WidthPx int
+	DepthPx int // ink below the baseline, for the rows the item must claim
+	Draw    func(dst draw.Image, x, baselineY int)
 }
 
 // Page is a note laid out in cells: the display list plus the mapping back to
@@ -310,7 +310,7 @@ type styledText struct {
 // can be merged back into one.
 func (s styledText) sameStyle(o styledText) bool {
 	return s.Bold == o.Bold && s.Italic == o.Italic && s.Code == o.Code &&
-		s.Link == o.Link && s.Math == o.Math
+		s.Link == o.Link && s.Math == o.Math && s.Box == o.Box
 }
 
 // runsOf splits a block's first line into styled runs from its spans. The cuts

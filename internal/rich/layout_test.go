@@ -222,7 +222,7 @@ func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
 	p := Layout(doc, LayoutOptions{Width: 50, Fonts: f, Palette: testPalette(),
 		MathInline: func(src string, sizePx float64) *InlineBox {
 			called = append(called, src)
-			return &InlineBox{WidthPx: 30, AscentPx: 12, DepthPx: 4,
+			return &InlineBox{WidthPx: 30, DepthPx: 4,
 				Draw: func(dst draw.Image, x, baselineY int) {}}
 		}})
 	if len(called) != 1 || called[0] != "x^2" {

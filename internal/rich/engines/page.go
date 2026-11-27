@@ -13,8 +13,8 @@ import (
 // width in cells; the block engine gets the same width in pixels so a formula
 // wider than the page is scaled down into it.
 //
-// Diagram stays nil until track C lands: a diagram block keeps its bordered
-// source box, and wiring it is one line here.
+// Diagrams are not wired yet: LayoutOptions.Diagram stays nil, so a diagram
+// block keeps its bordered source box until a diagram engine is passed here.
 func Page(doc rich.Document, width int, f *rich.Fonts, pal rich.Palette, img rich.ImageOptions) *rich.Page {
 	cfg := math.Config{SizePx: f.BodyPx, CellW: f.CellW, CellH: f.CellH, Fg: pal.Fg}
 	widthPx := max(width, 1) * f.CellW

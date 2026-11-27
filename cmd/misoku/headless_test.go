@@ -33,6 +33,9 @@ func TestHeadlessPrintsOnePayloadWithTiles(t *testing.T) {
 	if p.Protocol != headlessProtocol || p.Note != "Head.md" || p.Cols != 60 || len(p.Tiles) == 0 {
 		t.Fatalf("payload = %+v", p)
 	}
+	if note, err := store.Get("Head.md"); err != nil || p.Note != note.ID {
+		t.Fatalf("payload note %q is not the store's %q (%v)", p.Note, note.ID, err)
+	}
 	rows := 0
 	for i, tile := range p.Tiles {
 		if tile.Row != i*10 {
@@ -68,9 +71,12 @@ func TestHeadlessDrawsMath(t *testing.T) {
 	if _, err := store.SaveAs("", "Math", body); err != nil {
 		t.Fatal(err)
 	}
-	page, _, _, err := headlessPage(store, "Math.md", 60, theme.DefaultTheme())
+	page, _, _, id, err := headlessPage(store, "Math.md", 60, theme.DefaultTheme())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if id != "Math.md" {
+		t.Fatalf("headless page id = %q, want the store's Math.md", id)
 	}
 	boxes := 0
 	for _, it := range page.Items {

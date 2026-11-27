@@ -46,20 +46,22 @@ type headlessTile struct {
 
 // headlessPage lays a note out for headless mode. It goes through the same
 // page constructor as the app, so both draw the same fonts, palette and maths.
-func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme) (*rich.Page, *rich.Fonts, rich.Palette, error) {
+func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme) (*rich.Page, *rich.Fonts, rich.Palette, string, error) {
 	note, err := store.Get(noteID)
 	if err != nil {
-		return nil, nil, rich.Palette{}, err
+		return nil, nil, rich.Palette{}, "", err
 	}
 	fonts, err := rich.LoadFonts(rich.FontConfig{})
 	if err != nil {
-		return nil, nil, rich.Palette{}, err
+		return nil, nil, rich.Palette{}, "", err
 	}
 	pal := rich.PaletteFromTheme(th)
 	doc := rich.Parse([]byte(note.Content))
 	dir := filepath.Join(store.Root(), filepath.FromSlash(pathDir(note.ID)))
 	page := engines.Page(doc, cols, fonts, pal, rich.ImageOptions{BaseDir: dir, Root: store.Root()})
-	return page, fonts, pal, nil
+	// The payload reports the store's note, never the raw argument: a host
+	// keys its tiles by what the store resolved.
+	return page, fonts, pal, note.ID, nil
 }
 
 // runHeadless lays the note out at cols cells, writes one PNG per screenful
@@ -75,7 +77,7 @@ func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, ve
 	if cols <= 0 {
 		cols = 100
 	}
-	page, fonts, pal, err := headlessPage(store, noteID, cols, th)
+	page, fonts, pal, id, err := headlessPage(store, noteID, cols, th)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "misoku --headless: %v\n", err)
 		return 1
@@ -94,7 +96,7 @@ func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, ve
 		return 1
 	}
 	payload := headlessPayload{
-		Protocol: headlessProtocol, Run: run, Version: version, Note: noteID, Theme: th.Name,
+		Protocol: headlessProtocol, Run: run, Version: version, Note: id, Theme: th.Name,
 		Cols: cols, Rows: rows, PageRows: page.Height,
 		WidthPx: cols * fonts.CellW, Tiles: tiles,
 	}
