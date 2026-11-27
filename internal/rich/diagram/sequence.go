@@ -76,11 +76,11 @@ type SequenceEvent struct {
 
 // SequenceData is the semantic payload of a sequence diagram.
 type SequenceData struct {
-	Participants   []SequenceParticipant
-	Groups         []SequenceGroup
-	Frames         []SequenceFrame
-	Events         []SequenceEvent
-	Autonumber     bool
+	Participants    []SequenceParticipant
+	Groups          []SequenceGroup
+	Frames          []SequenceFrame
+	Events          []SequenceEvent
+	Autonumber      bool
 	AutonumberStart int
 	AutonumberStep  int
 }
@@ -407,7 +407,7 @@ func (p *sequenceParseState) message(statement string, line int) error {
 		activate = to
 	}
 	if deactivate != "" {
-		deactivate = to
+		deactivate = from
 	}
 	p.data.Events = append(p.data.Events, SequenceEvent{
 		Kind: SequenceMessage, From: from, To: to, Label: label,
@@ -425,9 +425,9 @@ func sequenceValidID(id string) bool {
 
 func sequenceArrow(statement string) (string, EdgeStyle, Arrowhead, Arrowhead, int) {
 	type candidate struct {
-		token       string
-		style       EdgeStyle
-		start, end  Arrowhead
+		token      string
+		style      EdgeStyle
+		start, end Arrowhead
 	}
 	candidates := []candidate{
 		{token: "<<-->>", style: EdgeSolid, start: ArrowFilled, end: ArrowFilled},
@@ -470,18 +470,18 @@ type sequenceParticipantLayout struct {
 func (p *sequenceParticipantLayout) cx() int { return p.x + p.w/2 }
 
 type sequenceNoteLayout struct {
-	note             SequenceNote
-	x, y, w, h       int
-	lines            []string
-	lineHeight       int
+	note       SequenceNote
+	x, y, w, h int
+	lines      []string
+	lineHeight int
 }
 
 type sequenceMessageLayout struct {
-	event     SequenceEvent
-	y, arrowY int
-	lines     []string
-	width     int
-	height    int
+	event      SequenceEvent
+	y, arrowY  int
+	lines      []string
+	width      int
+	height     int
 	lineHeight int
 }
 
@@ -608,6 +608,7 @@ func layoutSequence(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 	}
 	var stack []sequenceOpenFrame
 	active := make(map[string]int)
+	var activations []sequenceActivationSpan
 	var notes []sequenceNoteLayout
 	var messages []sequenceMessageLayout
 	number := data.AutonumberStart
@@ -635,18 +636,23 @@ func layoutSequence(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 			}
 			lines, width, lineHeight := labelSize(label, fonts, 24, fonts.BodyPx, false)
 			height := max(len(lines)*lineHeight+2, 3)
+			arrowY := y + len(lines)*lineHeight + 1
 			messages = append(messages, sequenceMessageLayout{
-				event: event, y: y, arrowY: y + len(lines)*lineHeight + 1,
+				event: event, y: y, arrowY: arrowY,
 				lines: lines, width: max(width+2, 3), height: height, lineHeight: lineHeight,
 			})
 			if event.Deactivate != "" {
 				if start, ok := active[event.Deactivate]; ok {
-					sequenceActivationBar(&s, participants[participantIndex[event.Deactivate]], start, y+1, palette)
+					activations = append(activations, sequenceActivationSpan{
+						participant: participants[participantIndex[event.Deactivate]],
+						start:       start,
+						end:         arrowY,
+					})
 					delete(active, event.Deactivate)
 				}
 			}
 			if event.Activate != "" {
-				active[event.Activate] = y + 1
+				active[event.Activate] = arrowY
 			}
 			y += height + 1
 		case SequenceNoteEvent:
@@ -667,7 +673,11 @@ func layoutSequence(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 				return Scene{}, unknown(KindSequence, 0, "activation participant")
 			}
 			if start, exists := active[event.Participant]; exists {
-				sequenceActivationBar(&s, participants[index], start, y, palette)
+				activations = append(activations, sequenceActivationSpan{
+					participant: participants[index],
+					start:       start,
+					end:         y,
+				})
 				delete(active, event.Participant)
 			}
 		case SequenceFrameOpen:
@@ -725,14 +735,23 @@ func layoutSequence(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 		if !ok {
 			return Scene{}, unknown(KindSequence, 0, "activation participant")
 		}
-		sequenceActivationBar(&s, participants[index], start, y, palette)
+		activations = append(activations, sequenceActivationSpan{
+			participant: participants[index],
+			start:       start,
+			end:         max(y-1, start+1),
+		})
 	}
 	y = max(y+2, participantY+maxHeight+4)
 	s.Height = max(s.Height, y)
 
 	for _, frame := range frames {
 		if frame.h > 0 {
-			s.Rounded(frame.x, frame.y, frame.w, frame.h, 1, color.RGBA{}, accent(palette, sequenceFrameColor(frame.frame.Kind)))
+			col := accent(palette, sequenceFrameColor(frame.frame.Kind))
+			if frame.frame.Kind == "rect" {
+				s.Rounded(frame.x, frame.y, frame.w, frame.h, 1, fade(col, 24), fade(col, 90))
+			} else {
+				s.Rounded(frame.x, frame.y, frame.w, frame.h, 1, fade(col, 14), col)
+			}
 		}
 	}
 	stroke := palette.Link
@@ -743,8 +762,14 @@ func layoutSequence(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 		s.Line(participant.cx(), participant.y+participant.h, participant.cx(), y-1, muted(palette), true, false)
 		_ = i
 	}
+	for _, span := range activations {
+		sequenceActivationBar(&s, span.participant, span.start, span.end, palette)
+	}
 	for _, frame := range frames {
 		if frame.h == 0 {
+			continue
+		}
+		if frame.frame.Kind == "rect" && sequenceIsCSSColor(frame.frame.Label) {
 			continue
 		}
 		label := frame.frame.Kind
@@ -760,9 +785,10 @@ func layoutSequence(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 		}
 	}
 	for i, note := range notes {
-		s.Rounded(note.x, note.y, note.w, note.h, 1, fade(accent(palette, i+2), 28), accent(palette, i+2))
-		s.TextLines(note.lines, note.x+2, note.y+1, note.w-4, note.lineHeight, fonts.BodyPx, AlignCenter, foreground(palette), false)
-		s.Line(note.x+note.w-1, note.y+1, note.x+note.w-1, note.y+note.h-2, accent(palette, i+2), false, false)
+		noteCol := accent(palette, i+2)
+		noteFill := fade(noteCol, 42)
+		s.Rounded(note.x, note.y, note.w, note.h, 1, noteFill, noteCol)
+		s.TextLines(note.lines, note.x+2, note.y+1, note.w-4, note.lineHeight, fonts.BodyPx, AlignCenter, contrastText(noteFill, palette), false)
 	}
 	for _, message := range messages {
 		from := participants[participantIndex[message.event.From]].cx()
@@ -859,9 +885,9 @@ func maxSequenceDepth(depth []int) int {
 }
 
 type sequenceSizedNote struct {
-	note   SequenceNote
-	lines  []string
-	w, h   int
+	note       SequenceNote
+	lines      []string
+	w, h       int
 	lineHeight int
 }
 
@@ -925,12 +951,26 @@ func reflectSequenceNote(a, b SequenceNote) bool {
 	return true
 }
 
+type sequenceActivationSpan struct {
+	participant sequenceParticipantLayout
+	start, end  int
+}
+
+func sequenceIsCSSColor(label string) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(label))
+	return strings.HasPrefix(trimmed, "rgb(") ||
+		strings.HasPrefix(trimmed, "rgba(") ||
+		strings.HasPrefix(trimmed, "hsl(") ||
+		strings.HasPrefix(trimmed, "hsla(") ||
+		strings.HasPrefix(trimmed, "#")
+}
+
 func sequenceActivationBar(s *Scene, participant sequenceParticipantLayout, start, end int, palette rich.Palette) {
 	if end <= start {
 		end = start + 1
 	}
-	x := participant.cx() + 2
-	s.Rect(x, start, 2, end-start, fade(accent(palette, 1), 90), accent(palette, 1))
+	x := max(participant.cx()-1, 0)
+	s.Rect(x, start, 2, end-start, fade(accent(palette, 1), 110), accent(palette, 1))
 }
 
 func sequenceTextWidth(lines []string, fonts *rich.Fonts) int {

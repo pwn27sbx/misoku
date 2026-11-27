@@ -861,9 +861,9 @@ func layoutClass(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 		}
 	}
 	columns := min(3, len(items))
-	const margin = 8
-	horizontalGap := max(26, maxRelationWidth+8, 2*maxMultiplicityWidth+8)
-	verticalGap := max(16, maxRelationHeight+8)
+	const margin = 3
+	horizontalGap := max(14, maxRelationWidth+4, 2*maxMultiplicityWidth+4)
+	verticalGap := max(8, maxRelationHeight+4)
 	titleLines, titleWidth, titleHeight := basicTitle(d.Title, fonts)
 	startY := titleHeight + 1 + margin
 	boxes, gridWidth, gridHeight := diagramGridPlace(items, columns, horizontalGap, verticalGap, margin, startY)
@@ -871,7 +871,7 @@ func layoutClass(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 	s.Width = max(titleWidth+2, margin+gridWidth+margin)
 	s.Height = startY + gridHeight + margin
 	if titleHeight > 0 {
-		s.TextLines(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
+		s.TextLinesBold(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
 	}
 	indices := make(map[string]int, len(data.Classes))
 	for i, class := range data.Classes {
@@ -913,11 +913,12 @@ func layoutClass(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 
 func classDrawBox(s *Scene, class Class, measured classMeasuredBox, box diagramGridBox, fonts *rich.Fonts, palette rich.Palette, index int) {
 	stroke := accent(palette, index)
+	headerFill := fade(stroke, 48)
 	s.Rect(box.x, box.y, box.w, box.h, palette.CodeBg, stroke)
-	s.Rect(box.x+1, box.y+1, box.w-2, measured.headerH-1, fade(stroke, 24), color.RGBA{})
-	s.Line(box.x, box.y+measured.headerH-1, box.x+box.w-1, box.y+measured.headerH-1, rule(palette), false, false)
+	s.Rect(box.x, box.y, box.w, measured.headerH, headerFill, stroke)
+	s.Line(box.x, box.y+measured.headerH, box.x+box.w-1, box.y+measured.headerH, rule(palette), false, false)
 	headerHeight := len(measured.headerLines) * measured.lineHeight
-	s.TextLines(measured.headerLines, box.x+1, box.y+(measured.headerH-headerHeight)/2, box.w-2, measured.lineHeight, fonts.BodyPx, AlignCenter, foreground(palette), false)
+	s.TextLinesBold(measured.headerLines, box.x+1, box.y+(measured.headerH-headerHeight)/2, box.w-2, measured.lineHeight, fonts.BodyPx, AlignCenter, contrastText(headerFill, palette), false)
 	y := box.y + measured.headerH
 	for _, member := range measured.fields {
 		s.TextLines(member.lines, box.x+2, y, box.w-4, member.lineHeight, fonts.BodyPx, AlignLeft, foreground(palette), false)
@@ -1088,20 +1089,20 @@ func diagramFacingSides(from, to diagramGridBox, index int) (diagramSide, diagra
 }
 
 func diagramPort(box diagramGridBox, side diagramSide, index int) Point {
-	length := box.h
+	length := box.w
 	if side == diagramSideRight || side == diagramSideLeft {
-		length = box.w
+		length = box.h
 	}
 	offset := diagramPortOffset(index, length)
 	switch side {
 	case diagramSideRight:
-		return Point{X: box.x + box.w - 1, Y: box.cy() + offset}
+		return Point{X: box.x + box.w - 1, Y: min(max(box.cy()+offset, box.y), box.y+box.h-1)}
 	case diagramSideLeft:
-		return Point{X: box.x, Y: box.cy() + offset}
+		return Point{X: box.x, Y: min(max(box.cy()+offset, box.y), box.y+box.h-1)}
 	case diagramSideBottom:
-		return Point{X: box.cx() + offset, Y: box.y + box.h - 1}
+		return Point{X: min(max(box.cx()+offset, box.x), box.x+box.w-1), Y: box.y + box.h - 1}
 	default:
-		return Point{X: box.cx() + offset, Y: box.y}
+		return Point{X: min(max(box.cx()+offset, box.x), box.x+box.w-1), Y: box.y}
 	}
 }
 
@@ -1200,28 +1201,29 @@ func diagramDrawEndpointMark(s *Scene, mark diagramEndpointMark, tip, toward Poi
 	}
 	switch mark {
 	case diagramMarkHollowTriangle:
-		s.Polygon([]Point{tip, point(4, 2), point(4, -2)}, color.RGBA{}, stroke)
+		s.Polygon([]Point{tip, point(2, 1), point(2, -1)}, color.RGBA{}, stroke)
 	case diagramMarkFilledArrow:
-		s.Polygon([]Point{tip, point(4, 2), point(4, -2)}, stroke, stroke)
+		s.Polygon([]Point{tip, point(2, 1), point(2, -1)}, stroke, stroke)
 	case diagramMarkFilledDiamond:
-		s.Polygon([]Point{tip, point(2, 2), point(4, 0), point(2, -2)}, stroke, stroke)
+		s.Polygon([]Point{tip, point(1, 1), point(2, 0), point(1, -1)}, stroke, stroke)
 	case diagramMarkHollowDiamond:
-		s.Polygon([]Point{tip, point(2, 2), point(4, 0), point(2, -2)}, color.RGBA{}, stroke)
+		s.Polygon([]Point{tip, point(1, 1), point(2, 0), point(1, -1)}, color.RGBA{}, stroke)
 	case diagramMarkZeroOrOne:
-		diagramDrawBar(s, point(2, 0), point(2, 1), stroke)
-		s.Ellipse(point(5, 0).X-1, point(5, 0).Y-1, 3, 3, color.RGBA{}, stroke)
+		diagramDrawBar(s, point(1, 0), point(1, 1), stroke)
+		c := point(3, 0)
+		s.Dot(c.X, c.Y, 6, color.RGBA{}, stroke)
 	case diagramMarkExactlyOne:
+		diagramDrawBar(s, point(1, 0), point(1, 1), stroke)
 		diagramDrawBar(s, point(2, 0), point(2, 1), stroke)
-		diagramDrawBar(s, point(4, 0), point(4, 1), stroke)
 	case diagramMarkZeroOrMore, diagramMarkOneOrMore:
-		s.Line(tip.X, tip.Y, point(4, 2).X, point(4, 2).Y, stroke, false, false)
-		s.Line(tip.X, tip.Y, point(4, 0).X, point(4, 0).Y, stroke, false, false)
-		s.Line(tip.X, tip.Y, point(4, -2).X, point(4, -2).Y, stroke, false, false)
+		s.Line(tip.X, tip.Y, point(2, 1).X, point(2, 1).Y, stroke, false, false)
+		s.Line(tip.X, tip.Y, point(2, 0).X, point(2, 0).Y, stroke, false, false)
+		s.Line(tip.X, tip.Y, point(2, -1).X, point(2, -1).Y, stroke, false, false)
 		if mark == diagramMarkZeroOrMore {
-			center := point(6, 0)
-			s.Ellipse(center.X-1, center.Y-1, 3, 3, color.RGBA{}, stroke)
+			center := point(3, 0)
+			s.Dot(center.X, center.Y, 6, color.RGBA{}, stroke)
 		} else {
-			diagramDrawBar(s, point(2, 0), point(2, 1), stroke)
+			diagramDrawBar(s, point(1, 0), point(1, 1), stroke)
 		}
 	}
 }

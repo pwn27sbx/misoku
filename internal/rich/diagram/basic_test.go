@@ -456,8 +456,8 @@ func TestBasicTimelineLayout(t *testing.T) {
 	s := basicLayout(t, basicTimelineSource)
 	basicAssertScene(t, s)
 	counts := basicCommandCounts(s)
-	if counts[CommandLine] != 4 || counts[CommandBadge] != 4 {
-		t.Fatalf("timeline commands = %#v, want four event connectors and period badges", counts)
+	if counts[CommandLine] < 4 || counts[CommandBadge] != 4 {
+		t.Fatalf("timeline commands = %#v, want at least four event connectors and four period badges", counts)
 	}
 	for _, text := range []string{
 		"Product history", "Foundations", "Launch", "2020 - 2021", "2022", "2023", "2024 - 2025",

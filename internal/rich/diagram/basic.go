@@ -389,7 +389,7 @@ func layoutPie(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error
 		return Scene{}, invalid(KindPie, 0, "fonts are required")
 	}
 	titleLines, titleWidth, titleHeight := basicTitle(d.Title, fonts)
-	const chartW, chartH = 28, 20
+	const chartW, chartH = 26, 13
 	type legendEntry struct {
 		lines  []string
 		text   string
@@ -410,12 +410,12 @@ func layoutPie(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error
 		legendHeight += height + 1
 	}
 	s := newScene()
-	s.Width = max(titleWidth+2, 1+chartW+2+legendWidth+2)
+	s.Width = max(titleWidth+2, 1+chartW+3+legendWidth+2)
 	s.Height = titleHeight + max(chartH, legendHeight) + 2
 	if titleHeight > 0 {
-		s.TextLines(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
+		s.TextLinesBold(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
 	}
-	chartX, chartY := 1, titleHeight
+	chartX, chartY := 1, titleHeight+1
 	total := 0.0
 	for _, slice := range data.Slices {
 		total += slice.Value
@@ -425,12 +425,21 @@ func layoutPie(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error
 		if slice.Value == 0 {
 			continue
 		}
-		end := start + 2*math.Pi*slice.Value/total
-		s.Sector(chartX, chartY, chartW, chartH, start, end, accent(palette, i))
+		share := slice.Value / total
+		end := start + 2*math.Pi*share
+		col := accent(palette, i)
+		s.Sector(chartX, chartY, chartW, chartH, start, end, col)
+		if share >= 0.08 {
+			mid := (start + end) / 2
+			lx := chartX + chartW/2 + int(math.Round(float64(chartW)*0.28*math.Cos(mid))) - 2
+			ly := chartY + chartH/2 + int(math.Round(float64(chartH)*0.28*math.Sin(mid)))
+			pct := strconv.Itoa(int(math.Round(share*100))) + "%"
+			s.TextBold(pct, lx, ly, 5, 1, fonts.BodyPx*0.9, AlignCenter, contrastText(col, palette), false)
+		}
 		start = end
 	}
-	s.Ellipse(chartX, chartY, chartW, chartH, color.RGBA{}, rule(palette))
-	legendX := chartX + chartW + 2
+	s.Circle(chartX, chartY, chartW, chartH, color.RGBA{}, rule(palette))
+	legendX := chartX + chartW + 3
 	legendY := chartY + 1
 	for i, entry := range entries {
 		s.Rect(legendX, legendY, 2, 1, accent(palette, i), color.RGBA{})
@@ -486,7 +495,7 @@ func layoutQuadrant(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 	s.Width = max(titleWidth+2, plotX+plotW+2)
 	s.Height = plotY + plotH + bottomPad + 2
 	if titleHeight > 0 {
-		s.TextLines(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
+		s.TextLinesBold(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
 	}
 	halfW, halfH := plotW/2, plotH/2
 	quadrants := []struct {
@@ -498,7 +507,7 @@ func layoutQuadrant(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 		{plotX + halfW, plotY + halfH, plotW - halfW, plotH - halfH},
 	}
 	for i, quadrant := range quadrants {
-		s.Rect(quadrant.x, quadrant.y, quadrant.w, quadrant.h, fade(accent(palette, i), 28), rule(palette))
+		s.Rect(quadrant.x, quadrant.y, quadrant.w, quadrant.h, fade(accent(palette, i), 38), rule(palette))
 		lines := quadrantLines[i]
 		_, _, lineHeight := labelSize(labels[i], fonts, plotW/2-2, fonts.BodyPx, false)
 		s.TextLines(lines, quadrant.x+1, quadrant.y+1, quadrant.w-2, lineHeight, fonts.BodyPx, AlignCenter, muted(palette), false)
@@ -513,7 +522,7 @@ func layoutQuadrant(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 	for i, point := range data.Points {
 		px := plotX + int(math.Round(point.X*float64(plotW-1)))
 		py := plotY + int(math.Round((1-point.Y)*float64(plotH-1)))
-		s.Ellipse(px-1, py-1, 3, 2, accent(palette, i), rule(palette))
+		s.Dot(px, py, 9, accent(palette, i), foreground(palette))
 		labelX := px + 2
 		if labelX+pointWidths[i] > plotX+plotW {
 			labelX = px - pointWidths[i] - 2
@@ -608,13 +617,14 @@ func layoutTimeline(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 	s.Width = sceneWidth
 	for sectionIndex, section := range sections {
 		top := y
+		col := accent(palette, sectionIndex)
 		if section.headerH > 0 {
-			s.Rect(1, y, section.width, section.headerH-1, fade(accent(palette, sectionIndex), 24), color.RGBA{})
+			s.Rect(1, y, section.width, section.headerH-1, fade(col, 48), color.RGBA{})
 			headingLines, _, lineHeight := labelSize(section.title, fonts, max(section.width-2, 3), fonts.BodyPx, false)
-			s.TextLines(headingLines, 2, y, section.width-2, lineHeight, fonts.BodyPx, AlignLeft, foreground(palette), false)
+			s.TextLinesBold(headingLines, 2, y, section.width-2, lineHeight, fonts.BodyPx, AlignLeft, foreground(palette), false)
 		}
 		baseline := top + section.headerH + section.aboveH + 1
-		s.Rect(1, baseline, section.width, 1, rule(palette), rule(palette))
+		s.Line(1, baseline, 1+section.width, baseline, rule(palette), false, true)
 		for eventIndex, event := range section.events {
 			columnX := 1 + eventIndex*(columnWidth+2)
 			above := eventIndex%2 == 0
@@ -623,18 +633,20 @@ func layoutTimeline(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, 
 			if above {
 				periodY = baseline - 1 - event.periodH
 				eventY = periodY - event.eventH - 1
-				s.Line(columnX+1, baseline, columnX+1, periodY+event.periodH-1, muted(palette), false, false)
+				s.Line(columnX+1, baseline, columnX+1, periodY+event.periodH-1, col, false, false)
 			} else {
 				eventY = baseline + 1
 				periodY = eventY + event.eventH + 1
-				s.Line(columnX+1, baseline, columnX+1, periodY, muted(palette), false, false)
+				s.Line(columnX+1, baseline, columnX+1, periodY, col, false, false)
 			}
+			s.Dot(columnX+1, baseline, 6, col, foreground(palette))
 			periodX := columnX + 2
+			pillFill := fade(col, 60)
 			if len(event.periodLines) == 1 {
-				s.Badge(event.periodLines[0], periodX, periodY, max(event.periodW+2, 4), event.periodH, fonts.BodyPx, fade(accent(palette, sectionIndex), 80), foreground(palette))
+				s.Badge(event.periodLines[0], periodX, periodY, max(event.periodW+2, 4), event.periodH, fonts.BodyPx, pillFill, contrastText(pillFill, palette))
 			} else {
-				s.Rounded(periodX, periodY, max(event.periodW+2, 4), event.periodH, 1, fade(accent(palette, sectionIndex), 80), color.RGBA{})
-				s.TextLines(event.periodLines, periodX+1, periodY, max(event.periodW, 1), event.lineHeight, fonts.BodyPx, AlignCenter, foreground(palette), false)
+				s.Rounded(periodX, periodY, max(event.periodW+2, 4), event.periodH, 1, pillFill, col)
+				s.TextLines(event.periodLines, periodX+1, periodY, max(event.periodW, 1), event.lineHeight, fonts.BodyPx, AlignCenter, contrastText(pillFill, palette), false)
 			}
 			s.TextLines(event.eventLines, periodX, eventY, max(event.eventW, 1), event.lineHeight, fonts.BodyPx, AlignCenter, foreground(palette), false)
 		}
@@ -736,10 +748,11 @@ func layoutJourney(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, e
 			cy := y + laneHeight/2
 			participates := basicContainsActor(task.task.Actors, actor)
 			if participates {
-				s.Ellipse(cx-2, cy-1, 4, 2, accent(palette, task.task.Score-1), rule(palette))
-				s.Text(strconv.Itoa(task.task.Score), cx-2, cy-1, 4, 1, fonts.BodyPx, AlignCenter, foreground(palette), false)
+				fill := accent(palette, task.task.Score-1)
+				s.Circle(cx-2, cy-1, 4, 2, fill, rule(palette))
+				s.TextBold(strconv.Itoa(task.task.Score), cx-2, cy-1, 4, 2, fonts.BodyPx, AlignCenter, contrastText(fill, palette), false)
 			} else {
-				s.Ellipse(cx-1, cy-1, 3, 2, color.RGBA{}, muted(palette))
+				s.Dot(cx, cy, 3, muted(palette), muted(palette))
 			}
 		}
 	}
@@ -753,7 +766,8 @@ func layoutJourney(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, e
 	s.Text("Score", 1, legendY, actorWidth-1, 2, fonts.BodyPx, AlignLeft, muted(palette), false)
 	for score := 1; score <= 5; score++ {
 		x := actorX + (score-1)*4
-		s.Badge(strconv.Itoa(score), x, legendY, 3, 2, fonts.BodyPx, accent(palette, score-1), foreground(palette))
+		fill := accent(palette, score-1)
+		s.Badge(strconv.Itoa(score), x, legendY, 3, 2, fonts.BodyPx, fill, contrastText(fill, palette))
 	}
 	return s, nil
 }

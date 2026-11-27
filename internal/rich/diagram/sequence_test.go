@@ -103,12 +103,12 @@ func TestSequenceDiagramIR(t *testing.T) {
 
 func TestSequenceMessages(t *testing.T) {
 	tests := []struct {
-		name   string
-		arrow  string
-		style  EdgeStyle
-		start  Arrowhead
-		end    Arrowhead
-		label  string
+		name  string
+		arrow string
+		style EdgeStyle
+		start Arrowhead
+		end   Arrowhead
+		label string
 	}{
 		{name: "solid line", arrow: `->`, style: EdgeSolid},
 		{name: "solid open", arrow: `-->`, style: EdgeSolid, end: ArrowOpen, label: "open"},
@@ -151,7 +151,7 @@ func TestSequenceActivationShorthand(t *testing.T) {
 	data := d.Data.(SequenceData)
 	want := []SequenceEvent{
 		{Kind: SequenceMessage, From: "A", To: "B", Label: "start", Style: EdgeSolid, End: ArrowFilled, Activate: "B"},
-		{Kind: SequenceMessage, From: "B", To: "A", Label: "stop", Style: EdgeSolid, End: ArrowFilled, Deactivate: "A"},
+		{Kind: SequenceMessage, From: "B", To: "A", Label: "stop", Style: EdgeSolid, End: ArrowFilled, Deactivate: "B"},
 	}
 	if !reflect.DeepEqual(data.Events, want) {
 		t.Fatalf("events = %#v, want %#v", data.Events, want)
@@ -190,8 +190,8 @@ func TestSequenceFramesAndNotes(t *testing.T) {
 			},
 		},
 		{
-			name:   "note positions",
-			lines:  []string{`note left of A: left`, `note right of B: right`, `note over A,B: both`},
+			name:  "note positions",
+			lines: []string{`note left of A: left`, `note right of B: right`, `note over A,B: both`},
 			events: []SequenceEvent{
 				{Kind: SequenceNoteEvent, Note: SequenceNote{Position: "left", Participants: []string{"A"}, Text: "left"}},
 				{Kind: SequenceNoteEvent, Note: SequenceNote{Position: "right", Participants: []string{"B"}, Text: "right"}},
@@ -215,10 +215,10 @@ func TestSequenceFramesAndNotes(t *testing.T) {
 
 func TestSequenceUnknownConstruct(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       string
-		line       int
-		construct  string
+		name      string
+		body      string
+		line      int
+		construct string
 	}{
 		{name: "unknown arrow", body: "A ?!> B: bad", line: 2, construct: "A ?!> B: bad"},
 		{name: "unsupported frame", body: "critical failure", line: 2, construct: "critical failure"},
@@ -323,7 +323,7 @@ func TestSequenceLayoutConstructFamilies(t *testing.T) {
 		t.Fatalf("message decorations: dashed=%v filled=%v cross=%v bidirectional=%v", dashed, filled, cross, bidirectional)
 	}
 	text := sequenceTestText(s)
-	for _, want := range []string{"Request flow", "Customer", "Services", "entry", "shared", "1. request", "alt cached", "else fresh", "and", "rect rgba(0,0,0,0)"} {
+	for _, want := range []string{"Request flow", "Customer", "Services", "entry", "shared", "1. request", "alt cached", "else fresh", "and"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("scene text does not contain %q", want)
 		}

@@ -316,11 +316,12 @@ func layoutGantt(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 	s.Width = max(titleWidth+2, gutter+plotW+5)
 	y := titleHeight + 1
 	if d.Title != "" {
-		s.TextLines(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
+		s.TextLinesBold(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
 	}
 	axisY := y
+	gridBottom := axisY + max(taskCount*2+len(data.Sections)*2, 4)
 	s.Line(gutter, axisY, gutter+plotW, axisY, rule(palette), false, false)
-	s.Line(gutter, axisY, gutter, axisY+max(taskCount*2+len(data.Sections)*2, 4), rule(palette), false, false)
+	s.Line(gutter, axisY, gutter, gridBottom, rule(palette), false, false)
 	span := maxDate.Sub(minDate).Hours()
 	if span <= 0 {
 		span = 24
@@ -335,26 +336,32 @@ func layoutGantt(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 		}
 		return t.Format("Jan 02")
 	}
-	s.Text(axisLabel(minDate), gutter, axisY-1, 8, 1, fonts.BodyPx, AlignLeft, muted(palette), false)
-	s.Text(axisLabel(maxDate), gutter+plotW-8, axisY-1, 8, 1, fonts.BodyPx, AlignRight, muted(palette), false)
+	for tick := 1; tick <= 3; tick++ {
+		tx := gutter + tick*plotW/4
+		s.Line(tx, axisY, tx, gridBottom, fade(rule(palette), 55), true, false)
+		tickDate := minDate.Add(time.Duration(float64(tick)/4*span) * time.Hour)
+		s.Text(axisLabel(tickDate), tx-4, axisY-1, 8, 1, fonts.BodyPx*0.9, AlignCenter, muted(palette), false)
+	}
+	s.Text(axisLabel(minDate), gutter, axisY-1, 8, 1, fonts.BodyPx*0.9, AlignLeft, muted(palette), false)
+	s.Text(axisLabel(maxDate), gutter+plotW-8, axisY-1, 8, 1, fonts.BodyPx*0.9, AlignRight, muted(palette), false)
 	y = axisY + 1
 	for sectionIndex, section := range data.Sections {
-		s.Text(section.Title, 2, y, gutter-2, 1, fonts.BodyPx, AlignLeft, accent(palette, sectionIndex), false)
-		s.Line(1, y+1, s.Width-2, y+1, fade(accent(palette, sectionIndex), 120), false, false)
+		s.TextBold(section.Title, 2, y, gutter-2, 1, fonts.BodyPx, AlignLeft, accent(palette, sectionIndex), false)
+		s.Line(1, y+1, s.Width-2, y+1, fade(accent(palette, sectionIndex), 100), false, false)
 		y++
 		for _, task := range section.Tasks {
 			if y+2 >= maxSceneCells {
 				return Scene{}, invalid(KindGantt, 0, "gantt layout too tall")
 			}
-			s.Text(task.Label, 1, y, gutter-2, 1, fonts.BodyPx, AlignRight, foreground(palette), false)
+			s.Text(task.Label, 1, y, gutter-2, 2, fonts.BodyPx, AlignRight, foreground(palette), false)
 			startX := gutter + dateWidth(task.Start)
 			endX := gutter + dateWidth(task.End)
 			if endX < startX {
 				endX = startX
 			}
 			if task.Milestone {
-				milestoneX := min(startX, gutter+plotW-3)
-				s.Diamond(milestoneX, y, 3, 3, accent(palette, 3), rule(palette))
+				milestoneX := min(startX, gutter+plotW-4)
+				s.Diamond(milestoneX, y, 4, 2, accent(palette, 3), foreground(palette))
 			} else {
 				barColor := accent(palette, 0)
 				if task.Done {
@@ -364,9 +371,10 @@ func layoutGantt(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 				} else if task.Active {
 					barColor = accent(palette, 1)
 				}
-				s.Rounded(startX, y, max(endX-startX, 2), 2, 1, fade(barColor, 210), barColor)
+				barFill := fade(barColor, 210)
+				s.Rounded(startX, y, max(endX-startX, 2), 2, 1, barFill, barColor)
 				if endX-startX >= len([]rune(task.Label))+2 {
-					s.Text(task.Label, startX, y, endX-startX, 1, fonts.BodyPx, AlignCenter, foreground(palette), false)
+					s.TextBold(task.Label, startX, y, endX-startX, 2, fonts.BodyPx, AlignCenter, contrastText(barFill, palette), false)
 				}
 			}
 			y += 2
@@ -553,28 +561,35 @@ func layoutXY(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error)
 		return fmt.Sprintf("%.1f", value)
 	}
 	left := 9
-	plotW := max(len(data.Categories)*5, 20)
+	catCount := max(len(data.Categories), 1)
+	catStep := max(8, 32/catCount)
+	plotW := max(catCount*catStep, 28)
 	plotH := 14
 	s.Width = max(titleWidth+2, left+plotW+4)
-	s.Height = titleHeight + plotH + 4
+	s.Height = titleHeight + plotH + 5
 	if d.Title != "" {
-		s.TextLines(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
+		s.TextLinesBold(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
 	}
 	top := titleHeight + 1
 	s.Line(left, top, left, top+plotH, rule(palette), false, false)
 	s.Line(left, top+plotH, left+plotW, top+plotH, rule(palette), false, false)
 	for i := 0; i <= 4; i++ {
 		y := top + i*plotH/4
-		s.Line(left, y, left+plotW, y, fade(rule(palette), 70), false, false)
+		if i < 4 {
+			s.Line(left, y, left+plotW, y, fade(rule(palette), 65), true, false)
+		}
 		value := data.YAxis.Max - (data.YAxis.Max-data.YAxis.Min)*float64(i)/4
 		s.Text(labelFor(value), 1, y, left-2, 1, fonts.BodyPx, AlignRight, muted(palette), false)
 	}
 	if data.YAxis.Label != "" {
 		s.Text(data.YAxis.Label, 1, top-1, left-2, 1, fonts.BodyPx, AlignRight, foreground(palette), false)
 	}
+	catCenter := func(i int) int {
+		return left + i*plotW/catCount + plotW/catCount/2
+	}
 	for i, category := range data.Categories {
-		x := left + i*plotW/max(len(data.Categories), 1) + plotW/max(len(data.Categories), 1)/2
-		s.Text(category, x-2, top+plotH+1, 5, 1, fonts.BodyPx, AlignCenter, muted(palette), false)
+		cx := catCenter(i)
+		s.Text(category, cx-catStep/2, top+plotH+1, catStep, 1, fonts.BodyPx, AlignCenter, muted(palette), false)
 	}
 	rangeY := data.YAxis.Max - data.YAxis.Min
 	toY := func(value float64) int {
@@ -591,16 +606,18 @@ func layoutXY(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error)
 	}
 	barIndex := 0
 	for seriesIndex, series := range data.Series {
-		color := accent(palette, seriesIndex)
+		col := accent(palette, seriesIndex)
 		if series.Kind == XYBar {
-			seriesWidth := max(plotW/max(len(data.Categories), 1)/max(barCount, 1), 2)
+			groupW := max(plotW/catCount-2, 2)
+			seriesWidth := max(groupW/max(barCount, 1), 2)
 			for i, value := range series.Values {
 				if i >= len(data.Categories) {
 					break
 				}
-				x := left + i*plotW/max(len(data.Categories), 1) + barIndex*seriesWidth
+				groupStart := catCenter(i) - (seriesWidth*barCount)/2
+				x := groupStart + barIndex*seriesWidth
 				y := toY(value)
-				s.Rect(x, y, max(seriesWidth-1, 1), top+plotH-y, fade(color, 220), color)
+				s.Rect(x, y, max(seriesWidth-1, 1), top+plotH-y, fade(col, 200), col)
 			}
 			barIndex++
 		} else {
@@ -609,14 +626,26 @@ func layoutXY(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error)
 				if i >= len(data.Categories) {
 					break
 				}
-				x := left + i*plotW/max(len(data.Categories), 1) + plotW/max(len(data.Categories), 1)/2
-				points = append(points, Point{X: x, Y: toY(value)})
+				points = append(points, Point{X: catCenter(i), Y: toY(value)})
 			}
-			s.Polyline(points, color, false, true)
+			s.Polyline(points, col, false, true)
 			for _, point := range points {
-				s.Ellipse(point.X, point.Y, 1, 1, color, color)
+				s.Dot(point.X, point.Y, 6, col, foreground(palette))
 			}
 		}
+	}
+	legendX := left
+	legendY := top + plotH + 3
+	for seriesIndex, series := range data.Series {
+		if series.Name == "" {
+			continue
+		}
+		col := accent(palette, seriesIndex)
+		s.Rect(legendX, legendY, 2, 1, col, col)
+		_, w, _ := labelSize(series.Name, fonts, 18, fonts.BodyPx*0.9, false)
+		s.Text(series.Name, legendX+3, legendY, w, 1, fonts.BodyPx*0.9, AlignLeft, foreground(palette), false)
+		legendX += w + 5
+		s.Width = max(s.Width, legendX+1)
 	}
 	return s, nil
 }

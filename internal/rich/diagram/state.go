@@ -66,14 +66,14 @@ type StateData struct {
 }
 
 type stateParseState struct {
-	diagram Diagram
-	data    StateData
+	diagram  Diagram
+	data     StateData
 	nodes    map[string]int
 	declared map[string]bool
 	groups   map[string]int
-	stack   []int
-	starts  int
-	ends    int
+	stack    []int
+	starts   int
+	ends     int
 }
 
 func init() {
@@ -82,7 +82,7 @@ func init() {
 
 func parseState(lines []string) (Diagram, error) {
 	p := stateParseState{
-		diagram: Diagram{Kind: KindState},
+		diagram:  Diagram{Kind: KindState},
 		nodes:    make(map[string]int),
 		declared: make(map[string]bool),
 		groups:   make(map[string]int),
@@ -407,28 +407,28 @@ type stateLayoutItem struct {
 }
 
 type stateLayoutEdge struct {
-	edge    Edge
-	back    bool
-	lines   []string
-	width   int
-	height  int
+	edge       Edge
+	back       bool
+	lines      []string
+	width      int
+	height     int
 	lineHeight int
 }
 
 type stateSizedNote struct {
-	note      StateNote
-	lines     []string
-	w, h      int
+	note       StateNote
+	lines      []string
+	w, h       int
 	lineHeight int
 }
 
 type stateLayoutBuilder struct {
-	data       StateData
-	fonts      *rich.Fonts
-	palette    rich.Palette
-	nodeIndex  map[string]int
-	groupIndex map[string]int
-	levelEdges map[string][]stateLayoutEdge
+	data        StateData
+	fonts       *rich.Fonts
+	palette     rich.Palette
+	nodeIndex   map[string]int
+	groupIndex  map[string]int
+	levelEdges  map[string][]stateLayoutEdge
 	groupScenes map[string]*Scene
 }
 
@@ -442,9 +442,9 @@ func layoutState(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, err
 	}
 	builder := &stateLayoutBuilder{
 		data: data, fonts: fonts, palette: palette,
-		nodeIndex: make(map[string]int, len(data.Nodes)),
-		groupIndex: make(map[string]int, len(data.Groups)),
-		levelEdges: make(map[string][]stateLayoutEdge),
+		nodeIndex:   make(map[string]int, len(data.Nodes)),
+		groupIndex:  make(map[string]int, len(data.Groups)),
+		levelEdges:  make(map[string][]stateLayoutEdge),
 		groupScenes: make(map[string]*Scene),
 	}
 	for i, node := range data.Nodes {
@@ -664,9 +664,9 @@ func (b *stateLayoutBuilder) newNodeItem(node StateNode, colorIndex int) (*state
 	item := &stateLayoutItem{id: node.ID, label: node.Label, description: node.Description, kind: node.Kind, colorIndex: colorIndex}
 	switch node.Kind {
 	case StateStart:
-		item.w, item.h = 5, 5
+		item.w, item.h = 4, 2
 	case StateEnd:
-		item.w, item.h = 7, 7
+		item.w, item.h = 4, 2
 	case StateChoice:
 		lines, width, lineHeight := labelSize(node.Label, b.fonts, 14, b.fonts.BodyPx, false)
 		item.lines, item.lineHeight = lines, lineHeight
@@ -933,11 +933,18 @@ func stateDrawForwardEdge(s *Scene, items []*stateLayoutItem, index map[string]i
 	if edge.edge.Label == "" {
 		return
 	}
-	x, y := channel-edge.width/2, (from.cy()+to.cy())/2-edge.height/2
 	if horizontal {
-		x, y = channel+1, (from.cx()+to.cx())/2-edge.height/2
+		x := (from.x+from.w+to.x)/2 - edge.width/2
+		y := (from.cy()+to.cy())/2 - edge.height - 1
+		if y < 0 {
+			y = (from.cy()+to.cy())/2 + 1
+		}
+		flowDrawLabel(s, Point{X: max(x, 1), Y: y}, edge.lines, edge.width, edge.height, edge.lineHeight, fonts, palette)
+		return
 	}
-	flowDrawLabel(s, Point{X: x, Y: y}, edge.lines, edge.width, edge.height, edge.lineHeight, fonts, palette)
+	x := (from.cx()+to.cx())/2 - edge.width/2
+	y := (from.y+from.h+to.y)/2 - edge.height/2
+	flowDrawLabel(s, Point{X: max(x, 1), Y: max(y, 0)}, edge.lines, edge.width, edge.height, edge.lineHeight, fonts, palette)
 }
 
 func stateDrawExternalEdge(s *Scene, items []*stateLayoutItem, index map[string]int, edge stateLayoutEdge, lane int, fonts *rich.Fonts, palette rich.Palette) {
@@ -1011,10 +1018,10 @@ func (b *stateLayoutBuilder) drawItem(s *Scene, item *stateLayoutItem) {
 	}
 	switch item.kind {
 	case StateStart:
-		s.Ellipse(item.x+item.w/2-2, item.y+item.h/2-2, 5, 5, col, col)
+		s.Circle(item.x, item.y, item.w, item.h, col, col)
 	case StateEnd:
-		s.Ellipse(item.x, item.y, item.w, item.h, b.palette.CodeBg, col)
-		s.Ellipse(item.x+2, item.y+2, 3, 3, col, col)
+		s.Circle(item.x, item.y, item.w, item.h, b.palette.CodeBg, col)
+		s.Dot(item.x+item.w/2, item.y+item.h/2, 6, col, col)
 	case StateChoice:
 		s.Diamond(item.x, item.y, item.w, item.h, b.palette.CodeBg, col)
 		pad := max(item.w/3, 2)

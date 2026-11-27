@@ -154,7 +154,9 @@ func layoutMindmap(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, e
 	widths := make([]int, 1)
 	placed := mindMeasure(data.Root, 0, fonts, &widths)
 	mindAssign(placed, 0, widths, 1, new(int))
-	mindDraw(&s, placed, fonts, palette, 0)
+	mindDraw(&s, placed, fonts, palette, 0, 0)
+	s.Width += 2
+	s.Height += 2
 	return s, nil
 }
 
@@ -165,8 +167,15 @@ func mindMeasure(node *MindNode, depth int, fonts *rich.Fonts, widths *[]int) *m
 	lines, width, lineHeight := labelSize(node.Text, fonts, 30, fonts.BodyPx, false)
 	height := max(len(lines)*lineHeight, 1) + 2
 	width += 4
-	if width < 6 {
-		width = 6
+	if width < 8 {
+		width = 8
+	}
+	if node.Shape == ShapeCircle {
+		width = max(width+2, 12)
+		height = max((width+1)/2, height, 5)
+		if height%2 == 0 {
+			height++
+		}
 	}
 	(*widths)[depth] = max((*widths)[depth], width)
 	placed := &mindPlaced{node: node, w: width, h: height}
@@ -186,25 +195,41 @@ func mindAssign(placed *mindPlaced, depth int, widths []int, rowSize int, nextRo
 		}
 		placed.row = (placed.children[0].row + placed.children[len(placed.children)-1].row) / 2
 	}
-	x := 0
+	x := 1
 	for i := 0; i < depth; i++ {
-		x += widths[i] + 4
+		x += widths[i] + 5
 	}
 	placed.x = x
-	placed.y = placed.row * 4
+	placed.y = 1 + placed.row*4
 }
 
-func mindDraw(s *Scene, placed *mindPlaced, fonts *rich.Fonts, palette rich.Palette, depth int) {
-	color := accent(palette, depth)
-	for _, child := range placed.children {
+func mindDraw(s *Scene, placed *mindPlaced, fonts *rich.Fonts, palette rich.Palette, depth, branchIdx int) {
+	col := accent(palette, branchIdx)
+	if depth == 0 {
+		col = accent(palette, 0)
+	}
+	for i, child := range placed.children {
+		childBranch := branchIdx
+		if depth == 0 {
+			childBranch = i + 1
+		}
+		edgeCol := accent(palette, childBranch)
 		startX, startY := placed.x+placed.w, placed.y+placed.h/2
 		endX, endY := child.x, child.y+child.h/2
 		midX := startX + (endX-startX)/2
-		s.Polyline([]Point{{X: startX, Y: startY}, {X: midX, Y: startY}, {X: midX, Y: endY}, {X: endX, Y: endY}}, rule(palette), false, false)
+		s.Polyline([]Point{{X: startX, Y: startY}, {X: midX, Y: startY}, {X: midX, Y: endY}, {X: endX, Y: endY}}, edgeCol, false, true)
 	}
-	s.Node(Node{ID: placed.node.Text, Label: placed.node.Text, Shape: placed.node.Shape}, placed.x, placed.y, placed.w, placed.h, fonts, palette, fade(color, 90), color)
-	for _, child := range placed.children {
-		mindDraw(s, child, fonts, palette, depth+1)
+	fillAlpha := uint8(55)
+	if depth == 0 {
+		fillAlpha = 75
+	}
+	s.Node(Node{ID: placed.node.Text, Label: placed.node.Text, Shape: placed.node.Shape}, placed.x, placed.y, placed.w, placed.h, fonts, palette, fade(col, fillAlpha), col)
+	for i, child := range placed.children {
+		childBranch := branchIdx
+		if depth == 0 {
+			childBranch = i + 1
+		}
+		mindDraw(s, child, fonts, palette, depth+1, childBranch)
 	}
 }
 
@@ -276,6 +301,9 @@ func parseGit(lines []string) (Diagram, error) {
 			}
 			branchIndex[name] = len(data.Branches)
 			data.Branches = append(data.Branches, GitBranch{Name: name, Start: len(data.Commits), Head: len(data.Commits) - 1})
+			if head := lastHead[current]; head != "" {
+				lastHead[name] = head
+			}
 			current = name
 		case "checkout", "switch":
 			name := strings.TrimSpace(text[len(fields[0]):])
@@ -379,49 +407,88 @@ func layoutGit(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error
 		titleHeight = 1
 	}
 	laneY := make(map[string]int, len(data.Branches))
+	branchLabelW := 6
+	for _, branch := range data.Branches {
+		_, w, _ := labelSize(branch.Name, fonts, 14, fonts.BodyPx*0.9, false)
+		branchLabelW = max(branchLabelW, w+2)
+	}
 	for i, branch := range data.Branches {
-		laneY[branch.Name] = titleHeight + 4 + i*6
+		laneY[branch.Name] = titleHeight + 4 + i*5
 	}
-	orderX := func(order int) int { return 8 + order*8 }
+	orderX := func(order int) int { return branchLabelW + 5 + order*10 }
 	positions := make(map[string]Point, len(data.Commits))
+	commitBranch := make(map[string]string, len(data.Commits))
 	for i, commit := range data.Commits {
-		x := orderX(i)
-		y := laneY[commit.Branch]
-		positions[commit.ID] = Point{X: x, Y: y}
-		if commit.Tag != "" {
-			s.Badge(commit.Tag, x-1, y-3, max(len([]rune(commit.Tag))+2, 4), 1, fonts.BodyPx, accent(palette, 3), foreground(palette))
-		}
-		if commit.Message != "" {
-			lines, _, _ := labelSize(commit.Message, fonts, 12, fonts.BodyPx*0.85, false)
-			if len(lines) > 0 {
-				s.Text(lines[0], x-2, y+2, 14, 1, fonts.BodyPx*0.85, AlignLeft, muted(palette), false)
-			}
-		}
-		for _, parentID := range commit.Parents {
-			if parent, ok := positions[parentID]; ok {
-				s.Polyline([]Point{{X: parent.X, Y: parent.Y}, {X: parent.X, Y: parent.Y}, {X: x, Y: y}}, rule(palette), false, false)
-			}
-		}
-		s.Ellipse(x-1, y-1, 3, 3, accent(palette, branchColor(data.Branches, commit.Branch)), foreground(palette))
+		positions[commit.ID] = Point{X: orderX(i), Y: laneY[commit.Branch]}
+		commitBranch[commit.ID] = commit.Branch
 	}
+	// Draw branch labels and rails first so commits sit cleanly on top.
 	for i, branch := range data.Branches {
 		y := laneY[branch.Name]
-		s.Text(branch.Name, 1, y-1, 4, 1, fonts.BodyPx*0.85, AlignLeft, accent(palette, i), false)
-		last := branch.Start
+		col := accent(palette, i)
+		s.Badge(branch.Name, 1, y-1, branchLabelW, 1, fonts.BodyPx*0.9, col, contrastText(col, palette))
+		first, last := -1, -1
 		for j, commit := range data.Commits {
 			if commit.Branch == branch.Name {
+				if first < 0 {
+					first = j
+				}
 				last = j
 			}
 		}
-		if last >= branch.Start {
-			s.Line(4+branch.Start*5, y, orderX(last), y, fade(accent(palette, i), 150), false, false)
+		if first >= 0 && last > first {
+			s.Line(orderX(first), y, orderX(last), y, col, false, true)
+		}
+	}
+	// Draw parent/fork/merge edges next.
+	for _, commit := range data.Commits {
+		p := positions[commit.ID]
+		col := accent(palette, branchColor(data.Branches, commit.Branch))
+		for _, parentID := range commit.Parents {
+			parent, ok := positions[parentID]
+			if !ok {
+				continue
+			}
+			if parent.Y == p.Y {
+				s.Line(parent.X, parent.Y, p.X, p.Y, col, false, true)
+			} else if commit.Merge {
+				// Merge: continue along the merged branch's lane, then rise into the merge commit.
+				edgeCol := accent(palette, branchColor(data.Branches, commitBranch[parentID]))
+				s.Polyline([]Point{{X: parent.X, Y: parent.Y}, {X: p.X, Y: parent.Y}, {X: p.X, Y: p.Y}}, edgeCol, false, true)
+			} else {
+				// Fork: drop from parent commit down to child branch's lane, then continue right.
+				s.Polyline([]Point{{X: parent.X, Y: parent.Y}, {X: parent.X, Y: p.Y}, {X: p.X, Y: p.Y}}, col, false, true)
+			}
+		}
+	}
+	// Draw commit nodes, tags, and messages on top.
+	for _, commit := range data.Commits {
+		p := positions[commit.ID]
+		col := accent(palette, branchColor(data.Branches, commit.Branch))
+		if commit.Merge {
+			s.Dot(p.X, p.Y, 10, palette.CodeBg, col)
+			s.Dot(p.X, p.Y, 5, col, col)
+		} else {
+			s.Dot(p.X, p.Y, 9, col, foreground(palette))
+		}
+		if commit.Tag != "" {
+			tagW := max(len([]rune(commit.Tag))+2, 5)
+			tagFill := accent(palette, 3)
+			s.Badge(commit.Tag, p.X-tagW/2, p.Y-2, tagW, 1, fonts.BodyPx*0.85, tagFill, contrastText(tagFill, palette))
+		}
+		if commit.Message != "" {
+			lines, w, _ := labelSize(commit.Message, fonts, 12, fonts.BodyPx*0.85, false)
+			if len(lines) > 0 {
+				msgW := max(w, 6)
+				s.Text(lines[0], p.X-msgW/2, p.Y+1, msgW, 1, fonts.BodyPx*0.85, AlignCenter, muted(palette), false)
+			}
 		}
 	}
 	if d.Title != "" {
-		s.TextLines(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
+		s.TextLinesBold(titleLines, 1, 0, s.Width-2, titleHeight/len(titleLines), fonts.BodyPx, AlignLeft, foreground(palette), false)
 	}
-	s.Width = max(titleWidth+2, orderX(len(data.Commits))+6)
-	s.Height = titleHeight + 4 + len(data.Branches)*6 + 3
+	s.Width = max(s.Width, titleWidth+2, orderX(len(data.Commits))+4)
+	s.Height = max(s.Height, titleHeight+4+len(data.Branches)*5+2)
 	return s, nil
 }
 

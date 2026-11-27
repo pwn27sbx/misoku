@@ -738,8 +738,8 @@ func flowNodeSize(node Node, fonts *rich.Fonts) (int, int, error) {
 		width = max(width, 9)
 		height += 2
 	case ShapeCircle:
-		width = max(width+2, height+2, 7)
-		height = width
+		width = max(width+2, height*2, 10)
+		height = max((width+1)/2, height+2, 5)
 	case ShapeDiamond:
 		width = max(width*2+2, 12)
 		height = max(height+2, 5)
@@ -748,8 +748,8 @@ func flowNodeSize(node Node, fonts *rich.Fonts) (int, int, error) {
 	case ShapeParallelogram, ShapeParallelogramAlt:
 		width += 4
 	case ShapeDoubleCircle:
-		width = max(width+2, height+4, 9)
-		height = width
+		width = max(width+4, height*2+2, 12)
+		height = max((width+1)/2, height+2, 6)
 	case ShapeAsymmetric:
 		width += 3
 	}
@@ -1165,8 +1165,28 @@ func flowEdgeLabelSize(label string, fonts *rich.Fonts) ([]string, int, int) {
 }
 
 func flowLabelPoint(path []Point, width, height int) Point {
-	middle := path[len(path)/2]
-	return Point{X: middle.X - width/2, Y: middle.Y - height/2}
+	if len(path) == 0 {
+		return Point{}
+	}
+	if len(path) == 1 {
+		return Point{X: path[0].X - width/2, Y: path[0].Y - height/2}
+	}
+	// Place the label at the midpoint of the longest segment so it never sits
+	// on top of the target node endpoint.
+	bestIdx, bestLen := 0, -1
+	for i := 0; i < len(path)-1; i++ {
+		segLen := abs(path[i+1].X-path[i].X) + abs(path[i+1].Y-path[i].Y)
+		if segLen > bestLen {
+			bestLen = segLen
+			bestIdx = i
+		}
+	}
+	a, b := path[bestIdx], path[bestIdx+1]
+	mx, my := (a.X+b.X)/2, (a.Y+b.Y)/2
+	if a.Y == b.Y {
+		return Point{X: mx - width/2, Y: my - height - 1}
+	}
+	return Point{X: mx - width/2, Y: my - height/2}
 }
 
 type flowLoop struct {

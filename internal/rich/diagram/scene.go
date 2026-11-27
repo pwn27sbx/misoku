@@ -65,6 +65,8 @@ type Command struct {
 	Text   string
 	SizePx float64
 	Mono   bool
+	Bold   bool
+	Circle bool
 	Align  TextAlign
 	Color  color.RGBA
 	Fill   color.RGBA
@@ -103,6 +105,18 @@ func (s *Scene) Rounded(x, y, w, h, radius int, fill, stroke color.RGBA) {
 func (s *Scene) Ellipse(x, y, w, h int, fill, stroke color.RGBA) {
 	s.Commands = append(s.Commands, Command{Kind: CommandEllipse, X: x, Y: y, W: w, H: h, Fill: fill, Stroke: stroke})
 	s.grow(x, y, w, h)
+}
+
+// Circle appends a pixel-circular ellipse centred inside the given cell box.
+func (s *Scene) Circle(x, y, w, h int, fill, stroke color.RGBA) {
+	s.Commands = append(s.Commands, Command{Kind: CommandEllipse, X: x, Y: y, W: w, H: h, Circle: true, Fill: fill, Stroke: stroke})
+	s.grow(x, y, w, h)
+}
+
+// Dot appends a pixel-circular marker centred at cell vertex (x, y).
+func (s *Scene) Dot(x, y, radiusPx int, fill, stroke color.RGBA) {
+	s.Commands = append(s.Commands, Command{Kind: CommandEllipse, X: x, Y: y, W: 1, H: 1, Circle: true, Radius: radiusPx, Fill: fill, Stroke: stroke})
+	s.grow(x-1, y-1, 3, 2)
 }
 
 // Diamond appends a diamond.
@@ -168,10 +182,23 @@ func (s *Scene) Text(text string, x, y, w, h int, size float64, align TextAlign,
 	s.grow(x, y, w, h)
 }
 
+// TextBold appends one bold text line inside the given cell rectangle.
+func (s *Scene) TextBold(text string, x, y, w, h int, size float64, align TextAlign, col color.RGBA, mono bool) {
+	s.Commands = append(s.Commands, Command{Kind: CommandText, X: x, Y: y, W: w, H: h, Text: text, SizePx: size, Align: align, Color: col, Mono: mono, Bold: true})
+	s.grow(x, y, w, h)
+}
+
 // TextLines appends wrapped lines inside the given cell rectangle.
 func (s *Scene) TextLines(lines []string, x, y, w, lineHeight int, size float64, align TextAlign, col color.RGBA, mono bool) {
 	for i, line := range lines {
 		s.Text(line, x, y+i*lineHeight, w, lineHeight, size, align, col, mono)
+	}
+}
+
+// TextLinesBold appends wrapped bold lines inside the given cell rectangle.
+func (s *Scene) TextLinesBold(lines []string, x, y, w, lineHeight int, size float64, align TextAlign, col color.RGBA, mono bool) {
+	for i, line := range lines {
+		s.TextBold(line, x, y+i*lineHeight, w, lineHeight, size, align, col, mono)
 	}
 }
 
@@ -193,13 +220,13 @@ func (s *Scene) Node(n Node, x, y, w, h int, fonts *rich.Fonts, palette rich.Pal
 		s.Line(x+1, y, x+1, y+h-1, stroke, false, false)
 		s.Line(x+w-2, y, x+w-2, y+h-1, stroke, false, false)
 	case ShapeCylinder:
-		s.Ellipse(x, y, w, 2, fill, stroke)
-		s.Rect(x, y+1, w, max(h-2, 1), fill, stroke)
+		s.Ellipse(x, y+h-2, w, 2, fill, stroke)
+		s.Rect(x, y+1, w, max(h-2, 1), fill, color.RGBA{})
 		s.Line(x, y+1, x, y+h-2, stroke, false, false)
 		s.Line(x+w-1, y+1, x+w-1, y+h-2, stroke, false, false)
-		s.Ellipse(x, y+h-2, w, 2, fill, stroke)
+		s.Ellipse(x, y, w, 2, fill, stroke)
 	case ShapeCircle:
-		s.Ellipse(x, y, w, h, fill, stroke)
+		s.Circle(x, y, w, h, fill, stroke)
 	case ShapeDiamond:
 		s.Diamond(x, y, w, h, fill, stroke)
 	case ShapeHexagon:
@@ -209,8 +236,8 @@ func (s *Scene) Node(n Node, x, y, w, h int, fonts *rich.Fonts, palette rich.Pal
 	case ShapeParallelogramAlt:
 		s.Parallelogram(x, y, w, h, -2, fill, stroke)
 	case ShapeDoubleCircle:
-		s.Ellipse(x, y, w, h, fill, stroke)
-		s.Ellipse(x+1, y+1, max(w-2, 1), max(h-2, 1), fill, stroke)
+		s.Circle(x, y, w, h, fill, stroke)
+		s.Circle(x+1, y+1, max(w-2, 1), max(h-2, 1), color.RGBA{}, stroke)
 	case ShapeAsymmetric:
 		s.Polygon([]Point{{X: x, Y: y}, {X: x + w - 2, Y: y}, {X: x + w, Y: y + h/2}, {X: x + w - 2, Y: y + h - 1}, {X: x, Y: y + h - 1}}, fill, stroke)
 	default:
@@ -226,7 +253,7 @@ func (s *Scene) Node(n Node, x, y, w, h int, fonts *rich.Fonts, palette rich.Pal
 	}
 	lines, _, lineH := labelSize(label, fonts, max(w-2*pad, 3), fonts.BodyPx, false)
 	textH := len(lines) * lineH
-	s.TextLines(lines, x+pad, y+(h-textH)/2, w-2*pad, lineH, fonts.BodyPx, AlignCenter, foreground(palette), false)
+	s.TextLines(lines, x+pad, y+(h-textH)/2, w-2*pad, lineH, fonts.BodyPx, AlignCenter, contrastText(fill, palette), false)
 }
 
 func labelSize(label string, fonts *rich.Fonts, maxCells int, size float64, mono bool) ([]string, int, int) {
@@ -300,8 +327,36 @@ func accent(p rich.Palette, index int) color.RGBA {
 }
 
 func fade(c color.RGBA, alpha uint8) color.RGBA {
-	c.A = alpha
-	return c
+	if c.A == 0 || alpha == 0 {
+		return color.RGBA{}
+	}
+	return color.RGBA{
+		R: uint8(uint32(c.R) * uint32(alpha) / uint32(c.A)),
+		G: uint8(uint32(c.G) * uint32(alpha) / uint32(c.A)),
+		B: uint8(uint32(c.B) * uint32(alpha) / uint32(c.A)),
+		A: alpha,
+	}
+}
+
+func contrastText(bg color.RGBA, p rich.Palette) color.RGBA {
+	if bg.A == 0 {
+		return foreground(p)
+	}
+	// Composite premultiplied bg over the theme's dark base to get the effective
+	// on-screen colour, then pick dark or light ink by perceived luminance.
+	base := p.CodeBg
+	if base.A == 0 {
+		base = color.RGBA{R: 22, G: 25, B: 32, A: 255}
+	}
+	inv := 255 - uint32(bg.A)
+	r := float64(uint32(bg.R)+uint32(base.R)*inv/255) / 255.0
+	g := float64(uint32(bg.G)+uint32(base.G)*inv/255) / 255.0
+	b := float64(uint32(bg.B)+uint32(base.B)*inv/255) / 255.0
+	lum := 0.2126*r + 0.7152*g + 0.0722*b
+	if lum > 0.45 {
+		return color.RGBA{R: 18, G: 20, B: 26, A: 255}
+	}
+	return foreground(p)
 }
 
 func abs(v int) int {

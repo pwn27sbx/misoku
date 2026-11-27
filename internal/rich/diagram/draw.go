@@ -64,7 +64,12 @@ func drawCommand(img *image.RGBA, c Command, fonts *rich.Fonts) {
 	case CommandRounded:
 		drawRounded(img, x, y, w, h, c.Radius*fonts.CellW, c.Fill, c.Stroke)
 	case CommandEllipse:
-		drawEllipse(img, x, y, w, h, c.Fill, c.Stroke)
+		if c.Radius > 0 {
+			r := max(c.Radius, 2)
+			drawEllipse(img, x-r, y-r, 2*r+1, 2*r+1, true, c.Fill, c.Stroke)
+		} else {
+			drawEllipse(img, x, y, w, h, c.Circle, c.Fill, c.Stroke)
+		}
 	case CommandDiamond:
 		drawPolygon(img, []Point{{X: x + w/2, Y: y}, {X: x + w, Y: y + h/2}, {X: x + w/2, Y: y + h}, {X: x, Y: y + h/2}}, c.Fill, c.Stroke)
 	case CommandHexagon:
@@ -111,8 +116,9 @@ func sceneTextPage(scene Scene, fonts *rich.Fonts) *rich.Page {
 			size = fonts.BodyPx
 		}
 		page.Items = append(page.Items, rich.Item{
-			Kind: rich.ItemText, X: alignedTextX(cmd, fonts, size), Y: cmd.Y, W: cmd.W, H: cmd.H,
-			Text: cmd.Text, SizePx: size, Mono: cmd.Mono, Color: cmd.Color,
+			Kind: rich.ItemText, X: cmd.X, Y: cmd.Y, W: cmd.W, H: cmd.H,
+			XOffPx: alignedTextXOffPx(cmd, fonts, size),
+			Text:   cmd.Text, SizePx: size, Mono: cmd.Mono, Bold: cmd.Bold, Color: cmd.Color,
 			BaselinePx: textBaseline(fonts, size, cmd.Mono, cmd.H),
 		})
 	}
@@ -122,9 +128,9 @@ func sceneTextPage(scene Scene, fonts *rich.Fonts) *rich.Page {
 	return page
 }
 
-func alignedTextX(cmd Command, fonts *rich.Fonts, size float64) int {
+func alignedTextXOffPx(cmd Command, fonts *rich.Fonts, size float64) int {
 	if cmd.Align == AlignLeft {
-		return cmd.X
+		return 0
 	}
 	textWidth := int(math.Ceil(float64(fonts.Measure(cmd.Text, size, cmd.Mono)) / 64))
 	available := cmd.W * fonts.CellW
@@ -135,8 +141,7 @@ func alignedTextX(cmd Command, fonts *rich.Fonts, size float64) int {
 	case AlignRight:
 		offset = available - textWidth
 	}
-	offset = min(max(offset, 0), max(available-1, 0))
-	return cmd.X + offset/fonts.CellW
+	return min(max(offset, 0), max(available-1, 0))
 }
 
 func textBaseline(fonts *rich.Fonts, size float64, mono bool, cells int) int {
@@ -220,9 +225,15 @@ func drawRounded(img *image.RGBA, x, y, w, h, radius int, fill, stroke color.RGB
 	}
 }
 
-func drawEllipse(img *image.RGBA, x, y, w, h int, fill, stroke color.RGBA) {
+func drawEllipse(img *image.RGBA, x, y, w, h int, circle bool, fill, stroke color.RGBA) {
 	if w <= 0 || h <= 0 {
 		return
+	}
+	if circle {
+		d := min(w, h)
+		x += (w - d) / 2
+		y += (h - d) / 2
+		w, h = d, d
 	}
 	points := ellipsePoints(x, y, w, h, 72)
 	drawPolygon(img, points, fill, stroke)
@@ -247,12 +258,14 @@ func drawSector(img *image.RGBA, x, y, w, h int, start, end float64, fill color.
 		end += 2 * math.Pi
 	}
 	end = min(end, start+2*math.Pi)
-	segments := max(int((end-start)*12), 8)
+	r := float64(min(w, h)-1) / 2
+	cx, cy := float64(x)+float64(w-1)/2, float64(y)+float64(h-1)/2
+	segments := max(int((end-start)*24), 12)
 	points := make([]Point, 0, segments+2)
-	points = append(points, Point{X: x + w/2, Y: y + h/2})
+	points = append(points, Point{X: int(math.Round(cx)), Y: int(math.Round(cy))})
 	for i := 0; i <= segments; i++ {
 		a := start + (end-start)*float64(i)/float64(segments)
-		points = append(points, Point{X: int(math.Round(float64(x+w/2) + float64(w/2)*math.Cos(a))), Y: int(math.Round(float64(y+h/2) + float64(h/2)*math.Sin(a)))})
+		points = append(points, Point{X: int(math.Round(cx + r*math.Cos(a))), Y: int(math.Round(cy + r*math.Sin(a)))})
 	}
 	drawPolygon(img, points, fill, color.RGBA{})
 }
@@ -359,24 +372,24 @@ func drawArrowhead(img *image.RGBA, x, y int, angle float64, head Arrowhead, c c
 	if head == ArrowNone || c.A == 0 {
 		return
 	}
-	size := 6
+	size := 8
 	if thick {
-		size = 8
+		size = 10
 	}
 	ux, uy := math.Cos(angle), math.Sin(angle)
 	px, py := -uy, ux
 	switch head {
 	case ArrowFilled:
 		baseX, baseY := int(math.Round(float64(x)-ux*float64(size))), int(math.Round(float64(y)-uy*float64(size)))
-		drawPolygon(img, []Point{{X: x, Y: y}, {X: int(math.Round(float64(baseX) + px*3)), Y: int(math.Round(float64(baseY) + py*3))}, {X: int(math.Round(float64(baseX) - px*3)), Y: int(math.Round(float64(baseY) - py*3))}}, c, c)
+		drawPolygon(img, []Point{{X: x, Y: y}, {X: int(math.Round(float64(baseX) + px*4)), Y: int(math.Round(float64(baseY) + py*4))}, {X: int(math.Round(float64(baseX) - px*4)), Y: int(math.Round(float64(baseY) - py*4))}}, c, c)
 	case ArrowOpen:
 		baseX, baseY := int(math.Round(float64(x)-ux*float64(size))), int(math.Round(float64(y)-uy*float64(size)))
 		drawLine(img, x, y, int(math.Round(float64(baseX)+px*4)), int(math.Round(float64(baseY)+py*4)), c, false, thick)
 		drawLine(img, x, y, int(math.Round(float64(baseX)-px*4)), int(math.Round(float64(baseY)-py*4)), c, false, thick)
 	case ArrowCircle:
-		drawEllipse(img, x-3, y-3, 7, 7, c, c)
+		drawEllipse(img, x-4, y-4, 9, 9, true, c, c)
 	case ArrowCross:
-		drawLine(img, x-3, y-3, x+3, y+3, c, false, thick)
-		drawLine(img, x+3, y-3, x-3, y+3, c, false, thick)
+		drawLine(img, x-4, y-4, x+4, y+4, c, false, thick)
+		drawLine(img, x+4, y-4, x-4, y+4, c, false, thick)
 	}
 }

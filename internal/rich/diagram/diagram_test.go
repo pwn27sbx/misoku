@@ -110,8 +110,9 @@ func TestSceneTextAlignment(t *testing.T) {
 	if page == nil || len(page.Items) != 3 {
 		t.Fatalf("text page = %#v, want three text items", page)
 	}
-	left, center, right := page.Items[0].X, page.Items[1].X, page.Items[2].X
+	px := func(it int) int { return page.Items[it].X*fonts.CellW + page.Items[it].XOffPx }
+	left, center, right := px(0), px(1), px(2)
 	if !(left < center && center < right) {
-		t.Fatalf("aligned X positions = %d, %d, %d; want left < center < right", left, center, right)
+		t.Fatalf("aligned pixel X positions = %d, %d, %d; want left < center < right", left, center, right)
 	}
 }
