@@ -33,11 +33,12 @@ const (
 	KindDiagram    // a ```mermaid or ```flow block: a sized box, drawn by the diagram engine
 )
 
-// LinkSpan is one clickable link inside a block's first line: rune offsets in
-// Lines[0] and where it goes (a note target or a URL).
-type LinkSpan struct {
+// Span marks a stretch of a block's first line: bold from **…** or __…__, or
+// a link from [[…]] / [text](url). Offsets are in runes of Lines[0].
+type Span struct {
 	Start, End int
-	Target     string
+	Bold       bool
+	Link       string
 }
 
 // Block is one top-level part of a note, with the source lines it came from
@@ -51,7 +52,7 @@ type Block struct {
 	Lang   string   // fence language
 	Rows   [][]string
 	Src    string // image source
-	Links  []LinkSpan
+	Spans  []Span
 	Line   int
 	End    int
 	Blocks []Block // list items and quote contents

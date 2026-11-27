@@ -29,7 +29,12 @@ type Item struct {
 	Thin       bool // a rect drawn as a 2 px line: rules, borders, separators
 	Color      color.RGBA
 	BaselinePx int
-	Box        *Box
+	// XOffPx is the pixel offset inside X's cell: styled runs are placed at
+	// their measured position, not rounded to a cell, so bold and links keep
+	// the page's spacing.
+	XOffPx int
+	Bold   bool
+	Box    *Box
 }
 
 // Box is what a maths or diagram engine hands the page: its size in cells and
@@ -60,18 +65,18 @@ type Page struct {
 // RowSpan is a range of cell rows.
 type RowSpan struct{ Row, Rows int }
 
-// LinkBox is one clickable link on a page row, in cells.
-type LinkBox struct {
-	Row, X0, X1 int
-	Target      string
-}
-
 // Heading is one outline entry: its level, text, source line and page row.
 type Heading struct {
 	Level int
 	Text  string
 	Line  int
 	Row   int
+}
+
+// LinkBox is one clickable link on a page row, in cells.
+type LinkBox struct {
+	Row, X0, X1 int
+	Target      string
 }
 
 type rowSpan struct {
@@ -170,8 +175,11 @@ func (l *layouter) block(b Block, indent int) {
 		l.gapIfNeeded(0)
 		if len(b.Blocks) > 0 {
 			l.list(b, indent)
-		} else {
+		} else if len(b.Spans) > 0 {
 			l.linkBoxes(b, indent, l.f.BodyPx)
+			l.styledLines(b, indent, l.f.BodyPx, l.pal.Fg)
+			l.y += blockGap
+		} else {
 			l.paragraph(b.Lines, indent, l.f.BodyPx, l.pal.Fg)
 			l.y += blockGap
 		}
@@ -229,19 +237,22 @@ func (l *layouter) heading(b Block, indent int) {
 	if col.A == 0 {
 		col = l.pal.Fg
 	}
-	text := firstLine(b.Lines)
-	l.page.Headings = append(l.page.Headings, Heading{Level: level, Text: text, Line: b.Line, Row: l.y})
-	lines := l.f.Wrap(text, (l.content-indent)*l.f.CellW, size, false)
-	l.linkBoxes(b, indent, size)
+	l.page.Headings = append(l.page.Headings, Heading{Level: level, Text: firstLine(b.Lines), Line: b.Line, Row: l.y})
+	if len(b.Spans) > 0 {
+		l.linkBoxes(b, indent, size)
+		l.styledLines(b, indent, size, col)
+		l.y++
+		return
+	}
+	lines := l.f.Wrap(firstLine(b.Lines), (l.content-indent)*l.f.CellW, size, false)
 	l.textLines(lines, indent, size, col, false)
 	l.y++
 }
 
-// linkBoxes records where the block's links land on the page, for hints and
-// clicks: rune offsets turned into cells with the same measurement the text
-// uses.
+// linkBoxes records where the block's links land on the page: rune offsets
+// turned into cells with the same measurement the text uses.
 func (l *layouter) linkBoxes(b Block, indent int, size float64) {
-	if len(b.Links) == 0 || len(b.Lines) == 0 {
+	if len(b.Spans) == 0 || len(b.Lines) == 0 {
 		return
 	}
 	runes := []rune(b.Lines[0])
@@ -249,17 +260,133 @@ func (l *layouter) linkBoxes(b Block, indent int, size float64) {
 		if n <= 0 || n > len(runes) {
 			return 0
 		}
-		px := int(l.f.Measure(string(runes[:n]), size, false)) / 64
-		return px / l.f.CellW
+		return (int(l.f.Measure(string(runes[:n]), size, false)) / 64) / l.f.CellW
 	}
-	for _, sp := range b.Links {
+	for _, sp := range b.Spans {
+		if sp.Link == "" {
+			continue
+		}
 		x0 := l.x0 + indent + cellWidth(sp.Start)
 		x1 := l.x0 + indent + cellWidth(sp.End)
 		if x1 <= x0 {
 			x1 = x0 + 1
 		}
-		l.page.Links = append(l.page.Links, LinkBox{Row: l.y, X0: x0, X1: x1, Target: sp.Target})
+		l.page.Links = append(l.page.Links, LinkBox{Row: l.y, X0: x0, X1: x1, Target: sp.Link})
 	}
+}
+
+// styledText is one run of a line: a link draws in the link colour, bold in
+// the bold face, and the rest in the block's colour.
+type styledText struct {
+	Text string
+	Bold bool
+	Link bool
+}
+
+// runsOf splits a block's first line into styled runs from its spans.
+func runsOf(b Block) []styledText {
+	if len(b.Lines) == 0 {
+		return nil
+	}
+	runes := []rune(b.Lines[0])
+	var out []styledText
+	pos := 0
+	for _, sp := range b.Spans {
+		start, end := clampSpan(sp.Start, sp.End, len(runes))
+		if start > pos {
+			out = append(out, styledText{Text: string(runes[pos:start])})
+		}
+		if end > start {
+			out = append(out, styledText{Text: string(runes[start:end]), Bold: sp.Bold, Link: sp.Link != ""})
+		}
+		pos = max(pos, end)
+	}
+	if pos < len(runes) {
+		out = append(out, styledText{Text: string(runes[pos:])})
+	}
+	return out
+}
+
+func clampSpan(start, end, n int) (int, int) {
+	start = min(max(start, 0), n)
+	end = min(max(end, start), n)
+	return start, end
+}
+
+// styledLines lays a block out run by run: every line is a sequence of runs so
+// bold and links keep their style while wrapping.
+func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA) {
+	maxPx := (l.content - indent) * l.f.CellW
+	lines := l.wrapRuns(runsOf(b), maxPx, size)
+	lineCells := max(int(math.Ceil(l.f.LineHeightPx(size, false)/float64(l.f.CellH))), 1)
+	base := l.baseline(size)
+	for _, line := range lines {
+		prefixPx := 0
+		for _, run := range line {
+			runCol := col
+			if run.Link {
+				runCol = l.pal.Link
+			}
+			px := int(l.f.Measure(run.Text, size, false)) / 64
+			xCells := l.x0 + indent + prefixPx/l.f.CellW
+			xOff := prefixPx % l.f.CellW
+			w := max((px+l.f.CellW-1)/l.f.CellW, 1)
+			l.emit(Item{Kind: ItemText, X: xCells, Y: l.y, W: w, H: lineCells, Text: run.Text,
+				SizePx: size, Bold: run.Bold, Color: runCol, BaselinePx: base, XOffPx: xOff})
+			prefixPx += px
+		}
+		l.y += lineCells
+	}
+}
+
+// wrapRuns wraps styled runs to maxPx, word by word, keeping each word's
+// style and splitting a word that cannot fit on a line of its own.
+func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styledText {
+	type word struct {
+		text       string
+		bold, link bool
+	}
+	var words []word
+	for _, r := range runs {
+		fields := strings.Fields(r.Text)
+		for i, f := range fields {
+			if i > 0 {
+				// The space between words belongs to the previous word's run:
+				// it is written when the line is measured.
+			}
+			words = append(words, word{text: f, bold: r.Bold, link: r.Link})
+		}
+	}
+	var lines [][]styledText
+	var line []styledText
+	linePx := 0
+	appendWord := func(w word, leadSpace bool) {
+		space := 0
+		if leadSpace {
+			space = int(l.f.Measure(" ", size, false)) / 64
+		}
+		px := int(l.f.Measure(w.text, size, false))/64 + space
+		if leadSpace {
+			line = append(line, styledText{Text: " "})
+			linePx += space
+		}
+		line = append(line, styledText{Text: w.text, Bold: w.bold, Link: w.link})
+		linePx += px - space
+	}
+	for _, w := range words {
+		space := int(l.f.Measure(" ", size, false)) / 64
+		width := int(l.f.Measure(w.text, size, false)) / 64
+		if len(line) > 0 && linePx+space+width > maxPx {
+			lines = append(lines, line)
+			line, linePx = nil, 0
+		}
+		appendWord(w, len(line) > 0)
+		_ = space
+	}
+	if len(line) > 0 {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func (l *layouter) paragraph(lines []string, indent int, size float64, col color.RGBA) {
@@ -377,9 +504,9 @@ func (l *layouter) code(b Block, indent int) {
 		if b.Lang == "diff" {
 			switch {
 			case strings.HasPrefix(line, "+"):
-				col = l.pal.Alert[1] // added: green
+				col = l.pal.Alert[1]
 			case strings.HasPrefix(line, "-"):
-				col = l.pal.Alert[4] // removed: red
+				col = l.pal.Alert[4]
 			case strings.HasPrefix(line, "@@"):
 				col = l.pal.Link
 			}
@@ -455,7 +582,7 @@ func (l *layouter) table(rows [][]string, indent int) {
 		start := l.y
 		defer func() { l.page.Wide = append(l.page.Wide, RowSpan{Row: start, Rows: l.y - start}) }()
 	} else if cols > 0 {
-		widths[cols-1] = max(widths[cols-1]-(total-room), 6)
+		widths[cols-1] = max(widths[cols-1]-(total-room), 3)
 	}
 	for ri, r := range rows {
 		x := l.x0 + indent
@@ -467,7 +594,7 @@ func (l *layouter) table(rows [][]string, indent int) {
 				break
 			}
 			if ci == cols-1 && len(r) == cols {
-				c = fitCellPx(l.f, c, (widths[ci]-1)*l.f.CellW)
+				c = fitCellPx(l.f, c, max(widths[ci]-1, 1)*l.f.CellW)
 			}
 			col := l.pal.Fg
 			if ri == 0 {
@@ -477,7 +604,6 @@ func (l *layouter) table(rows [][]string, indent int) {
 				SizePx: l.f.BodyPx, Color: col, BaselinePx: l.baseline(l.f.BodyPx)})
 			x += widths[ci]
 		}
-		// Column separators sit under the text of the row.
 		if cols > 1 {
 			sx := l.x0 + indent
 			for ci := 0; ci < cols-1; ci++ {
@@ -532,6 +658,16 @@ func fitCellPx(f *Fonts, s string, px int) string {
 		}
 	}
 	return ""
+}
+
+func fitCell(s string, cells int) string {
+	if len(s) <= cells {
+		return s
+	}
+	if cells <= 1 {
+		return "…"
+	}
+	return s[:cells-1] + "…"
 }
 
 func trimLeftSpace(s string) string {

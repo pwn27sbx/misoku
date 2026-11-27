@@ -30,6 +30,7 @@ type Fonts struct {
 	bodyDr, monoDr font.Face
 	bodyBytes      []byte
 	monoBytes      []byte
+	boldBytes      []byte
 	faces          map[faceKey]font.Face
 	shaper         shaping.HarfbuzzShaper
 }
@@ -37,6 +38,7 @@ type Fonts struct {
 type faceKey struct {
 	size float64
 	mono bool
+	bold bool
 }
 
 // FontConfig says where the faces come from. Empty paths resolve the system's
@@ -53,8 +55,15 @@ type FontConfig struct {
 
 // NewFonts builds a Fonts from font bytes; tests use it with the Go fonts.
 func NewFonts(body, mono []byte, cfg FontConfig) (*Fonts, error) {
+	return NewFontsWithBold(body, mono, nil, cfg)
+}
+
+// NewFontsWithBold is NewFonts with a bold face. Without one, bold text is
+// drawn by striking the body glyph a second time one pixel over, which reads
+// as bold without shipping a face.
+func NewFontsWithBold(body, mono, bold []byte, cfg FontConfig) (*Fonts, error) {
 	f := &Fonts{CellW: cfg.CellW, CellH: cfg.CellH, BodyPx: cfg.BodyPx, MonoPx: cfg.MonoPx,
-		bodyBytes: body, monoBytes: mono, faces: map[faceKey]font.Face{}}
+		bodyBytes: body, monoBytes: mono, boldBytes: bold, faces: map[faceKey]font.Face{}}
 	if f.CellW <= 0 {
 		f.CellW = 12
 	}
@@ -80,7 +89,58 @@ func NewFonts(body, mono []byte, cfg FontConfig) (*Fonts, error) {
 	if f.monoDr, err = drawFace(mono, f.MonoPx); err != nil {
 		return nil, err
 	}
+	if len(bold) > 0 {
+		if f.faces[faceKey{size: f.BodyPx, bold: true}], err = drawFace(bold, f.BodyPx); err != nil {
+			return nil, err
+		}
+	}
 	return f, nil
+}
+
+// Face returns the body or code face at size px, cached: headings are drawn
+// bigger than body text, and shaping already uses the same size.
+func (f *Fonts) Face(sizePx float64, mono bool) font.Face {
+	if !mono && sizePx == f.BodyPx {
+		return f.bodyDr
+	}
+	if mono && sizePx == f.MonoPx {
+		return f.monoDr
+	}
+	key := faceKey{size: sizePx, mono: mono}
+	if face, ok := f.faces[key]; ok {
+		return face
+	}
+	b := f.bodyBytes
+	if mono {
+		b = f.monoBytes
+	}
+	face, err := drawFace(b, sizePx)
+	if err != nil {
+		if mono {
+			return f.monoDr
+		}
+		return f.bodyDr
+	}
+	f.faces[key] = face
+	return face
+}
+
+// BoldFace returns the bold face at size px. ok is false when no bold face
+// was loaded: the raster then draws the body glyph twice.
+func (f *Fonts) BoldFace(sizePx float64) (font.Face, bool) {
+	if len(f.boldBytes) == 0 {
+		return nil, false
+	}
+	key := faceKey{size: sizePx, bold: true}
+	if face, ok := f.faces[key]; ok {
+		return face, true
+	}
+	face, err := drawFace(f.boldBytes, sizePx)
+	if err != nil {
+		return nil, false
+	}
+	f.faces[key] = face
+	return face, true
 }
 
 // LoadFonts finds the faces on this machine, in the order the plan fixes:
@@ -117,7 +177,6 @@ func LoadFonts(cfg FontConfig) (*Fonts, error) {
 // macOS and Windows. Bold and italic faces are left to the drawing face's
 // synthetic styles; the plan keeps one face per family until the text task.
 func systemFont(family string) string {
-	found := ""
 	if runtime.GOOS == "linux" {
 		if out, err := exec.Command("fc-match", "-f", "%{file}", family).Output(); err == nil {
 			p := strings.TrimSpace(string(out))
@@ -163,6 +222,8 @@ func systemFont(family string) string {
 	}
 	return ""
 }
+
+var found string
 
 func firstExisting(paths ...string) string {
 	for _, p := range paths {
@@ -271,34 +332,6 @@ func (f *Fonts) Wrap(s string, maxPx int, sizePx float64, mono bool) []string {
 		out = append(out, line)
 	}
 	return out
-}
-
-// Face returns the drawing face at size px, cached: headings need a bigger
-// face than body text, and shaping already uses the same size.
-func (f *Fonts) Face(sizePx float64, mono bool) font.Face {
-	if !mono && sizePx == f.BodyPx {
-		return f.bodyDr
-	}
-	if mono && sizePx == f.MonoPx {
-		return f.monoDr
-	}
-	key := faceKey{size: sizePx, mono: mono}
-	if face, ok := f.faces[key]; ok {
-		return face
-	}
-	b := f.bodyBytes
-	if mono {
-		b = f.monoBytes
-	}
-	face, err := drawFace(b, sizePx)
-	if err != nil {
-		if mono {
-			return f.monoDr
-		}
-		return f.bodyDr
-	}
-	f.faces[key] = face
-	return face
 }
 
 // LineHeightPx is the height of one text line at size px.

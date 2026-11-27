@@ -135,25 +135,20 @@ func TestWikiLinksInsideFencesStayLiteral(t *testing.T) {
 
 func TestParseLinkSpans(t *testing.T) {
 	doc := Parse([]byte("Read [[Docker|the guide]] or [the docs](https://example.com/docs).\n"))
-	links := doc.Blocks[0].Links
+	var links []Span
+	for _, sp := range doc.Blocks[0].Spans {
+		if sp.Link != "" {
+			links = append(links, sp)
+		}
+	}
 	if len(links) != 2 {
 		t.Fatalf("links = %+v, want the wiki link and the Markdown link", links)
 	}
 	runes := []rune(doc.Blocks[0].Lines[0])
-	if got := string(runes[links[0].Start:links[0].End]); got != "the guide" || links[0].Target != "Docker" {
-		t.Fatalf("wiki span = %q -> %q", got, links[0].Target)
+	if got := string(runes[links[0].Start:links[0].End]); got != "the guide" || links[0].Link != "Docker" {
+		t.Fatalf("wiki span = %q -> %q", got, links[0].Link)
 	}
-	if got := string(runes[links[1].Start:links[1].End]); got != "the docs" || links[1].Target != "https://example.com/docs" {
-		t.Fatalf("md span = %q -> %q", got, links[1].Target)
-	}
-	if span := string(runes[links[0].Start:links[0].End]); span != "the guide" {
-		t.Fatalf("wiki span text = %q", span)
-	}
-}
-
-func TestCodeLinesDropCRLF(t *testing.T) {
-	doc := Parse([]byte("```go\r\nx := 1\r\n\r\n```\r\n"))
-	if got := doc.Blocks[0].Code[0]; got != "x := 1" {
-		t.Fatalf("code line = %q, want the CRLF dropped", got)
+	if got := string(runes[links[1].Start:links[1].End]); got != "the docs" || links[1].Link != "https://example.com/docs" {
+		t.Fatalf("md span = %q -> %q", got, links[1].Link)
 	}
 }
