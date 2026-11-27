@@ -330,7 +330,9 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 			px := int(l.f.Measure(run.Text, size, false)) / 64
 			xCells := l.x0 + indent + prefixPx/l.f.CellW
 			xOff := prefixPx % l.f.CellW
-			w := max((px+l.f.CellW-1)/l.f.CellW, 1)
+			// The cells claimed must hold the offset inside the first cell
+			// too: otherwise the raster's clip drops the run's last glyph.
+			w := max((px+xOff+l.f.CellW-1)/l.f.CellW, 1)
 			l.emit(Item{Kind: ItemText, X: xCells, Y: l.y, W: w, H: lineCells, Text: run.Text,
 				SizePx: size, Bold: run.Bold, Color: runCol, BaselinePx: base, XOffPx: xOff})
 			prefixPx += px
