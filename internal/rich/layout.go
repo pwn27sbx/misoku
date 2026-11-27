@@ -34,6 +34,7 @@ type Item struct {
 	// the page's spacing.
 	XOffPx int
 	Bold   bool
+	Italic bool
 	Box    *Box
 }
 
@@ -278,9 +279,11 @@ func (l *layouter) linkBoxes(b Block, indent int, size float64) {
 // styledText is one run of a line: a link draws in the link colour, bold in
 // the bold face, and the rest in the block's colour.
 type styledText struct {
-	Text string
-	Bold bool
-	Link bool
+	Text   string
+	Bold   bool
+	Italic bool
+	Code   bool
+	Link   bool
 }
 
 // runsOf splits a block's first line into styled runs from its spans.
@@ -297,7 +300,7 @@ func runsOf(b Block) []styledText {
 			out = append(out, styledText{Text: string(runes[pos:start])})
 		}
 		if end > start {
-			out = append(out, styledText{Text: string(runes[start:end]), Bold: sp.Bold, Link: sp.Link != ""})
+			out = append(out, styledText{Text: string(runes[start:end]), Bold: sp.Bold, Italic: sp.Italic, Code: sp.Code, Link: sp.Link != ""})
 		}
 		pos = max(pos, end)
 	}
@@ -327,14 +330,24 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 			if run.Link {
 				runCol = l.pal.Link
 			}
-			px := int(l.f.Measure(run.Text, size, false)) / 64
+			runSize := size
+			if run.Code {
+				runSize = size * 0.85
+			}
+			px := int(l.f.Measure(run.Text, runSize, run.Code)) / 64
 			xCells := l.x0 + indent + prefixPx/l.f.CellW
 			xOff := prefixPx % l.f.CellW
 			// The cells claimed must hold the offset inside the first cell
 			// too: otherwise the raster's clip drops the run's last glyph.
 			w := max((px+xOff+l.f.CellW-1)/l.f.CellW, 1)
+			if run.Code {
+				// The background starts at the run's exact pixel: a rect at
+				// the cell's left edge would paint over the word before it.
+				l.emit(Item{Kind: ItemRect, X: xCells, Y: l.y, W: w, H: lineCells, Color: l.pal.CodeBg, XOffPx: xOff})
+			}
 			l.emit(Item{Kind: ItemText, X: xCells, Y: l.y, W: w, H: lineCells, Text: run.Text,
-				SizePx: size, Bold: run.Bold, Color: runCol, BaselinePx: base, XOffPx: xOff})
+				SizePx: runSize, Mono: run.Code, Bold: run.Bold, Italic: run.Italic,
+				Color: runCol, BaselinePx: base, XOffPx: xOff})
 			prefixPx += px
 		}
 		l.y += lineCells
@@ -345,19 +358,24 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 // style and splitting a word that cannot fit on a line of its own.
 func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styledText {
 	type word struct {
-		text       string
-		bold, link bool
+		text               string
+		bold, italic, code bool
+		link               bool
+		space              bool // the note has a space before this word
 	}
 	var words []word
+	prevEndedSpace := true // the first word has no space before it
 	for _, r := range runs {
-		fields := strings.Fields(r.Text)
-		for i, f := range fields {
-			if i > 0 {
-				// The space between words belongs to the previous word's run:
-				// it is written when the line is measured.
-			}
-			words = append(words, word{text: f, bold: r.Bold, link: r.Link})
+		leading := strings.HasPrefix(r.Text, " ")
+		for i, f := range strings.Fields(r.Text) {
+			// A space is a space only where the note has one: "`code`." must
+			// stay "code.", never "code .", and "**bold** text" keeps the
+			// space that ended the previous run.
+			space := (i > 0 || leading || prevEndedSpace) && len(words) > 0
+			words = append(words, word{text: f, bold: r.Bold, italic: r.Italic, code: r.Code, link: r.Link, space: space})
+			prevEndedSpace = false
 		}
+		prevEndedSpace = strings.HasSuffix(r.Text, " ") || strings.HasSuffix(r.Text, "\n")
 	}
 	var lines [][]styledText
 	var line []styledText
@@ -372,18 +390,20 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 			line = append(line, styledText{Text: " "})
 			linePx += space
 		}
-		line = append(line, styledText{Text: w.text, Bold: w.bold, Link: w.link})
+		line = append(line, styledText{Text: w.text, Bold: w.bold, Italic: w.italic, Code: w.code, Link: w.link})
 		linePx += px - space
 	}
 	for _, w := range words {
 		space := int(l.f.Measure(" ", size, false)) / 64
+		if !w.space {
+			space = 0
+		}
 		width := int(l.f.Measure(w.text, size, false)) / 64
 		if len(line) > 0 && linePx+space+width > maxPx {
 			lines = append(lines, line)
 			line, linePx = nil, 0
 		}
-		appendWord(w, len(line) > 0)
-		_ = space
+		appendWord(w, len(line) > 0 && w.space)
 	}
 	if len(line) > 0 {
 		lines = append(lines, line)

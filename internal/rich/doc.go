@@ -193,26 +193,20 @@ func inlineTextSpans(n ast.Node, src []byte) (string, []Span) {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 			switch t := c.(type) {
 			case *ast.Text:
-				b.Write(t.Segment.Value(src))
+				writeWikiAware(&b, &spans, string(t.Segment.Value(src)))
 				if t.SoftLineBreak() || t.HardLineBreak() {
 					b.WriteString("\n")
 				}
 			case *ast.String:
-				b.Write(t.Value)
-			case *ast.CodeSpan:
-				for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
-					if tt, ok := cc.(*ast.Text); ok {
-						b.Write(tt.Segment.Value(src))
-					}
-				}
+				writeWikiAware(&b, &spans, string(t.Value))
 			case *ast.Emphasis:
-				if t.Level == 2 {
-					start := utf8.RuneCountInString(b.String())
-					walkInline(c, &b, src)
-					spans = append(spans, Span{Start: start, End: utf8.RuneCountInString(b.String()), Bold: true})
-					continue
-				}
-				walk(c)
+				start := utf8.RuneCountInString(b.String())
+				walkInline(c, &b, src)
+				spans = append(spans, Span{Start: start, End: utf8.RuneCountInString(b.String()), Bold: t.Level == 2, Italic: t.Level == 1})
+			case *ast.CodeSpan:
+				start := utf8.RuneCountInString(b.String())
+				walkInline(c, &b, src)
+				spans = append(spans, Span{Start: start, End: utf8.RuneCountInString(b.String()), Code: true})
 			case *ast.Link:
 				start := utf8.RuneCountInString(b.String())
 				for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
@@ -229,9 +223,33 @@ func inlineTextSpans(n ast.Node, src []byte) (string, []Span) {
 		}
 	}
 	walk(n)
-	text, spans := resolveWikiMarkers(strings.TrimRight(b.String(), " "), spans)
 	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
-	return text, spans
+	return strings.TrimRight(b.String(), " "), spans
+}
+
+// writeWikiAware appends text, replacing wiki markers with their alias and
+// recording each link at its final rune offset. Recording here, while
+// writing, is what keeps every span aligned after the markers are gone.
+func writeWikiAware(b *strings.Builder, spans *[]Span, text string) {
+	matches := wikiMarker.FindAllStringSubmatchIndex(text, -1)
+	if len(matches) == 0 {
+		b.WriteString(text)
+		return
+	}
+	prev := 0
+	runes := utf8.RuneCountInString(b.String()) // offsets are page-wide
+	for _, m := range matches {
+		prefix := text[prev:m[0]]
+		b.WriteString(prefix)
+		runes += utf8.RuneCountInString(prefix)
+		start := runes
+		alias := text[m[4]:m[5]]
+		b.WriteString(alias)
+		runes += utf8.RuneCountInString(alias)
+		*spans = append(*spans, Span{Start: start, End: runes, Link: text[m[2]:m[3]]})
+		prev = m[1]
+	}
+	b.WriteString(text[prev:])
 }
 
 // walkInline appends one inline node's text, for an emphasis or link's
@@ -459,52 +477,6 @@ func expandWikiLinks(src []byte) []byte {
 // resolveWikiMarkers removes the markers from text, appends one Link span per
 // wiki link at its final offsets, and shifts the spans collected before (bold,
 // Markdown links) by the characters each earlier marker removes.
-func resolveWikiMarkers(text string, spans []Span) (string, []Span) {
-	matches := wikiMarker.FindAllStringSubmatchIndex(text, -1)
-	if len(matches) == 0 {
-		return text, spans
-	}
-	runes := []rune(text)
-	runeAt := func(byteOff int) int { return utf8.RuneCountInString(text[:byteOff]) }
-	removedAt := make([]int, len(runes)+1)
-	var out []rune
-	removed := 0
-	last := 0
-	var wikiSpans []Span
-	for _, m := range matches {
-		startRune, endRune := runeAt(m[0]), runeAt(m[1])
-		for i := last; i < startRune; i++ {
-			removedAt[i] = removed
-			out = append(out, runes[i])
-		}
-		outStart := len(out)
-		for i := runeAt(m[4]); i < runeAt(m[5]); i++ {
-			out = append(out, runes[i])
-		}
-		wikiSpans = append(wikiSpans, Span{Start: outStart, End: len(out), Link: text[m[2]:m[3]]})
-		removed += (endRune - startRune) - (len(out) - outStart)
-		last = endRune
-	}
-	for i := last; i < len(runes); i++ {
-		removedAt[i] = removed
-		out = append(out, runes[i])
-	}
-	removedAt[len(runes)] = removed
-	shift := func(i int) int {
-		if i >= len(removedAt) {
-			i = len(removedAt) - 1
-		}
-		if i < 0 {
-			i = 0
-		}
-		return i - removedAt[i]
-	}
-	for i := range spans {
-		spans[i].Start = shift(spans[i].Start)
-		spans[i].End = shift(spans[i].End)
-	}
-	return string(out), append(spans, wikiSpans...)
-}
 
 // fenceMathBlocks turns standalone "$$ … $$" blocks into ```math fences, so
 // the Markdown parser sees them as blocks and the page can hand them to the

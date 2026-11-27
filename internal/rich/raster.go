@@ -57,9 +57,9 @@ func (r *Raster) Tile(first, rows int) *image.RGBA {
 }
 
 func (r *Raster) rect(img *image.RGBA, it Item, first int) {
-	x0 := it.X * r.Fonts.CellW
+	x0 := it.X*r.Fonts.CellW + it.XOffPx
 	y0 := (it.Y - first) * r.Fonts.CellH
-	w := it.W * r.Fonts.CellW
+	w := it.W*r.Fonts.CellW - it.XOffPx
 	h := it.H * r.Fonts.CellH
 	if it.Thin {
 		h = 2
@@ -76,11 +76,16 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 	}
 	face := r.Fonts.Face(it.SizePx, it.Mono)
 	syntheticBold := false
-	if it.Bold {
+	switch {
+	case it.Bold:
 		if bold, ok := r.Fonts.BoldFace(it.SizePx); ok {
 			face = bold
 		} else {
 			syntheticBold = true
+		}
+	case it.Italic:
+		if italic, ok := r.Fonts.ItalicFace(it.SizePx); ok {
+			face = italic
 		}
 	}
 	d := &font.Drawer{Dst: img, Src: image.NewUniform(it.Color), Face: face}

@@ -31,14 +31,16 @@ type Fonts struct {
 	bodyBytes      []byte
 	monoBytes      []byte
 	boldBytes      []byte
+	italicBytes    []byte
 	faces          map[faceKey]font.Face
 	shaper         shaping.HarfbuzzShaper
 }
 
 type faceKey struct {
-	size float64
-	mono bool
-	bold bool
+	size   float64
+	mono   bool
+	bold   bool
+	italic bool
 }
 
 // FontConfig says where the faces come from. Empty paths resolve the system's
@@ -55,15 +57,20 @@ type FontConfig struct {
 
 // NewFonts builds a Fonts from font bytes; tests use it with the Go fonts.
 func NewFonts(body, mono []byte, cfg FontConfig) (*Fonts, error) {
-	return NewFontsWithBold(body, mono, nil, cfg)
+	return NewFontsWithStyles(body, mono, nil, nil, cfg)
 }
 
-// NewFontsWithBold is NewFonts with a bold face. Without one, bold text is
-// drawn by striking the body glyph a second time one pixel over, which reads
-// as bold without shipping a face.
+// NewFontsWithBold is NewFonts with a bold face.
 func NewFontsWithBold(body, mono, bold []byte, cfg FontConfig) (*Fonts, error) {
+	return NewFontsWithStyles(body, mono, bold, nil, cfg)
+}
+
+// NewFontsWithStyles is NewFonts with bold and italic faces. Without a bold
+// face, bold text is struck twice one pixel over; without an italic face,
+// italic text is drawn upright (rare on the systems this ships for).
+func NewFontsWithStyles(body, mono, bold, italic []byte, cfg FontConfig) (*Fonts, error) {
 	f := &Fonts{CellW: cfg.CellW, CellH: cfg.CellH, BodyPx: cfg.BodyPx, MonoPx: cfg.MonoPx,
-		bodyBytes: body, monoBytes: mono, boldBytes: bold, faces: map[faceKey]font.Face{}}
+		bodyBytes: body, monoBytes: mono, boldBytes: bold, italicBytes: italic, faces: map[faceKey]font.Face{}}
 	if f.CellW <= 0 {
 		f.CellW = 12
 	}
@@ -91,6 +98,11 @@ func NewFontsWithBold(body, mono, bold []byte, cfg FontConfig) (*Fonts, error) {
 	}
 	if len(bold) > 0 {
 		if f.faces[faceKey{size: f.BodyPx, bold: true}], err = drawFace(bold, f.BodyPx); err != nil {
+			return nil, err
+		}
+	}
+	if len(italic) > 0 {
+		if f.faces[faceKey{size: f.BodyPx, italic: true}], err = drawFace(italic, f.BodyPx); err != nil {
 			return nil, err
 		}
 	}
@@ -123,6 +135,24 @@ func (f *Fonts) Face(sizePx float64, mono bool) font.Face {
 	}
 	f.faces[key] = face
 	return face
+}
+
+// ItalicFace returns the italic face at size px; ok is false when none was
+// loaded, and the caller draws upright.
+func (f *Fonts) ItalicFace(sizePx float64) (font.Face, bool) {
+	if len(f.italicBytes) == 0 {
+		return nil, false
+	}
+	key := faceKey{size: sizePx, italic: true}
+	if face, ok := f.faces[key]; ok {
+		return face, true
+	}
+	face, err := drawFace(f.italicBytes, sizePx)
+	if err != nil {
+		return nil, false
+	}
+	f.faces[key] = face
+	return face, true
 }
 
 // BoldFace returns the bold face at size px. ok is false when no bold face
@@ -170,12 +200,30 @@ func LoadFonts(cfg FontConfig) (*Fonts, error) {
 	if err != nil {
 		return nil, fmt.Errorf("rich: code font %s: %w", mono, err)
 	}
-	return NewFonts(bodyBytes, monoBytes, cfg)
+	italic := systemFontStyle("sans-serif", "italic")
+	bold := systemFontStyle("sans-serif", "bold")
+	italicBytes, _ := os.ReadFile(italic)
+	boldBytes, _ := os.ReadFile(bold)
+	return NewFontsWithStyles(bodyBytes, monoBytes, boldBytes, italicBytes, cfg)
 }
 
 // systemFont asks fontconfig on Linux, and looks in the usual folders on
 // macOS and Windows. Bold and italic faces are left to the drawing face's
 // synthetic styles; the plan keeps one face per family until the text task.
+// systemFontStyle asks fontconfig for a styled face on Linux and falls back
+// to the plain family elsewhere (the raster then draws upright or synthetic).
+func systemFontStyle(family, style string) string {
+	if runtime.GOOS == "linux" {
+		if out, err := exec.Command("fc-match", "-f", "%{file}", family+":style="+style).Output(); err == nil {
+			p := strings.TrimSpace(string(out))
+			if p != "" {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
 func systemFont(family string) string {
 	if runtime.GOOS == "linux" {
 		if out, err := exec.Command("fc-match", "-f", "%{file}", family).Output(); err == nil {

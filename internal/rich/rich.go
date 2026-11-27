@@ -38,6 +38,8 @@ const (
 type Span struct {
 	Start, End int
 	Bold       bool
+	Italic     bool
+	Code       bool
 	Link       string
 }
 

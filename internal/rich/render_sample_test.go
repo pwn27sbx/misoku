@@ -18,10 +18,10 @@ func TestRenderSamplePNG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := "# Heading one\n\nSome **bold text** and a [[wiki link]] in a paragraph that wraps across the page width.\n\n## Second heading\n\n- item one\n- item two\n\n```go\nx := 10\n```\n"
+	src := "# Heading one\n\nSome **bold text** and a [[wiki link]] in a paragraph that wraps across the page width, then *italic* and `code`.\n\n## Second heading\n\n- item one\n- item two\n\n```go\nx := 10\n```\n"
 	doc := Parse([]byte(src))
 	pal := PaletteFromTheme(theme.DefaultTheme())
-	page := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: pal})
+	page := Layout(doc, LayoutOptions{Width: 36, Fonts: f, Palette: pal})
 	img := (&Raster{Page: page, Fonts: f, Palette: pal}).Tile(0, page.Height)
 	if err := os.WriteFile(out, EncodePNG(img), 0o644); err != nil {
 		t.Fatal(err)
