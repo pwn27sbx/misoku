@@ -92,6 +92,8 @@ func lex(src string) []token {
 	return out
 }
 
+// stopSet says what ends a list. A closing brace is accepted only when
+// brace is set, so a stray "}" is an error instead of a silent truncation.
 type stopSet struct {
 	brace bool
 	amp   bool
@@ -170,8 +172,14 @@ func (p *parser) parseList(st stopSet) ([]Node, error) {
 	for {
 		p.skipSpace()
 		t := p.peek()
-		if t.kind == tokEOF || t.kind == tokRBrace {
+		if t.kind == tokEOF {
 			return nodes, nil
+		}
+		if t.kind == tokRBrace {
+			if st.brace {
+				return nodes, nil
+			}
+			return nil, fmt.Errorf("math: unexpected } at byte %d", t.pos)
 		}
 		if st.amp && t.kind == tokAmp {
 			return nodes, nil
@@ -200,6 +208,9 @@ func (p *parser) parseList(st stopSet) ([]Node, error) {
 			atom, err := p.scripts(nil)
 			if err != nil {
 				return nil, err
+			}
+			if atom == nil {
+				continue
 			}
 			nodes = append(nodes, atom)
 			continue
@@ -260,7 +271,10 @@ func (p *parser) scripts(base Node) (Node, error) {
 			sub = arg
 		default:
 			if base == nil {
-				return nil, nil
+				if sup == nil && sub == nil {
+					return nil, nil
+				}
+				return &Script{Sup: sup, Sub: sub}, nil
 			}
 			if sup == nil && sub == nil {
 				return base, nil
@@ -388,7 +402,7 @@ func charNode(r rune) Node {
 	case '\'':
 		return &Sym{R: '′', Class: Ord}
 	case '~':
-		return &Space{Em: 0.35}
+		return &Space{Em: interwordSpace}
 	}
 	if r >= '0' && r <= '9' || isLetter(r) || r >= 0x80 {
 		f := FontDefault
@@ -399,6 +413,16 @@ func charNode(r rune) Node {
 	}
 	return &Sym{R: r, Class: runeClass(r), Font: FontRoman}
 }
+
+// TeX's spaces, in ems. 1mu is 1/18 em; the named forms keep the three
+// values apart at the call sites.
+const (
+	thinSpace        = 3.0 / 18
+	mediumSpace      = 4.0 / 18
+	thickSpace       = 5.0 / 18
+	interwordSpace   = 1.0 / 3
+	italicCorrection = 0.2
+)
 
 func styleLevel(name string) int {
 	switch name {
@@ -438,6 +462,9 @@ func fontFor(name string) (Font, bool) {
 	return 0, false
 }
 
+// fixedDelimScale is the size \middle uses until it can match \left…\right.
+const fixedDelimScale = 1.6
+
 // bigSizes are the fixed delimiter sizes \big…\Bigg ask for, as multiples of
 // the base size.
 var bigSizes = map[string]float64{
@@ -450,6 +477,11 @@ var bigSizes = map[string]float64{
 func (p *parser) command(t token) (Node, error) {
 	name := t.s
 	if d, ok := symbols[name]; ok {
+		// Large operators are their own node so a plain \sum takes limits
+		// above and below in display style, like \lim does.
+		if limitOps[d.r] {
+			return &BigOp{R: d.r}, nil
+		}
 		return &Sym{R: d.r, Class: d.class, Font: d.font}, nil
 	}
 	if f, ok := fontFor(name); ok {
@@ -470,6 +502,8 @@ func (p *parser) command(t token) (Node, error) {
 			class = Open
 		case 'r':
 			class = Close
+		case 'm':
+			class = Rel
 		}
 		if d.R == 0 {
 			return &Space{}, nil
@@ -550,21 +584,23 @@ func (p *parser) command(t token) (Node, error) {
 		}
 		return &Text{S: s, Font: f}, nil
 	case "operatorname":
+		limits := false
 		p.skipSpace()
 		if t := p.peek(); t.kind == tokChar && t.r == '*' {
-			p.next() // \operatorname* is the limits form
+			p.next()
+			limits = true
 		}
 		s, err := p.nameArg()
 		if err != nil {
 			return nil, err
 		}
-		return &FnName{Name: strings.TrimSpace(s)}, nil
+		return &FnName{Name: strings.TrimSpace(s), Limits: limits}, nil
 	case "middle":
 		d, err := p.delim()
 		if err != nil {
 			return nil, err
 		}
-		return &Sym{R: d.R, Class: Ord, Scale: 1.6}, nil
+		return &Sym{R: d.R, Class: Ord, Scale: fixedDelimScale}, nil
 	case "left":
 		open, err := p.delim()
 		if err != nil {
@@ -644,23 +680,23 @@ func (p *parser) command(t token) (Node, error) {
 	case "qquad":
 		return &Space{Em: 2}, nil
 	case "space":
-		return &Space{Em: 0.35}, nil
+		return &Space{Em: interwordSpace}, nil
 	case "enspace":
 		return &Space{Em: 0.5}, nil
 	case ",":
-		return &Space{Em: 3.0 / 18}, nil
+		return &Space{Em: thinSpace}, nil
 	case ":":
-		return &Space{Em: 4.0 / 18}, nil
+		return &Space{Em: mediumSpace}, nil
 	case ">":
-		return &Space{Em: 4.0 / 18}, nil
+		return &Space{Em: mediumSpace}, nil
 	case ";":
-		return &Space{Em: 5.0 / 18}, nil
+		return &Space{Em: thickSpace}, nil
 	case "!":
-		return &Space{Em: -3.0 / 18}, nil
+		return &Space{Em: -thinSpace}, nil
 	case " ":
-		return &Space{Em: 1.0 / 3}, nil
+		return &Space{Em: interwordSpace}, nil
 	case "/":
-		return &Space{Em: 0.2}, nil
+		return &Space{Em: italicCorrection}, nil
 	case "limits", "nolimits":
 		return nil, nil
 	case "label", "tag", "nonumber", "notag":
@@ -735,14 +771,14 @@ func (p *parser) delim() (*Delim, error) {
 	return nil, fmt.Errorf("math: expected a delimiter")
 }
 
-// environment parses \begin{name} … \end{name}.
+// environment parses \begin{name} … \end{name}; a mismatched or missing
+// closing name is an error, never a silently accepted grid.
 func (p *parser) environment() (Node, error) {
 	name, err := p.rawArg()
 	if err != nil {
 		return nil, err
 	}
 	name = strings.TrimSpace(name)
-	name = strings.TrimSuffix(name, "}")
 	cols := []ColAlign(nil)
 	switch name {
 	case "array", "subarray", "alignedat":
@@ -754,6 +790,17 @@ func (p *parser) environment() (Node, error) {
 			cols = parseColSpec(spec)
 		}
 	}
+	closeEnv := func() error {
+		p.next() // \end
+		endName, err := p.rawArg()
+		if err != nil {
+			return err
+		}
+		if got := strings.TrimSpace(endName); got != name {
+			return fmt.Errorf("math: \\begin{%s} closed by \\end{%s}", name, got)
+		}
+		return nil
+	}
 	var rows [][][]Node
 	var cells [][]Node
 	for {
@@ -762,8 +809,9 @@ func (p *parser) environment() (Node, error) {
 			return nil, fmt.Errorf("math: \\begin{%s} without \\end", name)
 		}
 		if p.peekCmd("end") {
-			p.next()
-			_, _ = p.rawArg()
+			if err := closeEnv(); err != nil {
+				return nil, err
+			}
 			break
 		}
 		cell, err := p.parseList(stopSet{amp: true, row: true, cmds: map[string]bool{"end": true}})
@@ -772,10 +820,21 @@ func (p *parser) environment() (Node, error) {
 		}
 		cells = append(cells, cell)
 		p.skipSpace()
-		switch p.peek().kind {
-		case tokAmp:
+		switch {
+		case p.peekCmd("end"):
+			if err := closeEnv(); err != nil {
+				return nil, err
+			}
+			goto done
+		case p.peek().kind == tokAmp:
 			p.next()
-		case tokRow:
+			p.skipSpace()
+			// "a &" ends the row with an empty second cell; keep it so the
+			// column still exists for alignment.
+			if k := p.peek().kind; k == tokEOF || k == tokRow || p.peekCmd("end") {
+				cells = append(cells, nil)
+			}
+		case p.peek().kind == tokRow:
 			p.next()
 			p.skipSpace()
 			// An optional row length follows (\\[2pt]); it never changes the
@@ -792,21 +851,13 @@ func (p *parser) environment() (Node, error) {
 			rows = append(rows, cells)
 			cells = nil
 		default:
-			if p.peekCmd("end") {
-				p.next()
-				_, _ = p.rawArg()
-			}
-			if len(cells) > 0 {
-				rows = append(rows, cells)
-				cells = nil
-			}
-			return &Env{Name: name, Rows: rows, Cols: cols}, nil
+			return nil, fmt.Errorf("math: unexpected token in \\begin{%s}", name)
 		}
 	}
-	if len(cells) > 0 || len(rows) == 0 {
-		if len(cells) > 0 {
-			rows = append(rows, cells)
-		}
+done:
+	// A cell terminated by & just before \end still belongs to the grid.
+	if len(cells) > 0 {
+		rows = append(rows, cells)
 	}
 	return &Env{Name: name, Rows: rows, Cols: cols}, nil
 }

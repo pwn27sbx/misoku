@@ -305,12 +305,6 @@ var symbols = map[string]symDef{
 	"}": ord('}'),
 }
 
-// largeOps are the glyphs that grow in display style and take limits there.
-var largeOps = map[rune]bool{
-	'∑': true, '∏': true, '∐': true, '⋃': true, '⋂': true,
-	'⨁': true, '⨂': true, '⨀': true, '⨄': true,
-}
-
 // limitOps take their scripts above and below in display style. Integrals do
 // not; TeX keeps their limits at the side.
 var limitOps = map[rune]bool{

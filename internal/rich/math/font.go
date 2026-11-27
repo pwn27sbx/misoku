@@ -31,10 +31,9 @@ var (
 
 	faceMu sync.Mutex
 	faces  = map[int]font.Face{}
-	sfnts  = map[int]*sfnt.Font{}
 )
 
-// Face returns the bundled maths font, parsed once.
+// mathFont returns the bundled maths font, parsed once.
 func mathFont() (*sfnt.Font, error) {
 	fontOnce.Do(func() {
 		fontOTF, fontErr = opentype.Parse(fontData)
@@ -82,8 +81,8 @@ type glyphMetrics struct {
 	ok                                  bool
 }
 
-// metrics measures r. When the styled version is missing the plain rune is
-// used, so \mathbb{R} falls back to an R instead of a hole.
+// metrics measures one already-chosen rune (glyphFont picks the alphabet and
+// its fallback).
 func metrics(r rune, sizePx float64) glyphMetrics {
 	if !hasGlyph(r) {
 		return glyphMetrics{}
@@ -127,6 +126,10 @@ func glyphFont(r rune, f Font) rune {
 	return out
 }
 
+// scaleTolerance is how close to 1 a scale must be to take the plain drawing
+// path instead of the scaled one.
+const scaleTolerance = 0.01
+
 // drawGlyph draws one glyph with its pen at (x, baseline). Scale stretches it
 // about the pen: 1 is the size it was measured at.
 func drawGlyph(dst draw.Image, r rune, sizePx, x, baseline, sx, sy float64, col color.RGBA) {
@@ -137,7 +140,7 @@ func drawGlyph(dst draw.Image, r rune, sizePx, x, baseline, sx, sy float64, col 
 	if err != nil {
 		return
 	}
-	if math.Abs(sx-1) < 0.01 && math.Abs(sy-1) < 0.01 {
+	if math.Abs(sx-1) < scaleTolerance && math.Abs(sy-1) < scaleTolerance {
 		d := &font.Drawer{Dst: dst, Src: image.NewUniform(col), Face: face}
 		d.Dot = fixed.P(int(math.Round(x)), int(math.Round(baseline)))
 		d.DrawString(string(r))

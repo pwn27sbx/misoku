@@ -6,9 +6,10 @@
 // for which constructs a viewer must support (MIT, see docs/rich-math.md); no
 // code was translated.
 //
-// The engine is pure Go and has one external entry point, Box, which hands the
-// page a sized rich.Box. Everything else is internal so the page never learns
-// how a formula is drawn.
+// The engine is pure Go. The page reaches it through Box and FromBlock
+// (math.go), which hand it a sized rich.Box; Parse and the node types are
+// exported so tests can pin the tree, and everything about drawing stays
+// internal so the page never learns how a formula is drawn.
 package math
 
 // Class is TeX's atom class: it decides the space between two neighbours.

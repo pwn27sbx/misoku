@@ -1,6 +1,7 @@
 package math
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -74,7 +75,6 @@ func TestParseStructure(t *testing.T) {
 		{`\text{where B is a batch}`, "*math.Text"},
 		{`\operatorname{softmax}`, "*math.FnName"},
 		{`\displaystyle x`, "*math.Styled"},
-		{`\binom{n}{k}`, "*math.Fenced"},
 	}
 	for _, c := range cases {
 		e, err := Parse(c.src)
@@ -84,54 +84,10 @@ func TestParseStructure(t *testing.T) {
 		if len(e.Nodes) == 0 {
 			t.Fatalf("%s: no nodes", c.src)
 		}
-		if got := typeName(e.Nodes[0]); got != c.want {
+		if got := fmt.Sprintf("%T", e.Nodes[0]); got != c.want {
 			t.Fatalf("%s: first node %s, want %s", c.src, got, c.want)
 		}
 	}
-}
-
-func typeName(n Node) string {
-	switch n.(type) {
-	case *Sym:
-		return "*math.Sym"
-	case *Space:
-		return "*math.Space"
-	case *Text:
-		return "*math.Text"
-	case *Fonted:
-		return "*math.Fonted"
-	case *Group:
-		return "*math.Group"
-	case *Frac:
-		return "*math.Frac"
-	case *Sqrt:
-		return "*math.Sqrt"
-	case *Script:
-		return "*math.Script"
-	case *Fenced:
-		return "*math.Fenced"
-	case *BigOp:
-		return "*math.BigOp"
-	case *Accent:
-		return "*math.Accent"
-	case *Env:
-		return "*math.Env"
-	case *Styled:
-		return "*math.Styled"
-	case *Stack:
-		return "*math.Stack"
-	case *XArrow:
-		return "*math.XArrow"
-	case *Not:
-		return "*math.Not"
-	case *FnName:
-		return "*math.FnName"
-	case *ClassWrap:
-		return "*math.ClassWrap"
-	case *RawText:
-		return "*math.RawText"
-	}
-	return "?"
 }
 
 func TestParseUnknownCommandIsLiteral(t *testing.T) {
@@ -148,9 +104,152 @@ func TestParseUnknownCommandIsLiteral(t *testing.T) {
 }
 
 func TestParseMalformedErrors(t *testing.T) {
-	for _, src := range []string{`\frac{1}{2`, `{a`, `\left(a`} {
+	for _, src := range []string{
+		`\frac{1}{2`, `{a`, `\left(a`, `a}+b`,
+		`\begin{pmatrix}a&b\end{array}`,
+		`\begin{pmatrix}a&b`,
+	} {
 		if _, err := Parse(src); err == nil {
 			t.Fatalf("%q parsed without error", src)
+		}
+	}
+}
+
+// TestParseArgumentsHoldContents pins what the tree carries, not only its Go
+// type: the values are what layout and drawing consume.
+func TestParseArgumentsHoldContents(t *testing.T) {
+	e, err := Parse(`\text{where B is a batch}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	txt, ok := e.Nodes[0].(*Text)
+	if !ok || txt.S != "where B is a batch" {
+		t.Fatalf("text = %#v, want the argument's own spaces", e.Nodes[0])
+	}
+
+	e, err = Parse(`\sqrt[3]{x}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, ok := e.Nodes[0].(*Sqrt)
+	if !ok || len(root.Index) != 1 || len(root.Body) != 1 {
+		t.Fatalf("sqrt = %#v, want index and body", e.Nodes[0])
+	}
+
+	e, err = Parse(`\frac{a+b}{c}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fr, ok := e.Nodes[0].(*Frac)
+	if !ok || len(fr.Num) != 3 || len(fr.Den) != 1 {
+		t.Fatalf("frac = %#v, want three numerator nodes", e.Nodes[0])
+	}
+
+	e, err = Parse(`\begin{pmatrix}a&b\\c&d\end{pmatrix}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, ok := e.Nodes[0].(*Env)
+	if !ok || len(env.Rows) != 2 || len(env.Rows[0]) != 2 || len(env.Rows[1]) != 2 {
+		t.Fatalf("matrix = %#v, want a 2x2 grid", e.Nodes[0])
+	}
+
+	// A trailing & leaves a pending row that must still be kept.
+	e, err = Parse(`\begin{pmatrix}a&\end{pmatrix}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env, ok := e.Nodes[0].(*Env); !ok || len(env.Rows) != 1 || len(env.Rows[0]) != 2 {
+		t.Fatalf("trailing & = %#v, want one row with two cells", e.Nodes[0])
+	}
+
+	// A row break at top level becomes the synthetic gather grid.
+	e, err = Parse(`a = b\\c = d`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, ok := e.Nodes[0].(*Env)
+	if !ok || g.Name != "gather" || len(g.Rows) != 2 {
+		t.Fatalf("multi-line = %#v, want two gather rows", e.Nodes[0])
+	}
+}
+
+// TestParseFixes locks the behaviour the first review moved: a leading script
+// keeps its body, \operatorname* asks for limits, a plain \sum takes them,
+// and \bigm is a relation.
+func TestParseFixes(t *testing.T) {
+	e, err := Parse(`^2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(e.Nodes) != 1 || e.Nodes[0] == nil {
+		t.Fatalf("leading script = %#v, want one real node", e.Nodes)
+	}
+	if b := layoutSource(t, `^2`); b.w <= 0 {
+		t.Fatal("leading script drew nothing")
+	}
+
+	e, err = Parse(`\operatorname*{argmax}_x f`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc, ok := e.Nodes[0].(*Script)
+	if !ok || !sc.Limits {
+		t.Fatalf("operatorname* = %#v, want a limits script", e.Nodes[0])
+	}
+
+	e, err = Parse(`\operatorname{softmax}_x f`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc, ok := e.Nodes[0].(*Script); !ok || sc.Limits {
+		t.Fatalf("plain operatorname = %#v, want side scripts", e.Nodes[0])
+	}
+
+	e, err = Parse(`\sum_{i=1}^{n} i`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc, ok = e.Nodes[0].(*Script)
+	if !ok || !sc.Limits {
+		t.Fatalf("sum = %#v, want a limits script", e.Nodes[0])
+	}
+	if len(sc.Base) != 1 {
+		t.Fatalf("sum base = %d nodes", len(sc.Base))
+	}
+	if _, ok := sc.Base[0].(*BigOp); !ok {
+		t.Fatalf("sum base = %T, want *BigOp", sc.Base[0])
+	}
+
+	e, err = Parse(`a \bigm| b`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mid, ok := e.Nodes[1].(*Sym)
+	if !ok || mid.Class != Rel {
+		t.Fatalf("bigm = %#v, want a relation", e.Nodes[1])
+	}
+
+	e, err = Parse(``)
+	if err != nil || len(e.Nodes) != 0 {
+		t.Fatalf("empty formula = %#v, %v", e, err)
+	}
+
+	// A declaration with no body leaves no node behind.
+	e, err = Parse(`\limits`)
+	if err != nil || len(e.Nodes) != 0 {
+		t.Fatalf(`\limits alone = %#v, %v`, e, err)
+	}
+
+	// TeX's interword space is one third of an em, whether written ~ or \ .
+	for _, src := range []string{`a~b`, `a\ b`, `a\space b`} {
+		e, err = Parse(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sp, ok := e.Nodes[1].(*Space)
+		if !ok || sp.Em != interwordSpace {
+			t.Fatalf("%s space = %#v, want %v em", src, e.Nodes[1], interwordSpace)
 		}
 	}
 }
