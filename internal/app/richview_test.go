@@ -190,3 +190,81 @@ func TestRichViewDrawsMath(t *testing.T) {
 		t.Fatalf("maths boxes on the app's page = %d, want 2 (inline + display)", boxes)
 	}
 }
+
+// Enter on a diagram block zooms it to the pane, and Esc goes back to the
+// page where the reader was.
+func TestRichViewZoomsADiagram(t *testing.T) {
+	withImages(t)
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "# Flow\n\nBefore.\n\n```mermaid\nflowchart LR\nA[Start] --> B[Done]\n```\n\nAfter.\n"
+	if _, err := store.SaveAs("", "Flow", body); err != nil {
+		t.Fatal(err)
+	}
+	m := New(store, WithImageSender(&richSender{}))
+	m.richFonts = testRichFonts(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm := next.(Model)
+	mm.openInCurrentBuffer("Flow.md")
+	next, _ = mm.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm = next.(Model)
+	openRich(&mm)
+	if mm.noteView != viewRich || mm.rich.Page == nil || len(mm.rich.Page.Diagrams) != 1 {
+		t.Fatalf("no diagram on the page (noteView %v, status %q)", mm.noteView, mm.status)
+	}
+	page := mm.rich.Page
+	pressRunes(&mm, "j")
+	top := mm.rich.ScrollTop()
+	pressRich(&mm, tea.KeyMsg{Type: tea.KeyEnter})
+	if mm.rich.Page == page {
+		t.Fatalf("Enter did not zoom the diagram (status %q)", mm.status)
+	}
+	zoomed := mm.rich.Page
+	if len(zoomed.Diagrams) != 0 || len(zoomed.Items) == 0 {
+		t.Fatalf("zoom page is not a single diagram: %d items", len(zoomed.Items))
+	}
+	pressRich(&mm, tea.KeyMsg{Type: tea.KeyEsc})
+	if mm.rich.Page != page {
+		t.Fatal("Esc did not go back to the page")
+	}
+	if got := mm.rich.ScrollTop(); got != top {
+		t.Fatalf("Esc left the page at row %d, want %d", got, top)
+	}
+}
+
+// A rebuild while zoomed (a resize, a theme change) returns to the page: the
+// zoom's rows belong to a picture that is about to be replaced.
+func TestRichViewRebuildLeavesTheZoom(t *testing.T) {
+	withImages(t)
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "# Flow\n\n```mermaid\nflowchart LR\nA[Start] --> B[Done]\n```\n"
+	if _, err := store.SaveAs("", "Flow", body); err != nil {
+		t.Fatal(err)
+	}
+	m := New(store, WithImageSender(&richSender{}))
+	m.richFonts = testRichFonts(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm := next.(Model)
+	mm.openInCurrentBuffer("Flow.md")
+	next, _ = mm.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm = next.(Model)
+	openRich(&mm)
+	page := mm.rich.Page
+	pressRich(&mm, tea.KeyMsg{Type: tea.KeyEnter})
+	if mm.rich.Page == page {
+		t.Skip("no diagram to zoom in this pane")
+	}
+	next, _ = mm.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	mm = next.(Model)
+	if mm.richZoomBack != nil {
+		t.Fatal("the zoom survived a resize")
+	}
+	if mm.rich.Page == nil || len(mm.rich.Page.Diagrams) != 1 {
+		t.Fatal("the page was not rebuilt after the resize")
+	}
+}

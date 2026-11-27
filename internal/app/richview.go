@@ -73,6 +73,11 @@ func (m *Model) refreshRich() {
 	if l.EditorW < 20 || l.BodyH < 4 {
 		return
 	}
+	// A rebuild (theme, resize, note change) drops the diagram zoom: the
+	// page under it no longer exists.
+	if m.richZoomBack != nil && m.rich != nil {
+		m.leaveZoom()
+	}
 	if m.richFonts == nil {
 		fonts, err := rich.LoadFonts(rich.FontConfig{
 			BodyPath: m.richFontBody, MonoPath: m.richFontMono,
@@ -93,7 +98,12 @@ func (m *Model) refreshRich() {
 		Root:    m.store.Root(),
 		Remote:  os.Getenv("MISOKU_RICH_REMOTE_IMAGES") == "1",
 	}
-	page := engines.Page(doc, l.EditorW, m.richFonts, pal, images)
+	// A new theme means new colours inside the engines too: their caches are
+	// keyed by colour, so they are rebuilt rather than reused.
+	if m.richEngines == nil || m.richEngines.Palette() != pal {
+		m.richEngines = engines.New(m.richFonts, pal)
+	}
+	page := m.richEngines.Page(doc, l.EditorW, images)
 	if m.rich == nil {
 		m.rich = rich.NewView(l.EditorW, l.BodyH, m.richFonts, pal, m.richSender)
 	}
@@ -127,6 +137,14 @@ func (m *Model) prepareRich() {
 func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 	switch t := msg.(type) {
 	case tea.MouseMsg:
+		if m.richZoomBack != nil {
+			// Any click leaves the zoom; its rows are the picture's, not the
+			// note's, so nothing else may read them.
+			if t.Button == tea.MouseButtonLeft && t.Action == tea.MouseActionRelease {
+				m.leaveZoom()
+			}
+			return nil, true
+		}
 		if t.Button == tea.MouseButtonWheelUp {
 			if t.Shift {
 				m.rich.WideScroll(-2)
@@ -160,8 +178,12 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 					}
 				case tea.MouseActionRelease:
 					if m.richDrag == row {
-						// A click without a drag opens the editor here.
+						// A click on a diagram zooms it; anywhere else it opens
+						// the editor at that line.
 						m.rich.ClearSelection()
+						if m.zoomDiagram(row) {
+							return nil, true
+						}
 						return m.openRichLine(row), true
 					}
 					m.richDrag = -1
@@ -170,6 +192,17 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 	case tea.KeyMsg:
+		if m.richZoomBack != nil {
+			// While a diagram fills the pane only leaving it is the rich
+			// view's business; every other key stays with the app, so quit,
+			// the leader and help keep working.
+			switch t.String() {
+			case "esc", "enter", "i", "q":
+				m.leaveZoom()
+				return nil, true
+			}
+			return nil, false
+		}
 		if m.rich.HintsOn() {
 			key := t.String()
 			if h, ok := m.rich.HintFor(key); ok {
@@ -181,6 +214,24 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 		switch t.String() {
+		case "enter":
+			// Zoom the selected diagram, or the first one on screen.
+			row := -1
+			if a, _ := m.rich.SelectionRows(); a >= 0 {
+				row = a
+			} else {
+				for r := m.rich.ScrollTop(); r < m.rich.ScrollTop()+m.rich.H; r++ {
+					if _, ok := m.diagramAt(r); ok {
+						row = r
+						break
+					}
+				}
+			}
+			if row >= 0 && m.zoomDiagram(row) {
+				return nil, true
+			}
+			m.setStatus("no diagram on screen")
+			return nil, true
 		case "f":
 			if hints := m.rich.ShowHints(); len(hints) > 0 {
 				m.setStatus("type a letter to follow a link")
@@ -312,6 +363,50 @@ func (m *Model) richOutline() []rich.Heading { return m.rich.Outline() }
 func (m *Model) richHasOverlay() bool {
 	a, b := m.rich.SelectionRows()
 	return a >= 0 || b >= 0
+}
+
+// diagramAt finds the diagram whose rows cover a page row.
+func (m *Model) diagramAt(row int) (rich.DiagramOnPage, bool) {
+	if m.rich == nil || m.rich.Page == nil {
+		return rich.DiagramOnPage{}, false
+	}
+	for _, d := range m.rich.Page.Diagrams {
+		if row >= d.Row && row < d.Row+d.Rows {
+			return d, true
+		}
+	}
+	return rich.DiagramOnPage{}, false
+}
+
+// zoomDiagram draws the diagram under row across the pane. It reports whether
+// the row belongs to a diagram, so a click can fall through to the editor.
+func (m *Model) zoomDiagram(row int) bool {
+	d, ok := m.diagramAt(row)
+	if !ok || m.richEngines == nil {
+		return false
+	}
+	l := m.layout()
+	zoom, ok := m.richEngines.Zoom(d.Block, l.EditorW, l.BodyH)
+	if !ok {
+		return false
+	}
+	m.richZoomBack = m.rich.Page
+	m.richZoomTop = m.rich.ScrollTop()
+	m.rich.SetPage(zoom)
+	m.setStatus("diagram zoom — esc to go back")
+	return true
+}
+
+// leaveZoom returns to the page with the reader where they were.
+func (m *Model) leaveZoom() {
+	if m.richZoomBack == nil || m.rich == nil {
+		return
+	}
+	back := m.richZoomBack
+	m.rich.SetPage(back)
+	m.rich.Scroll(m.richZoomTop - m.rich.ScrollTop())
+	m.richZoomBack = nil
+	m.setStatus("")
 }
 
 var errRichUnavailable = errors.New("rich view unavailable")

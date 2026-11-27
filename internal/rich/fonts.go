@@ -342,6 +342,17 @@ func (f *Fonts) Measure(s string, sizePx float64, mono bool) fixed.Int26_6 {
 	return w
 }
 
+// WithTextScale returns the same faces on the same cell grid with the body and
+// mono sizes multiplied by k. A diagram laid out with it needs about k times
+// more cells and reads k times bigger: that is how it fills a pane.
+func (f *Fonts) WithTextScale(k float64) (*Fonts, error) {
+	if k <= 0 {
+		k = 1
+	}
+	cfg := FontConfig{CellW: f.CellW, CellH: f.CellH, BodyPx: f.BodyPx * k, MonoPx: f.MonoPx * k}
+	return NewFontsWithStyles(f.bodyBytes, f.monoBytes, f.boldBytes, f.italicBytes, cfg)
+}
+
 // MeasureStyled is Measure for a run drawn in the bold or italic face: their
 // advances come from that face, the same ones the raster uses to move the pen,
 // so the cells a run claims hold its ink. Without a bold or italic face the

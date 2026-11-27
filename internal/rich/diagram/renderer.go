@@ -70,6 +70,23 @@ func (r *Renderer) Box(block rich.Block) *rich.Box {
 	return box
 }
 
+// Image is the cached bitmap Box would blit, for a caller that has to scale it
+// (a diagram zoomed into a pane smaller than itself). The bitmap is shared
+// with the cache and must not be modified.
+func (r *Renderer) Image(block rich.Block) *image.RGBA {
+	if r == nil || r.fonts == nil {
+		return nil
+	}
+	source := strings.Join(block.Code, "\n")
+	if source == "" {
+		source = strings.Join(block.Lines, "\n")
+	}
+	if source == "" {
+		return nil
+	}
+	return r.render(source)
+}
+
 // Layout lays out a parsed diagram with the supplied fonts and palette.
 func Layout(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error) {
 	registry.RLock()

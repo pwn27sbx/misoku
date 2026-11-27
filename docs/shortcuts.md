@@ -89,6 +89,25 @@ Vim editing keys (`hjkl`, `w`, `dd`, …) are not configurable.
 | `explorer.insert` | `i`, `I`, `a`, `A`, `o`, `O` | Open folder editor directly in edit action |
 | `explorer.file_manager` | `M` | Open vault in Neovim `mini.files` (if installed) |
 
+## Rich reading view
+
+`:rich` or `Space V` draws the note as a page: real fonts, maths and Mermaid
+diagrams as pictures. Without Kitty graphics the text reading view stays.
+
+| Key | What it does |
+| --- | --- |
+| `j` / `k`, `d` / `u`, `g` / `G` | Scroll one row, half a page, to the top/bottom |
+| `/`, `n` / `N` | Search the page, next/previous match |
+| `f` then a letter | Follow a link hint |
+| `H` / `L` | Scroll a wide code block or table sideways |
+| `enter` | Zoom the selected diagram (or the first one on screen) to the pane |
+| click | Zoom a diagram; on any other row open the text view at that line |
+| `y` | Copy the selection, or the visible page |
+| `esc` | Leave a zoom, a search or a selection; then back to the text view at the line on screen |
+
+While a diagram is zoomed, `esc`, `enter`, `i`, `q` or a click return to the page
+at the row you left; every other key keeps working as usual.
+
 ## Graph Keys
 
 - **Local graph (`:graph` / `space g`):** `h`/`l` parent/child, `j`/`k` siblings, `enter` open, `-`/`+` zoom, `0` re-centre, `esc` previous centre.

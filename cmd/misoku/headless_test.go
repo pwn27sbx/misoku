@@ -87,6 +87,9 @@ func TestHeadlessDrawsMath(t *testing.T) {
 	if boxes != 2 {
 		t.Fatalf("maths boxes on the headless page = %d, want 2", boxes)
 	}
+	if len(page.Diagrams) != 0 {
+		t.Fatalf("maths note has %d diagrams", len(page.Diagrams))
+	}
 	for _, it := range page.Items {
 		if it.Kind == rich.ItemText && strings.Contains(it.Text, "frac") {
 			t.Fatalf("the maths source was drawn as text: %q", it.Text)
@@ -119,5 +122,34 @@ func TestHeadlessDefaultsBeforeLayout(t *testing.T) {
 		if tile.Width != p.WidthPx {
 			t.Fatalf("tile width %d, want %d", tile.Width, p.WidthPx)
 		}
+	}
+}
+
+// Headless mode draws Mermaid blocks with the native diagram engine, the same
+// one the app uses.
+func TestHeadlessDrawsDiagrams(t *testing.T) {
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "# Diagrams\n\n```mermaid\nflowchart LR\nA[Start] --> B[(Done)]\n```\n\n```mermaid\npie\ntitle Share\n\"A\" : 60\n\"B\" : 40\n```\n"
+	if _, err := store.SaveAs("", "Diagrams", body); err != nil {
+		t.Fatal(err)
+	}
+	page, _, _, _, err := headlessPage(store, "Diagrams.md", 80, theme.DefaultTheme())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Diagrams) != 2 {
+		t.Fatalf("diagrams on the headless page = %d, want 2", len(page.Diagrams))
+	}
+	boxes := 0
+	for _, it := range page.Items {
+		if it.Kind == rich.ItemBox {
+			boxes++
+		}
+	}
+	if boxes != 2 {
+		t.Fatalf("diagram boxes = %d, want 2", boxes)
 	}
 }

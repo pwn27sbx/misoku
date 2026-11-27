@@ -20,6 +20,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/keymap"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/rich"
+	"github.com/pwn27sbx/misoku/internal/rich/engines"
 	"github.com/pwn27sbx/misoku/internal/sidebar"
 	"github.com/pwn27sbx/misoku/internal/theme"
 
@@ -110,6 +111,9 @@ type Model struct {
 	// carries them, and the font paths and cell size it uses.
 	rich          *rich.View
 	richFonts     *rich.Fonts
+	richEngines   *engines.Engines // maths and diagrams, caches kept across rebuilds
+	richZoomBack  *rich.Page       // the page a diagram zoom will return to, nil when not zoomed
+	richZoomTop   int              // the page row the reader was on when the zoom opened
 	richSender    rich.Sender
 	richFontBody  string
 	richFontMono  string

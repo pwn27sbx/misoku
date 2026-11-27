@@ -2,6 +2,7 @@ package engines
 
 import (
 	"image/draw"
+	"os"
 	"strings"
 	"testing"
 
@@ -272,5 +273,156 @@ func TestPageRunsFitTheirCellsAcrossWidths(t *testing.T) {
 				t.Fatalf("width %d: run %q draws %d px into %d claimed (%d cells)", width, it.Text, ink, limit, it.W)
 			}
 		}
+	}
+}
+
+const (
+	flowSource = "flowchart LR\nA[Start] --> B{Choice}\nB -->|yes| C[(Done)]"
+	seqSource  = "sequenceDiagram\nparticipant A\nparticipant B\nA->>B: hello\nB-->>A: reply"
+	pieSource  = "pie\ntitle Share\n\"A\" : 60\n\"B\" : 40"
+)
+
+func mermaidNote(sources ...string) string {
+	var b strings.Builder
+	b.WriteString("# Diagrams\n\nText before.\n\n")
+	for _, src := range sources {
+		b.WriteString("```mermaid\n" + src + "\n```\n\n")
+	}
+	b.WriteString("Text after.\n")
+	return b.String()
+}
+
+// The app and headless mode draw Mermaid blocks with the native engine: one
+// box per block, painted, and the blocks around them keep their place.
+func TestPageDrawsMermaidDiagrams(t *testing.T) {
+	p, f, pal := testPage(t, mermaidNote(flowSource, seqSource, pieSource), 100)
+	if len(p.Diagrams) != 3 {
+		t.Fatalf("diagrams on the page = %d, want 3", len(p.Diagrams))
+	}
+	boxes := 0
+	for _, it := range p.Items {
+		if it.Kind != rich.ItemBox {
+			continue
+		}
+		boxes++
+		if it.W < 4 || it.H < 2 {
+			t.Fatalf("diagram box = %dx%d cells, want a sized picture", it.W, it.H)
+		}
+		if n := inkIn(p, f, pal, it.X, it.Y, it.W, it.H); n == 0 {
+			t.Fatalf("diagram box at row %d painted no ink", it.Y)
+		}
+	}
+	if boxes != 3 {
+		t.Fatalf("boxes = %d, want 3", boxes)
+	}
+	// Each diagram remembers its rows and source, so a click can zoom it.
+	for _, d := range p.Diagrams {
+		if d.Row <= 0 || d.Rows < 2 || len(d.Block.Code) == 0 {
+			t.Fatalf("diagram record = %+v, want rows and its source", d)
+		}
+	}
+	after := -1
+	for _, it := range p.Items {
+		if it.Kind == rich.ItemText && strings.Contains(it.Text, "after") {
+			after = it.Y
+		}
+	}
+	if after <= p.Diagrams[2].Row {
+		t.Fatalf("the text after the diagrams is at row %d, diagrams end at %d", after, p.Diagrams[2].Row+p.Diagrams[2].Rows)
+	}
+}
+
+// A block the engine cannot parse keeps its source and the reason, never a
+// silently wrong picture, and never nothing.
+func TestPageKeepsTheSourceOfAnUnsupportedDiagram(t *testing.T) {
+	src := "sequenceDiagram\nparticipant A\nA ?!> B: unsupported arrow"
+	p, f, pal := testPage(t, mermaidNote(src), 100)
+	if len(p.Diagrams) != 1 {
+		t.Fatalf("diagrams = %d, want 1", len(p.Diagrams))
+	}
+	d := p.Diagrams[0]
+	if d.Rows < 4 {
+		t.Fatalf("fallback box rows = %d, want the source panel", d.Rows)
+	}
+	if n := inkIn(p, f, pal, 2, d.Row, 70, d.Rows); n == 0 {
+		t.Fatal("the fallback panel painted nothing")
+	}
+}
+
+// Zoom lays one diagram out to fill a pane: it fits inside it, keeps its
+// aspect, is centred, and covers most of the pane.
+func TestZoomFillsThePane(t *testing.T) {
+	f, pal := testFonts(t), rich.PaletteFromTheme(theme.DefaultTheme())
+	e := New(f, pal)
+	doc := rich.Parse([]byte(mermaidNote(flowSource)))
+	page := e.Page(doc, 100, rich.ImageOptions{})
+	if len(page.Diagrams) != 1 {
+		t.Fatalf("diagrams = %d, want 1", len(page.Diagrams))
+	}
+	const w, h = 60, 30
+	zoom, ok := e.Zoom(page.Diagrams[0].Block, w, h)
+	if !ok {
+		t.Fatal("Zoom refused a diagram it just drew")
+	}
+	if zoom.Width != w || zoom.Height != h {
+		t.Fatalf("zoom page = %dx%d, want the pane %dx%d", zoom.Width, zoom.Height, w, h)
+	}
+	var box *rich.Item
+	for i := range zoom.Items {
+		if zoom.Items[i].Kind == rich.ItemBox {
+			box = &zoom.Items[i]
+		}
+	}
+	if box == nil {
+		t.Fatal("the zoom page has no diagram")
+	}
+	if box.W > w || box.H > h {
+		t.Fatalf("zoomed diagram %dx%d does not fit %dx%d", box.W, box.H, w, h)
+	}
+	if box.W < w/2 && box.H < h/2 {
+		t.Fatalf("zoomed diagram is %dx%d in a %dx%d pane: it did not fill it", box.W, box.H, w, h)
+	}
+	if box.X < 0 || box.Y < 0 || box.X+box.W > w || box.Y+box.H > h {
+		t.Fatalf("zoomed diagram at %d,%d is not centred inside the pane", box.X, box.Y)
+	}
+	if n := inkIn(zoom, f, pal, box.X, box.Y, box.W, box.H); n == 0 {
+		t.Fatal("the zoomed diagram painted no ink")
+	}
+	// A development aid: RICH_ZOOM_PNG writes the pane to be looked at.
+	if out := os.Getenv("RICH_ZOOM_PNG"); out != "" {
+		img := (&rich.Raster{Page: zoom, Fonts: f, Palette: pal}).Tile(0, h)
+		if err := os.WriteFile(out, rich.EncodePNG(img), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("wrote %s (%dx%d, diagram %dx%d at %d,%d)", out, img.Bounds().Dx(), img.Bounds().Dy(), box.W, box.H, box.X, box.Y)
+	}
+}
+
+// A pane too small for any text scale still gets the whole picture: the
+// bitmap is fitted rather than left half outside the pane.
+func TestZoomFitsADiagramThePaneCannotHold(t *testing.T) {
+	f, pal := testFonts(t), rich.PaletteFromTheme(theme.DefaultTheme())
+	e := New(f, pal)
+	long := "sequenceDiagram\nparticipant A\nparticipant B\nparticipant C\nparticipant D\n" +
+		"A->>B: hello\nB-->>A: reply\nC->>D: ping\nD-->>C: pong\nA->>D: done"
+	doc := rich.Parse([]byte(mermaidNote(long)))
+	page := e.Page(doc, 100, rich.ImageOptions{})
+	if len(page.Diagrams) != 1 {
+		t.Fatalf("diagrams = %d, want 1", len(page.Diagrams))
+	}
+	const w, h = 24, 8
+	zoom, ok := e.Zoom(page.Diagrams[0].Block, w, h)
+	if !ok {
+		t.Fatal("Zoom refused the sequence diagram")
+	}
+	var box *rich.Item
+	for i := range zoom.Items {
+		box = &zoom.Items[i]
+	}
+	if box.W > w || box.H > h {
+		t.Fatalf("fitted diagram %dx%d does not fit %dx%d", box.W, box.H, w, h)
+	}
+	if n := inkIn(zoom, f, pal, box.X, box.Y, box.W, box.H); n == 0 {
+		t.Fatal("the fitted diagram painted no ink")
 	}
 }

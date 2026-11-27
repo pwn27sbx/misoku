@@ -58,7 +58,7 @@ func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme) (*
 	pal := rich.PaletteFromTheme(th)
 	doc := rich.Parse([]byte(note.Content))
 	dir := filepath.Join(store.Root(), filepath.FromSlash(pathDir(note.ID)))
-	page := engines.Page(doc, cols, fonts, pal, rich.ImageOptions{BaseDir: dir, Root: store.Root()})
+	page := engines.New(fonts, pal).Page(doc, cols, rich.ImageOptions{BaseDir: dir, Root: store.Root()})
 	// The payload reports the store's note, never the raw argument: a host
 	// keys its tiles by what the store resolved.
 	return page, fonts, pal, note.ID, nil

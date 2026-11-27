@@ -68,6 +68,9 @@ type Page struct {
 
 	Headings []Heading
 	Links    []LinkBox
+	// Diagrams are the diagram blocks on the page: the rows each covers and
+	// the block it drew, so the view can zoom into one.
+	Diagrams []DiagramOnPage
 	// Wide marks the row ranges of code blocks and tables wider than the
 	// page: the view scrolls them sideways without moving the page.
 	Wide []RowSpan
@@ -82,6 +85,13 @@ type Heading struct {
 	Text  string
 	Line  int
 	Row   int
+}
+
+// DiagramOnPage is one diagram drawn on the page: the rows it covers and the
+// block it came from.
+type DiagramOnPage struct {
+	Row, Rows int
+	Block     Block
 }
 
 // LinkBox is one clickable link on a page row, in cells.
@@ -207,6 +217,9 @@ func (l *layouter) block(b Block, indent int) {
 	case KindCode, KindMath, KindDiagram:
 		if box := l.engineBox(b, indent); box != nil {
 			l.emit(Item{Kind: ItemBox, X: l.x0 + indent, Y: l.y, W: box.W, H: box.H, Box: box})
+			if b.Kind == KindDiagram {
+				l.page.Diagrams = append(l.page.Diagrams, DiagramOnPage{Row: l.y, Rows: box.H, Block: b})
+			}
 			l.y += box.H
 			l.y += blockGap
 			break
