@@ -41,6 +41,31 @@ func TestCoreStatementSplittingPreservesLabels(t *testing.T) {
 	}
 }
 
+func TestCoreBoxIntegratesWithRichLayout(t *testing.T) {
+	fonts := testFonts(t)
+	palette := testPalette()
+	renderer := New(fonts, palette)
+	doc := rich.Document{Blocks: []rich.Block{{
+		Kind: rich.KindDiagram,
+		Lang: "mermaid",
+		Code: []string{"flowchart LR", "A[Start] --> B[Finish]"},
+	}}}
+	page := rich.Layout(doc, rich.LayoutOptions{Width: 80, Fonts: fonts, Palette: palette, Diagram: renderer.Box})
+	var found bool
+	for _, item := range page.Items {
+		if item.Kind == rich.ItemBox && item.Box != nil {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("rich.Layout did not place the diagram Box")
+	}
+	tile := (&rich.Raster{Page: page, Fonts: fonts, Palette: palette}).Tile(0, page.Height)
+	if tile == nil || tile.Bounds().Empty() {
+		t.Fatal("rich.Raster produced no diagram tile")
+	}
+}
+
 func TestCoreNilRendererAndEmptyBlock(t *testing.T) {
 	var nilRenderer *Renderer
 	if nilRenderer.Box(rich.Block{}) != nil {
