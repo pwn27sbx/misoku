@@ -2,6 +2,11 @@ package app
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
@@ -80,7 +85,13 @@ func (m *Model) refreshRich() {
 	}
 	pal := rich.PaletteFromTheme(m.theme)
 	doc := rich.Parse([]byte(b.text))
-	page := rich.Layout(doc, rich.LayoutOptions{Width: l.EditorW, Fonts: m.richFonts, Palette: pal})
+	noteDir := filepath.Join(m.store.Root(), filepath.FromSlash(path.Dir(b.id)))
+	images := rich.ImageOptions{
+		BaseDir: noteDir,
+		Root:    m.store.Root(),
+		Remote:  os.Getenv("MISOKU_RICH_REMOTE_IMAGES") == "1",
+	}
+	page := rich.Layout(doc, rich.LayoutOptions{Width: l.EditorW, Fonts: m.richFonts, Palette: pal, Images: images})
 	if m.rich == nil {
 		m.rich = rich.NewView(l.EditorW, l.BodyH, m.richFonts, pal, m.richSender)
 	}
@@ -122,6 +133,29 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 			m.rich.Scroll(richScrollRows)
 			return nil, true
 		}
+		if t.Button == tea.MouseButtonLeft {
+			if row, ok := m.richRowAt(t.Y); ok {
+				switch t.Action {
+				case tea.MouseActionPress:
+					m.richDrag = row
+					m.rich.Select(row, row)
+					return nil, true
+				case tea.MouseActionMotion:
+					if m.richDrag >= 0 {
+						m.rich.Select(m.richDrag, row)
+						return nil, true
+					}
+				case tea.MouseActionRelease:
+					if m.richDrag == row {
+						// A click without a drag opens the editor here.
+						m.rich.ClearSelection()
+						return m.openRichLine(row), true
+					}
+					m.richDrag = -1
+					return nil, true
+				}
+			}
+		}
 	case tea.KeyMsg:
 		switch t.String() {
 		case "j", "down":
@@ -142,7 +176,47 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 		case "G", "end":
 			m.rich.Scroll(m.rich.MaxScroll())
 			return nil, true
-		case "esc", "i":
+		case "/":
+			return m.prompt("Search", "", "in this page", func(mm *Model, value string) tea.Cmd {
+				if n := mm.rich.Search(value); n == 0 {
+					mm.setStatus("no matches")
+				} else {
+					mm.setStatus(fmt.Sprintf("%d matches", n))
+				}
+				return nil
+			}), true
+		case "n":
+			if m.rich.SearchNext(1) {
+				return nil, true
+			}
+		case "N":
+			if m.rich.SearchNext(-1) {
+				return nil, true
+			}
+		case "y":
+			text := m.richSelectedText()
+			if strings.TrimSpace(text) == "" {
+				m.setStatus("nothing to copy")
+				return nil, true
+			}
+			return m.copyText(text), true
+		case "+", "=":
+			m.richCellW += 2
+			m.richCellH += 4
+			m.refreshRich()
+			return nil, true
+		case "-":
+			m.richCellW = max(m.richCellW-2, 6)
+			m.richCellH = max(m.richCellH-4, 12)
+			m.refreshRich()
+			return nil, true
+		case "esc":
+			if a, b := m.rich.SelectionRows(); a >= 0 || b >= 0 || len(m.richOutline()) > 0 && m.richHasOverlay() {
+				m.rich.ClearSelection()
+				return nil, true
+			}
+			fallthrough
+		case "i":
 			// Back to the editable reading view at the line on screen.
 			line := m.rich.SourceLine()
 			m.setNoteView(viewReading)
@@ -151,6 +225,44 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 		}
 	}
 	return nil, false
+}
+
+// richRowAt maps a screen row to the page's cell row, or false when the
+// pointer is outside the page.
+func (m *Model) richRowAt(screenY int) (int, bool) {
+	l := m.layout()
+	top := l.NoteY()
+	if screenY < top || screenY >= top+m.rich.H {
+		return 0, false
+	}
+	return m.rich.RowAt(screenY - top), true
+}
+
+// openRichLine opens the editable reading view at the note line the page row
+// belongs to.
+func (m *Model) openRichLine(row int) tea.Cmd {
+	line := m.rich.PageLine(row)
+	m.setNoteView(viewReading)
+	m.content.GotoLine(line + 1)
+	return m.focusPane(focusEditor)
+}
+
+// richSelectedText is the selected rows' text, or the visible page when there
+// is no selection.
+func (m *Model) richSelectedText() string {
+	if a, b := m.rich.SelectionRows(); a >= 0 || b >= 0 {
+		return m.rich.Select(a, b)
+	}
+	return m.rich.VisibleText()
+}
+
+// richOutline is the page's table of contents.
+func (m *Model) richOutline() []rich.Heading { return m.rich.Outline() }
+
+// richHasOverlay reports whether a search or selection is showing.
+func (m *Model) richHasOverlay() bool {
+	a, b := m.rich.SelectionRows()
+	return a >= 0 || b >= 0
 }
 
 var errRichUnavailable = errors.New("rich view unavailable")

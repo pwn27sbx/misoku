@@ -2,6 +2,7 @@ package rich
 
 import (
 	"errors"
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,12 @@ type View struct {
 	nextID   int
 	tiles    map[int]*tile // key: first row
 	degraded bool
+
+	overlay  []Item // search marks and selection, drawn after the page
+	search   []int  // matched rows
+	searchAt int
+	selA     int
+	selB     int
 }
 
 type tile struct {
@@ -47,7 +54,8 @@ const maxTiles = 4
 
 // NewView makes an empty view for a pane of w×h cells.
 func NewView(w, h int, fonts *Fonts, pal Palette, sender Sender) *View {
-	return &View{Fonts: fonts, Palette: pal, Sender: sender, W: max(w, 1), H: max(h, 1), tiles: map[int]*tile{}}
+	return &View{Fonts: fonts, Palette: pal, Sender: sender, W: max(w, 1), H: max(h, 1),
+		tiles: map[int]*tile{}, searchAt: -1, selA: -1, selB: -1}
 }
 
 // SetSize changes the pane size; tiles no longer matching the grid are
@@ -125,11 +133,10 @@ func (v *View) Prepare() error {
 	if !v.Ready() {
 		return nil
 	}
-	rows := v.H
-	if v.degraded {
-		rows = v.H
-	}
-	need := v.neededTiles(rows)
+	// Tiles are one screenful and aligned to the view height, so a degraded
+	// terminal and a healthy one ask for the same single screenful; the flag
+	// only says why a tile was refused.
+	need := v.neededTiles(v.H)
 	// Evict farthest tiles first, keeping the visible ones.
 	for first, t := range v.tiles {
 		if _, ok := need[first]; ok && len(v.tiles) <= maxTiles {
@@ -172,7 +179,7 @@ func (v *View) neededTiles(rows int) map[int]int {
 }
 
 func (v *View) makeTile(first, rows int) error {
-	r := &Raster{Page: v.Page, Fonts: v.Fonts, Palette: v.Palette}
+	r := &Raster{Page: v.Page, Fonts: v.Fonts, Palette: v.Palette, Overlay: v.overlay}
 	img := r.Tile(first, rows)
 	png := EncodePNG(img)
 	if len(png) == 0 {
@@ -184,7 +191,7 @@ func (v *View) makeTile(first, rows int) error {
 		return ErrDegraded
 	}
 	if err := v.Sender.Send(kitty.Transmit(id, cols, rows, png)...); err != nil {
-		v.nextID = 0
+		kitty.ReleaseID(id) // the transmit never landed: the id is free again
 		v.degraded = true
 		v.release()
 		return ErrDegraded
@@ -234,6 +241,31 @@ func (v *View) View() string {
 	return strings.Join(lines, "\n")
 }
 
+// invalidateAll frees every cached tile: an overlay change that spans the page
+// (a search) redraws them all on the next Prepare.
+func (v *View) invalidateAll() {
+	for first, t := range v.tiles {
+		v.releaseTile(first, t)
+	}
+}
+
+// invalidateRows frees the tiles that hold the given cell rows, so a selection
+// redraws only what it covers.
+func (v *View) invalidateRows(a, b int) {
+	if a > b {
+		a, b = b, a
+	}
+	for first, t := range v.tiles {
+		if first <= b && a < first+t.rows {
+			v.releaseTile(first, t)
+		}
+	}
+}
+
+// colorAlpha is c with its alpha replaced: overlays tint, they never hide the
+// text they mark.
+func colorAlpha(c color.RGBA, a uint8) color.RGBA { c.A = a; return c }
+
 // padCells keeps a placeholder row exactly w cells wide. The row's own ANSI
 // reset closes the image colour before the padding.
 func padCells(s string, cols, w int) string {
@@ -257,6 +289,123 @@ func clipCells(s string, w int) string {
 	}
 	return s
 }
+
+// Search marks every row of the page that contains q, ignoring case, and
+// scrolls to the first match. It returns how many rows matched.
+func (v *View) Search(q string) int {
+	v.search = nil
+	v.searchAt = -1
+	v.overlay = nil
+	if v.Page == nil || strings.TrimSpace(q) == "" {
+		return 0
+	}
+	needle := strings.ToLower(q)
+	for _, it := range v.Page.Items {
+		if it.Kind != ItemText || !strings.Contains(strings.ToLower(it.Text), needle) {
+			continue
+		}
+		if len(v.search) > 0 && v.search[len(v.search)-1] == it.Y {
+			continue
+		}
+		v.search = append(v.search, it.Y)
+		v.overlay = append(v.overlay, Item{Kind: ItemRect, X: it.X, Y: it.Y, W: it.W, H: max(it.H, 1),
+			Color: colorAlpha(v.Palette.Stripe, 0x60)})
+	}
+	if len(v.search) == 0 {
+		return 0
+	}
+	v.searchAt = 0
+	v.scroll = max(v.search[0]-v.H/3, 0)
+	v.clamp()
+	v.invalidateAll()
+	return len(v.search)
+}
+
+// SearchNext and SearchPrev move between matches, wrapping.
+func (v *View) SearchNext(delta int) bool {
+	if len(v.search) == 0 {
+		return false
+	}
+	v.searchAt = (v.searchAt + delta + len(v.search)) % len(v.search)
+	v.scroll = max(v.search[v.searchAt]-v.H/3, 0)
+	v.clamp()
+	return true
+}
+
+// Outline is the page's headings, for a table of contents.
+func (v *View) Outline() []Heading {
+	if v.Page == nil {
+		return nil
+	}
+	return v.Page.Headings
+}
+
+// Select marks cell rows [a, b] (in either order) and returns the text they
+// hold, so copy works on the rendered page.
+func (v *View) Select(a, b int) string {
+	if v.Page == nil {
+		return ""
+	}
+	if a > b {
+		a, b = b, a
+	}
+	a = max(a, 0)
+	b = min(b, max(v.Page.Height-1, 0))
+	v.selA, v.selB = a, b
+	defer v.invalidateRows(a, b)
+	v.overlay = nil
+	v.overlay = append(v.overlay, Item{Kind: ItemRect, X: 0, Y: a, W: v.Page.Width, H: b - a + 1,
+		Color: colorAlpha(v.Palette.Link, 0x40)})
+	var lines []string
+	for row := a; row <= b; row++ {
+		var text strings.Builder
+		for _, it := range v.Page.Items {
+			if it.Kind == ItemText && it.Y == row {
+				if text.Len() > 0 {
+					text.WriteString(" ")
+				}
+				text.WriteString(it.Text)
+			}
+		}
+		lines = append(lines, text.String())
+	}
+	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
+}
+
+// SelectionRows is the selected row range, or (-1,-1).
+func (v *View) SelectionRows() (int, int) { return v.selA, v.selB }
+
+// ClearSelection drops the selection and the search marks.
+func (v *View) ClearSelection() {
+	a, b := v.selA, v.selB
+	v.selA, v.selB = -1, -1
+	v.search = nil
+	v.searchAt = -1
+	v.overlay = nil
+	if a >= 0 && b >= 0 {
+		v.invalidateRows(a, b)
+	}
+}
+
+// PageLine is the note line a page row belongs to.
+func (v *View) PageLine(row int) int {
+	if v.Page == nil {
+		return 0
+	}
+	return v.Page.SourceLine(row)
+}
+
+// VisibleText is the text of the rows the pane shows, for a copy without a
+// selection.
+func (v *View) VisibleText() string {
+	if v.Page == nil {
+		return ""
+	}
+	return v.Select(v.scroll, min(v.scroll+v.H-1, v.Page.Height-1))
+}
+
+// RowAt maps a pane row (0 is the top of the view) to the page's cell row.
+func (v *View) RowAt(screenRow int) int { return v.scroll + screenRow }
 
 // Close releases every tile and id.
 func (v *View) Close() { v.release() }

@@ -115,6 +115,7 @@ type Model struct {
 	richFontMono  string
 	richCellW     int
 	richCellH     int
+	richDrag      int    // row where a mouse selection started, -1 when idle
 	tutorCSeen    string // the lesson whose look-only state was already caught up, see tutorCCaughtUp
 	treeGen       uint64 // bumps on every applyTree, see workspaceScannedMsg
 	scanning      bool   // a workspace scan is in flight, see CheckWorkspaceMsg

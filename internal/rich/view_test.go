@@ -162,3 +162,67 @@ func placeholderCells(line string) int {
 	}
 	return n
 }
+
+func TestViewSearchAndOutline(t *testing.T) {
+	f := testFonts(t)
+	var body strings.Builder
+	body.WriteString("# One\n\nalpha beta\n\n")
+	for i := 0; i < 30; i++ {
+		body.WriteString("filler paragraph that takes rows of the page\n\n")
+	}
+	body.WriteString("## Two\n\ngamma alpha\n")
+	doc := Parse([]byte(body.String()))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	s := &fakeSender{}
+	v := NewView(40, 10, f, testPalette(), s)
+	v.SetPage(p)
+
+	out := v.Outline()
+	if len(out) != 2 || out[0].Text != "One" || out[1].Level != 2 {
+		t.Fatalf("outline = %+v", out)
+	}
+	if n := v.Search("alpha"); n != 2 {
+		t.Fatalf("search matched %d rows, want 2", n)
+	}
+	if len(v.overlay) != 2 {
+		t.Fatalf("search marks = %d, want one per row", len(v.overlay))
+	}
+	first := v.ScrollTop()
+	if !v.SearchNext(1) {
+		t.Fatal("search next found nothing")
+	}
+	if v.ScrollTop() == first {
+		t.Fatal("search next did not move the view")
+	}
+	// The marked tiles must be redrawn: Prepare sends them again.
+	if err := v.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.sent) == 0 {
+		t.Fatal("no tile sent after a search")
+	}
+}
+
+func TestViewSelectionCopiesRows(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("first line\n\nsecond line\n"))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	v := NewView(40, 10, f, testPalette(), &fakeSender{})
+	v.SetPage(p)
+	text := v.Select(0, 3)
+	if !strings.Contains(text, "first line") || !strings.Contains(text, "second line") {
+		t.Fatalf("selection text = %q", text)
+	}
+	if len(v.overlay) == 0 {
+		t.Fatal("selection drew no overlay")
+	}
+	a, b := v.SelectionRows()
+	if a != 0 || b != 3 {
+		t.Fatalf("selection rows = %d..%d", a, b)
+	}
+	v.ClearSelection()
+	ra, rb := v.SelectionRows()
+	if len(v.overlay) != 0 || ra != -1 || rb != -1 {
+		t.Fatal("ClearSelection left state behind")
+	}
+}
