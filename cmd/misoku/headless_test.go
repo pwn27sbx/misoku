@@ -30,6 +30,16 @@ func TestHeadlessPrintsOnePayloadWithTiles(t *testing.T) {
 	if p.Protocol != headlessProtocol || p.Note != "Head.md" || p.Cols != 60 || len(p.Tiles) == 0 {
 		t.Fatalf("payload = %+v", p)
 	}
+	rows := 0
+	for i, tile := range p.Tiles {
+		if tile.Row != i*10 {
+			t.Fatalf("tile %d starts at row %d, want %d", i, tile.Row, i*10)
+		}
+		rows += tile.Rows
+	}
+	if rows < p.PageRows {
+		t.Fatalf("tiles cover %d rows of %d", rows, p.PageRows)
+	}
 	for _, tile := range p.Tiles {
 		data, err := os.ReadFile(tile.Path)
 		if err != nil {

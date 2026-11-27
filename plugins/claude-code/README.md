@@ -12,10 +12,15 @@ misoku --headless --dir ~/notes --note "Notes/Design.md" --cols 100 --rows 40
 The command prints **one JSON line** and writes the tiles it names:
 
 ```json
-{"protocol":1,"version":"0.37.0-dev","note":"Notes/Design.md","theme":"onedark",
- "cols":100,"rows":40,"page_rows":143,"width_px":1200,
- "tiles":[{"row":0,"cols":100,"rows":40,"width":1200,"height":960,"path":"/tmp/misoku-headless/tile-0000.png"}]}
+{"protocol":1,"run":"4821-1732750000000000000","version":"0.37.0-dev","note":"Notes/Design.md",
+ "theme":"onedark","cols":100,"rows":40,"page_rows":143,"width_px":1200,
+ "tiles":[{"row":0,"cols":100,"rows":40,"width":1200,"height":960,
+           "path":"/tmp/misoku-headless/4821-1732750000000000000/tile-0000.png"}]}
 ```
+
+`run` names the folder this invocation owns: two panes or a re-render never
+share files, and a tile is written to a temp name and renamed, so a host never
+reads half a PNG.
 
 Rules:
 

@@ -145,6 +145,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if !opts.headless && (opts.headlessNote != "" || opts.headlessCols != 100 || opts.headlessRows != 40) {
+		fmt.Fprintln(os.Stderr, "misoku: --note, --cols and --rows need --headless")
+		os.Exit(2)
+	}
 	if opts.headless {
 		code := 0
 		if opts.headlessNote == "" {

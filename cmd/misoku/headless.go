@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/rich"
@@ -21,6 +22,7 @@ const headlessProtocol = 1
 // headlessPayload is the one line headless mode prints.
 type headlessPayload struct {
 	Protocol int            `json:"protocol"`
+	Run      string         `json:"run"`
 	Version  string         `json:"version"`
 	Note     string         `json:"note"`
 	Theme    string         `json:"theme"`
@@ -68,7 +70,13 @@ func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, ve
 	if rows <= 0 {
 		rows = 40
 	}
-	base := filepath.Join(os.TempDir(), "misoku-headless")
+	if cols <= 0 {
+		cols = 100
+	}
+	// One folder per run: two panes (or a re-render) never overwrite each
+	// other's tiles, and the payload names the folder it owns.
+	run := fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
+	base := filepath.Join(os.TempDir(), "misoku-headless", run)
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		fmt.Fprintf(os.Stderr, "misoku --headless: %v\n", err)
 		return 1
@@ -79,7 +87,7 @@ func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, ve
 		return 1
 	}
 	payload := headlessPayload{
-		Protocol: headlessProtocol, Version: version, Note: note.ID, Theme: th.Name,
+		Protocol: headlessProtocol, Run: run, Version: version, Note: note.ID, Theme: th.Name,
 		Cols: cols, Rows: rows, PageRows: page.Height,
 		WidthPx: cols * fonts.CellW, Tiles: tiles,
 	}
@@ -97,10 +105,15 @@ func writeHeadlessTiles(page *rich.Page, fonts *rich.Fonts, pal rich.Palette, co
 		img := (&rich.Raster{Page: page, Fonts: fonts, Palette: pal}).Tile(first, height)
 		png := rich.EncodePNG(img)
 		if len(png) == 0 {
-			continue
+			return nil, fmt.Errorf("tile %d encoded to nothing", n)
 		}
 		name := filepath.Join(dir, fmt.Sprintf("tile-%04d.png", n))
-		if err := os.WriteFile(name, png, 0o600); err != nil {
+		// Write then rename: a host never reads a half-written PNG.
+		tmp := name + ".tmp"
+		if err := os.WriteFile(tmp, png, 0o600); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(tmp, name); err != nil {
 			return nil, err
 		}
 		out = append(out, headlessTile{
