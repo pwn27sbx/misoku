@@ -230,6 +230,18 @@ func main() {
 	// Every motion report is needed for the preview's block handles, but
 	// most of it changes nothing: MouseFilter drops that before Update and
 	// View run.
+	// Another program in this terminal may have left the kitty keyboard
+	// protocol on: then a terminal in tmux forwards keys as CSI-u (Space is
+	// ESC[32u), which the reader drops, so no leader sequence would ever start.
+	// Pushing the classic mode for the whole program gives plain keys back,
+	// and restoring the stack before the cursor leaves the terminal as it was.
+	restoreKeys := classicKeyboard(out, classicKeysOn(runtime.GOOS, isTerminal(os.Stdout)))
+	keysPopped := false
+	defer func() {
+		if !keysPopped {
+			restoreKeys()
+		}
+	}()
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
 		tea.WithFilter(app.MouseFilter), tea.WithOutput(out),
 		// quitOnHangup owns SIGHUP, SIGTERM and SIGINT below: it must mark
@@ -237,6 +249,10 @@ func main() {
 		tea.WithoutSignalHandler())
 	hup := quitOnHangup(p)
 	final, err := p.Run()
+	// Pop the keyboard mode first: the cursor restore is the last sequence the
+	// shell should see.
+	restoreKeys()
+	keysPopped = true
 	// Give the terminal its own cursor back before anything else, so no bar or
 	// block is left behind in the shell.
 	if cur != nil {
