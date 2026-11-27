@@ -17,6 +17,11 @@ source ──Parse──▶ AST ──layout──▶ box (width, height, depth,
   shifts, script shifts with collision avoidance, limits above and below for
   large operators and `\lim`-style functions, delimiter stretching, radicals,
   accents, matrices and alignment environments.
+- the OpenType MATH table (`mathdata.go`) supplies the font's real size
+  variants: a tall parenthesis, a radical for a fraction and a display-size
+  `\sum` are the font's own glyphs, drawn as vector outlines, not a scaled
+  copy of the base glyph. Variables are drawn in maths italic by default,
+  digits upright.
 - `render`/`Box` (`draw.go`, `math.go`) draw glyphs and rules into a
   transparent image and hand the page a `rich.Box`. `Box` caches by source,
   width, colour and cell size; a page rebuild reuses every formula that did not
@@ -87,9 +92,10 @@ here.
 
 ## Limits (stated, not hidden)
 
-- Delimiters and radicals stretch by scaling the base glyph, not by TeX's
-  size/extension variants from the OpenType MATH table. The shapes are right at
-  the sizes used on a page; very tall delimiters (over ~4×) are capped.
+- Delimiters, radicals and big operators take their sizes from the font's
+  MATH table. Content taller than the largest variant (very rare on a page)
+  falls back to scaling the base glyph; horizontal stretch for wide accents
+  still uses that fallback.
 - `\text{…}` draws with the maths font's upright letters, so `\text{if}` looks
   right. CJK, emoji and other scripts missing from the font draw as hollow
   boxes (never silently vanish); a text-face fallback is a later task.

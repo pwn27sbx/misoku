@@ -305,6 +305,13 @@ var symbols = map[string]symDef{
 	"}": ord('}'),
 }
 
+// largeGlyphs grow in display style: the large operators and the integrals.
+var largeGlyphs = map[rune]bool{
+	'∑': true, '∏': true, '∐': true, '⋃': true, '⋂': true,
+	'⨁': true, '⨂': true, '⨀': true, '⨄': true,
+	'∫': true, '∬': true, '∭': true, '∮': true, '∯': true,
+}
+
 // limitOps take their scripts above and below in display style. Integrals do
 // not; TeX keeps their limits at the side.
 var limitOps = map[rune]bool{
@@ -355,7 +362,14 @@ func runeClass(r rune) Class {
 // mathAlnum maps a base letter to the Unicode maths alphanumeric block for a
 // font. ASCII holes (script B, fraktur C, double-struck R…) are spelled out.
 func mathAlnum(r rune, f Font) rune {
-	if f == FontDefault || f == FontRoman || f == FontText {
+	if f == FontDefault {
+		// TeX's default: letters italic, digits and punctuation upright.
+		if !isLetter(r) {
+			return r
+		}
+		f = FontItalic
+	}
+	if f == FontRoman || f == FontText {
 		return r
 	}
 	type block struct {

@@ -477,9 +477,9 @@ var bigSizes = map[string]float64{
 func (p *parser) command(t token) (Node, error) {
 	name := t.s
 	if d, ok := symbols[name]; ok {
-		// Large operators are their own node so a plain \sum takes limits
-		// above and below in display style, like \lim does.
-		if limitOps[d.r] {
+		// Large operators are their own node so display style draws the
+		// font's big size and a plain \sum takes limits above and below.
+		if largeGlyphs[d.r] {
 			return &BigOp{R: d.r}, nil
 		}
 		return &Sym{R: d.r, Class: d.class, Font: d.font}, nil

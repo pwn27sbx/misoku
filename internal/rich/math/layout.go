@@ -1,6 +1,10 @@
 package math
 
-import "math"
+import (
+	"math"
+
+	"golang.org/x/image/font/sfnt"
+)
 
 // TeX's box model (TeXbook Appendix G): every formula is a box with a width,
 // a height above its baseline and a depth below it, built out of glyphs and
@@ -49,6 +53,7 @@ type item struct {
 	kind   itemKind
 	x, y   float64 // glyph pen / rule or slash top-left
 	r      rune
+	gid    sfnt.GlyphIndex // a MATH variant drawn by id; 0 draws r
 	size   float64
 	sx, sy float64
 	w, h   float64
@@ -310,23 +315,41 @@ func (l *layouter) sqrt(s *Sqrt, size float64, st style, sup Font) box {
 	if gh <= 0 {
 		gh = 0.8 * size
 	}
-	// Scale the radical so its top meets the vinculum exactly: a small body
-	// shrinks the glyph, a tall one stretches it.
 	target := body.h + body.d + rule
-	sy := math.Min(math.Max(target/gh, 0.5), 4)
-	m := metrics(radical, size)
-	rw := m.advance
 	// The index sits in script style at the top left of the radical.
 	var idx box
 	if len(s.Index) > 0 {
 		idx = l.list(s.Index, st.script().size(l.base), st.script(), sup)
 	}
+	// The font ships real radical sizes; use the smallest one that covers the
+	// body, and only scale the base glyph when the table has none.
+	if gid, m, _ := variantForHeight(radical, size, target); gid != 0 {
+		baseline := body.h + rule - m.height
+		top := body.h + rule
+		var out box
+		out.addItem(item{kind: itGlyph, gid: gid, size: size}, idx.w, baseline)
+		vinStart := idx.w + m.advance*0.85
+		out.addItem(item{kind: itRule, w: maxf(0.5*size, m.advance+body.w-(vinStart-idx.w)), h: rule}, vinStart, top)
+		if idx.w > 0 {
+			out.add(idx, idx.w*0.9, top)
+		}
+		out.add(body, idx.w+m.advance, 0)
+		out.w = idx.w + m.advance + body.w
+		out.h = maxf(top, body.h+rule)
+		out.d = maxf(body.d, -baseline+m.depth)
+		return out
+	}
+	// Scale the radical so its top meets the vinculum exactly: a small body
+	// shrinks the glyph, a tall one stretches it.
+	sy := math.Min(math.Max(target/gh, 0.5), 4)
+	m := metrics(radical, size)
+	rw := m.advance
 	radicalBaseline := -body.d
 	top := radicalBaseline + gh*sy
 	var out box
 	out.addItem(item{kind: itGlyph, r: radical, size: size, sx: 1, sy: sy}, idx.w, radicalBaseline)
 	if idx.w > 0 {
-		out.add(idx, 0, top-0.25*size)
+		out.add(idx, idx.w*0.9, top)
 	}
 	// The vinculum starts where the radical's foot ends and runs over the body.
 	vinStart := idx.w + rw*0.55
@@ -401,6 +424,24 @@ func (l *layouter) limits(base, over, under box) box {
 }
 
 func (l *layouter) bigop(b *BigOp, size float64, st style) box {
+	if st == styleDisplay {
+		// Display style uses the next real size the font draws, not a scaled
+		// copy of the text size.
+		base := glyphHeight(b.R, size)
+		if base <= 0 {
+			base = 0.8 * size
+		}
+		if gid, m, _ := variantForHeight(b.R, size, base*1.15); gid != 0 {
+			axis := axisHeight(size)
+			half := (m.height + m.depth) / 2
+			return box{
+				w:     m.advance,
+				h:     maxf(0, axis+half),
+				d:     maxf(0, half-axis),
+				items: []item{{kind: itGlyph, gid: gid, size: size, y: axis - (m.height-m.depth)/2}},
+			}
+		}
+	}
 	fs := size
 	if st == styleDisplay {
 		fs = size * 1.4
@@ -423,7 +464,9 @@ func (l *layouter) bigop(b *BigOp, size float64, st style) box {
 func (l *layouter) fenced(f *Fenced, size float64, st style, sup Font) box {
 	body := l.list(f.Body, size, st, sup)
 	axis := axisHeight(size)
-	target := body.h + body.d + 0.2*size
+	// A fence spans the content's own height and depth; a group with
+	// subscripts still fits the normal parentheses, a fraction does not.
+	target := body.h + body.d
 	var out box
 	left, leftB := l.delim(f.Open, size, axis, target)
 	out.add(left, 0, leftB)
@@ -450,6 +493,30 @@ func (l *layouter) delim(d *Delim, size, axis, target float64) (box, float64) {
 	if d.Size > 0 {
 		fs = size * d.Size
 	} else if d.Auto {
+		// A base glyph that already covers the content is what TeX uses; a
+		// taller one takes the font's real size variant, and scaling the
+		// base glyph is the last resort.
+		baseH := glyphHeight(d.R, size)
+		if baseH >= target*0.95 {
+			m := metrics(d.R, size)
+			if m.ok {
+				return box{
+					w:     m.advance,
+					h:     m.height,
+					d:     m.depth,
+					items: []item{{kind: itGlyph, r: d.R, size: size, sx: 1, sy: 1}},
+				}, axis - (m.height-m.depth)/2
+			}
+		}
+		if gid, m, _ := variantForHeight(d.R, size, target); gid != 0 {
+			b := box{
+				w:     m.advance,
+				h:     m.height,
+				d:     m.depth,
+				items: []item{{kind: itGlyph, gid: gid, size: size}},
+			}
+			return b, axis - (m.height-m.depth)/2
+		}
 		gh := glyphHeight(d.R, size)
 		if gh <= 0 {
 			gh = 0.8 * size
@@ -640,7 +707,7 @@ func (l *layouter) env(e *Env, size float64, st style, sup Font) box {
 	if e.Name == "cases" {
 		axis := axisHeight(size)
 		open := &Delim{R: '{', Auto: true}
-		left, lb := l.delim(open, size, axis, out.h+out.d+0.2*size)
+		left, lb := l.delim(open, size, axis, out.h+out.d)
 		inner := shift(out.items, left.w+0.1*size, 0)
 		out.items = append(shift(left.items, 0, lb), inner...)
 		out.w += left.w + 0.1*size
@@ -654,8 +721,9 @@ func (l *layouter) env(e *Env, size float64, st style, sup Font) box {
 	}
 	if fr, ok := fences[e.Name]; ok {
 		axis := axisHeight(size)
-		left, lb := l.delim(&Delim{R: fr[0], Auto: true}, size, axis, out.h+out.d)
-		right, rb := l.delim(&Delim{R: fr[1], Auto: true}, size, axis, out.h+out.d)
+		target := out.h + out.d
+		left, lb := l.delim(&Delim{R: fr[0], Auto: true}, size, axis, target)
+		right, rb := l.delim(&Delim{R: fr[1], Auto: true}, size, axis, target)
 		inner := shift(out.items, left.w+0.1*size, 0)
 		out.items = append(shift(left.items, 0, lb), inner...)
 		out.items = append(out.items, shift(right.items, left.w+out.w+0.2*size, rb)...)

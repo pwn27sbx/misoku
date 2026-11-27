@@ -5,10 +5,11 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-
-	xdraw "golang.org/x/image/draw"
 	"math"
 	"sync"
+
+	xdraw "golang.org/x/image/draw"
+	"golang.org/x/image/vector"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -186,4 +187,123 @@ func ascentOf(sizePx float64) float64 {
 		return sizePx * 0.75
 	}
 	return float64(face.Metrics().Ascent) / 64
+}
+
+// gidMetrics measures one glyph id, the way a rune is measured.
+type gidMetrics struct {
+	advance, height, depth float64
+	ok                     bool
+}
+
+func metricsGID(gid sfnt.GlyphIndex, sizePx float64) gidMetrics {
+	otf, err := mathFont()
+	if err != nil || gid == 0 {
+		return gidMetrics{}
+	}
+	var buf sfnt.Buffer
+	ppem := fixed.Int26_6(int(math.Round(sizePx * 64)))
+	adv, err := otf.GlyphAdvance(&buf, gid, ppem, font.HintingNone)
+	if err != nil {
+		return gidMetrics{}
+	}
+	b, _, err := otf.GlyphBounds(&buf, gid, ppem, font.HintingNone)
+	if err != nil {
+		return gidMetrics{advance: float64(adv) / 64, ok: true}
+	}
+	m := gidMetrics{
+		advance: float64(adv) / 64,
+		height:  -float64(b.Min.Y) / 64,
+		depth:   float64(b.Max.Y) / 64,
+		ok:      true,
+	}
+	if m.height < 0 {
+		m.height = 0
+	}
+	if m.depth < 0 {
+		m.depth = 0
+	}
+	return m
+}
+
+// variantForHeight picks the smallest MATH size variant of r whose ink covers
+// the target height, and reports whether one was tall enough. When none is,
+// the caller gets the largest variant and can accept its height.
+func variantForHeight(r rune, sizePx, target float64) (sfnt.GlyphIndex, gidMetrics, bool) {
+	variants := variantGlyphs(r)
+	if len(variants) == 0 {
+		return 0, gidMetrics{}, false
+	}
+	var last sfnt.GlyphIndex
+	var lastM gidMetrics
+	for _, gid := range variants {
+		m := metricsGID(gid, sizePx)
+		if !m.ok {
+			continue
+		}
+		last, lastM = gid, m
+		if m.height+m.depth >= target {
+			return gid, m, true
+		}
+	}
+	if last != 0 {
+		return last, lastM, false
+	}
+	return 0, gidMetrics{}, false
+}
+
+// drawGlyphID draws a glyph by id as a vector outline, which is how the MATH
+// variants (real delimiter and radical shapes, not stretched copies) reach
+// the page.
+func drawGlyphID(dst draw.Image, gid sfnt.GlyphIndex, sizePx, x, baseline float64, col color.RGBA) {
+	if col.A == 0 || gid == 0 || sizePx <= 0 {
+		return
+	}
+	otf, err := mathFont()
+	if err != nil {
+		return
+	}
+	var buf sfnt.Buffer
+	ppem := fixed.Int26_6(int(math.Round(sizePx * 64)))
+	segs, err := otf.LoadGlyph(&buf, gid, ppem, nil)
+	if err != nil || len(segs) == 0 {
+		return
+	}
+	b := segs.Bounds()
+	w := (b.Max.X - b.Min.X).Ceil() + 2
+	h := (b.Max.Y - b.Min.Y).Ceil() + 2
+	if w <= 0 || h <= 0 {
+		return
+	}
+	z := vector.NewRasterizer(w, h)
+	z.DrawOp = draw.Over
+	ox := float32(-b.Min.X/64) + 1
+	oy := float32(-b.Min.Y/64) + 1
+	pt := func(p fixed.Point26_6) (float32, float32) {
+		return float32(p.X)/64 + ox, float32(p.Y)/64 + oy
+	}
+	for _, s := range segs {
+		switch s.Op {
+		case sfnt.SegmentOpMoveTo:
+			ax, ay := pt(s.Args[0])
+			z.MoveTo(ax, ay)
+		case sfnt.SegmentOpLineTo:
+			bx, by := pt(s.Args[0])
+			z.LineTo(bx, by)
+		case sfnt.SegmentOpQuadTo:
+			bx, by := pt(s.Args[0])
+			cx, cy := pt(s.Args[1])
+			z.QuadTo(bx, by, cx, cy)
+		case sfnt.SegmentOpCubeTo:
+			bx, by := pt(s.Args[0])
+			cx, cy := pt(s.Args[1])
+			dx, dy := pt(s.Args[2])
+			z.CubeTo(bx, by, cx, cy, dx, dy)
+		}
+	}
+	z.ClosePath()
+	tmp := image.NewRGBA(image.Rect(0, 0, w, h))
+	z.Draw(tmp, tmp.Bounds(), image.NewUniform(col), image.Point{})
+	px := int(math.Round(x)) + int(math.Floor(float64(b.Min.X)/64))
+	py := int(math.Round(baseline)) + int(math.Floor(float64(b.Min.Y)/64))
+	draw.Draw(dst, image.Rect(px, py, px+w, py+h), tmp, image.Point{}, draw.Over)
 }

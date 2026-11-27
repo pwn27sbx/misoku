@@ -27,6 +27,11 @@ func render(b box, fg color.RGBA) (img *image.RGBA, padX, padY, baseline int) {
 	for _, it := range b.items {
 		switch it.kind {
 		case itGlyph:
+			if it.gid != 0 {
+				drawGlyphID(img, it.gid, it.size, float64(padX)+it.x,
+					float64(baseline)-it.y, fg)
+				break
+			}
 			drawGlyph(img, it.r, it.size, float64(padX)+it.x,
 				float64(baseline)-it.y, it.sx, it.sy, fg)
 		case itRule:
