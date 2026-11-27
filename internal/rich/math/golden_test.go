@@ -3,7 +3,6 @@ package math
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/rich"
+	"github.com/pwn27sbx/misoku/internal/rich/testgolden"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden images")
@@ -71,94 +71,9 @@ func TestMathGolden(t *testing.T) {
 	}
 }
 
-// goldenClose compares two formula PNGs. Exact bytes cannot hold across
-// architectures: arm64 and amd64 round the rasteriser's antialiasing a little
-// differently, so a few edge pixels differ by one or two levels. The pictures
-// must still be the same size, cover the same box, carry the same amount of
-// ink, and no pixel may differ by more than a rounding step.
-func goldenClose(want, got []byte) error {
-	w, err := png.Decode(bytes.NewReader(want))
-	if err != nil {
-		return fmt.Errorf("golden is not a PNG: %w", err)
-	}
-	g, err := png.Decode(bytes.NewReader(got))
-	if err != nil {
-		return fmt.Errorf("new image is not a PNG: %w", err)
-	}
-	if !w.Bounds().Eq(g.Bounds()) {
-		return fmt.Errorf("size %v, want %v", g.Bounds().Size(), w.Bounds().Size())
-	}
-	bw, iw := inkBox(w), inkBox(g)
-	if bw != iw {
-		return fmt.Errorf("ink covers %v, want %v", iw, bw)
-	}
-	bounds := w.Bounds()
-	total := bounds.Dx() * bounds.Dy()
-	wantInk, gotInk, differing := 0, 0, 0
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			wr, wg, wb, wa := w.At(x, y).RGBA()
-			gr, gg, gb, ga := g.At(x, y).RGBA()
-			if wa|wg|wb != 0 {
-				wantInk++
-			}
-			if ga|gg|gb != 0 {
-				gotInk++
-			}
-			delta := 0
-			for _, d := range []int{absDiff(wr, gr), absDiff(wg, gg), absDiff(wb, gb), absDiff(wa, ga)} {
-				if d > delta {
-					delta = d
-				}
-			}
-			if delta == 0 {
-				continue
-			}
-			// RGBA() is 16 bits per channel.
-			if delta > 32*257 {
-				return fmt.Errorf("pixel %d,%d differs by %d levels", x, y, delta/257)
-			}
-			differing++
-		}
-	}
-	if margin := max(wantInk/50, 40); gotInk < wantInk-margin || gotInk > wantInk+margin {
-		return fmt.Errorf("ink %d pixels, want %d", gotInk, wantInk)
-	}
-	if differing > max(total/20, 200) {
-		return fmt.Errorf("%d pixels differ, more than antialiasing explains", differing)
-	}
-	return nil
-}
-
-// inkBox is the bounding box of every non-transparent pixel, or the empty
-// rectangle for a blank image.
-func inkBox(img image.Image) image.Rectangle {
-	b := img.Bounds()
-	first := image.Point{X: -1, Y: -1}
-	last := image.Point{}
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			if _, _, _, a := img.At(x, y).RGBA(); a == 0 {
-				continue
-			}
-			if first.X < 0 {
-				first = image.Point{X: x, Y: y}
-			}
-			last = image.Point{X: x, Y: y}
-		}
-	}
-	if first.X < 0 {
-		return image.Rectangle{}
-	}
-	return image.Rect(first.X, first.Y, last.X+1, last.Y+1)
-}
-
-func absDiff(a, b uint32) int {
-	if a > b {
-		return int(a - b)
-	}
-	return int(b - a)
-}
+// goldenClose compares two formula PNGs with the shared tolerance: size, ink
+// and a per-pixel antialiasing step.
+func goldenClose(want, got []byte) error { return testgolden.Close(want, got) }
 
 // renderBox draws a box the way the page's raster does, so the golden covers
 // the same bytes the terminal receives.

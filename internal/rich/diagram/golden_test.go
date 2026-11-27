@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/rich"
+	"github.com/pwn27sbx/misoku/internal/rich/testgolden"
 )
 
 var updateGoldens = flag.Bool("update", false, "update diagram golden PNGs")
@@ -65,8 +66,8 @@ func assertGolden(t testing.TB, name string, img *image.RGBA) {
 	if err != nil {
 		t.Fatalf("read golden %s: %v (run with -update to create it)", path, err)
 	}
-	if !bytes.Equal(want, buf.Bytes()) {
-		t.Fatalf("golden %s changed; run go test ./internal/rich/diagram -update and inspect the diff", path)
+	if err := testgolden.Close(want, buf.Bytes()); err != nil {
+		t.Fatalf("golden %s changed (%v); run go test ./internal/rich/diagram -update and inspect the diff", path, err)
 	}
 }
 
