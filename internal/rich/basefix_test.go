@@ -121,3 +121,49 @@ func countInk(img *image.RGBA, bg color.RGBA) inkCount {
 	}
 	return inkCount{rows: len(rows), pixels: pixels}
 }
+
+// TestStyledRunsFitTheirCells is the RED test for glyphs dropped at a wrap:
+// a run placed at a pixel offset must still have room for its whole text in
+// the cells it claims.
+func TestStyledRunsFitTheirCells(t *testing.T) {
+	f := testFontsWithBold(t)
+	doc := Parse([]byte("Some **bold text** and a [[wiki link]] in a paragraph that wraps across the page width.\n"))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	for _, it := range p.Items {
+		if it.Kind != ItemText {
+			continue
+		}
+		start := it.X*f.CellW + it.XOffPx
+		end := start + int(f.Measure(it.Text, it.SizePx, it.Mono))/64
+		if limit := it.X*f.CellW + it.W*f.CellW; end > limit {
+			t.Fatalf("run %q ends at %d px, past its limit %d: its last glyph is dropped", it.Text, end, limit)
+		}
+	}
+}
+
+// TestStyledLineKeepsEverySpace is the RED test for words running together:
+// the runs of one line, in order, must spell the source line.
+func TestStyledLineKeepsEverySpace(t *testing.T) {
+	f := testFontsWithBold(t)
+	doc := Parse([]byte("Some **bold text** and a [[wiki link]] in a paragraph that wraps across the page width.\n"))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	rows := map[int]*strings.Builder{}
+	for _, it := range p.Items {
+		if it.Kind != ItemText || it.SizePx != f.BodyPx {
+			continue
+		}
+		if rows[it.Y] == nil {
+			rows[it.Y] = &strings.Builder{}
+		}
+		rows[it.Y].WriteString(it.Text)
+	}
+	var lines []string
+	for _, b := range rows {
+		lines = append(lines, b.String())
+	}
+	joined := strings.Join(lines, " ")
+	want := "Some bold text and a wiki link in a paragraph that wraps across the page width."
+	if joined != want {
+		t.Fatalf("page text = %q, want %q", joined, want)
+	}
+}
