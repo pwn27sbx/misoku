@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"image/png"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/pwn27sbx/misoku/internal/core"
+	"github.com/pwn27sbx/misoku/internal/rich"
+	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
 func TestHeadlessPrintsOnePayloadWithTiles(t *testing.T) {
@@ -50,6 +53,37 @@ func TestHeadlessPrintsOnePayloadWithTiles(t *testing.T) {
 		}
 		if tile.Width != p.WidthPx {
 			t.Fatalf("tile width %d, want %d", tile.Width, p.WidthPx)
+		}
+	}
+}
+
+// Headless mode lays the page out through the same constructor as the app, so
+// a note with maths reaches the tiles as drawn boxes, not as source text.
+func TestHeadlessDrawsMath(t *testing.T) {
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "# Maths\n\nInline $E=mc^2$ and a block:\n\n$$\n\\frac{a}{b}\n$$\n"
+	if _, err := store.SaveAs("", "Math", body); err != nil {
+		t.Fatal(err)
+	}
+	page, _, _, err := headlessPage(store, "Math.md", 60, theme.DefaultTheme())
+	if err != nil {
+		t.Fatal(err)
+	}
+	boxes := 0
+	for _, it := range page.Items {
+		if it.Kind == rich.ItemBox {
+			boxes++
+		}
+	}
+	if boxes != 2 {
+		t.Fatalf("maths boxes on the headless page = %d, want 2", boxes)
+	}
+	for _, it := range page.Items {
+		if it.Kind == rich.ItemText && strings.Contains(it.Text, "frac") {
+			t.Fatalf("the maths source was drawn as text: %q", it.Text)
 		}
 	}
 }

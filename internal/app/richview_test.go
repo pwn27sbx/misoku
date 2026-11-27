@@ -156,3 +156,37 @@ func TestRichHintsFollowLinks(t *testing.T) {
 		t.Fatalf("following the hint opened %q, want To.md", mm.active)
 	}
 }
+
+// The app lays the page out with the maths engine installed: a note with
+// inline and display maths arrives as drawn boxes, never as its source.
+func TestRichViewDrawsMath(t *testing.T) {
+	withImages(t)
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "Energy $E=mc^2$ is mass.\n\n$$\n\\frac{a}{b}\n$$\n"
+	if _, err := store.SaveAs("", "Math", body); err != nil {
+		t.Fatal(err)
+	}
+	m := New(store, WithImageSender(&richSender{}))
+	m.richFonts = testRichFonts(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm := next.(Model)
+	mm.openInCurrentBuffer("Math.md")
+	next, _ = mm.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm = next.(Model)
+	openRich(&mm)
+	if mm.noteView != viewRich || mm.rich == nil || mm.rich.Page == nil {
+		t.Fatalf("the rich view has no page (noteView %v, status %q)", mm.noteView, mm.status)
+	}
+	boxes := 0
+	for _, it := range mm.rich.Page.Items {
+		if it.Kind == rich.ItemBox {
+			boxes++
+		}
+	}
+	if boxes != 2 {
+		t.Fatalf("maths boxes on the app's page = %d, want 2 (inline + display)", boxes)
+	}
+}

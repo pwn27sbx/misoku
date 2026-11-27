@@ -10,6 +10,7 @@ import (
 
 	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/rich"
+	"github.com/pwn27sbx/misoku/internal/rich/engines"
 	"github.com/pwn27sbx/misoku/internal/theme"
 )
 
@@ -43,35 +44,41 @@ type headlessTile struct {
 	Path   string `json:"path"`
 }
 
-// runHeadless lays the note out at cols cells, writes one PNG per screenful
-// and prints the payload. It returns the process exit code.
-func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, version string, out io.Writer) int {
+// headlessPage lays a note out for headless mode. It goes through the same
+// page constructor as the app, so both draw the same fonts, palette and maths.
+func headlessPage(store *core.Store, noteID string, cols int, th theme.Theme) (*rich.Page, *rich.Fonts, rich.Palette, error) {
 	note, err := store.Get(noteID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "misoku --headless: %v\n", err)
-		return 1
-	}
-	th, ok := theme.Get(themeName)
-	if !ok {
-		th = theme.DefaultTheme()
+		return nil, nil, rich.Palette{}, err
 	}
 	fonts, err := rich.LoadFonts(rich.FontConfig{})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "misoku --headless: %v\n", err)
-		return 1
+		return nil, nil, rich.Palette{}, err
 	}
 	pal := rich.PaletteFromTheme(th)
 	doc := rich.Parse([]byte(note.Content))
 	dir := filepath.Join(store.Root(), filepath.FromSlash(pathDir(note.ID)))
-	page := rich.Layout(doc, rich.LayoutOptions{
-		Width: cols, Fonts: fonts, Palette: pal,
-		Images: rich.ImageOptions{BaseDir: dir, Root: store.Root()},
-	})
+	page := engines.Page(doc, cols, fonts, pal, rich.ImageOptions{BaseDir: dir, Root: store.Root()})
+	return page, fonts, pal, nil
+}
+
+// runHeadless lays the note out at cols cells, writes one PNG per screenful
+// and prints the payload. It returns the process exit code.
+func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, version string, out io.Writer) int {
+	th, ok := theme.Get(themeName)
+	if !ok {
+		th = theme.DefaultTheme()
+	}
 	if rows <= 0 {
 		rows = 40
 	}
 	if cols <= 0 {
 		cols = 100
+	}
+	page, fonts, pal, err := headlessPage(store, noteID, cols, th)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "misoku --headless: %v\n", err)
+		return 1
 	}
 	// One folder per run: two panes (or a re-render) never overwrite each
 	// other's tiles, and the payload names the folder it owns.
@@ -87,7 +94,7 @@ func runHeadless(store *core.Store, noteID string, cols, rows int, themeName, ve
 		return 1
 	}
 	payload := headlessPayload{
-		Protocol: headlessProtocol, Run: run, Version: version, Note: note.ID, Theme: th.Name,
+		Protocol: headlessProtocol, Run: run, Version: version, Note: noteID, Theme: th.Name,
 		Cols: cols, Rows: rows, PageRows: page.Height,
 		WidthPx: cols * fonts.CellW, Tiles: tiles,
 	}

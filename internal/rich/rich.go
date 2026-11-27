@@ -33,14 +33,18 @@ const (
 	KindDiagram    // a ```mermaid or ```flow block: a sized box, drawn by the diagram engine
 )
 
-// Span marks a stretch of a block's first line: bold from **…** or __…__, or
-// a link from [[…]] / [text](url). Offsets are in runes of Lines[0].
+// Span marks a stretch of a block's first line: bold from **…** or __…__, a
+// link from [[…]] / [text](url), or an inline formula from $…$. Offsets are in
+// runes of Lines[0].
 type Span struct {
 	Start, End int
 	Bold       bool
 	Italic     bool
 	Code       bool
 	Link       string
+	// Math is the formula's TeX source when the span was written as inline
+	// maths; the text it covers is the readable fallback.
+	Math string
 }
 
 // Block is one top-level part of a note, with the source lines it came from

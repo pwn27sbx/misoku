@@ -1,6 +1,8 @@
 package rich
 
 import (
+	"image/draw"
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -208,5 +210,56 @@ func TestHeadingsDrawAtTheirSize(t *testing.T) {
 	head := f.Face(f.BodyPx*2, false).Metrics()
 	if head.Height <= body.Height {
 		t.Fatalf("heading face %v is not bigger than body %v", head.Height, body.Height)
+	}
+}
+
+// Inline maths is a box inside the text line: same row as its words, placed at
+// its measured pixel offset, and its source is not drawn as text.
+func TestLayoutPlacesInlineMathInTheLine(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("Before $x^2$ after.\n"))
+	var called []string
+	p := Layout(doc, LayoutOptions{Width: 50, Fonts: f, Palette: testPalette(),
+		MathInline: func(src string, sizePx float64) *InlineBox {
+			called = append(called, src)
+			return &InlineBox{WidthPx: 30, AscentPx: 12, DepthPx: 4,
+				Draw: func(dst draw.Image, x, baselineY int) {}}
+		}})
+	if len(called) != 1 || called[0] != "x^2" {
+		t.Fatalf("inline hook calls = %q, want one x^2", called)
+	}
+	var box *Item
+	var text strings.Builder
+	wordRow := -1
+	for i := range p.Items {
+		it := &p.Items[i]
+		switch it.Kind {
+		case ItemBox:
+			box = it
+		case ItemText:
+			text.WriteString(it.Text)
+			if it.Text == "Before" {
+				wordRow = it.Y
+			}
+		}
+	}
+	if box == nil {
+		t.Fatalf("inline maths is not a box (items: %+v)", p.Items)
+	}
+	if wordRow < 0 {
+		t.Fatal("\"Before\" was not drawn")
+	}
+	if box.Y != wordRow {
+		t.Fatalf("box row = %d, want the line's row %d", box.Y, wordRow)
+	}
+	wantX := pageMargin + int(f.Measure("Before ", f.BodyPx, false)/64)/f.CellW
+	if box.X != wantX {
+		t.Fatalf("box column = %d, want %d (after \"Before \")", box.X, wantX)
+	}
+	if box.W < (30+f.CellW-1)/f.CellW {
+		t.Fatalf("box width = %d cells, want at least %d", box.W, (30+f.CellW-1)/f.CellW)
+	}
+	if strings.Contains(text.String(), "x^2") {
+		t.Fatalf("the maths source was drawn as text: %q", text.String())
 	}
 }

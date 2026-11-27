@@ -152,3 +152,55 @@ func TestParseLinkSpans(t *testing.T) {
 		t.Fatalf("md span = %q -> %q", got, links[1].Link)
 	}
 }
+
+// Inline maths is parsed into a marker span: the page lays the formula out
+// instead of drawing its source, while prices and code stay literal text.
+func TestParseMarksInlineMath(t *testing.T) {
+	src := "Energy $E=mc^2$ and \\(a+b\\) here; prices $5 and $6 stay; code `$x$` stays; a \\$9 bill; emphasis $a*b*c + x_1 + x_2$ kept.\n"
+	doc := Parse([]byte(src))
+	if len(doc.Blocks) == 0 {
+		t.Fatal("no blocks parsed")
+	}
+	b := doc.Blocks[0]
+	runes := []rune(b.Lines[0])
+	var got []string
+	for _, sp := range b.Spans {
+		if sp.Math == "" {
+			continue
+		}
+		got = append(got, sp.Math)
+		if sp.Start < 0 || sp.End > len(runes) || sp.Start >= sp.End {
+			t.Fatalf("maths span %d..%d outside the line", sp.Start, sp.End)
+		}
+		if literal := string(runes[sp.Start:sp.End]); !strings.Contains(literal, sp.Math) {
+			t.Fatalf("maths span %q does not cover its literal %q", sp.Math, literal)
+		}
+	}
+	want := []string{"E=mc^2", "a+b", "a*b*c + x_1 + x_2"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("maths spans = %q, want %q", got, want)
+	}
+	// The flattened text keeps a readable literal of every formula; the spans
+	// carry the source the engine draws instead.
+	text := b.Lines[0]
+	for _, keep := range []string{"$E=mc^2$", "$a+b$", "$5 and $6", "$x$", "$9"} {
+		if !strings.Contains(text, keep) {
+			t.Fatalf("text %q lost %q", text, keep)
+		}
+	}
+	if strings.Contains(text, `\(`) {
+		t.Fatalf("text %q still carries the \\( delimiter", text)
+	}
+}
+
+// A maths block written as a ```math fence is still a block, not an inline
+// run: the pre-pass leaves fenced content alone.
+func TestParseLeavesFencedMathAlone(t *testing.T) {
+	doc := Parse([]byte("```math\n\\frac{a}{b}\n```\n\n```go\nx := \"$y$\"\n```\n"))
+	if len(doc.Blocks) != 2 || doc.Blocks[0].Kind != KindMath || doc.Blocks[1].Kind != KindCode {
+		t.Fatalf("blocks = %+v", doc.Blocks)
+	}
+	if doc.Blocks[1].Code[0] != `x := "$y$"` {
+		t.Fatalf("code line = %q, want the dollar signs untouched", doc.Blocks[1].Code[0])
+	}
+}

@@ -95,6 +95,76 @@ func (i *Ink) Draw(dst draw.Image, x, baselineY int) {
 	draw.Draw(dst, r, i.img, i.img.Bounds().Min, draw.Over)
 }
 
+// Inline lays an inline formula out in text style and hands the page its ink:
+// the width in pixels and a draw function that puts its baseline where the
+// text line's baseline is. Nil means the page keeps the formula's source as
+// text, which is what a page without an engine draws.
+func Inline(src string, cfg Config) *rich.InlineBox {
+	src = strings.TrimSpace(src)
+	if src == "" {
+		return nil
+	}
+	cfg = cfg.withDefaults()
+	if b, ok := inlineCacheGet(src, cfg); ok {
+		return b
+	}
+	ink, err := LayoutInline(src, cfg)
+	if err != nil || ink == nil || ink.img == nil {
+		return nil
+	}
+	w := int(math.Ceil(ink.Width))
+	if w <= 0 {
+		return nil
+	}
+	b := &rich.InlineBox{
+		WidthPx:  w,
+		AscentPx: int(math.Ceil(ink.Ascent)),
+		DepthPx:  int(math.Ceil(ink.Depth)),
+		Draw:     ink.Draw,
+	}
+	inlineCachePut(src, cfg, b)
+	return b
+}
+
+// A page rebuild after a keystroke reuses every inline formula that did not
+// change; the key is everything that changes its pixels.
+type inlineKey struct {
+	src    string
+	size   float64
+	fg     color.RGBA
+	cw, ch int
+}
+
+const inlineCacheCap = 128
+
+var (
+	inlineMu   sync.Mutex
+	inlineMap  = map[inlineKey]*rich.InlineBox{}
+	inlineKeys []inlineKey
+)
+
+func inlineCacheGet(src string, cfg Config) (*rich.InlineBox, bool) {
+	inlineMu.Lock()
+	defer inlineMu.Unlock()
+	b, ok := inlineMap[inlineKey{src, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}]
+	return b, ok
+}
+
+func inlineCachePut(src string, cfg Config, b *rich.InlineBox) {
+	inlineMu.Lock()
+	defer inlineMu.Unlock()
+	k := inlineKey{src, cfg.SizePx, cfg.Fg, cfg.CellW, cfg.CellH}
+	if _, ok := inlineMap[k]; ok {
+		return
+	}
+	if len(inlineKeys) >= inlineCacheCap {
+		delete(inlineMap, inlineKeys[0])
+		inlineKeys = inlineKeys[1:]
+	}
+	inlineMap[k] = b
+	inlineKeys = append(inlineKeys, k)
+}
+
 // The cache key is the formula plus everything that changes its pixels. A
 // page rebuild after a keystroke reuses every formula that did not change.
 type cacheKey struct {

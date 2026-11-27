@@ -46,6 +46,16 @@ type Box struct {
 	Draw func(dst draw.Image, x, y int)
 }
 
+// InlineBox is an inline formula laid out for a text baseline: its width in
+// pixels, its ink above and below the baseline, and a draw function that puts
+// that ink's baseline at baselineY. The page places it inside a text line, so
+// a formula keeps its size and sits on the same baseline as the words.
+type InlineBox struct {
+	WidthPx           int
+	AscentPx, DepthPx int
+	Draw              func(dst draw.Image, x, baselineY int)
+}
+
 // Page is a note laid out in cells: the display list plus the mapping back to
 // the note's source lines, which keeps the reader's place and opens the
 // editable view at the same line.
@@ -120,6 +130,10 @@ type LayoutOptions struct {
 	// in a bordered box instead, which is what the text fallback shows.
 	Math    func(Block) *Box
 	Diagram func(Block) *Box
+	// MathInline turns an inline $…$ formula into ink for a text line. Nil
+	// draws the formula's source as text, so a page without an engine still
+	// shows something readable.
+	MathInline func(src string, sizePx float64) *InlineBox
 	// Images says what pictures the page may draw and from where. A source it
 	// refuses keeps the placeholder box.
 	Images ImageOptions
@@ -137,7 +151,8 @@ const (
 // the page can be scrolled, searched and edited in place later.
 func Layout(doc Document, opts LayoutOptions) *Page {
 	p := &Page{Width: max(opts.Width, 8)}
-	l := &layouter{page: p, f: opts.Fonts, pal: opts.Palette, math: opts.Math, diagram: opts.Diagram, images: opts.Images}
+	l := &layouter{page: p, f: opts.Fonts, pal: opts.Palette, math: opts.Math, diagram: opts.Diagram,
+		inline: opts.MathInline, images: opts.Images}
 	content := p.Width - 2*pageMargin
 	if content < 8 {
 		content = p.Width
@@ -155,6 +170,7 @@ type layouter struct {
 	page    *Page
 	math    func(Block) *Box
 	diagram func(Block) *Box
+	inline  func(string, float64) *InlineBox
 	f       *Fonts
 	pal     Palette
 	content int
@@ -277,35 +293,67 @@ func (l *layouter) linkBoxes(b Block, indent int, size float64) {
 }
 
 // styledText is one run of a line: a link draws in the link colour, bold in
-// the bold face, and the rest in the block's colour.
+// the bold face, inline maths as a box, and the rest in the block's colour.
 type styledText struct {
 	Text   string
 	Bold   bool
 	Italic bool
 	Code   bool
 	Link   bool
+	// Math is the formula's source when this run is inline maths; Box is the
+	// ink the engine laid out for it. A run with Math but no Box draws Text.
+	Math string
+	Box  *InlineBox
 }
 
-// runsOf splits a block's first line into styled runs from its spans.
+// sameStyle reports whether two runs draw the same way, so adjacent segments
+// can be merged back into one.
+func (s styledText) sameStyle(o styledText) bool {
+	return s.Bold == o.Bold && s.Italic == o.Italic && s.Code == o.Code &&
+		s.Link == o.Link && s.Math == o.Math
+}
+
+// runsOf splits a block's first line into styled runs from its spans. The cuts
+// are every span boundary, so an emphasis wrapped around a maths span keeps
+// both: the inner run carries the formula, the outer its style.
 func runsOf(b Block) []styledText {
 	if len(b.Lines) == 0 {
 		return nil
 	}
 	runes := []rune(b.Lines[0])
-	var out []styledText
-	pos := 0
+	cuts := []int{0, len(runes)}
 	for _, sp := range b.Spans {
 		start, end := clampSpan(sp.Start, sp.End, len(runes))
-		if start > pos {
-			out = append(out, styledText{Text: string(runes[pos:start])})
-		}
 		if end > start {
-			out = append(out, styledText{Text: string(runes[start:end]), Bold: sp.Bold, Italic: sp.Italic, Code: sp.Code, Link: sp.Link != ""})
+			cuts = append(cuts, start, end)
 		}
-		pos = max(pos, end)
 	}
-	if pos < len(runes) {
-		out = append(out, styledText{Text: string(runes[pos:])})
+	sort.Ints(cuts)
+	var out []styledText
+	for i := 0; i+1 < len(cuts); i++ {
+		start, end := cuts[i], cuts[i+1]
+		if end <= start {
+			continue
+		}
+		r := styledText{Text: string(runes[start:end])}
+		for _, sp := range b.Spans {
+			s, e := clampSpan(sp.Start, sp.End, len(runes))
+			if s > start || end > e {
+				continue
+			}
+			r.Bold = r.Bold || sp.Bold
+			r.Italic = r.Italic || sp.Italic
+			r.Code = r.Code || sp.Code
+			r.Link = r.Link || sp.Link != ""
+			if sp.Math != "" {
+				r.Math = sp.Math
+			}
+		}
+		if n := len(out); n > 0 && out[n-1].sameStyle(r) {
+			out[n-1].Text += r.Text
+			continue
+		}
+		out = append(out, r)
 	}
 	return out
 }
@@ -317,10 +365,27 @@ func clampSpan(start, end, n int) (int, int) {
 }
 
 // styledLines lays a block out run by run: every line is a sequence of runs so
-// bold and links keep their style while wrapping.
+// bold, links and inline maths keep their style while wrapping.
 func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA) {
 	maxPx := (l.content - indent) * l.f.CellW
-	lines := l.wrapRuns(runsOf(b), maxPx, size)
+	runs := runsOf(b)
+	for i := range runs {
+		if runs[i].Math == "" {
+			continue
+		}
+		// The engine lays the formula out once per run; without one (or when
+		// it cannot parse it) the source stays as text.
+		if l.inline == nil {
+			runs[i].Math = ""
+			continue
+		}
+		if box := l.inline(runs[i].Math, size); box != nil && box.Draw != nil && box.WidthPx > 0 {
+			runs[i].Box = box
+		} else {
+			runs[i].Math = ""
+		}
+	}
+	lines := l.wrapRuns(runs, maxPx, size)
 	lineCells := max(int(math.Ceil(l.f.LineHeightPx(size, false)/float64(l.f.CellH))), 1)
 	base := l.baseline(size)
 	for _, line := range lines {
@@ -334,12 +399,22 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 			if run.Code {
 				runSize = size * 0.85
 			}
-			px := int(l.f.Measure(run.Text, runSize, run.Code)) / 64
+			px := 0
+			if run.Box != nil {
+				px = run.Box.WidthPx
+			} else {
+				px = int(l.f.Measure(run.Text, runSize, run.Code)) / 64
+			}
 			xCells := l.x0 + indent + prefixPx/l.f.CellW
 			xOff := prefixPx % l.f.CellW
 			// The cells claimed must hold the offset inside the first cell
 			// too: otherwise the raster's clip drops the run's last glyph.
 			w := max((px+xOff+l.f.CellW-1)/l.f.CellW, 1)
+			if run.Box != nil {
+				l.emit(l.inlineItem(run, xCells, xOff, w, lineCells, base))
+				prefixPx += px
+				continue
+			}
 			if run.Code {
 				// The background starts at the run's exact pixel: a rect at
 				// the cell's left edge would paint over the word before it.
@@ -354,18 +429,45 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 	}
 }
 
+// inlineItem turns an inline formula into a page item: a box on the text
+// line, drawn with its baseline at the line's baseline and its exact pixel
+// offset inside the cells it claims.
+func (l *layouter) inlineItem(run styledText, xCells, xOff, w, lineCells, base int) Item {
+	box := run.Box
+	h := lineCells
+	// A fraction in text style can be taller than one line; the item claims
+	// the rows its ink needs so a tile boundary never cuts it.
+	if need := (base + box.DepthPx + l.f.CellH - 1) / l.f.CellH; need > h {
+		h = need
+	}
+	return Item{Kind: ItemBox, X: xCells, Y: l.y, W: w, H: h, XOffPx: xOff,
+		Box: &Box{W: w, H: h, Draw: func(dst draw.Image, x, y int) {
+			box.Draw(dst, x+xOff, y+base)
+		}}}
+}
+
 // wrapRuns wraps styled runs to maxPx, word by word, keeping each word's
-// style and splitting a word that cannot fit on a line of its own.
+// style and splitting a word that cannot fit on a line of its own. An inline
+// maths run is one unbreakable word measured by its ink, whatever spaces its
+// source has.
 func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styledText {
 	type word struct {
 		text               string
 		bold, italic, code bool
 		link               bool
+		math               string
+		box                *InlineBox
 		space              bool // the note has a space before this word
 	}
 	var words []word
 	prevEndedSpace := true // the first word has no space before it
 	for _, r := range runs {
+		if r.Box != nil {
+			words = append(words, word{text: r.Text, math: r.Math, box: r.Box,
+				space: len(words) > 0 && prevEndedSpace})
+			prevEndedSpace = strings.HasSuffix(r.Text, " ")
+			continue
+		}
 		leading := strings.HasPrefix(r.Text, " ")
 		for i, f := range strings.Fields(r.Text) {
 			// A space is a space only where the note has one: "`code`." must
@@ -377,33 +479,33 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 		}
 		prevEndedSpace = strings.HasSuffix(r.Text, " ") || strings.HasSuffix(r.Text, "\n")
 	}
+	spacePx := func() int { return int(l.f.Measure(" ", size, false)) / 64 }
+	widthOf := func(w word) int {
+		if w.box != nil {
+			return w.box.WidthPx
+		}
+		return int(l.f.Measure(w.text, size, false)) / 64
+	}
 	var lines [][]styledText
 	var line []styledText
 	linePx := 0
-	appendWord := func(w word, leadSpace bool) {
+	for _, w := range words {
 		space := 0
-		if leadSpace {
-			space = int(l.f.Measure(" ", size, false)) / 64
+		if w.space && len(line) > 0 {
+			space = spacePx()
 		}
-		px := int(l.f.Measure(w.text, size, false))/64 + space
-		if leadSpace {
+		width := widthOf(w)
+		if len(line) > 0 && linePx+space+width > maxPx {
+			lines = append(lines, line)
+			line, linePx, space = nil, 0, 0
+		}
+		if space > 0 {
 			line = append(line, styledText{Text: " "})
 			linePx += space
 		}
-		line = append(line, styledText{Text: w.text, Bold: w.bold, Italic: w.italic, Code: w.code, Link: w.link})
-		linePx += px - space
-	}
-	for _, w := range words {
-		space := int(l.f.Measure(" ", size, false)) / 64
-		if !w.space {
-			space = 0
-		}
-		width := int(l.f.Measure(w.text, size, false)) / 64
-		if len(line) > 0 && linePx+space+width > maxPx {
-			lines = append(lines, line)
-			line, linePx = nil, 0
-		}
-		appendWord(w, len(line) > 0 && w.space)
+		line = append(line, styledText{Text: w.text, Bold: w.bold, Italic: w.italic, Code: w.code,
+			Link: w.link, Math: w.math, Box: w.box})
+		linePx += width
 	}
 	if len(line) > 0 {
 		lines = append(lines, line)

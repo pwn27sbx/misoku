@@ -12,6 +12,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/rich"
+	"github.com/pwn27sbx/misoku/internal/rich/engines"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -92,7 +93,7 @@ func (m *Model) refreshRich() {
 		Root:    m.store.Root(),
 		Remote:  os.Getenv("MISOKU_RICH_REMOTE_IMAGES") == "1",
 	}
-	page := rich.Layout(doc, rich.LayoutOptions{Width: l.EditorW, Fonts: m.richFonts, Palette: pal, Images: images})
+	page := engines.Page(doc, l.EditorW, m.richFonts, pal, images)
 	if m.rich == nil {
 		m.rich = rich.NewView(l.EditorW, l.BodyH, m.richFonts, pal, m.richSender)
 	}

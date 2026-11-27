@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
@@ -22,6 +23,7 @@ func Parse(src []byte) Document {
 	body, props, consumed := splitFrontMatter(src)
 	body, lineMap := fenceMathBlocks(body, consumed)
 	body = expandWikiLinks(body)
+	body = markInlineMath(body)
 
 	var doc Document
 	if len(props) > 0 {
@@ -79,7 +81,7 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 		if img, ok := onlyImage(t); ok {
 			b.Kind = KindImage
 			b.Src = string(img.Destination)
-			b.Lines = []string{string(img.Text(src))}
+			b.Lines = []string{mathLiteral(string(img.Text(src)))}
 			return b, true
 		}
 		b.Kind = KindParagraph
@@ -224,7 +226,10 @@ func inlineTextSpans(n ast.Node, src []byte) (string, []Span) {
 	}
 	walk(n)
 	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
-	return strings.TrimRight(b.String(), " "), spans
+	text, mathSpans := resolveMathMarkers(strings.TrimRight(b.String(), " "))
+	spans = append(spans, mathSpans...)
+	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
+	return text, spans
 }
 
 // writeWikiAware appends text, replacing wiki markers with their alias and
@@ -534,6 +539,213 @@ func fenceMathBlocks(src []byte, baseLine int) ([]byte, []int) {
 	return []byte(strings.Join(out, "\n")), mapOut
 }
 
+// Inline maths is wrapped in two private-use markers before Markdown runs:
+// $…$ and \(…\) would otherwise be eaten by emphasis (*, _ inside a formula)
+// or by backslash escaping. The markers keep the source exact until the
+// block's text is flattened, where resolveMathMarkers turns each pair into a
+// readable literal plus one maths span.
+const (
+	mathMarkOpen  = '\uE004'
+	mathMarkClose = '\uE005'
+)
+
+// markInlineMath marks inline formulas on every line outside a code fence.
+// Inline code spans keep their dollars: a documented `$x$` is a literal.
+func markInlineMath(src []byte) []byte {
+	lines := strings.Split(string(src), "\n")
+	inFence := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		lines[i] = markMathInLine(line)
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+// markMathInLine replaces every inline formula of one line with its markers.
+// Backtick code spans are copied untouched, so a documented `$x$` stays
+// literal and can never close a formula that opened before it.
+func markMathInLine(line string) string {
+	runes := []rune(line)
+	var b strings.Builder
+	b.Grow(len(line))
+	start := 0
+	for i := 0; i < len(runes); {
+		if runes[i] != '`' {
+			i++
+			continue
+		}
+		n := 0
+		for i+n < len(runes) && runes[i+n] == '`' {
+			n++
+		}
+		closeAt := backtickRun(runes, i+n, n)
+		if closeAt < 0 {
+			i += n
+			continue
+		}
+		b.WriteString(markMathSegment(string(runes[start:i])))
+		b.WriteString(string(runes[i : closeAt+n]))
+		i = closeAt + n
+		start = i
+	}
+	b.WriteString(markMathSegment(string(runes[start:])))
+	return b.String()
+}
+
+// backtickRun is the index of the next run of exactly n backticks at or after
+// from, or -1.
+func backtickRun(runes []rune, from, n int) int {
+	for i := from; i < len(runes); i++ {
+		if runes[i] != '`' {
+			continue
+		}
+		j := i
+		for j < len(runes) && runes[j] == '`' {
+			j++
+		}
+		if j-i == n {
+			return i
+		}
+		i = j - 1
+	}
+	return -1
+}
+
+// markMathSegment marks the formulas of a stretch of line that holds no code.
+func markMathSegment(text string) string {
+	runes := []rune(text)
+	var b strings.Builder
+	b.Grow(len(text))
+	for i := 0; i < len(runes); {
+		r := runes[i]
+		switch {
+		case r == '\\' && i+1 < len(runes) && runes[i+1] == '(':
+			if end := parenMathEnd(runes, i+2); end > i+2 {
+				writeMathMark(&b, string(runes[i+2:end]))
+				i = end + 2 // past the closing "\)"
+			} else {
+				b.WriteRune(r)
+				i++
+			}
+		case r == '\\':
+			// Keep escapes whole for Markdown: "\$" is a literal dollar.
+			b.WriteRune(r)
+			if i+1 < len(runes) {
+				b.WriteRune(runes[i+1])
+				i += 2
+			} else {
+				i++
+			}
+		case r == '$':
+			if end, ok := dollarMathEnd(runes, i); ok {
+				writeMathMark(&b, string(runes[i+1:end]))
+				i = end + 1
+				continue
+			}
+			b.WriteRune(r)
+			i++
+		default:
+			b.WriteRune(r)
+			i++
+		}
+	}
+	return b.String()
+}
+
+func writeMathMark(b *strings.Builder, src string) {
+	b.WriteRune(mathMarkOpen)
+	b.WriteString(strings.TrimSpace(src))
+	b.WriteRune(mathMarkClose)
+}
+
+// parenMathEnd finds the \) that closes a \(…\) formula, or -1.
+func parenMathEnd(runes []rune, from int) int {
+	for i := from; i+1 < len(runes); i++ {
+		if runes[i] == '\\' {
+			if runes[i+1] == ')' {
+				return i
+			}
+			i++ // an escape inside the formula consumes the next rune
+		}
+	}
+	return -1
+}
+
+// dollarMathEnd finds the '$' that closes an inline formula. The content
+// cannot start or end with a space, and the closer cannot be followed by a
+// digit or another dollar, so "$5 and $6" stays text.
+func dollarMathEnd(runes []rune, open int) (int, bool) {
+	if open+1 >= len(runes) || unicode.IsSpace(runes[open+1]) || runes[open+1] == '$' {
+		return 0, false
+	}
+	for i := open + 1; i < len(runes); i++ {
+		switch runes[i] {
+		case '\\':
+			i++ // an escape's next rune is content, never the closer
+		case '$':
+			if unicode.IsSpace(runes[i-1]) {
+				continue
+			}
+			if i+1 < len(runes) && (unicode.IsDigit(runes[i+1]) || runes[i+1] == '$') {
+				continue
+			}
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// resolveMathMarkers replaces each marked formula with its readable literal
+// and reports the span the layout turns into a box. The literal is as long in
+// runes as the marked source, so spans collected before keep their offsets.
+func resolveMathMarkers(text string) (string, []Span) {
+	if !strings.ContainsRune(text, mathMarkOpen) {
+		return text, nil
+	}
+	runes := []rune(text)
+	var b strings.Builder
+	var spans []Span
+	for i := 0; i < len(runes); {
+		if runes[i] == mathMarkOpen {
+			if j := indexRune(runes, mathMarkClose, i+1); j > i {
+				src := string(runes[i+1 : j])
+				literal := "$" + src + "$"
+				spans = append(spans, Span{Start: i, End: i + len([]rune(literal)), Math: src})
+				b.WriteString(literal)
+				i = j + 1
+				continue
+			}
+		}
+		b.WriteRune(runes[i])
+		i++
+	}
+	return b.String(), spans
+}
+
+// indexRune is the rune index of r at or after from, or -1.
+func indexRune(runes []rune, r rune, from int) int {
+	for i := from; i < len(runes); i++ {
+		if runes[i] == r {
+			return i
+		}
+	}
+	return -1
+}
+
+// mathLiteral is text with every formula marker replaced by its literal, for
+// the places that draw a block's text without going through the span walk.
+func mathLiteral(text string) string {
+	out, _ := resolveMathMarkers(text)
+	return out
+}
+
 // footnoteRows turns the footnote list into a two-column table: the label and
 // its text, so the page draws them under a rule like a published note.
 func footnoteRows(list *extast.FootnoteList, src []byte) [][]string {
@@ -568,8 +780,8 @@ func detailsText(text string) (summary, body string, ok bool) {
 	if start < 0 || end < 0 || end < start {
 		return "", "", false
 	}
-	summary = strings.TrimSpace(text[start+len("<summary>") : end])
-	body = strings.TrimSpace(text[end+len("</summary>"):])
+	summary = mathLiteral(strings.TrimSpace(text[start+len("<summary>") : end]))
+	body = mathLiteral(strings.TrimSpace(text[end+len("</summary>"):]))
 	body = strings.ReplaceAll(body, "</details>", "")
 	return summary, strings.TrimSpace(body), true
 }
