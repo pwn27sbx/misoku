@@ -65,14 +65,19 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 	if it.Color.A == 0 {
 		return
 	}
-	face := r.Fonts.bodyDr
-	if it.Mono {
-		face = r.Fonts.monoDr
+	face := r.Fonts.Face(it.SizePx, it.Mono)
+	syntheticBold := false
+	if it.Bold {
+		if bold, ok := r.Fonts.BoldFace(it.SizePx); ok {
+			face = bold
+		} else {
+			syntheticBold = true
+		}
 	}
 	d := &font.Drawer{Dst: img, Src: image.NewUniform(it.Color), Face: face}
 	baseline := (it.Y-first)*r.Fonts.CellH + it.BaselinePx
-	pen := it.X * r.Fonts.CellW
-	limit := pen + it.W*r.Fonts.CellW
+	pen := it.X*r.Fonts.CellW + it.XOffPx
+	limit := it.X*r.Fonts.CellW + it.W*r.Fonts.CellW
 	for _, g := range r.Fonts.Shape(it.Text, it.SizePx, it.Mono) {
 		step := g.Advance.Round()
 		if pen+g.X.Round() >= limit && step > 0 {
@@ -80,6 +85,13 @@ func (r *Raster) text(img *image.RGBA, it Item, first int) {
 		}
 		d.Dot = fixed.P(pen+g.X.Round(), baseline)
 		d.DrawString(string(g.R))
+		if syntheticBold {
+			// Without a bold face, a second strike one pixel over reads as
+			// bold and keeps the advances.
+			d.Dot = fixed.P(pen+g.X.Round()+1, baseline)
+			d.DrawString(string(g.R))
+			d.Dot = fixed.P(pen+g.X.Round(), baseline)
+		}
 		pen += step
 	}
 }

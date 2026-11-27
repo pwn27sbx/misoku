@@ -33,6 +33,14 @@ const (
 	KindDiagram    // a ```mermaid or ```flow block: a sized box, drawn by the diagram engine
 )
 
+// Span marks a stretch of a block's first line: bold from **…** or __…__, or
+// a link from [[…]] / [text](url). Offsets are in runes of Lines[0].
+type Span struct {
+	Start, End int
+	Bold       bool
+	Link       string
+}
+
 // Block is one top-level part of a note, with the source lines it came from
 // (0-based, End exclusive) so the view can keep the reader's place and the
 // editable reading view can be opened at the same line.
@@ -44,6 +52,7 @@ type Block struct {
 	Lang   string   // fence language
 	Rows   [][]string
 	Src    string // image source
+	Spans  []Span
 	Line   int
 	End    int
 	Blocks []Block // list items and quote contents

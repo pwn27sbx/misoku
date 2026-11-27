@@ -29,7 +29,12 @@ type Item struct {
 	Thin       bool // a rect drawn as a 2 px line: rules, borders, separators
 	Color      color.RGBA
 	BaselinePx int
-	Box        *Box
+	// XOffPx is the pixel offset inside X's cell: styled runs are placed at
+	// their measured position, not rounded to a cell, so bold and links keep
+	// the page's spacing.
+	XOffPx int
+	Bold   bool
+	Box    *Box
 }
 
 // Box is what a maths or diagram engine hands the page: its size in cells and
@@ -143,6 +148,9 @@ func (l *layouter) block(b Block, indent int) {
 		l.gapIfNeeded(0)
 		if len(b.Blocks) > 0 {
 			l.list(b, indent)
+		} else if len(b.Spans) > 0 {
+			l.styledLines(b, indent, l.f.BodyPx, l.pal.Fg)
+			l.y += blockGap
 		} else {
 			l.paragraph(b.Lines, indent, l.f.BodyPx, l.pal.Fg)
 			l.y += blockGap
@@ -196,9 +204,128 @@ func (l *layouter) heading(b Block, indent int) {
 	if col.A == 0 {
 		col = l.pal.Fg
 	}
+	if len(b.Spans) > 0 {
+		l.styledLines(b, indent, size, col)
+		l.y++
+		return
+	}
 	lines := l.f.Wrap(firstLine(b.Lines), (l.content-indent)*l.f.CellW, size, false)
 	l.textLines(lines, indent, size, col, false)
 	l.y++
+}
+
+// styledText is one run of a line: a link draws in the link colour, bold in
+// the bold face, and the rest in the block's colour.
+type styledText struct {
+	Text string
+	Bold bool
+	Link bool
+}
+
+// runsOf splits a block's first line into styled runs from its spans.
+func runsOf(b Block) []styledText {
+	if len(b.Lines) == 0 {
+		return nil
+	}
+	runes := []rune(b.Lines[0])
+	var out []styledText
+	pos := 0
+	for _, sp := range b.Spans {
+		start, end := clampSpan(sp.Start, sp.End, len(runes))
+		if start > pos {
+			out = append(out, styledText{Text: string(runes[pos:start])})
+		}
+		if end > start {
+			out = append(out, styledText{Text: string(runes[start:end]), Bold: sp.Bold, Link: sp.Link != ""})
+		}
+		pos = max(pos, end)
+	}
+	if pos < len(runes) {
+		out = append(out, styledText{Text: string(runes[pos:])})
+	}
+	return out
+}
+
+func clampSpan(start, end, n int) (int, int) {
+	start = min(max(start, 0), n)
+	end = min(max(end, start), n)
+	return start, end
+}
+
+// styledLines lays a block out run by run: every line is a sequence of runs so
+// bold and links keep their style while wrapping.
+func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA) {
+	maxPx := (l.content - indent) * l.f.CellW
+	lines := l.wrapRuns(runsOf(b), maxPx, size)
+	lineCells := max(int(math.Ceil(l.f.LineHeightPx(size, false)/float64(l.f.CellH))), 1)
+	base := l.baseline(size)
+	for _, line := range lines {
+		prefixPx := 0
+		for _, run := range line {
+			runCol := col
+			if run.Link {
+				runCol = l.pal.Link
+			}
+			px := int(l.f.Measure(run.Text, size, false)) / 64
+			xCells := l.x0 + indent + prefixPx/l.f.CellW
+			xOff := prefixPx % l.f.CellW
+			w := max((px+l.f.CellW-1)/l.f.CellW, 1)
+			l.emit(Item{Kind: ItemText, X: xCells, Y: l.y, W: w, H: lineCells, Text: run.Text,
+				SizePx: size, Bold: run.Bold, Color: runCol, BaselinePx: base, XOffPx: xOff})
+			prefixPx += px
+		}
+		l.y += lineCells
+	}
+}
+
+// wrapRuns wraps styled runs to maxPx, word by word, keeping each word's
+// style and splitting a word that cannot fit on a line of its own.
+func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styledText {
+	type word struct {
+		text       string
+		bold, link bool
+	}
+	var words []word
+	for _, r := range runs {
+		fields := strings.Fields(r.Text)
+		for i, f := range fields {
+			if i > 0 {
+				// The space between words belongs to the previous word's run:
+				// it is written when the line is measured.
+			}
+			words = append(words, word{text: f, bold: r.Bold, link: r.Link})
+		}
+	}
+	var lines [][]styledText
+	var line []styledText
+	linePx := 0
+	appendWord := func(w word, leadSpace bool) {
+		space := 0
+		if leadSpace {
+			space = int(l.f.Measure(" ", size, false)) / 64
+		}
+		px := int(l.f.Measure(w.text, size, false))/64 + space
+		if leadSpace {
+			line = append(line, styledText{Text: " "})
+			linePx += space
+		}
+		line = append(line, styledText{Text: w.text, Bold: w.bold, Link: w.link})
+		linePx += px - space
+	}
+	for _, w := range words {
+		space := int(l.f.Measure(" ", size, false)) / 64
+		width := int(l.f.Measure(w.text, size, false)) / 64
+		if len(line) > 0 && linePx+space+width > maxPx {
+			lines = append(lines, line)
+			line, linePx = nil, 0
+		}
+		appendWord(w, len(line) > 0)
+		_ = space
+	}
+	if len(line) > 0 {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func (l *layouter) paragraph(lines []string, indent int, size float64, col color.RGBA) {
