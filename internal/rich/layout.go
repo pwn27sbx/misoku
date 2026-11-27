@@ -508,7 +508,13 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 		if w.box != nil {
 			return w.box.WidthPx
 		}
-		return l.f.MeasureStyled(w.text, size, w.code, w.bold, w.italic)
+		// Inline code draws at 0.85 of the body size in the mono face, so the
+		// wrap must claim that width, not the body face's.
+		wsize := size
+		if w.code {
+			wsize = size * 0.85
+		}
+		return l.f.MeasureStyled(w.text, wsize, w.code, w.bold, w.italic)
 	}
 	var lines [][]styledText
 	var line []styledText

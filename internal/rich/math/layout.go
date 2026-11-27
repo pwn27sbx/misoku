@@ -330,7 +330,8 @@ func (l *layouter) sqrt(s *Sqrt, size float64, st style, sup Font) box {
 	// The index sits in script style at the top left of the radical.
 	var idx box
 	if len(s.Index) > 0 {
-		// TeX sets a root's index in scriptscript style.
+		// TeX sets a root's index in scriptscript style: the smallest of the
+		// four, smaller than the scripts around it.
 		idx = l.list(s.Index, styleScriptScript.size(l.base), styleScriptScript, sup)
 	}
 	// The font ships real radical sizes; use the smallest one that covers the

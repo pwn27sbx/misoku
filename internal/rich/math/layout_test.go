@@ -135,21 +135,60 @@ func TestMathEnvironmentsLayout(t *testing.T) {
 // script, so exactly one glyph of \theta_{t+1} sits at body size.
 func TestDisplayScriptsAreSetInScriptStyle(t *testing.T) {
 	b := layoutSource(t, `\theta_{t+1}`)
-	body, script := 0, 0
+	// The base is the largest glyph; the whole {t+1} group must sit below it.
+	var body float64
+	for _, it := range b.items {
+		if it.kind == itGlyph && it.size > body {
+			body = it.size
+		}
+	}
+	if body == 0 {
+		t.Fatal("no glyphs on the page")
+	}
+	atBody, scripts := 0, 0
 	for _, it := range b.items {
 		if it.kind != itGlyph {
 			continue
 		}
-		switch {
-		case it.size >= 16:
-			body++
-		case it.size <= 12:
-			script++
-		default:
-			t.Fatalf("glyph %q drawn at unexpected size %v", it.r, it.size)
+		if it.size >= body*0.85 {
+			atBody++
+			continue
+		}
+		scripts++
+	}
+	if atBody != 1 || scripts != 3 {
+		t.Fatalf("glyph sizes: %d at body, %d smaller; want 1 and 3 for theta_{t+1}", atBody, scripts)
+	}
+	// The same rule reaches over/under stacks and arrow labels.
+	for _, src := range []string{`\overbrace{a+b}^{n}`, `\xrightarrow[below]{above}`} {
+		b := layoutSource(t, src)
+		small := 0
+		for _, it := range b.items {
+			if it.kind == itGlyph && it.size > 0 && it.size < 16*0.85 {
+				small++
+			}
+		}
+		if small == 0 {
+			t.Fatalf("%s draws its label at body size", src)
 		}
 	}
-	if body != 1 || script != 3 {
-		t.Fatalf("glyph sizes: %d at body, %d at script size; want 1 and 3 for theta_{t+1}", body, script)
+}
+
+// TeX sets a root's index in scriptscript style, smaller than the scripts
+// around it. \sqrt[3]{x} must draw the 3 at half the base size.
+func TestRootIndexIsScriptScript(t *testing.T) {
+	b := layoutSource(t, `\sqrt[3]{x}`)
+	var index int
+	for _, it := range b.items {
+		if it.kind != itGlyph || it.r != '3' {
+			continue
+		}
+		index++
+		if it.size != styleScriptScript.size(16) {
+			t.Fatalf("index size = %v, want %v (scriptscript)", it.size, styleScriptScript.size(16))
+		}
+	}
+	if index != 1 {
+		t.Fatalf("index glyphs = %d, want 1", index)
 	}
 }

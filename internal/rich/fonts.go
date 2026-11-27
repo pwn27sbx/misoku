@@ -350,15 +350,23 @@ func (f *Fonts) Measure(s string, sizePx float64, mono bool) fixed.Int26_6 {
 func (f *Fonts) MeasureStyled(s string, sizePx float64, mono, bold, italic bool) int {
 	face, styled := f.styledFace(sizePx, bold, italic)
 	if !styled {
-		return int(f.Measure(s, sizePx, mono)) / 64
+		w := int(f.Measure(s, sizePx, mono)) / 64
+		if bold && !mono && w > 0 {
+			// Synthetic bold strikes every glyph one pixel over: claim that
+			// pixel so the next run never starts inside the ink.
+			w++
+		}
+		return w
 	}
 	w := 0
-	for _, r := range s {
-		adv, ok := face.GlyphAdvance(r)
-		if !ok {
-			continue
+	for _, g := range f.Shape(s, sizePx, mono) {
+		step := g.Advance.Round()
+		// A styled face without the glyph draws nothing useful and the
+		// raster keeps the shaped advance, so the claim must keep it too.
+		if adv, ok := face.GlyphAdvance(g.R); ok {
+			step = adv.Round()
 		}
-		w += adv.Round()
+		w += step
 	}
 	return w
 }

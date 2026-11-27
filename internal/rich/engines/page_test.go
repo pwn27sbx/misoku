@@ -171,7 +171,7 @@ func TestPageWithoutAnEngineDrawsTheSource(t *testing.T) {
 func TestPageHandsTheEngineTheExactFormula(t *testing.T) {
 	f := testFonts(t)
 	pal := rich.PaletteFromTheme(theme.DefaultTheme())
-	doc := rich.Parse([]byte("Intro text.\n\n$$\n\\theta_{t+1} = \\theta_t - \\eta \\frac{\\partial L}{\\partial \\theta}\n$$\n"))
+	doc := rich.Parse([]byte("Intro with $\\eta$ inline.\n\n$$\n\\theta_{t+1} = \\theta_t - \\eta \\frac{\\partial L}{\\partial \\theta}\n$$\n"))
 	var blockSrc, inlineSrc []string
 	page := rich.Layout(doc, rich.LayoutOptions{
 		Width: 70, Fonts: f, Palette: pal,
@@ -186,6 +186,9 @@ func TestPageHandsTheEngineTheExactFormula(t *testing.T) {
 	})
 	if len(blockSrc) != 1 {
 		t.Fatalf("engine received %d display formulas, want 1", len(blockSrc))
+	}
+	if len(inlineSrc) != 1 || inlineSrc[0] != `\eta` {
+		t.Fatalf("engine received inline formulas %q, want one \\eta (the note has $\\eta$)", inlineSrc)
 	}
 	want := `\theta_{t+1} = \theta_t - \eta \frac{\partial L}{\partial \theta}`
 	if blockSrc[0] != want {
@@ -205,7 +208,7 @@ func TestPageKeepsTheSpaceAfterABoldRun(t *testing.T) {
 	p := Page(doc, 70, f, pal, rich.ImageOptions{})
 	bold, ok := f.BoldFace(f.BodyPx)
 	if !ok {
-		t.Skip("no bold face in the test stack")
+		t.Fatal("the test stack has no bold face")
 	}
 	boldW := 0
 	for _, r := range "learning" {
@@ -236,7 +239,38 @@ func TestPageKeepsTheSpaceAfterABoldRun(t *testing.T) {
 	if spaceStart < inkEnd {
 		t.Fatalf("space starts at %d px, inside the bold ink ending at %d", spaceStart, inkEnd)
 	}
-	if gap := rate.X*f.CellW + rate.XOffPx - spaceStart; gap <= 0 {
+	rateStart := rate.X*f.CellW + rate.XOffPx
+	if gap := rateStart - spaceStart; gap <= 0 {
 		t.Fatalf("\"rate\" starts at the space's own pixel (gap %d)", gap)
+	}
+	// The rendered gap is clean: no ink of the bold word reaches into it.
+	img := (&rich.Raster{Page: p, Fonts: f, Palette: pal}).Tile(learning.Y, 1)
+	for x := spaceStart; x < rateStart; x++ {
+		for y := 0; y < f.CellH; y++ {
+			if img.RGBAAt(x, y) != pal.Bg {
+				t.Fatalf("ink at x=%d in the gap %d..%d", x, spaceStart, rateStart)
+			}
+		}
+	}
+}
+
+// Every text run claims the cells it draws at: inline code at 0.85 in the mono
+// face, bold in the bold face, italic in its own. A width sweep over a note
+// that mixes all of them must never leave a run wider than its cells.
+func TestPageRunsFitTheirCellsAcrossWidths(t *testing.T) {
+	f := testFonts(t)
+	pal := rich.PaletteFromTheme(theme.DefaultTheme())
+	src := "Words with `inline code that is fairly long` and **bold words here** and *italic text* too, plus some plain words.\n"
+	for width := 20; width <= 80; width++ {
+		p := Page(rich.Parse([]byte(src)), width, f, pal, rich.ImageOptions{})
+		for _, it := range p.Items {
+			if it.Kind != rich.ItemText {
+				continue
+			}
+			ink := it.XOffPx + f.MeasureStyled(it.Text, it.SizePx, it.Mono, it.Bold, it.Italic)
+			if limit := it.W * f.CellW; ink > limit {
+				t.Fatalf("width %d: run %q draws %d px into %d claimed (%d cells)", width, it.Text, ink, limit, it.W)
+			}
+		}
 	}
 }
