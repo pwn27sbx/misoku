@@ -38,6 +38,8 @@ const maxID = 255
 // MISOKU_IMAGES wins over everything. TMUX and screen never pass graphics
 // through, so they get half blocks. herdr renders graphics itself since 0.9, so
 // a herdr pane counts as capable even though it masks the outer terminal.
+// The six terminals mddog lists are covered by environment alone: Ghostty,
+// WezTerm, kitty, iTerm2 and Rex by TERM_PROGRAM, Konsole by KONSOLE_VERSION.
 func Detect(env func(string) string, isTTY bool) Mode {
 	if env == nil {
 		return Blocks
@@ -63,7 +65,11 @@ func Detect(env func(string) string, isTTY bool) Mode {
 		return Graphics
 	}
 	switch strings.ToLower(env("TERM_PROGRAM")) {
-	case "ghostty", "kitty", "wezterm":
+	case "ghostty", "kitty", "wezterm", "iterm.app", "rex":
+		return Graphics
+	}
+	// Konsole exports its version and nothing else in the environment.
+	if env("KONSOLE_VERSION") != "" {
 		return Graphics
 	}
 	if strings.Contains(term, "kitty") || strings.Contains(term, "ghostty") {
