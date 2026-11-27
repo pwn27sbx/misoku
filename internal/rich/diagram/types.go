@@ -159,4 +159,5 @@ func (e *ConstructError) Error() string {
 }
 
 type parseFunc func([]string) (Diagram, error)
+type headerParseFunc func(string, []string) (Diagram, error)
 type layoutFunc func(Diagram, *rich.Fonts, rich.Palette) (Scene, error)

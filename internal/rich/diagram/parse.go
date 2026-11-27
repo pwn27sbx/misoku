@@ -10,17 +10,19 @@ import (
 
 var registry = struct {
 	sync.RWMutex
-	parsers map[Kind]parseFunc
-	layouts map[Kind]layoutFunc
+	parsers       map[Kind]parseFunc
+	headerParsers map[Kind]headerParseFunc
+	layouts       map[Kind]layoutFunc
 }{
-	parsers: make(map[Kind]parseFunc),
-	layouts: make(map[Kind]layoutFunc),
+	parsers:       make(map[Kind]parseFunc),
+	headerParsers: make(map[Kind]headerParseFunc),
+	layouts:       make(map[Kind]layoutFunc),
 }
 
 func register(kind Kind, parse parseFunc, layout layoutFunc) {
 	registry.Lock()
 	defer registry.Unlock()
-	if _, exists := registry.parsers[kind]; exists {
+	if parserExistsLocked(kind) {
 		panic("diagram: duplicate parser for " + string(kind))
 	}
 	if _, exists := registry.layouts[kind]; exists {
@@ -28,6 +30,37 @@ func register(kind Kind, parse parseFunc, layout layoutFunc) {
 	}
 	registry.parsers[kind] = parse
 	registry.layouts[kind] = layout
+}
+
+// registerWithHeader is for families whose root header carries semantic
+// options, such as flowchart direction. Body-only parsers keep using register.
+func registerWithHeader(kind Kind, parse headerParseFunc, layout layoutFunc) {
+	registry.Lock()
+	defer registry.Unlock()
+	if parserExistsLocked(kind) {
+		panic("diagram: duplicate parser for " + string(kind))
+	}
+	if _, exists := registry.layouts[kind]; exists {
+		panic("diagram: duplicate layout for " + string(kind))
+	}
+	registry.headerParsers[kind] = parse
+	registry.layouts[kind] = layout
+}
+
+func parserExistsLocked(kind Kind) bool {
+	if _, exists := registry.parsers[kind]; exists {
+		return true
+	}
+	_, exists := registry.headerParsers[kind]
+	return exists
+}
+
+func unregister(kind Kind) {
+	registry.Lock()
+	defer registry.Unlock()
+	delete(registry.parsers, kind)
+	delete(registry.headerParsers, kind)
+	delete(registry.layouts, kind)
 }
 
 // Parse parses Mermaid source into the shared semantic IR. Unsupported types
@@ -44,21 +77,31 @@ func Parse(source string) (Diagram, error) {
 			fields := strings.Fields(header)
 			candidate := Kind(strings.ToLower(fields[0]))
 			registry.RLock()
-			_, ok = registry.parsers[candidate]
+			ok = parserExistsLocked(candidate)
 			registry.RUnlock()
 			kind = candidate
 		}
 		if !ok {
-			return Diagram{}, unknown(kindFromHeaderName(header), i+1, header)
+			return Diagram{}, unknown(kind, i+1, header)
 		}
 		registry.RLock()
 		parse, exists := registry.parsers[kind]
+		parseHeader, hasHeader := registry.headerParsers[kind]
 		registry.RUnlock()
-		if !exists {
+		if !exists && !hasHeader {
 			return Diagram{}, unknown(kind, i+1, header)
 		}
-		d, err := parse(lines[i+1:])
+		var d Diagram
+		var err error
+		if hasHeader {
+			d, err = parseHeader(header, lines[i+1:])
+		} else {
+			d, err = parse(lines[i+1:])
+		}
 		if err != nil {
+			if constructErr, ok := err.(*ConstructError); ok && i > 0 {
+				constructErr.Line += i
+			}
 			return Diagram{}, err
 		}
 		if d.Kind == "" {
@@ -104,15 +147,6 @@ func kindForHeader(header string) (Kind, bool) {
 	default:
 		return "", false
 	}
-}
-
-func kindFromHeaderName(header string) Kind {
-	fields := strings.Fields(header)
-	if len(fields) == 0 {
-		return ""
-	}
-	kind, _ := kindForHeader(fields[0])
-	return kind
 }
 
 func prepareLines(source string) []string {

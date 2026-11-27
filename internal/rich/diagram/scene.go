@@ -242,7 +242,10 @@ func labelSize(label string, fonts *rich.Fonts, maxCells int, size float64, mono
 	}
 	width := 1
 	for _, line := range lines {
-		width = max(width, int(math.Ceil(float64(fonts.Measure(line, size, mono))/64))+1)
+		// rich.Fonts.Measure returns fixed.Int26_6, so 64 units equal one
+		// pixel. Convert pixels to cells before adding edge padding.
+		pixels := int(math.Ceil(float64(fonts.Measure(line, size, mono)) / 64))
+		width = max(width, (pixels+fonts.CellW-1)/fonts.CellW+1)
 	}
 	lineH := max(int(math.Ceil(fonts.LineHeightPx(size, mono)/float64(fonts.CellH))), 1)
 	return lines, min(width, maxCells), lineH

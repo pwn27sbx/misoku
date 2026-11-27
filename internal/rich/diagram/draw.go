@@ -1,6 +1,7 @@
 package diagram
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -10,8 +11,30 @@ import (
 	"github.com/pwn27sbx/misoku/internal/rich"
 )
 
-func renderScene(scene Scene, fonts *rich.Fonts) *image.RGBA {
+const (
+	maxSceneCells  = 20_000
+	maxScenePixels = 4_000_000
+)
+
+func validateScene(scene Scene, fonts *rich.Fonts) error {
 	if fonts == nil {
+		return fmt.Errorf("diagram: no fonts")
+	}
+	if scene.Width <= 0 || scene.Height <= 0 {
+		return fmt.Errorf("diagram: invalid scene size %dx%d", scene.Width, scene.Height)
+	}
+	if scene.Width > maxSceneCells || scene.Height > maxSceneCells || scene.Width*scene.Height > maxSceneCells {
+		return fmt.Errorf("diagram: scene %dx%d exceeds native cell budget", scene.Width, scene.Height)
+	}
+	pixels := int64(scene.Width) * int64(fonts.CellW) * int64(scene.Height) * int64(fonts.CellH)
+	if pixels > maxScenePixels {
+		return fmt.Errorf("diagram: scene %dx%d exceeds native pixel budget", scene.Width, scene.Height)
+	}
+	return nil
+}
+
+func renderScene(scene Scene, fonts *rich.Fonts) *image.RGBA {
+	if validateScene(scene, fonts) != nil {
 		return nil
 	}
 	w := max(scene.Width, 1) * fonts.CellW
@@ -88,7 +111,7 @@ func sceneTextPage(scene Scene, fonts *rich.Fonts) *rich.Page {
 			size = fonts.BodyPx
 		}
 		page.Items = append(page.Items, rich.Item{
-			Kind: rich.ItemText, X: cmd.X, Y: cmd.Y, W: cmd.W, H: cmd.H,
+			Kind: rich.ItemText, X: alignedTextX(cmd, fonts, size), Y: cmd.Y, W: cmd.W, H: cmd.H,
 			Text: cmd.Text, SizePx: size, Mono: cmd.Mono, Color: cmd.Color,
 			BaselinePx: textBaseline(fonts, size, cmd.Mono, cmd.H),
 		})
@@ -99,9 +122,28 @@ func sceneTextPage(scene Scene, fonts *rich.Fonts) *rich.Page {
 	return page
 }
 
+func alignedTextX(cmd Command, fonts *rich.Fonts, size float64) int {
+	if cmd.Align == AlignLeft {
+		return cmd.X
+	}
+	textWidth := int(math.Ceil(float64(fonts.Measure(cmd.Text, size, cmd.Mono)) / 64))
+	available := cmd.W * fonts.CellW
+	offset := 0
+	switch cmd.Align {
+	case AlignCenter:
+		offset = (available - textWidth) / 2
+	case AlignRight:
+		offset = available - textWidth
+	}
+	offset = min(max(offset, 0), max(available-1, 0))
+	return cmd.X + offset/fonts.CellW
+}
+
 func textBaseline(fonts *rich.Fonts, size float64, mono bool, cells int) int {
 	line := fonts.LineHeightPx(size, mono)
 	ascent := fonts.AscentPx(size, mono)
+	// Match rich.layouter: centre the font's ascent/descent box vertically,
+	// then bias by half the leading so the glyph body looks optically centred.
 	return max(int(math.Round((float64(cells*fonts.CellH)+ascent-line/2)/2)), 0)
 }
 
@@ -164,23 +206,17 @@ func drawRounded(img *image.RGBA, x, y, w, h, radius int, fill, stroke color.RGB
 	drawLine(img, x+radius, y+h-1, x+w-radius-1, y+h-1, stroke, false, false)
 	drawLine(img, x, y+radius, x, y+h-radius-1, stroke, false, false)
 	drawLine(img, x+w-1, y+radius, x+w-1, y+h-radius-1, stroke, false, false)
-	for _, corner := range []Point{{X: x + radius, Y: y + radius}, {X: x + w - radius - 1, Y: y + radius}, {X: x + radius, Y: y + h - radius - 1}, {X: x + w - radius - 1, Y: y + h - radius - 1}} {
-		start := 0.0
-		switch corner.Y {
-		case y + radius:
-			if corner.X == x+radius {
-				start = math.Pi
-			} else {
-				start = 1.5 * math.Pi
-			}
-		default:
-			if corner.X == x+radius {
-				start = math.Pi / 2
-			} else {
-				start = 0
-			}
-		}
-		drawArc(img, corner.X, corner.Y, radius, start, start+math.Pi/2, stroke)
+	corners := []struct {
+		point Point
+		start float64
+	}{
+		{Point{X: x + radius, Y: y + radius}, math.Pi},
+		{Point{X: x + w - radius - 1, Y: y + radius}, 1.5 * math.Pi},
+		{Point{X: x + radius, Y: y + h - radius - 1}, math.Pi / 2},
+		{Point{X: x + w - radius - 1, Y: y + h - radius - 1}, 0},
+	}
+	for _, corner := range corners {
+		drawArc(img, corner.point.X, corner.point.Y, radius, corner.start, corner.start+math.Pi/2, stroke)
 	}
 }
 

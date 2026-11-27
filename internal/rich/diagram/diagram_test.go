@@ -21,6 +21,7 @@ func testFonts(t testing.TB) *rich.Fonts {
 
 func TestDiagramRegistryAndCachedDraw(t *testing.T) {
 	const kind Kind = "test-cached"
+	t.Cleanup(func() { unregister(kind) })
 	register(kind, func(lines []string) (Diagram, error) {
 		return Diagram{Kind: kind, Title: "cached"}, nil
 	}, func(d Diagram, fonts *rich.Fonts, palette rich.Palette) (Scene, error) {
@@ -47,6 +48,25 @@ func TestDiagramRegistryAndCachedDraw(t *testing.T) {
 				t.Fatalf("pixel (%d,%d) lies beyond the clamped box", x, y)
 			}
 		}
+	}
+}
+
+func TestParsePassesRootHeader(t *testing.T) {
+	const kind Kind = "test-header"
+	t.Cleanup(func() { unregister(kind) })
+	var gotHeader string
+	var gotBody []string
+	registerWithHeader(kind, func(header string, lines []string) (Diagram, error) {
+		gotHeader, gotBody = header, append([]string(nil), lines...)
+		return Diagram{Kind: kind}, nil
+	}, func(Diagram, *rich.Fonts, rich.Palette) (Scene, error) {
+		return Scene{Width: 1, Height: 1}, nil
+	})
+	if _, err := Parse("test-header LR\nbody"); err != nil {
+		t.Fatal(err)
+	}
+	if gotHeader != "test-header LR" || len(gotBody) != 1 || gotBody[0] != "body" {
+		t.Fatalf("header/body = %q/%q", gotHeader, gotBody)
 	}
 }
 
@@ -77,5 +97,21 @@ func TestDiagramRejectsUnknownType(t *testing.T) {
 	_, err := Parse("notMermaid\nA --> B")
 	if err == nil {
 		t.Fatal("Parse accepted an unknown diagram type")
+	}
+}
+
+func TestSceneTextAlignment(t *testing.T) {
+	fonts := testFonts(t)
+	s := Scene{Width: 24, Height: 2}
+	s.Text("x", 2, 0, 20, 1, fonts.BodyPx, AlignLeft, color.RGBA{A: 255}, false)
+	s.Text("x", 2, 1, 20, 1, fonts.BodyPx, AlignCenter, color.RGBA{A: 255}, false)
+	s.Text("x", 2, 0, 20, 1, fonts.BodyPx, AlignRight, color.RGBA{A: 255}, false)
+	page := sceneTextPage(s, fonts)
+	if page == nil || len(page.Items) != 3 {
+		t.Fatalf("text page = %#v, want three text items", page)
+	}
+	left, center, right := page.Items[0].X, page.Items[1].X, page.Items[2].X
+	if !(left < center && center < right) {
+		t.Fatalf("aligned X positions = %d, %d, %d; want left < center < right", left, center, right)
 	}
 }
