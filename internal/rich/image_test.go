@@ -153,3 +153,22 @@ func TestSVGImageDrawsWithCanvas(t *testing.T) {
 		t.Fatalf("SVG pixel = %v, want the blue rectangle", got)
 	}
 }
+
+// A vault root that is itself a symlink must still draw its images: macOS
+// hands out /var/... temporary folders that are really /private/var/..., and
+// resolving the file but not the root refused every picture there.
+func TestImageInASymlinkedVaultRoot(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "vault")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	writePNG(t, filepath.Join(real, "pic.png"), 20, 10, color.RGBA{10, 200, 10, 255})
+	f := testFonts(t)
+	doc := Document{Blocks: []Block{{Kind: KindImage, Src: "pic.png", Lines: []string{"pic"}, Line: 0, End: 1}}}
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette(),
+		Images: ImageOptions{BaseDir: link, Root: link}})
+	if blockFor(t, p) == nil {
+		t.Fatal("an image under a symlinked vault root was refused")
+	}
+}

@@ -152,9 +152,16 @@ func confinedPath(src, baseDir, root string) (string, bool) {
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", false
 	}
-	// A symlink inside the vault must not point outside it.
+	// A symlink inside the vault must not point outside it. The root itself
+	// is resolved too: macOS hands out /var/... temporary folders that are
+	// really /private/var/..., and comparing a resolved file with an
+	// unresolved root would refuse every image there.
 	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		rel, err := filepath.Rel(absRoot, resolved)
+		resolvedRoot := absRoot
+		if r, err := filepath.EvalSymlinks(absRoot); err == nil {
+			resolvedRoot = r
+		}
+		rel, err := filepath.Rel(resolvedRoot, resolved)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return "", false
 		}
