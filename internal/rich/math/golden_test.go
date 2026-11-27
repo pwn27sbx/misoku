@@ -17,7 +17,10 @@ var update = flag.Bool("update", false, "rewrite the golden images")
 
 // goldenGroups pin what each construct family draws. The maths font is
 // bundled, so the pixels are identical on Linux, macOS and Windows; a change
-// here is a visible change and must be looked at.
+// here is a visible change and must be looked at. Regenerate with the Go
+// toolchain go.mod names (GOTOOLCHAIN=go1.26.6), or the pixels differ from
+// CI's and every golden fails there: a newer local toolchain changes the
+// rasteriser's rounding.
 var goldenGroups = map[string]string{
 	"fractions": `\frac{a}{b} \quad \dfrac{a+b}{c+d} \quad \binom{n}{k} \quad \cfrac{1}{1+\frac{1}{x}}`,
 	"roots":     `\sqrt{x} \quad \sqrt[3]{x+1} \quad \sqrt{\frac{a}{b}}`,
