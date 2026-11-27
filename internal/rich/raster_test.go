@@ -130,3 +130,27 @@ func TestEngineBoxDrawsAtItsOrigin(t *testing.T) {
 		t.Fatalf("pixel at the box origin = %v, want red", got)
 	}
 }
+
+// Every glyph of a run must land inside the page: ink has to reach past the
+// first glyph's cell. Advance is 26.6 fixed point, so treating it as whole
+// pixels moved the pen 64x too far and only the first letter was drawn.
+func TestRasterDrawsEveryGlyphOfARun(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("MMMMMMMMMMMMMMMMMMMM\n"))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	r := &Raster{Page: p, Fonts: f, Palette: testPalette()}
+	img := r.Tile(0, p.Height)
+	bg := testPalette().Bg
+	right := 0
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			if img.RGBAAt(x, y) != bg && x > right {
+				right = x
+			}
+		}
+	}
+	minRight := (pageMargin + 10) * f.CellW
+	if right < minRight {
+		t.Fatalf("rightmost ink at x=%d, want at least %d: only the first glyphs were drawn", right, minRight)
+	}
+}
