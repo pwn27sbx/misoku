@@ -1,0 +1,95 @@
+package rich
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestParseBlocksAndSourceLines(t *testing.T) {
+	src := []byte(`---
+status: active
+tags: [a, b]
+---
+# Title
+
+First paragraph
+wrapped here.
+
+- one
+- [x] done task
+  - nested
+
+> [!NOTE]
+> a callout body
+
+` + "```go\nfunc main() {}\n```\n\n$$ x^2 $$\n\n```mermaid\nflowchart LR\nA-->B\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")
+	doc := Parse(src)
+
+	var kinds []Kind
+	for _, b := range doc.Blocks {
+		kinds = append(kinds, b.Kind)
+	}
+	want := []Kind{KindProperties, KindHeading, KindParagraph, KindParagraph, KindQuote, KindCode, KindMath, KindDiagram, KindTable}
+	if len(kinds) != len(want) {
+		t.Fatalf("kinds = %v, want %v", kinds, want)
+	}
+	for i := range want {
+		if kinds[i] != want[i] {
+			t.Fatalf("block %d kind = %v, want %v (all: %v)", i, kinds[i], want[i], kinds)
+		}
+	}
+
+	// The properties table keeps its top-level keys.
+	props := doc.Blocks[0].Rows
+	if len(props) != 2 || props[0][0] != "status" || props[1][0] != "tags" {
+		t.Fatalf("properties = %v", props)
+	}
+
+	// Source lines point back at the note: the heading is line 4 (0-based).
+	if got := doc.Blocks[1].Line; got != 4 {
+		t.Fatalf("heading line = %d, want 4", got)
+	}
+	// The list keeps its items, and the checkbox becomes a drawn glyph.
+	list := doc.Blocks[3]
+	if len(list.Blocks) < 2 {
+		t.Fatalf("list items = %d, want at least 2", len(list.Blocks))
+	}
+	if got := list.Blocks[1].Lines[0]; !strings.HasPrefix(got, "☑") {
+		t.Fatalf("task item = %q, want a checked box", got)
+	}
+	if len(list.Blocks[1].Blocks) != 1 {
+		t.Fatalf("nested items = %d, want 1", len(list.Blocks[1].Blocks))
+	}
+
+	// The callout's label is not a paragraph in the quote.
+	quote := doc.Blocks[4]
+	if quote.Lines[0] != "NOTE" {
+		t.Fatalf("callout label = %q, want NOTE", quote.Lines[0])
+	}
+	if len(quote.Blocks) != 1 || quote.Blocks[0].Lines[0] != "a callout body" {
+		t.Fatalf("callout body = %+v", quote.Blocks)
+	}
+
+	// Tables keep their header row first.
+	table := doc.Blocks[8].Rows
+	if len(table) != 2 || table[0][0] != "a" || table[1][1] != "2" {
+		t.Fatalf("table = %v", table)
+	}
+}
+
+func TestParseWikiLinksAndImages(t *testing.T) {
+	doc := Parse([]byte("See [[Docker|the container guide]] and [[Plain]].\n\n![alt text](pic.png)\n"))
+	if got := doc.Blocks[0].Lines[0]; got != "See the container guide and Plain." {
+		t.Fatalf("wiki links = %q", got)
+	}
+	if doc.Blocks[1].Kind != KindImage || doc.Blocks[1].Src != "pic.png" || doc.Blocks[1].Lines[0] != "alt text" {
+		t.Fatalf("image block = %+v", doc.Blocks[1])
+	}
+}
+
+func TestParseKeepsHardBreaks(t *testing.T) {
+	doc := Parse([]byte("line one  \nline two"))
+	if got := doc.Blocks[0].Lines[0]; got != "line one\nline two" {
+		t.Fatalf("paragraph = %q, want the hard break kept", got)
+	}
+}
