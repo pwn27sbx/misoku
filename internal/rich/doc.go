@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -49,6 +50,7 @@ func Parse(src []byte) Document {
 	var blocks []Block
 	for n := tree.FirstChild(); n != nil; n = n.NextSibling() {
 		if b, ok := blockFrom(n, body, lineOf); ok {
+			sort.SliceStable(b.Spans, func(i, j int) bool { return b.Spans[i].Start < b.Spans[j].Start })
 			blocks = append(blocks, b)
 		}
 	}
@@ -66,6 +68,7 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 		b.Kind = KindHeading
 		b.Level = t.Level
 		b.Lines = []string{inlineText(t, src)}
+		b.Spans = append(b.Spans, inlineSpans(t, src)...)
 	case *ast.Paragraph:
 		if img, ok := onlyImage(t); ok {
 			b.Kind = KindImage
@@ -75,6 +78,7 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 		}
 		b.Kind = KindParagraph
 		b.Lines = []string{inlineText(t, src)}
+		b.Spans = append(b.Spans, inlineSpans(t, src)...)
 	case *ast.List:
 		b.Kind = KindParagraph
 		b.Blocks = listItems(t, src, lineOf)
@@ -151,7 +155,21 @@ func nodeLines(n ast.Node, lineOf func(int) int) (int, int) {
 // inlineText flattens a block's inline Markdown to the text the page draws,
 // with one line per soft or hard break.
 func inlineText(n ast.Node, src []byte) string {
+	text, _ := inlineTextSpans(n, src)
+	return text
+}
+
+// inlineSpans is the bold and link spans of a block's inline text.
+func inlineSpans(n ast.Node, src []byte) []Span {
+	_, spans := inlineTextSpans(n, src)
+	return spans
+}
+
+// inlineTextSpans flattens a block's inline Markdown and reports the bold and
+// link runs it wrote, as rune offsets in the returned text.
+func inlineTextSpans(n ast.Node, src []byte) (string, []Span) {
 	var b strings.Builder
+	var spans []Span
 	var walk func(ast.Node)
 	walk = func(n ast.Node) {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
@@ -169,6 +187,20 @@ func inlineText(n ast.Node, src []byte) string {
 						b.Write(tt.Segment.Value(src))
 					}
 				}
+			case *ast.Emphasis:
+				if t.Level == 2 {
+					start := utf8.RuneCountInString(b.String())
+					walkInline(c, &b, src)
+					spans = append(spans, Span{Start: start, End: utf8.RuneCountInString(b.String()), Bold: true})
+					continue
+				}
+				walk(c)
+			case *ast.Link:
+				start := utf8.RuneCountInString(b.String())
+				for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
+					walkInline(cc, &b, src)
+				}
+				spans = append(spans, Span{Start: start, End: utf8.RuneCountInString(b.String()), Link: string(t.Destination)})
 			case *ast.AutoLink:
 				b.Write(t.Label(src))
 			case *ast.Image:
@@ -179,7 +211,33 @@ func inlineText(n ast.Node, src []byte) string {
 		}
 	}
 	walk(n)
-	return strings.TrimRight(b.String(), " ")
+	text, spans := resolveWikiMarkers(strings.TrimRight(b.String(), " "), spans)
+	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
+	return text, spans
+}
+
+// walkInline appends one inline node's text, for an emphasis or link's
+// children.
+func walkInline(c ast.Node, b *strings.Builder, src []byte) {
+	switch t := c.(type) {
+	case *ast.Text:
+		b.Write(t.Segment.Value(src))
+		if t.SoftLineBreak() || t.HardLineBreak() {
+			b.WriteString("\n")
+		}
+	case *ast.String:
+		b.Write(t.Value)
+	case *ast.CodeSpan:
+		for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
+			if tt, ok := cc.(*ast.Text); ok {
+				b.Write(tt.Segment.Value(src))
+			}
+		}
+	default:
+		for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
+			walkInline(cc, b, src)
+		}
+	}
 }
 
 func onlyImage(p *ast.Paragraph) (*ast.Image, bool) {
@@ -273,7 +331,9 @@ func codeLines(n ast.Node, src []byte) []string {
 	var out []string
 	for i := 0; i < lines.Len(); i++ {
 		s := lines.At(i)
-		out = append(out, string(s.Value(src)))
+		// The line's terminator is not a glyph: drawing it left a tofu box
+		// after the last character of every code line.
+		out = append(out, strings.TrimRight(string(s.Value(src)), "\r\n"))
 	}
 	return out
 }
@@ -339,14 +399,92 @@ var wikiRe = regexp.MustCompile(`!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
 // expandWikiLinks turns "[[Note|alias]]" into its alias and a bare
 // "[[Note]]" into its target, so the page draws readable text; the link
 // itself becomes clickable when inline runs land.
+// wikiMark and friends wrap a wiki link in the parsed text: \uE000target
+// \uE001alias\uE002. Substituting the alias at expansion time would lose its
+// rune offsets as soon as Markdown removes ** or _ markers; resolving the
+// markers after flattening keeps every span exact.
+const (
+	wikiMarkOpen  = '\uE000'
+	wikiMarkMid   = '\uE001'
+	wikiMarkClose = '\uE002'
+)
+
+var wikiMarker = regexp.MustCompile(`\x{E000}([^\x{E001}]*)\x{E001}([^\x{E002}]*)\x{E002}`)
+
+// expandWikiLinks turns [[Note|alias]] into a marker that inlineTextSpans
+// resolves, skipping fenced code so a documented link stays literal.
 func expandWikiLinks(src []byte) []byte {
-	return wikiRe.ReplaceAllFunc(src, func(m []byte) []byte {
-		parts := wikiRe.FindSubmatch(m)
-		if len(parts) > 2 && len(parts[2]) > 0 {
-			return parts[2]
+	lines := strings.Split(string(src), "\n")
+	inFence := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
 		}
-		return parts[1]
-	})
+		if inFence {
+			continue
+		}
+		lines[i] = string(wikiRe.ReplaceAllFunc([]byte(line), func(m []byte) []byte {
+			parts := wikiRe.FindSubmatch(m)
+			target := parts[1]
+			alias := target
+			if len(parts) > 2 && len(parts[2]) > 0 {
+				alias = parts[2]
+			}
+			return []byte(string(wikiMarkOpen) + string(target) + string(wikiMarkMid) + string(alias) + string(wikiMarkClose))
+		}))
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+// resolveWikiMarkers removes the markers from text, appends one Link span per
+// wiki link at its final offsets, and shifts the spans collected before (bold,
+// Markdown links) by the characters each earlier marker removes.
+func resolveWikiMarkers(text string, spans []Span) (string, []Span) {
+	matches := wikiMarker.FindAllStringSubmatchIndex(text, -1)
+	if len(matches) == 0 {
+		return text, spans
+	}
+	// removed[i] is how many marker runes sit before original index i, so a
+	// span keeps pointing at the same text once the markers are gone.
+	removedAt := make([]int, len(text)+1)
+	var out strings.Builder
+	removed := 0
+	last := 0
+	var wikiSpans []Span
+	for _, m := range matches {
+		prefix := text[last:m[0]]
+		for i := range prefix {
+			removedAt[last+i] = removed
+		}
+		out.WriteString(prefix)
+		alias := text[m[4]:m[5]]
+		start := out.Len()
+		out.WriteString(alias)
+		wikiSpans = append(wikiSpans, Span{Start: start, End: start + len(alias), Link: text[m[2]:m[3]]})
+		last = m[1]
+		removed += m[1] - m[0] - len(alias)
+	}
+	tail := text[last:]
+	for i := range tail {
+		removedAt[last+i] = removed
+	}
+	out.WriteString(tail)
+	for i := last; i < len(text)+1; i++ {
+		removedAt[i] = removed
+	}
+	shift := func(i int) int {
+		if i >= len(removedAt) {
+			i = len(removedAt) - 1
+		}
+		return i - removedAt[i]
+	}
+	for i := range spans {
+		spans[i].Start = shift(spans[i].Start)
+		spans[i].End = shift(spans[i].End)
+	}
+	return out.String(), append(spans, wikiSpans...)
 }
 
 // fenceMathBlocks turns standalone "$$ … $$" blocks into ```math fences, so
