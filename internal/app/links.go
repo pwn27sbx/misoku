@@ -235,13 +235,13 @@ func (m *Model) openExternal(target string) tea.Cmd {
 // macOS runs .command and .app, Windows rundll32 runs .bat and .exe, and an
 // interpreter may take the rest.
 var executableExts = map[string]bool{
-	".app": true, ".appimage": true, ".bat": true, ".bash": true, ".cmd": true,
-	".com": true, ".command": true, ".desktop": true, ".exe": true,
-	".fish": true, ".hta": true,
-	".jar": true, ".js": true, ".jse": true, ".lnk": true, ".msi": true,
-	".pl": true, ".ps1": true, ".psm1": true, ".py": true, ".rb": true,
-	".reg": true, ".scr": true, ".sh": true, ".url": true, ".vbe": true,
-	".vbs": true, ".wsf": true, ".wsh": true, ".zsh": true,
+	".app": true, ".appimage": true, ".application": true, ".bat": true, ".bash": true, ".cmd": true,
+	".com": true, ".command": true, ".cpl": true, ".desktop": true, ".exe": true,
+	".fish": true, ".gadget": true, ".hta": true,
+	".jar": true, ".js": true, ".jse": true, ".lnk": true, ".msc": true, ".msi": true,
+	".pif": true, ".pkg": true, ".pl": true, ".ps1": true, ".psm1": true, ".py": true, ".rb": true,
+	".reg": true, ".scpt": true, ".scr": true, ".sh": true, ".terminal": true, ".url": true, ".vbe": true,
+	".vbs": true, ".workflow": true, ".wsf": true, ".wsh": true, ".zsh": true,
 }
 
 // executableName reports whether a local file name may be run by the system

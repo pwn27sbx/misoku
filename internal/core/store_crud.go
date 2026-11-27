@@ -336,7 +336,7 @@ func (s *Store) Update(p Page) (Page, error) {
 		absDir := filepath.Join(s.root, filepath.FromSlash(dir))
 		newAbs := filepath.Join(absDir, newTitle+mdExt)
 
-		if fileExists(newAbs) {
+		if destOccupiedByOther(abs, newAbs) {
 			return Page{}, errors.New(i18n.T(i18n.CorePageExists, newTitle))
 		}
 
@@ -348,7 +348,7 @@ func (s *Store) Update(p Page) (Page, error) {
 		info, sidecarErr := os.Stat(oldSidecar)
 		hasSidecar := sidecarErr == nil && info.IsDir()
 		if hasSidecar {
-			if _, err := os.Stat(newSidecar); err == nil {
+			if destOccupiedByOther(oldSidecar, newSidecar) {
 				return Page{}, errors.New(i18n.T(i18n.CoreFolderExists, newTitle))
 			}
 		}
@@ -399,7 +399,7 @@ func (s *Store) renameFolder(p Page, abs string) (Page, error) {
 		absDir := filepath.Join(s.root, filepath.FromSlash(dir))
 		newAbs := filepath.Join(absDir, newTitle)
 
-		if fileExists(newAbs) {
+		if destOccupiedByOther(abs, newAbs) {
 			return Page{}, errors.New(i18n.T(i18n.CoreFolderExists, newTitle))
 		}
 		if err := os.Rename(abs, newAbs); err != nil {
@@ -412,6 +412,22 @@ func (s *Store) renameFolder(p Page, abs string) (Page, error) {
 
 	parentID := parentIDFor(s.root, id)
 	return Page{ID: id, Title: newTitle, ParentID: parentID, IsFolder: true, UpdatedAt: modTime(abs)}, nil
+}
+
+// destOccupiedByOther reports whether newAbs exists on disk and refers to a
+// different file or folder than oldAbs. On case-insensitive filesystems
+// (macOS APFS, Windows NTFS), a case-only rename resolves to the same inode
+// (os.SameFile == true) and must be allowed.
+func destOccupiedByOther(oldAbs, newAbs string) bool {
+	newInfo, err := os.Stat(newAbs)
+	if err != nil {
+		return false
+	}
+	oldInfo, err := os.Stat(oldAbs)
+	if err != nil {
+		return true
+	}
+	return !os.SameFile(oldInfo, newInfo)
 }
 
 // Delete moves a page (or folder) to the Trash by ID (see moveToTrash; on a
