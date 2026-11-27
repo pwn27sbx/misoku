@@ -226,3 +226,68 @@ func TestViewSelectionCopiesRows(t *testing.T) {
 		t.Fatal("ClearSelection left state behind")
 	}
 }
+
+func TestViewHintsLabelVisibleLinks(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("See [[Docker|the guide]] and [docs](https://example.com).\n"))
+	p := Layout(doc, LayoutOptions{Width: 40, Fonts: f, Palette: testPalette()})
+	v := NewView(40, 10, f, testPalette(), &fakeSender{})
+	v.SetPage(p)
+	hints := v.ShowHints()
+	if len(hints) != 2 {
+		t.Fatalf("hints = %+v, want one per link", hints)
+	}
+	if hints[0].Label != "a" || hints[0].Target != "Docker" {
+		t.Fatalf("first hint = %+v", hints[0])
+	}
+	if h, ok := v.HintFor("a"); !ok || h.Target != "Docker" {
+		t.Fatalf("HintFor(a) = %+v, %v", h, ok)
+	}
+	if len(v.overlay) == 0 {
+		t.Fatal("hints drew no overlay")
+	}
+	v.ClearHints()
+	if v.HintsOn() || len(v.overlay) != 0 {
+		t.Fatal("ClearHints left the labels on")
+	}
+}
+
+func TestViewWideScrollMovesAndInvalidates(t *testing.T) {
+	f := testFonts(t)
+	long := ""
+	for i := 0; i < 200; i++ {
+		long += "x"
+	}
+	doc := Parse([]byte("```go\n" + long + "\n```\n"))
+	p := Layout(doc, LayoutOptions{Width: 30, Fonts: f, Palette: testPalette()})
+	if len(p.Wide) == 0 {
+		t.Fatal("a 200-column code line was not marked wide")
+	}
+	v := NewView(30, 10, f, testPalette(), &fakeSender{})
+	v.SetPage(p)
+	v.WideScroll(6)
+	if v.WideOffset() != 6 {
+		t.Fatalf("wide offset = %d, want 6", v.WideOffset())
+	}
+	v.WideScroll(-100)
+	if v.WideOffset() != 0 {
+		t.Fatalf("wide offset = %d, want 0", v.WideOffset())
+	}
+}
+
+func TestVisibleTextLeavesTheSelectionAlone(t *testing.T) {
+	f := testFonts(t)
+	doc := Parse([]byte("visible text\n"))
+	p := Layout(doc, LayoutOptions{Width: 30, Fonts: f, Palette: testPalette()})
+	v := NewView(30, 5, f, testPalette(), &fakeSender{})
+	v.SetPage(p)
+	if got := v.VisibleText(); !strings.Contains(got, "visible text") {
+		t.Fatalf("VisibleText = %q", got)
+	}
+	if a, b := v.SelectionRows(); a != -1 || b != -1 {
+		t.Fatalf("copying left a selection: %d..%d", a, b)
+	}
+	if len(v.overlay) != 0 {
+		t.Fatal("copying drew an overlay")
+	}
+}

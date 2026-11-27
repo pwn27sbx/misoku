@@ -51,6 +51,19 @@ type Page struct {
 	rows []rowSpan
 
 	Headings []Heading
+	Links    []LinkBox
+	// Wide marks the row ranges of code blocks and tables wider than the
+	// page: the view scrolls them sideways without moving the page.
+	Wide []RowSpan
+}
+
+// RowSpan is a range of cell rows.
+type RowSpan struct{ Row, Rows int }
+
+// LinkBox is one clickable link on a page row, in cells.
+type LinkBox struct {
+	Row, X0, X1 int
+	Target      string
 }
 
 // Heading is one outline entry: its level, text, source line and page row.
@@ -158,6 +171,7 @@ func (l *layouter) block(b Block, indent int) {
 		if len(b.Blocks) > 0 {
 			l.list(b, indent)
 		} else {
+			l.linkBoxes(b, indent, l.f.BodyPx)
 			l.paragraph(b.Lines, indent, l.f.BodyPx, l.pal.Fg)
 			l.y += blockGap
 		}
@@ -218,8 +232,34 @@ func (l *layouter) heading(b Block, indent int) {
 	text := firstLine(b.Lines)
 	l.page.Headings = append(l.page.Headings, Heading{Level: level, Text: text, Line: b.Line, Row: l.y})
 	lines := l.f.Wrap(text, (l.content-indent)*l.f.CellW, size, false)
+	l.linkBoxes(b, indent, size)
 	l.textLines(lines, indent, size, col, false)
 	l.y++
+}
+
+// linkBoxes records where the block's links land on the page, for hints and
+// clicks: rune offsets turned into cells with the same measurement the text
+// uses.
+func (l *layouter) linkBoxes(b Block, indent int, size float64) {
+	if len(b.Links) == 0 || len(b.Lines) == 0 {
+		return
+	}
+	runes := []rune(b.Lines[0])
+	cellWidth := func(n int) int {
+		if n <= 0 || n > len(runes) {
+			return 0
+		}
+		px := int(l.f.Measure(string(runes[:n]), size, false)) / 64
+		return px / l.f.CellW
+	}
+	for _, sp := range b.Links {
+		x0 := l.x0 + indent + cellWidth(sp.Start)
+		x1 := l.x0 + indent + cellWidth(sp.End)
+		if x1 <= x0 {
+			x1 = x0 + 1
+		}
+		l.page.Links = append(l.page.Links, LinkBox{Row: l.y, X0: x0, X1: x1, Target: sp.Target})
+	}
 }
 
 func (l *layouter) paragraph(lines []string, indent int, size float64, col color.RGBA) {
@@ -313,7 +353,17 @@ func (l *layouter) code(b Block, indent int) {
 	}
 	lines = append(lines, "")
 	height := len(lines) + 2*codePadding - 2
-	l.emit(Item{Kind: ItemRect, X: l.x0 + indent, Y: l.y, W: l.content - indent, H: height, Color: l.pal.CodeBg})
+	widest := 0
+	for _, line := range lines {
+		if px := int(l.f.Measure(line, size, true)) / 64; px > widest {
+			widest = px
+		}
+	}
+	widthCells := max(l.content-indent, (widest+l.f.CellW-1)/l.f.CellW)
+	if widthCells > l.content-indent {
+		l.page.Wide = append(l.page.Wide, RowSpan{Row: l.y, Rows: height})
+	}
+	l.emit(Item{Kind: ItemRect, X: l.x0 + indent, Y: l.y, W: widthCells, H: height, Color: l.pal.CodeBg})
 	l.y += codePadding
 	for _, line := range lines {
 		if line == "" && b.Kind == KindCode {
@@ -334,7 +384,7 @@ func (l *layouter) code(b Block, indent int) {
 				col = l.pal.Link
 			}
 		}
-		l.emit(Item{Kind: ItemText, X: l.x0 + indent + 1, Y: l.y, W: l.content - indent - 2, H: 1,
+		l.emit(Item{Kind: ItemText, X: l.x0 + indent + 1, Y: l.y, W: widthCells - 2, H: 1,
 			Text: line, SizePx: size, Mono: true, Color: col, BaselinePx: l.baseline(size)})
 		l.y++
 	}
@@ -399,7 +449,12 @@ func (l *layouter) table(rows [][]string, indent int) {
 	for _, w := range widths {
 		total += w
 	}
-	if room := l.content - indent; total > room && cols > 0 {
+	room := l.content - indent
+	wide := total > room
+	if wide {
+		start := l.y
+		defer func() { l.page.Wide = append(l.page.Wide, RowSpan{Row: start, Rows: l.y - start}) }()
+	} else if cols > 0 {
 		widths[cols-1] = max(widths[cols-1]-(total-room), 6)
 	}
 	for ri, r := range rows {

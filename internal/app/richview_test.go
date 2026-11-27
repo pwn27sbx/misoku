@@ -123,3 +123,36 @@ func TestRichViewScrollsAndReturnsToReading(t *testing.T) {
 		t.Fatalf("Esc left noteView = %v, want the editable reading view", m.noteView)
 	}
 }
+
+func TestRichHintsFollowLinks(t *testing.T) {
+	withImages(t)
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("", "From", "Go to [[To|the other note]] now.\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SaveAs("", "To", "target\n"); err != nil {
+		t.Fatal(err)
+	}
+	m := New(store, WithImageSender(&richSender{}))
+	m.richFonts = testRichFonts(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm := next.(Model)
+	mm.openInCurrentBuffer("From.md")
+	next, _ = mm.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	mm = next.(Model)
+	openRich(&mm)
+	if mm.noteView != viewRich {
+		t.Fatalf("noteView = %v", mm.noteView)
+	}
+	pressRunes(&mm, "f")
+	if !mm.rich.HintsOn() {
+		t.Fatal("f did not show the link hints")
+	}
+	pressRunes(&mm, "a")
+	if mm.active != "To.md" {
+		t.Fatalf("following the hint opened %q, want To.md", mm.active)
+	}
+}

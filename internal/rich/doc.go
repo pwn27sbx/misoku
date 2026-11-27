@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -20,7 +21,8 @@ import (
 func Parse(src []byte) Document {
 	body, props, consumed := splitFrontMatter(src)
 	body, lineMap := fenceMathBlocks(body, consumed)
-	body = expandWikiLinks(body)
+	var wiki []wikiSpan
+	body, wiki = expandWikiLinks(body)
 
 	var doc Document
 	if len(props) > 0 {
@@ -49,6 +51,8 @@ func Parse(src []byte) Document {
 	var blocks []Block
 	for n := tree.FirstChild(); n != nil; n = n.NextSibling() {
 		if b, ok := blockFrom(n, body, lineOf); ok {
+			b.Links = append(b.Links, spansFor(b, wiki)...)
+			sort.SliceStable(b.Links, func(i, j int) bool { return b.Links[i].Start < b.Links[j].Start })
 			blocks = append(blocks, b)
 		}
 	}
@@ -66,6 +70,7 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 		b.Kind = KindHeading
 		b.Level = t.Level
 		b.Lines = []string{inlineText(t, src)}
+		b.Links = append(b.Links, inlineLinks(t, src)...)
 	case *ast.Paragraph:
 		if summary, body, ok := detailsText(strings.TrimSpace(inlineText(t, src))); ok {
 			b.Kind = KindQuote
@@ -81,6 +86,7 @@ func blockFrom(n ast.Node, src []byte, lineOf func(int) int) (Block, bool) {
 		}
 		b.Kind = KindParagraph
 		b.Lines = []string{inlineText(t, src)}
+		b.Links = append(b.Links, inlineLinks(t, src)...)
 	case *ast.List:
 		b.Kind = KindParagraph
 		b.Blocks = listItems(t, src, lineOf)
@@ -171,7 +177,15 @@ func nodeLines(n ast.Node, lineOf func(int) int) (int, int) {
 // inlineText flattens a block's inline Markdown to the text the page draws,
 // with one line per soft or hard break.
 func inlineText(n ast.Node, src []byte) string {
+	text, _ := inlineTextSpans(n, src)
+	return text
+}
+
+// inlineTextSpans is inlineText plus the Markdown links it wrote, as rune
+// offsets in the returned text.
+func inlineTextSpans(n ast.Node, src []byte) (string, []LinkSpan) {
 	var b strings.Builder
+	var spans []LinkSpan
 	var walk func(ast.Node)
 	walk = func(n ast.Node) {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
@@ -189,6 +203,12 @@ func inlineText(n ast.Node, src []byte) string {
 						b.Write(tt.Segment.Value(src))
 					}
 				}
+			case *ast.Link:
+				start := utf8.RuneCountInString(b.String())
+				for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
+					walkInline(cc, &b, src)
+				}
+				spans = append(spans, LinkSpan{Start: start, End: utf8.RuneCountInString(b.String()), Target: string(t.Destination)})
 			case *ast.AutoLink:
 				b.Write(t.Label(src))
 			case *ast.Image:
@@ -199,7 +219,37 @@ func inlineText(n ast.Node, src []byte) string {
 		}
 	}
 	walk(n)
-	return strings.TrimRight(b.String(), " ")
+	return strings.TrimRight(b.String(), " "), spans
+}
+
+// walkInline appends one inline node's text, for a link's children.
+func walkInline(c ast.Node, b *strings.Builder, src []byte) {
+	switch t := c.(type) {
+	case *ast.Text:
+		b.Write(t.Segment.Value(src))
+		if t.SoftLineBreak() || t.HardLineBreak() {
+			b.WriteString("\n")
+		}
+	case *ast.String:
+		b.Write(t.Value)
+	case *ast.CodeSpan:
+		for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
+			if tt, ok := cc.(*ast.Text); ok {
+				b.Write(tt.Segment.Value(src))
+			}
+		}
+	default:
+		for cc := c.FirstChild(); cc != nil; cc = cc.NextSibling() {
+			walkInline(cc, b, src)
+		}
+	}
+}
+
+// inlineLinks is the Markdown links of a block's inline text, at rune offsets
+// in the flattened line the page draws.
+func inlineLinks(n ast.Node, src []byte) []LinkSpan {
+	_, spans := inlineTextSpans(n, src)
+	return spans
 }
 
 func onlyImage(p *ast.Paragraph) (*ast.Image, bool) {
@@ -359,8 +409,15 @@ var wikiRe = regexp.MustCompile(`!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
 // expandWikiLinks turns "[[Note|alias]]" into its alias and a bare
 // "[[Note]]" into its target, so the page draws readable text; the link
 // itself becomes clickable when inline runs land.
-func expandWikiLinks(src []byte) []byte {
+type wikiSpan struct {
+	line       int
+	start, end int // rune offsets in the expanded line
+	target     string
+}
+
+func expandWikiLinks(src []byte) ([]byte, []wikiSpan) {
 	lines := strings.Split(string(src), "\n")
+	var spans []wikiSpan
 	inFence := false
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -371,15 +428,49 @@ func expandWikiLinks(src []byte) []byte {
 		if inFence {
 			continue
 		}
-		lines[i] = string(wikiRe.ReplaceAllFunc([]byte(line), func(m []byte) []byte {
-			parts := wikiRe.FindSubmatch(m)
-			if len(parts) > 2 && len(parts[2]) > 0 {
-				return parts[2]
+		matches := wikiRe.FindAllStringSubmatchIndex(line, -1)
+		if len(matches) == 0 {
+			continue
+		}
+		var out strings.Builder
+		prev := 0
+		runePos := 0
+		add := func(s string) {
+			out.WriteString(s)
+			runePos += utf8.RuneCountInString(s)
+		}
+		for _, m := range matches {
+			add(line[prev:m[0]])
+			start := runePos
+			target := line[m[2]:m[3]]
+			alias := target
+			if m[4] >= 0 && m[5] > m[4] {
+				alias = line[m[4]:m[5]]
 			}
-			return parts[1]
-		}))
+			add(alias)
+			spans = append(spans, wikiSpan{line: i, start: start, end: runePos, target: target})
+			prev = m[1]
+		}
+		add(line[prev:])
+		lines[i] = out.String()
 	}
-	return []byte(strings.Join(lines, "\n"))
+	return []byte(strings.Join(lines, "\n")), spans
+}
+
+// spansFor keeps the wiki spans that fall on this block's first source line.
+// A paragraph that spans several lines keeps the ones on its first line, which
+// is what the page draws as one text run.
+func spansFor(b Block, wiki []wikiSpan) []LinkSpan {
+	if len(wiki) == 0 || len(b.Lines) == 0 {
+		return nil
+	}
+	var out []LinkSpan
+	for _, sp := range wiki {
+		if sp.line == b.Line {
+			out = append(out, LinkSpan{Start: sp.start, End: sp.end, Target: sp.target})
+		}
+	}
+	return out
 }
 
 // fenceMathBlocks turns standalone "$$ … $$" blocks into ```math fences, so

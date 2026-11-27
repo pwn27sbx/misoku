@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pwn27sbx/misoku/internal/core"
 	"github.com/pwn27sbx/misoku/internal/i18n"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/rich"
@@ -126,14 +127,25 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 	switch t := msg.(type) {
 	case tea.MouseMsg:
 		if t.Button == tea.MouseButtonWheelUp {
-			m.rich.Scroll(-richScrollRows)
+			if t.Shift {
+				m.rich.WideScroll(-2)
+			} else {
+				m.rich.Scroll(-richScrollRows)
+			}
 			return nil, true
 		}
 		if t.Button == tea.MouseButtonWheelDown {
-			m.rich.Scroll(richScrollRows)
+			if t.Shift {
+				m.rich.WideScroll(2)
+			} else {
+				m.rich.Scroll(richScrollRows)
+			}
 			return nil, true
 		}
 		if t.Button == tea.MouseButtonLeft {
+			if t.Action == tea.MouseActionRelease && m.richDrag >= 0 {
+				defer func() { m.richDrag = -1 }()
+			}
 			if row, ok := m.richRowAt(t.Y); ok {
 				switch t.Action {
 				case tea.MouseActionPress:
@@ -157,7 +169,30 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 	case tea.KeyMsg:
+		if m.rich.HintsOn() {
+			key := t.String()
+			if h, ok := m.rich.HintFor(key); ok {
+				return m.richFollow(h.Target), true
+			}
+			m.rich.ClearHints()
+			if key == "esc" {
+				return nil, true
+			}
+		}
 		switch t.String() {
+		case "f":
+			if hints := m.rich.ShowHints(); len(hints) > 0 {
+				m.setStatus("type a letter to follow a link")
+			} else {
+				m.setStatus("no links on screen")
+			}
+			return nil, true
+		case "H":
+			m.rich.WideScroll(-4)
+			return nil, true
+		case "L":
+			m.rich.WideScroll(4)
+			return nil, true
 		case "j", "down":
 			m.rich.Scroll(1)
 			return nil, true
@@ -225,6 +260,19 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 		}
 	}
 	return nil, false
+}
+
+// richFollow opens a link from the page: a URL goes to the system opener, a
+// note target opens as a [[link]] would.
+func (m *Model) richFollow(target string) tea.Cmd {
+	m.rich.ClearHints()
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		if m.openURL != nil {
+			_ = m.openURL(target)
+		}
+		return nil
+	}
+	return m.followWikiLink(core.ParseWikiLink(target), m.openInCurrentBuffer)
 }
 
 // richRowAt maps a screen row to the page's cell row, or false when the

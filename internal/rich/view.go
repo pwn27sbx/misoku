@@ -36,6 +36,9 @@ type View struct {
 	tiles    map[int]*tile // key: first row
 	degraded bool
 
+	wideOff  int // cells the wide blocks are scrolled sideways
+	hints    map[string]Hint
+	hintOn   bool
 	overlay  []Item // search marks and selection, drawn after the page
 	search   []int  // matched rows
 	searchAt int
@@ -179,7 +182,7 @@ func (v *View) neededTiles(rows int) map[int]int {
 }
 
 func (v *View) makeTile(first, rows int) error {
-	r := &Raster{Page: v.Page, Fonts: v.Fonts, Palette: v.Palette, Overlay: v.overlay}
+	r := &Raster{Page: v.Page, Fonts: v.Fonts, Palette: v.Palette, Overlay: v.overlay, OffX: v.wideOff}
 	img := r.Tile(first, rows)
 	png := EncodePNG(img)
 	if len(png) == 0 {
@@ -351,11 +354,21 @@ func (v *View) Select(a, b int) string {
 	}
 	a = max(a, 0)
 	b = min(b, max(v.Page.Height-1, 0))
+	// A selection replaces the search marks: keeping them would leave
+	// matches on screen that n/N no longer address.
+	v.search = nil
+	v.searchAt = -1
 	v.selA, v.selB = a, b
-	defer v.invalidateRows(a, b)
+	defer v.invalidateAll()
 	v.overlay = nil
 	v.overlay = append(v.overlay, Item{Kind: ItemRect, X: 0, Y: a, W: v.Page.Width, H: b - a + 1,
 		Color: colorAlpha(v.Palette.Link, 0x40)})
+	return v.textRows(a, b)
+}
+
+// textRows is the text of cell rows a..b, in order, without touching the
+// selection or the overlay.
+func (v *View) textRows(a, b int) string {
 	var lines []string
 	for row := a; row <= b; row++ {
 		var text strings.Builder
@@ -382,10 +395,89 @@ func (v *View) ClearSelection() {
 	v.search = nil
 	v.searchAt = -1
 	v.overlay = nil
-	if a >= 0 && b >= 0 {
-		v.invalidateRows(a, b)
+	if a >= 0 || b >= 0 {
+		v.invalidateAll()
 	}
 }
+
+// Hint is one labelled link the page shows while the hint key is on.
+type Hint struct {
+	Label  string
+	Row    int
+	X0, X1 int
+	Target string
+}
+
+// ShowHints labels every link the pane shows with a letter, draws the labels
+// over the page and returns them. Typing a letter follows that link.
+func (v *View) ShowHints() []Hint {
+	v.ClearHints()
+	if v.Page == nil || len(v.Page.Links) == 0 {
+		return nil
+	}
+	v.hints = map[string]Hint{}
+	v.hintOn = true
+	var out []Hint
+	for _, l := range v.Page.Links {
+		if l.Row < v.scroll || l.Row >= v.scroll+v.H {
+			continue
+		}
+		label := string(rune('a' + len(out)))
+		if len(out) >= 26 {
+			break
+		}
+		h := Hint{Label: label, Row: l.Row, X0: l.X0, X1: l.X1, Target: l.Target}
+		out = append(out, h)
+		v.hints[label] = h
+		v.overlay = append(v.overlay,
+			Item{Kind: ItemRect, X: l.X0, Y: l.Row, W: max(l.X1-l.X0, 1), H: 1, Color: colorAlpha(v.Palette.Link, 0xC0)},
+			Item{Kind: ItemText, X: l.X0, Y: l.Row, W: 1, H: 1, Text: label,
+				SizePx: v.Fonts.BodyPx, Color: color.RGBA{R: 255, G: 255, B: 255, A: 255}, BaselinePx: v.Fonts.CellH * 3 / 4},
+		)
+	}
+	v.invalidateAll()
+	return out
+}
+
+// HintFor is the link a typed letter names, while hints are on.
+func (v *View) HintFor(label string) (Hint, bool) {
+	h, ok := v.hints[label]
+	return h, ok
+}
+
+// HintsOn reports whether the labels are showing.
+func (v *View) HintsOn() bool { return v.hintOn }
+
+// ClearHints drops the labels and redraws the page without them.
+func (v *View) ClearHints() {
+	if v.hintOn || len(v.hints) > 0 {
+		v.invalidateAll()
+	}
+	v.hintOn = false
+	v.hints = nil
+	v.overlay = nil
+}
+
+// WideScroll moves the page's wide blocks sideways and redraws them.
+func (v *View) WideScroll(delta int) {
+	if v.Page == nil || len(v.Page.Wide) == 0 {
+		return
+	}
+	limit := 0
+	for _, it := range v.Page.Items {
+		if !wideRow(v.Page, it.Y) {
+			continue
+		}
+		if end := it.X + it.W - v.W + 2; end > limit {
+			limit = end
+		}
+	}
+	v.wideOff = min(max(v.wideOff+delta, 0), max(limit, 0))
+	v.invalidateAll()
+}
+
+// WideOffset is how far the wide blocks are scrolled, in cells.
+func (v *View) WideOffset() int { return v.wideOff }
 
 // PageLine is the note line a page row belongs to.
 func (v *View) PageLine(row int) int {
@@ -401,7 +493,7 @@ func (v *View) VisibleText() string {
 	if v.Page == nil {
 		return ""
 	}
-	return v.Select(v.scroll, min(v.scroll+v.H-1, v.Page.Height-1))
+	return v.textRows(v.scroll, min(v.scroll+v.H-1, v.Page.Height-1))
 }
 
 // RowAt maps a pane row (0 is the top of the view) to the page's cell row.

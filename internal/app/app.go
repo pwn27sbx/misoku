@@ -298,6 +298,7 @@ func New(store *core.Store, opts ...Option) Model {
 		keys:        defaultKeys(),
 		focus:       focusSidebar,
 		viewMode:    viewModeDashboard,
+		richDrag:    -1,
 		sidebarOpen: true,
 		dashboard:   dashboard.New(th),
 		sidebar:     sidebar.New(th),
