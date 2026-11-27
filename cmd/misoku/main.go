@@ -145,6 +145,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	if opts.headless {
+		code := 0
+		if opts.headlessNote == "" {
+			fmt.Fprintln(os.Stderr, "misoku --headless needs --note")
+			code = 2
+		} else {
+			code = runHeadless(store, opts.headlessNote, opts.headlessCols, opts.headlessRows, themeName, version, os.Stdout)
+		}
+		os.Exit(code)
+	}
+
 	logPath := logFilePath()
 	f, err := tea.LogToFile(logPath, "debug")
 	if err != nil {
@@ -271,8 +282,11 @@ func welcomeTheme(name string, transparent bool) theme.Theme {
 
 // options are the flags of `misoku` itself.
 type options struct {
-	dir, theme, themesDir string
-	showVer, listThemes   bool
+	dir, theme, themesDir      string
+	showVer, listThemes        bool
+	headless                   bool
+	headlessNote               string
+	headlessCols, headlessRows int
 }
 
 // defineFlags declares misoku's flags on fs.
@@ -283,6 +297,10 @@ func defineFlags(fs *flag.FlagSet) *options {
 	fs.StringVar(&o.theme, "theme", "", i18n.T(i18n.CliFlagTheme))
 	fs.StringVar(&o.themesDir, "themes-dir", "", i18n.T(i18n.CliFlagThemesDir))
 	fs.BoolVar(&o.listThemes, "list-themes", false, i18n.T(i18n.CliFlagListThemes))
+	fs.BoolVar(&o.headless, "headless", false, "render a note's page to PNG tiles and print one JSON line")
+	fs.StringVar(&o.headlessNote, "note", "", "note to render in --headless mode")
+	fs.IntVar(&o.headlessCols, "cols", 100, "page width in cells for --headless")
+	fs.IntVar(&o.headlessRows, "rows", 40, "tile height in cells for --headless")
 	return o
 }
 
