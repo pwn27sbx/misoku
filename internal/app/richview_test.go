@@ -291,3 +291,82 @@ func TestRichViewSaysWhyItCannotOpen(t *testing.T) {
 		t.Fatalf("status = %q, want the hint", hinted.status)
 	}
 }
+
+// runRichCommand runs ":rich" through the editor command line and dispatches
+// the resulting message to the model, matching what the user triggers.
+func runRichCommand(t *testing.T, m *Model) {
+	t.Helper()
+	pressRunes(m, ":")
+	for _, ch := range "rich" {
+		pressRunes(m, string(ch))
+	}
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	*m = next.(Model)
+	if cmd == nil {
+		t.Fatal(":rich produced no command")
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if c == nil {
+				continue
+			}
+			next, _ = m.Update(c())
+			*m = next.(Model)
+		}
+		return
+	}
+	next, _ = m.Update(msg)
+	*m = next.(Model)
+}
+
+func TestRichCommandRefusalIsVisibleInBar(t *testing.T) {
+	t.Run("blocks mode shows reason in a 90-column statusline", func(t *testing.T) {
+		preview.ConfigureImages("blocks", false)
+		t.Cleanup(func() { preview.ConfigureImages("blocks", false) })
+		m := richModel(t, &richSender{})
+		next, _ := m.Update(tea.WindowSizeMsg{Width: 90, Height: 30})
+		mm := next.(Model)
+		runRichCommand(t, &mm)
+		if mm.noteView == viewRich {
+			t.Fatal(":rich opened in Blocks mode")
+		}
+		if !strings.Contains(mm.status, "Rich view unavailable") {
+			t.Fatalf("status = %q, want Rich view unavailable", mm.status)
+		}
+		if bar := mm.statusline(); !strings.Contains(bar, "Rich view unavailable") {
+			t.Fatalf("statusline did not show the refusal reason:\n%s", bar)
+		}
+	})
+
+	t.Run("narrow pane reports required columns before actual columns", func(t *testing.T) {
+		withImages(t)
+		m := richModel(t, &richSender{})
+		next, _ := m.Update(tea.WindowSizeMsg{Width: 35, Height: 30})
+		mm := next.(Model)
+		runRichCommand(t, &mm)
+		if mm.noteView == viewRich {
+			t.Fatal(":rich opened in a narrow pane")
+		}
+		if !strings.Contains(mm.status, "at least 40 columns") {
+			t.Fatalf("status = %q, want 'at least 40 columns'", mm.status)
+		}
+	})
+
+	t.Run("draft note refuses with a reason in the bar", func(t *testing.T) {
+		withImages(t)
+		m := richModel(t, &richSender{})
+		m.newDraft("")
+		pressRich(m, tea.KeyMsg{Type: tea.KeyEsc})
+		runRichCommand(t, m)
+		if m.noteView == viewRich {
+			t.Fatal(":rich opened on an unsaved draft")
+		}
+		if !strings.Contains(m.status, "save this draft first") {
+			t.Fatalf("status = %q, want draft refusal reason", m.status)
+		}
+		if bar := m.statusline(); !strings.Contains(bar, "save this draft first") {
+			t.Fatalf("statusline did not show draft refusal:\n%s", bar)
+		}
+	})
+}

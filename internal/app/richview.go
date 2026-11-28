@@ -51,6 +51,7 @@ func (m *Model) toggleRichView() tea.Cmd {
 	}
 	// A refusal is never silent: say which piece is missing.
 	if reason := m.richRefusal(); reason != "" {
+		m.richNotice = reason
 		m.setStatus(reason)
 		return nil
 	}
@@ -60,7 +61,7 @@ func (m *Model) toggleRichView() tea.Cmd {
 
 // richRefusal is why the page cannot open here, or "" when it can. The reason
 // names the first missing piece: the caller's hint (tmux), the image output,
-// the terminal's graphics, or the pane width.
+// the terminal's graphics, the pane width, or an open saved note.
 func (m *Model) richRefusal() string {
 	if m.richHint != "" {
 		return m.richHint
@@ -72,7 +73,14 @@ func (m *Model) richRefusal() string {
 		return i18n.T(i18n.AppRichUnavailable)
 	}
 	if w := m.layout().EditorW; w < minRichForce {
-		return i18n.T(i18n.AppRichNarrow, w, minRichForce)
+		return i18n.T(i18n.AppRichNarrow, minRichForce, w)
+	}
+	b := m.activeBuffer()
+	if b == nil {
+		return i18n.T(i18n.AppOpenNoteFirst)
+	}
+	if b.draft() {
+		return i18n.T(i18n.AppRichSaveFirst)
 	}
 	return ""
 }
@@ -142,7 +150,9 @@ func (m *Model) prepareRich() {
 		m.refreshRich()
 	}
 	if m.rich == nil || !m.rich.Ready() {
-		m.setStatus(i18n.T(i18n.AppRichUnavailable))
+		reason := i18n.T(i18n.AppRichUnavailable)
+		m.richNotice = reason
+		m.setStatus(reason)
 		m.setNoteView(viewReading)
 		return
 	}

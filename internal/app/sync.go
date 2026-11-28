@@ -597,7 +597,13 @@ func arrivalCompact(res gitsync.SyncResult) string {
 // conflict copy, a warning, a reload) reads differently, so it draws as any
 // other message.
 func (m *Model) barNotice() (compact string, ok bool) {
-	return m.sync.noticeCompact, m.status != "" && m.status == m.sync.noticeLong
+	if m.status != "" && m.status == m.sync.noticeLong {
+		return m.sync.noticeCompact, true
+	}
+	if m.status != "" && m.status == m.richNotice {
+		return m.richNotice, true
+	}
+	return "", false
 }
 
 // fileWarnings lists, one line each, the files a commit left out for being

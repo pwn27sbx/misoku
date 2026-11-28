@@ -50,6 +50,14 @@ func Detect(env func(string) string, isTTY bool) Mode {
 // the writer wraps every transmit for tmux. passthrough may be nil, which
 // keeps tmux on the text view.
 func DetectIn(env func(string) string, isTTY bool, passthrough func() bool) Mode {
+	return DetectTmux(env, isTTY, passthrough, nil)
+}
+
+// DetectTmux is DetectIn with what tmux reports about the outer terminal
+// (client_termname and global environment). Inside a real tmux pane, tmux
+// overrides TERM and TERM_PROGRAM to "tmux", so outer is consulted alongside
+// env when passthrough is on.
+func DetectTmux(env func(string) string, isTTY bool, passthrough func() bool, outer func(string) string) Mode {
 	if env == nil {
 		return Blocks
 	}
@@ -66,12 +74,13 @@ func DetectIn(env func(string) string, isTTY bool, passthrough func() bool) Mode
 	herdr := env("HERDR_ENV") == "1"
 	inTmux := env("TMUX") != "" || strings.HasPrefix(term, "tmux")
 	if inTmux {
-		// tmux keeps the outer terminal's identity in the environment, but it
-		// drops the graphics unless passthrough lets them through.
+		// tmux overrides TERM and TERM_PROGRAM inside panes and drops graphics
+		// unless passthrough lets them through, so check both the pane env and
+		// what tmux reports about the outer terminal.
 		if passthrough == nil || !passthrough() {
 			return Blocks
 		}
-		if outerGraphics(env) {
+		if outerGraphics(env) || (outer != nil && outerGraphics(outer)) {
 			return Graphics
 		}
 		return Blocks

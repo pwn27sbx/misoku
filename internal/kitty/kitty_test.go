@@ -384,6 +384,50 @@ func TestDetectInTmux(t *testing.T) {
 	}
 }
 
+// Inside a real tmux pane, TERM is tmux-256color and TERM_PROGRAM is tmux.
+// DetectTmux asks the outer terminal probe so Ghostty/kitty/WezTerm/Konsole/herdr
+// are still recognised when passthrough is on.
+func TestDetectTmuxRealPaneEnv(t *testing.T) {
+	t.Parallel()
+	on := func() bool { return true }
+	off := func() bool { return false }
+	paneEnv := map[string]string{
+		"TMUX":         "/tmp/tmux-1000/default,123,0",
+		"TERM":         "tmux-256color",
+		"TERM_PROGRAM": "tmux",
+	}
+	cases := []struct {
+		name  string
+		env   map[string]string
+		pass  func() bool
+		outer map[string]string
+		want  kitty.Mode
+	}{
+		{"ghostty via client_termname", paneEnv, on, map[string]string{"TERM": "xterm-ghostty"}, kitty.Graphics},
+		{"ghostty via global TERM_PROGRAM", paneEnv, on, map[string]string{"TERM_PROGRAM": "ghostty"}, kitty.Graphics},
+		{"kitty via client_termname", paneEnv, on, map[string]string{"TERM": "xterm-kitty"}, kitty.Graphics},
+		{"wezterm via global TERM_PROGRAM", paneEnv, on, map[string]string{"TERM_PROGRAM": "WezTerm"}, kitty.Graphics},
+		{"konsole via global KONSOLE_VERSION", paneEnv, on, map[string]string{"KONSOLE_VERSION": "240800"}, kitty.Graphics},
+		{"herdr via global HERDR_ENV", paneEnv, on, map[string]string{"HERDR_ENV": "1"}, kitty.Graphics},
+		{"plain xterm outer stays blocks", paneEnv, on, map[string]string{"TERM": "xterm-256color"}, kitty.Blocks},
+		{"passthrough off ignores outer ghostty", paneEnv, off, map[string]string{"TERM": "xterm-ghostty", "TERM_PROGRAM": "ghostty"}, kitty.Blocks},
+		{"MISOKU_IMAGES=blocks beats outer ghostty", map[string]string{
+			"TMUX":          "/tmp/tmux-1000/default,123,0",
+			"TERM":          "tmux-256color",
+			"TERM_PROGRAM":  "tmux",
+			"MISOKU_IMAGES": "blocks",
+		}, on, map[string]string{"TERM": "xterm-ghostty", "TERM_PROGRAM": "ghostty"}, kitty.Blocks},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := kitty.DetectTmux(envOf(tc.env), true, tc.pass, envOf(tc.outer)); got != tc.want {
+				t.Fatalf("DetectTmux = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // Send wraps the transmit and nothing else: frames never carry a DCS.
 func TestPassthroughWriterWrapsOnlyGraphics(t *testing.T) {
 	var buf bytes.Buffer

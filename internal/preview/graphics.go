@@ -97,7 +97,13 @@ func ConfigureImages(setting string, isTTY bool) {
 // ConfigureImagesIn is ConfigureImages with tmux passthrough: nil keeps tmux on
 // the text view, and a pass-through probe lets the rich view draw inside tmux.
 func ConfigureImagesIn(setting string, isTTY bool, passthrough func() bool) {
-	mode := kitty.DetectIn(os.Getenv, isTTY, passthrough)
+	ConfigureImagesTmux(setting, isTTY, passthrough, nil)
+}
+
+// ConfigureImagesTmux is ConfigureImagesIn with tmux's report of the outer
+// terminal, for panes where tmux overrides TERM and TERM_PROGRAM.
+func ConfigureImagesTmux(setting string, isTTY bool, passthrough func() bool, outer func(string) string) {
+	mode := kitty.DetectTmux(os.Getenv, isTTY, passthrough, outer)
 	if os.Getenv("MISOKU_IMAGES") == "" {
 		switch strings.ToLower(strings.TrimSpace(setting)) {
 		case "kitty", "graphics", "on":

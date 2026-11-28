@@ -179,7 +179,11 @@ func main() {
 	// upload can never be cut in half by a repaint; the mode comes from
 	// ui.images, and MISOKU_IMAGES wins over it.
 	passthrough := tmuxPassthrough()
-	preview.ConfigureImagesIn(cfg.UI.Images, isTerminal(os.Stdout), func() bool { return passthrough })
+	var outerEnv func(string) string
+	if passthrough {
+		outerEnv = tmuxOuterEnv()
+	}
+	preview.ConfigureImagesTmux(cfg.UI.Images, isTerminal(os.Stdout), func() bool { return passthrough }, outerEnv)
 	// The terminal's own cursor draws the mode, like LazyVim: a block in NORMAL
 	// and a thin bar in INSERT, placed on the editor cell after every frame and
 	// inside the same synchronized update. ui.cursor_shape and
@@ -550,6 +554,39 @@ func passthroughOn(out string) bool {
 		return true
 	}
 	return false
+}
+
+// tmuxOuterEnv asks tmux for the outer terminal's identity (client_termname
+// and the server's global environment) with a short timeout, because tmux
+// overrides TERM and TERM_PROGRAM inside panes.
+func tmuxOuterEnv() func(string) string {
+	if !tmuxInside() {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	termOut, _ := exec.CommandContext(ctx, "tmux", "display", "-p", "#{client_termname}").Output()
+	envOut, _ := exec.CommandContext(ctx, "tmux", "show-environment", "-g").Output()
+	return parseTmuxOuter(string(termOut), string(envOut))
+}
+
+// parseTmuxOuter builds an env lookup from tmux's client_termname and
+// show-environment -g output. Unset entries ("-VAR") are ignored.
+func parseTmuxOuter(clientTerm, globalEnv string) func(string) string {
+	vars := make(map[string]string)
+	for _, line := range strings.Split(globalEnv, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "-") {
+			continue
+		}
+		if k, v, ok := strings.Cut(line, "="); ok {
+			vars[k] = v
+		}
+	}
+	if t := strings.TrimSpace(clientTerm); t != "" {
+		vars["TERM"] = t
+	}
+	return func(k string) string { return vars[k] }
 }
 
 // richCellSize picks the rich page's cell size: MISOKU_RICH_CELL_PX, then

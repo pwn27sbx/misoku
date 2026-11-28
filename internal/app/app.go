@@ -115,6 +115,7 @@ type Model struct {
 	richZoomBack  *rich.Page       // the page a diagram zoom will return to, nil when not zoomed
 	richZoomTop   int              // the page row the reader was on when the zoom opened
 	richHint      string           // why the rich view cannot open here, when the reason is specific
+	richNotice    string           // last rich-view refusal, so the statusline makes room to show it
 	richSender    rich.Sender
 	richFontBody  string
 	richFontMono  string
