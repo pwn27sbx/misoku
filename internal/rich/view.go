@@ -53,7 +53,10 @@ type tile struct {
 	cols  int
 }
 
-const maxTiles = 4
+const (
+	maxTiles     = 6
+	tileBandRows = 16
+)
 
 // NewView makes an empty view for a pane of w×h cells.
 func NewView(w, h int, fonts *Fonts, pal Palette, sender Sender) *View {
@@ -136,10 +139,10 @@ func (v *View) Prepare() error {
 	if !v.Ready() {
 		return nil
 	}
-	// Tiles are one screenful and aligned to the view height, so a degraded
-	// terminal and a healthy one ask for the same single screenful; the flag
-	// only says why a tile was refused.
-	need := v.neededTiles(v.H)
+	// Tiles are fixed row bands (at most tileBandRows tall) so scrolling reuses
+	// already-encoded PNGs and only encodes one short strip when crossing a band
+	// boundary, keeping 2x zoomed scroll frames within the 33 ms budget.
+	need := v.neededTiles(min(v.H, tileBandRows))
 	// Evict farthest tiles first, keeping the visible ones.
 	for first, t := range v.tiles {
 		if _, ok := need[first]; ok && len(v.tiles) <= maxTiles {
@@ -163,19 +166,19 @@ func (v *View) Prepare() error {
 	return firstErr
 }
 
-// neededTiles says which tiles the frame shows and how many rows each holds.
-// Tiles are aligned to the view height so a scroll only adds one at the edge.
-func (v *View) neededTiles(rows int) map[int]int {
+// neededTiles says which fixed row bands cover the visible viewport and how
+// many rows each holds.
+func (v *View) neededTiles(band int) map[int]int {
 	need := map[int]int{}
-	if v.Page == nil {
+	if v.Page == nil || band <= 0 {
 		return need
 	}
 	last := max(v.Page.Height, 1)
-	for first := (v.scroll / rows) * rows; first < v.scroll+rows && first < last; first += rows {
+	for first := (v.scroll / band) * band; first < v.scroll+v.H && first < last; first += band {
 		if first < 0 {
 			continue
 		}
-		n := min(rows, last-first)
+		n := min(band, last-first)
 		need[first] = n
 	}
 	return need

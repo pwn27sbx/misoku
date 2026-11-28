@@ -370,3 +370,69 @@ func TestRichCommandRefusalIsVisibleInBar(t *testing.T) {
 		}
 	})
 }
+
+// The + and - keys zoom the page: the faces and the cells they sit in grow
+// together, so the page takes more cells and the text keeps its proportion.
+func TestRichViewZoomsThePage(t *testing.T) {
+	withImages(t)
+	m := richModel(t, &richSender{})
+	openRich(m)
+	before := m.richFonts.CellW
+	pressRunes(m, "+")
+	if m.richFonts.CellW <= before {
+		t.Fatalf("+ left the cells at %d", m.richFonts.CellW)
+	}
+	if m.rich == nil || m.rich.Page == nil {
+		t.Fatal("the page was lost after zooming")
+	}
+	if !strings.Contains(m.status, "page zoom") {
+		t.Fatalf("status = %q, want the zoom notice", m.status)
+	}
+	pressRunes(m, "-")
+	pressRunes(m, "-")
+	if m.richFonts.CellW >= before {
+		t.Fatalf("- left the cells at %d, want fewer than %d", m.richFonts.CellW, before)
+	}
+}
+
+// A resize keeps the note line the reader was on at the top of the page.
+func TestRichViewResizeKeepsTheLine(t *testing.T) {
+	withImages(t)
+	m := richModel(t, &richSender{})
+	openRich(m)
+	for i := 0; i < 6; i++ {
+		pressRunes(m, "j")
+	}
+	line := m.rich.SourceLine()
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 38})
+	mm := next.(Model)
+	if got := mm.rich.SourceLine(); got < line-1 || got > line+1 {
+		t.Fatalf("resize moved the top from line %d to %d", line, got)
+	}
+}
+
+// The wheel scrolls and a click on a text row opens the text view there.
+func TestRichViewMouseScrollsAndClicks(t *testing.T) {
+	withImages(t)
+	m := richModel(t, &richSender{})
+	openRich(m)
+	top := m.rich.ScrollTop()
+	sendMsg(m, tea.MouseMsg{Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+	if m.rich.ScrollTop() <= top {
+		t.Fatal("the wheel did not scroll")
+	}
+	l := m.layout()
+	row := l.NoteY() + 2
+	sendMsg(m, tea.MouseMsg{X: 5, Y: row, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	sendMsg(m, tea.MouseMsg{X: 5, Y: row, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease})
+	if m.noteView != viewReading {
+		t.Fatalf("a click left noteView = %v, want the text view", m.noteView)
+	}
+}
+
+// sendMsg drives one arbitrary message through the model, the way the runtime
+// does.
+func sendMsg(m *Model, msg tea.Msg) {
+	next, _ := m.Update(msg)
+	*m = next.(Model)
+}

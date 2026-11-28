@@ -100,6 +100,7 @@ diagrams as pictures. Without Kitty graphics the text reading view stays.
 | `/`, `n` / `N` | Search the page, next/previous match |
 | `f` then a letter | Follow a link hint |
 | `H` / `L` | Scroll a wide code block or table sideways |
+| `+` / `=`, `-` | Zoom the page in or out (1.15× steps) |
 | `enter` | Zoom the selected diagram (or the first one on screen) to the pane |
 | click | Zoom a diagram; on any other row open the text view at that line |
 | `y` | Copy the selection, or the visible page |

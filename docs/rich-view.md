@@ -32,6 +32,7 @@ note text ─rich.Parse─▶ Document ─rich.Layout─▶ Page ─rich.Raster�
 | `/`, `n` / `N` | Search the page, next/previous match |
 | `f` then a letter | Follow a link hint |
 | `H` / `L` | Scroll a wide code block or table sideways |
+| `+` / `=`, `-` | Zoom the page in or out (1.15× steps) |
 | `enter` | Zoom the selected diagram (or the first on screen) to the pane |
 | click | Zoom a diagram; any other row opens the text view at that line |
 | `y` | Copy the selection, or the visible page |
@@ -84,14 +85,12 @@ on a 1000-line note at 120×40 (Go test fonts, 1× = 12×24 cells, 2× = 24×48)
 
 | Work | 1× | 2× | Budget |
 | --- | --- | --- | --- |
-| First paint (parse, lay out, screen tile, PNG) | 34 ms | 84 ms | 250 ms |
-| Scroll frame (raster + PNG of one screen) | 22 ms | 75 ms | 33 ms |
+| First paint (parse, lay out, screen tile, PNG) | 31 ms | 74 ms | 250 ms |
+| Scroll frame p100 (fixed 16-row tile bands) | 9 ms | 28 ms | 33 ms |
 
-The 2× scroll frame is over budget, and the cost is the PNG encode of a
-5.5 Mpx screen (~58–67 ms of it; rasterising is 7–9 ms). The fix is a tiling
-change — fixed row blocks whose encoded PNGs are reused across a small scroll
-instead of re-encoding the whole screen — and it is not done yet. At 1× the
-budget holds.
+The view caches fixed 16-row tile bands and reuses their encoded PNGs across
+small scrolls, so only band crossings encode a new strip and both 1× and 2×
+zoomed scroll frames stay within the 33 ms budget.
 
 herdr client CPU is a manual live check (herdr 0.9.1: 15 % with kitty pictures
 vs 1 % with `MISOKU_IMAGES=blocks` in the 2026-11-03 method; 0.9.5: 2.0 % / 2.2 %).

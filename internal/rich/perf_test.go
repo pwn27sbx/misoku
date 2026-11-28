@@ -58,19 +58,30 @@ func firstPaint(b *testing.B, f *Fonts, pal Palette, doc Document) {
 	}
 }
 
-// scrollFrame is one wheel step: the page already laid out, the next strip
-// rastered and encoded.
+// scrollFrame is one wheel step through View.Prepare: fixed row bands are
+// reused across small scrolls, so only band crossings encode a new strip.
 func scrollFrame(b *testing.B, f *Fonts, pal Palette, p *Page) {
-	r := &Raster{Page: p, Fonts: f, Palette: pal}
-	last := max(p.Height-40, 1)
+	v := NewView(120, 40, f, pal, noopSender{})
+	v.SetPage(p)
+	if err := v.Prepare(); err != nil {
+		b.Fatal(err)
+	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		img := r.Tile((i*3)%last, 40)
-		if len(EncodePNG(img)) == 0 {
-			b.Fatal("no png")
+		if v.ScrollTop() >= v.MaxScroll() {
+			v.Scroll(-v.MaxScroll())
+		} else {
+			v.Scroll(3)
+		}
+		if err := v.Prepare(); err != nil {
+			b.Fatal(err)
 		}
 	}
 }
+
+type noopSender struct{}
+
+func (noopSender) Send(...string) error { return nil }
 
 func BenchmarkRichFirstPaint(b *testing.B) {
 	pal := testPalette()
@@ -118,15 +129,23 @@ func TestRichPaintBudgets(t *testing.T) {
 				t.Fatalf("first paint %s is far past the %s budget", paint.Round(time.Millisecond), budgetFirstPaint)
 			}
 
-			r := &Raster{Page: p, Fonts: tc.f, Palette: pal}
-			worst, last := time.Duration(0), max(p.Height-40, 1)
-			for i := 0; i < 20; i++ {
+			v := NewView(120, 40, tc.f, pal, noopSender{})
+			v.SetPage(p)
+			if err := v.Prepare(); err != nil {
+				t.Fatal(err)
+			}
+			var worst time.Duration
+			for i := 0; i < 40; i++ {
 				start := time.Now()
-				EncodePNG(r.Tile((i*7)%last, 40))
+				v.Scroll(3)
+				if err := v.Prepare(); err != nil {
+					t.Fatal(err)
+				}
 				if d := time.Since(start); d > worst {
 					worst = d
 				}
 			}
+			v.Close()
 			t.Logf("scroll frame p100 %s (budget %s)", worst.Round(time.Millisecond), budgetScroll)
 			if worst > 6*budgetScroll {
 				t.Fatalf("scroll frame %s is far past the %s budget", worst.Round(time.Millisecond), budgetScroll)

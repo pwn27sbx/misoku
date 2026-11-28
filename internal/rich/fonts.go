@@ -349,6 +349,22 @@ func (f *Fonts) Measure(s string, sizePx float64, mono bool) fixed.Int26_6 {
 	return w
 }
 
+// Scaled returns the same faces with the cell grid and the text sizes
+// multiplied by k: the page zoom, where both the page's pixels and the cells
+// it occupies grow together.
+func (f *Fonts) Scaled(k float64) (*Fonts, error) {
+	if k <= 0 {
+		k = 1
+	}
+	scale := func(v int) int { return max(int(math.Round(float64(v)*k)), 4) }
+	return NewFontsWithStyles(f.bodyBytes, f.monoBytes, f.boldBytes, f.italicBytes, FontConfig{
+		CellW:  scale(f.CellW),
+		CellH:  scale(f.CellH),
+		BodyPx: f.BodyPx * k,
+		MonoPx: f.MonoPx * k,
+	})
+}
+
 // WithTextScale returns the same faces on the same cell grid with the body and
 // mono sizes multiplied by k. A diagram laid out with it needs about k times
 // more cells and reads k times bigger: that is how it fills a pane.

@@ -132,12 +132,21 @@ func (m *Model) refreshRich() {
 		m.richEngines = engines.New(m.richFonts, pal)
 	}
 	page := m.richEngines.Page(doc, l.EditorW, images)
+	// A rebuild must not lose the reader's place: keep the note line at the top
+	// of the page across a resize or a reload.
+	line := 0
+	if m.rich != nil && m.rich.Page != nil {
+		line = m.rich.SourceLine()
+	}
 	if m.rich == nil {
 		m.rich = rich.NewView(l.EditorW, l.BodyH, m.richFonts, pal, m.richSender)
 	}
 	m.rich.Palette = pal
 	m.rich.SetSize(l.EditorW, l.BodyH)
 	m.rich.SetPage(page)
+	if line > 0 {
+		m.rich.GoToLine(line)
+	}
 }
 
 // prepareRich sends the tiles the next frame needs. A refusal falls back to
@@ -318,14 +327,10 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 			}
 			return m.copyText(text), true
 		case "+", "=":
-			m.richCellW += 2
-			m.richCellH += 4
-			m.refreshRich()
+			m.scaleRich(1.15)
 			return nil, true
 		case "-":
-			m.richCellW = max(m.richCellW-2, 6)
-			m.richCellH = max(m.richCellH-4, 12)
-			m.refreshRich()
+			m.scaleRich(1 / 1.15)
 			return nil, true
 		case "esc":
 			if a, b := m.rich.SelectionRows(); a >= 0 || b >= 0 || len(m.richOutline()) > 0 && m.richHasOverlay() {
@@ -393,6 +398,28 @@ func (m *Model) richOutline() []rich.Heading { return m.rich.Outline() }
 func (m *Model) richHasOverlay() bool {
 	a, b := m.rich.SelectionRows()
 	return a >= 0 || b >= 0
+}
+
+// scaleRich zooms the page: the faces, the cells they sit in and therefore
+// every line of the page grow together, and the engines rebuild at the new
+// size.
+func (m *Model) scaleRich(k float64) {
+	if m.richFonts == nil {
+		return
+	}
+	fonts, err := m.richFonts.Scaled(k)
+	if err != nil {
+		m.setError(i18n.T(i18n.AppRichFailed, err.Error()))
+		return
+	}
+	if fonts.CellW < 6 || fonts.CellW > 40 || fonts.CellH < 12 || fonts.CellH > 80 {
+		return
+	}
+	m.richFonts = fonts
+	m.richCellW, m.richCellH = fonts.CellW, fonts.CellH
+	m.richEngines = nil
+	m.refreshRich()
+	m.setStatus(fmt.Sprintf("page zoom %d×%d px cells", fonts.CellW, fonts.CellH))
 }
 
 // diagramAt finds the diagram whose rows cover a page row.

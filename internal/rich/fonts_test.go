@@ -151,3 +151,25 @@ func TestFontsDefaultBodyMatchesTheCell(t *testing.T) {
 		t.Fatalf("explicit body = %v, want 16", f.BodyPx)
 	}
 }
+
+// Scaled zooms the page: cells and text grow together, so the same note takes
+// more cells on screen without the text changing size relative to them.
+func TestFontsScaledGrowsCellsAndText(t *testing.T) {
+	f, err := NewFonts(goregular.TTF, gomono.TTF, FontConfig{CellW: 10, CellH: 20, BodyPx: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	big, err := f.Scaled(1.5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if big.CellW != 15 || big.CellH != 30 {
+		t.Fatalf("cells = %dx%d, want 15x30", big.CellW, big.CellH)
+	}
+	if big.BodyPx != 24 {
+		t.Fatalf("body = %v, want 24", big.BodyPx)
+	}
+	if ratio := big.BodyPx / float64(big.CellH); ratio > 0.85 || ratio < 0.75 {
+		t.Fatalf("text/cell ratio = %v, want the same proportion", ratio)
+	}
+}

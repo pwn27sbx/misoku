@@ -4,6 +4,14 @@ The changes of each release, newest first. Earlier releases are on the
 [releases page](https://github.com/pwn27sbx/misoku/releases); the binary's
 version comes from the tag, so nothing else in the tree carries it.
 
+## [Unreleased]
+
+### Added
+
+- Rich reading view (`:rich` / `Space V`): draws the active note with real fonts and heading sizes, native TeX-style inline and display maths (bundled Latin Modern Math), native Mermaid diagrams across thirteen diagram families, and inline images over Kitty graphics (including inside `tmux` 3.3+ with `allow-passthrough on`), with the editable text reading view as fallback everywhere.
+- Page zoom in the rich reading view with `+`/`=` and `-` (1.15× steps, scaling cells and faces together), plus preserving the top visible line across resizes and reloads.
+- Fixed 16-row tile bands in the rich reading view so scrolling reuses cached PNG tiles and stays within the 33 ms frame budget even at 2× zoom.
+
 ## [0.36.0] - 2026-11-18
 
 ### Changed
