@@ -157,6 +157,17 @@ func TestParseHTMLInlineMarkKbdRuby(t *testing.T) {
 	if strings.Contains(b.Lines[0], "((") {
 		t.Errorf("rp doubled parens in %q", b.Lines[0])
 	}
+	// Layout must preserve Mark and Kbd through wrapRuns and emit background rects.
+	page := Layout(doc, LayoutOptions{Width: 80, Fonts: testFonts(t), Palette: testPalette()})
+	rects := 0
+	for _, it := range page.Items {
+		if it.Kind == ItemRect {
+			rects++
+		}
+	}
+	if rects < 2 {
+		t.Fatalf("layout emitted %d ItemRect backgrounds for kbd+mark, want at least 2", rects)
+	}
 }
 
 func TestWikiLinksInsideFencesStayLiteral(t *testing.T) {
