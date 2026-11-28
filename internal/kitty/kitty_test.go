@@ -447,3 +447,28 @@ func TestPassthroughWriterWrapsOnlyGraphics(t *testing.T) {
 		t.Fatalf("frame wrapped: %q", got)
 	}
 }
+
+// tmux rewrites 256-colour foreground indices 0…15 into basic 8/16-colour SGR
+// codes (30…37, 90…97), which Ghostty does not recognise as Kitty placeholder
+// image ids. AcquireID must hand out ids >= 16 so 38;5;N survives tmux verbatim.
+func TestAcquireIDSkipsBasicANSIColours(t *testing.T) {
+	var held []int
+	t.Cleanup(func() {
+		for _, id := range held {
+			kitty.ReleaseID(id)
+		}
+	})
+	for i := 0; i < 240; i++ {
+		id, ok := kitty.AcquireID()
+		if !ok {
+			t.Fatalf("AcquireID exhausted early at %d", i)
+		}
+		held = append(held, id)
+		if id < 16 || id > 255 {
+			t.Fatalf("AcquireID = %d, want 16..255 so tmux never collapses 38;5;N to basic SGR", id)
+		}
+	}
+	if id, ok := kitty.AcquireID(); ok {
+		t.Fatalf("AcquireID returned %d after all 240 ids were taken", id)
+	}
+}
