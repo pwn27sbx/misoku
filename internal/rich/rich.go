@@ -41,6 +41,9 @@ type Span struct {
 	Bold       bool
 	Italic     bool
 	Code       bool
+	Mark       bool
+	Kbd        bool
+	Ruby       bool
 	Link       string
 	// Math is the formula's TeX source when the span was written as inline
 	// maths; the text it covers is the readable fallback.

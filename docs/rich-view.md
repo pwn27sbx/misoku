@@ -30,6 +30,7 @@ note text ─rich.Parse─▶ Document ─rich.Layout─▶ Page ─rich.Raster�
 | --- | --- |
 | `j` / `k`, `d` / `u`, `g` / `G` | Scroll one row, half a page, to the top/bottom |
 | `/`, `n` / `N` | Search the page, next/previous match |
+| `o` | Open the table of contents (outline) and jump to a heading |
 | `f` then a letter | Follow a link hint |
 | `H` / `L` | Scroll a wide code block or table sideways |
 | `+` / `=`, `-` | Zoom the page in or out (1.15× steps) |

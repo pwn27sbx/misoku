@@ -115,6 +115,23 @@ func TestParseMalformedErrors(t *testing.T) {
 	}
 }
 
+func TestParseMinusUsesUnicodeMinus(t *testing.T) {
+	e, err := Parse(`\theta_t - \eta`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(e.Nodes) < 2 {
+		t.Fatalf("got %d nodes, want at least 2", len(e.Nodes))
+	}
+	sym, ok := e.Nodes[1].(*Sym)
+	if !ok {
+		t.Fatalf("second node is %T, want *Sym", e.Nodes[1])
+	}
+	if sym.R != '−' || sym.Class != Bin {
+		t.Fatalf("minus = %q (U+%04X, class %v), want U+2212 Bin", sym.R, sym.R, sym.Class)
+	}
+}
+
 // TestParseArgumentsHoldContents pins what the tree carries, not only its Go
 // type: the values are what layout and drawing consume.
 func TestParseArgumentsHoldContents(t *testing.T) {

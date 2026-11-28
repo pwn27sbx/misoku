@@ -436,3 +436,73 @@ func sendMsg(m *Model, msg tea.Msg) {
 	next, _ := m.Update(msg)
 	*m = next.(Model)
 }
+
+func TestRichViewReloadAndTypingRebuild(t *testing.T) {
+	withImages(t)
+	m := richModel(t, &richSender{})
+	openRich(m)
+	for i := 0; i < 6; i++ {
+		pressRunes(m, "j")
+	}
+	line := m.rich.SourceLine()
+
+	// Disk reload while in rich view rebuilds the page and keeps the top line.
+	b := m.activeBuffer()
+	updated := b.text + "\nReloaded sentinel paragraph.\n"
+	m.applyScannedNote(b, false, updated, true)
+	if got := m.rich.SourceLine(); got < line-1 || got > line+1 {
+		t.Fatalf("disk reload moved top from line %d to %d", line, got)
+	}
+	if m.rich.Search("Reloaded sentinel paragraph.") == 0 {
+		t.Fatal("disk reload did not rebuild the rich page")
+	}
+
+	// Typing edits rebuild the rich page from the live editor buffer.
+	m.content.ReplaceText(updated + "\nTyped live sentinel.\n")
+	m.editorEdited()
+	if m.rich.Search("Typed live sentinel.") == 0 {
+		t.Fatal("typing edit did not rebuild the rich page")
+	}
+}
+
+func TestRichViewTOCOpensOutlineAndJumps(t *testing.T) {
+	withImages(t)
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body strings.Builder
+	body.WriteString("# Intro\n\n")
+	for i := 0; i < 45; i++ {
+		body.WriteString("Filler paragraph for scrolling.\n\n")
+	}
+	body.WriteString("## Target Section\n\n")
+	for i := 0; i < 30; i++ {
+		body.WriteString("More filler after target.\n\n")
+	}
+	if _, err := store.SaveAs("", "TOC", body.String()); err != nil {
+		t.Fatal(err)
+	}
+	m := New(store, WithImageSender(&richSender{}))
+	m.richFonts = testRichFonts(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	mm := next.(Model)
+	mm.openInCurrentBuffer("TOC.md")
+	next, _ = mm.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	mm = next.(Model)
+	openRich(&mm)
+
+	pressRunes(&mm, "o")
+	if mm.menuBox == nil {
+		t.Fatal("pressing o in rich view did not open the outline menu")
+	}
+	// Move to the second heading ("Target Section") and press Enter.
+	pressRich(&mm, tea.KeyMsg{Type: tea.KeyDown})
+	pressRich(&mm, tea.KeyMsg{Type: tea.KeyEnter})
+	if mm.menuBox != nil {
+		t.Fatal("Enter did not close the outline menu")
+	}
+	if mm.rich.ScrollTop() == 0 {
+		t.Fatal("picking the second heading did not jump down the page")
+	}
+}

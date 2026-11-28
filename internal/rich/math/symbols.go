@@ -344,7 +344,7 @@ var functionNames = map[string]fnDef{
 // runeClass is the atom class of a raw character, following TeX's tables.
 func runeClass(r rune) Class {
 	switch r {
-	case '+', '-', '*', '/', '±', '∓', '×', '÷', '·', '⋅':
+	case '+', '-', '−', '*', '/', '±', '∓', '×', '÷', '·', '⋅':
 		return Bin
 	case '=', '<', '>', ':', '≤', '≥', '≠', '≈', '≡', '∼', '→', '←', '↔', '⇒', '⇐', '⇔', '∈', '∉', '⊂', '⊃', '⊆', '⊇', '∞':
 		return Rel

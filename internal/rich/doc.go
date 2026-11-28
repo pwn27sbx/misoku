@@ -191,17 +191,54 @@ func inlineSpans(n ast.Node, src []byte) []Span {
 func inlineTextSpans(n ast.Node, src []byte) (string, []Span) {
 	var b strings.Builder
 	var spans []Span
+	markStart, kbdStart, rtStart := -1, -1, -1
+	inRP := false
 	var walk func(ast.Node)
 	walk = func(n ast.Node) {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 			switch t := c.(type) {
 			case *ast.Text:
-				writeWikiAware(&b, &spans, string(t.Segment.Value(src)))
-				if t.SoftLineBreak() || t.HardLineBreak() {
-					b.WriteString("\n")
+				if !inRP {
+					writeWikiAware(&b, &spans, string(t.Segment.Value(src)))
+					if t.SoftLineBreak() || t.HardLineBreak() {
+						b.WriteString("\n")
+					}
 				}
 			case *ast.String:
-				writeWikiAware(&b, &spans, string(t.Value))
+				if !inRP {
+					writeWikiAware(&b, &spans, string(t.Value))
+				}
+			case *ast.RawHTML:
+				var raw strings.Builder
+				for i := 0; i < t.Segments.Len(); i++ {
+					seg := t.Segments.At(i)
+					raw.Write(seg.Value(src))
+				}
+				tag := strings.ToLower(strings.TrimSpace(raw.String()))
+				now := utf8.RuneCountInString(b.String())
+				switch {
+				case tag == "<mark>" || strings.HasPrefix(tag, "<mark "):
+					markStart = now
+				case tag == "</mark>" && markStart >= 0:
+					spans = append(spans, Span{Start: markStart, End: now, Mark: true})
+					markStart = -1
+				case tag == "<kbd>" || strings.HasPrefix(tag, "<kbd "):
+					kbdStart = now
+				case tag == "</kbd>" && kbdStart >= 0:
+					spans = append(spans, Span{Start: kbdStart, End: now, Kbd: true})
+					kbdStart = -1
+				case tag == "<rp>" || strings.HasPrefix(tag, "<rp "):
+					inRP = true
+				case tag == "</rp>":
+					inRP = false
+				case tag == "<rt>" || strings.HasPrefix(tag, "<rt "):
+					b.WriteString(" (")
+					rtStart = utf8.RuneCountInString(b.String()) - 1
+				case tag == "</rt>" && rtStart >= 0:
+					b.WriteString(")")
+					spans = append(spans, Span{Start: rtStart, End: utf8.RuneCountInString(b.String()), Ruby: true})
+					rtStart = -1
+				}
 			case *ast.Emphasis:
 				start := utf8.RuneCountInString(b.String())
 				walkInline(c, &b, src)

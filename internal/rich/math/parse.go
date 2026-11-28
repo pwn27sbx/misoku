@@ -401,6 +401,8 @@ func charNode(r rune) Node {
 	switch r {
 	case '\'':
 		return &Sym{R: '′', Class: Ord}
+	case '-':
+		return &Sym{R: '−', Class: Bin, Font: FontRoman}
 	case '~':
 		return &Space{Em: interwordSpace}
 	}

@@ -312,6 +312,9 @@ type styledText struct {
 	Bold   bool
 	Italic bool
 	Code   bool
+	Mark   bool
+	Kbd    bool
+	Ruby   bool
 	Link   bool
 	// Math is the formula's source when this run is inline maths; Box is the
 	// ink the engine laid out for it. A run with Math but no Box draws Text.
@@ -323,6 +326,7 @@ type styledText struct {
 // can be merged back into one.
 func (s styledText) sameStyle(o styledText) bool {
 	return s.Bold == o.Bold && s.Italic == o.Italic && s.Code == o.Code &&
+		s.Mark == o.Mark && s.Kbd == o.Kbd && s.Ruby == o.Ruby &&
 		s.Link == o.Link && s.Math == o.Math && s.Box == o.Box
 }
 
@@ -373,6 +377,9 @@ func runsOf(b Block) []styledText {
 			r.Bold = r.Bold || sp.Bold
 			r.Italic = r.Italic || sp.Italic
 			r.Code = r.Code || sp.Code
+			r.Mark = r.Mark || sp.Mark
+			r.Kbd = r.Kbd || sp.Kbd
+			r.Ruby = r.Ruby || sp.Ruby
 			r.Link = r.Link || sp.Link != ""
 			if sp.Math != "" {
 				r.Math = sp.Math
@@ -436,9 +443,16 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 			if run.Link {
 				runCol = l.pal.Link
 			}
+			if run.Ruby && l.pal.Muted.A != 0 {
+				runCol = l.pal.Muted
+			}
 			runSize := size
-			if run.Code {
+			runMono := run.Code || run.Kbd
+			runBold := run.Bold || run.Kbd
+			if run.Code || run.Kbd {
 				runSize = size * 0.85
+			} else if run.Ruby {
+				runSize = size * 0.78
 			}
 			px := 0
 			switch {
@@ -448,7 +462,7 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 				// The gap between words follows the same rule the wrap used.
 				px = l.wordSpace(size)
 			default:
-				px = l.f.MeasureStyled(run.Text, runSize, run.Code, run.Bold, run.Italic)
+				px = l.f.MeasureStyled(run.Text, runSize, runMono, runBold, run.Italic)
 			}
 			xCells := l.x0 + indent + prefixPx/l.f.CellW
 			xOff := prefixPx % l.f.CellW
@@ -460,13 +474,17 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 				prefixPx += px
 				continue
 			}
-			if run.Code {
+			if run.Mark && l.pal.Alert[3].A != 0 {
+				bg := l.pal.Alert[3]
+				bg.A = 72
+				l.emit(Item{Kind: ItemRect, X: xCells, Y: l.y, W: w, H: lineCells, Color: bg, XOffPx: xOff})
+			} else if run.Code || run.Kbd {
 				// The background starts at the run's exact pixel: a rect at
 				// the cell's left edge would paint over the word before it.
 				l.emit(Item{Kind: ItemRect, X: xCells, Y: l.y, W: w, H: lineCells, Color: l.pal.CodeBg, XOffPx: xOff})
 			}
 			l.emit(Item{Kind: ItemText, X: xCells, Y: l.y, W: w, H: lineCells, Text: run.Text,
-				SizePx: runSize, Mono: run.Code, Bold: run.Bold, Italic: run.Italic,
+				SizePx: runSize, Mono: runMono, Bold: runBold, Italic: run.Italic,
 				Color: runCol, BaselinePx: base, XOffPx: xOff})
 			prefixPx += px
 		}

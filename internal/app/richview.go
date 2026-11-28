@@ -119,7 +119,11 @@ func (m *Model) refreshRich() {
 		m.richFonts = fonts
 	}
 	pal := rich.PaletteFromTheme(m.theme)
-	doc := rich.Parse([]byte(b.text))
+	text := b.text
+	if b.id == m.active {
+		text = m.content.Value()
+	}
+	doc := rich.Parse([]byte(text))
 	noteDir := filepath.Join(m.store.Root(), filepath.FromSlash(path.Dir(b.id)))
 	images := rich.ImageOptions{
 		BaseDir: noteDir,
@@ -278,6 +282,9 @@ func (m *Model) richKey(msg tea.Msg) (tea.Cmd, bool) {
 				m.setStatus("no links on screen")
 			}
 			return nil, true
+		case "o":
+			m.openRichOutline()
+			return nil, true
 		case "H":
 			m.rich.WideScroll(-4)
 			return nil, true
@@ -393,6 +400,25 @@ func (m *Model) richSelectedText() string {
 
 // richOutline is the page's table of contents.
 func (m *Model) richOutline() []rich.Heading { return m.rich.Outline() }
+
+// openRichOutline opens a searchable heading list and jumps to the picked section.
+func (m *Model) openRichOutline() {
+	headings := m.richOutline()
+	if len(headings) == 0 {
+		m.setStatus("no headings in this note")
+		return
+	}
+	items := make([]string, len(headings))
+	for i, h := range headings {
+		items[i] = strings.Repeat("  ", max(h.Level-1, 0)) + h.Text
+	}
+	m.searchMenu("Outline", items, 0, func(mm *Model, idx int) tea.Cmd {
+		if mm.rich != nil && idx >= 0 && idx < len(headings) {
+			mm.rich.GoToLine(headings[idx].Line)
+		}
+		return nil
+	})
+}
 
 // richHasOverlay reports whether a search or selection is showing.
 func (m *Model) richHasOverlay() bool {

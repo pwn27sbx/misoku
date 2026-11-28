@@ -124,6 +124,41 @@ func TestParseFootnotesDetailsAndDiff(t *testing.T) {
 	}
 }
 
+func TestParseHTMLInlineMarkKbdRuby(t *testing.T) {
+	src := []byte("Press <kbd>Space</kbd> for <mark>important</mark> <ruby>漢字<rp>(</rp><rt>かんじ</rt><rp>)</rp></ruby>.\n")
+	doc := Parse(src)
+	if len(doc.Blocks) != 1 {
+		t.Fatalf("blocks = %d, want 1", len(doc.Blocks))
+	}
+	b := doc.Blocks[0]
+	runes := []rune(b.Lines[0])
+	var kbd, mark, ruby string
+	for _, sp := range b.Spans {
+		seg := string(runes[sp.Start:sp.End])
+		if sp.Kbd {
+			kbd = seg
+		}
+		if sp.Mark {
+			mark = seg
+		}
+		if sp.Ruby {
+			ruby = seg
+		}
+	}
+	if kbd != "Space" {
+		t.Errorf("kbd = %q, want Space (line=%q, spans=%+v)", kbd, b.Lines[0], b.Spans)
+	}
+	if mark != "important" {
+		t.Errorf("mark = %q, want important (line=%q, spans=%+v)", mark, b.Lines[0], b.Spans)
+	}
+	if ruby != "(かんじ)" {
+		t.Errorf("ruby = %q, want (かんじ) (line=%q, spans=%+v)", ruby, b.Lines[0], b.Spans)
+	}
+	if strings.Contains(b.Lines[0], "((") {
+		t.Errorf("rp doubled parens in %q", b.Lines[0])
+	}
+}
+
 func TestWikiLinksInsideFencesStayLiteral(t *testing.T) {
 	doc := Parse([]byte("```\n[[Note|alias]]\n```\n\noutside [[Note|alias]]\n"))
 	if got := doc.Blocks[0].Code[0]; got != "[[Note|alias]]" {
