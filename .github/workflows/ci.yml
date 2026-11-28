@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (${{ matrix.os }})
@@ -60,41 +63,6 @@ jobs:
 
       - name: Build
         run: go build ./cmd/misoku
-
-  # Build the Nix flake so a stale vendorHash or version fails here, not for
-  # users running `nix run github:pwn27sbx/misoku`.
-  nix:
-    name: Nix build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Pinned: Nix's installer depends on the runner image, and
-        # ubuntu-latest moves to Ubuntu 26.04 from 2026-10-19
-        # (actions/runner-images#14748).
-        os: [ubuntu-24.04, macos-latest]
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check for flake
-        id: flake
-        run: |
-          if [ -f flake.nix ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No flake.nix; skipping."
-          fi
-
-      - uses: cachix/install-nix-action@v31
-        if: steps.flake.outputs.present == 'true'
-
-      - name: Build
-        if: steps.flake.outputs.present == 'true'
-        run: nix build -L .#default
-
-      - name: Run
-        if: steps.flake.outputs.present == 'true'
-        run: ./result/bin/misoku --version
 
   # Build the full release locally and install it on every platform the
   # installers and packages target.

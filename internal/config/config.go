@@ -51,12 +51,21 @@ type Config struct {
 	TemplatesDir string `json:"templates_dir,omitempty"`
 }
 
-// DefaultDailyDir is the daily notes' folder when daily_dir is not set.
+// DefaultDailyDir is the daily notes' folder when daily_dir is not set in
+// Spanish vaults or vaults with an existing Diario/ directory.
 const DefaultDailyDir = "Diario"
 
-// DefaultTemplatesDir is the templates' folder when templates_dir is not
-// set.
+// DefaultDailyDirEN is the daily notes' folder when daily_dir is not set in
+// English vaults without a legacy Diario/ directory.
+const DefaultDailyDirEN = "Daily"
+
+// DefaultTemplatesDir is the templates' folder when templates_dir is not set
+// in Spanish vaults or vaults with an existing Plantillas/ directory.
 const DefaultTemplatesDir = "Plantillas"
+
+// DefaultTemplatesDirEN is the templates' folder when templates_dir is not set
+// in English vaults without a legacy Plantillas/ directory.
+const DefaultTemplatesDirEN = "Templates"
 
 // VaultFolder checks a folder setting that names a place inside the vault,
 // such as daily_dir, and returns it /-separated without "." segments or
@@ -260,6 +269,10 @@ type UI struct {
 	// ModifiedMark goes before the tab name of a note with unsaved changes,
 	// like incline's "[+]".
 	ModifiedMark string `json:"modified_mark,omitempty"`
+	// RichCellPx overrides the rich view's cell size in pixels ("10x19") for
+	// a terminal that does not report its pixel geometry (herdr). Unset uses
+	// the terminal's answer, then 12x24. MISOKU_RICH_CELL_PX wins over it.
+	RichCellPx string `json:"rich_cell_px,omitempty"`
 	// Images chooses how the preview draws pictures: "auto" (default, from
 	// the terminal), "kitty" (Kitty graphics protocol) or "blocks" (half
 	// blocks). MISOKU_IMAGES wins over it.

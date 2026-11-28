@@ -29,7 +29,7 @@ func TestMentions(t *testing.T) {
 		{"accented title", "Diseño", "El diseño y el DISEÑO.", []string{"diseño", "DISEÑO"}},
 		{"accented letter is no boundary", "Diseño", "rediseño, diseñoso", nil},
 		{"partial word", "Docker", "Dockerfile and mydocker", nil},
-		{"digit is no boundary", "Go", "Go2 go", []string{"go"}},
+		{"digit is no boundary", "Git", "Git2 git", []string{"git"}},
 		{"regex characters", "C++ (notes)", "see C++ (notes), not C+ (notes) nor Cx+ (notes)", []string{"C++ (notes)"}},
 		{"regex dot is literal", "a.b", "axb a.b", []string{"a.b"}},
 		{"inline code", "Docker", "run `Docker` here", nil},

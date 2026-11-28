@@ -32,6 +32,10 @@ func TestDetectChoosesGraphicsOnlyWhereItWorks(t *testing.T) {
 		{"kitty by TERM", map[string]string{"TERM": "xterm-kitty"}, true, kitty.Graphics},
 		{"kitty window id", map[string]string{"KITTY_WINDOW_ID": "3"}, true, kitty.Graphics},
 		{"wezterm", map[string]string{"TERM_PROGRAM": "WezTerm"}, true, kitty.Graphics},
+		{"iterm2", map[string]string{"TERM_PROGRAM": "iTerm.app"}, true, kitty.Graphics},
+		{"konsole", map[string]string{"KONSOLE_VERSION": "240800"}, true, kitty.Graphics},
+		{"rex", map[string]string{"TERM_PROGRAM": "rex"}, true, kitty.Graphics},
+		{"konsole under tmux stays blocks", map[string]string{"KONSOLE_VERSION": "240800", "TMUX": "/tmp/x"}, true, kitty.Blocks},
 		{"herdr masks the outer terminal", map[string]string{"TERM": "xterm-256color", "HERDR_ENV": "1"}, true, kitty.Graphics},
 		{"tmux never passes graphics", map[string]string{"TERM_PROGRAM": "ghostty", "TMUX": "/tmp/x"}, true, kitty.Blocks},
 		{"screen", map[string]string{"TERM": "screen-256color", "TERM_PROGRAM": "ghostty"}, true, kitty.Blocks},
@@ -338,5 +342,133 @@ func TestWriterKeepsTheTerminalVisibleToBubbleTea(t *testing.T) {
 	plain := kitty.NewWriter(&bytes.Buffer{})
 	if got := plain.Fd(); got != ^uintptr(0) {
 		t.Fatalf("a buffer has no descriptor, got %d", got)
+	}
+}
+
+// tmux only passes graphics through its DCS, with every escape byte inside
+// the payload doubled.
+func TestWrapPassthrough(t *testing.T) {
+	seq := "\x1b_Ga=T,f=100;AAAA\x1b\\"
+	want := "\x1bPtmux;\x1b\x1b_Ga=T,f=100;AAAA\x1b\x1b\\\x1b\\"
+	if got := kitty.WrapPassthrough(seq); got != want {
+		t.Fatalf("wrapped = %q, want %q", got, want)
+	}
+}
+
+// Inside tmux the rich view draws only when passthrough is on and the outer
+// terminal speaks Kitty; every other mix stays on the text view.
+func TestDetectInTmux(t *testing.T) {
+	on := func() bool { return true }
+	off := func() bool { return false }
+	cases := []struct {
+		name string
+		env  map[string]string
+		pass func() bool
+		want kitty.Mode
+	}{
+		{"tmux on inside ghostty", map[string]string{"TMUX": "/tmp/tmux-1/default,1,0", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, on, kitty.Graphics},
+		{"tmux on inside kitty", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "kitty"}, on, kitty.Graphics},
+		{"tmux on inside konsole", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "KONSOLE_VERSION": "240800"}, on, kitty.Graphics},
+		{"tmux on inside plain xterm", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color"}, on, kitty.Blocks},
+		{"tmux inside herdr", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "HERDR_ENV": "1"}, on, kitty.Graphics},
+		{"tmux passthrough off", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, off, kitty.Blocks},
+		{"tmux unknown passthrough", map[string]string{"TMUX": "/tmp/x", "TERM": "tmux-256color", "TERM_PROGRAM": "ghostty"}, nil, kitty.Blocks},
+		{"screen stays text", map[string]string{"TERM": "screen-256color", "TERM_PROGRAM": "ghostty"}, on, kitty.Blocks},
+		{"herdr is unchanged", map[string]string{"HERDR_ENV": "1", "TERM": "xterm-256color"}, on, kitty.Graphics},
+		{"plain ghostty is unchanged", map[string]string{"TERM_PROGRAM": "ghostty"}, on, kitty.Graphics},
+	}
+	for _, c := range cases {
+		if got := kitty.DetectIn(envOf(c.env), true, c.pass); got != c.want {
+			t.Errorf("%s: mode %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// Inside a real tmux pane, TERM is tmux-256color and TERM_PROGRAM is tmux.
+// DetectTmux asks the outer terminal probe so Ghostty/kitty/WezTerm/Konsole/herdr
+// are still recognised when passthrough is on.
+func TestDetectTmuxRealPaneEnv(t *testing.T) {
+	t.Parallel()
+	on := func() bool { return true }
+	off := func() bool { return false }
+	paneEnv := map[string]string{
+		"TMUX":         "/tmp/tmux-1000/default,123,0",
+		"TERM":         "tmux-256color",
+		"TERM_PROGRAM": "tmux",
+	}
+	cases := []struct {
+		name  string
+		env   map[string]string
+		pass  func() bool
+		outer map[string]string
+		want  kitty.Mode
+	}{
+		{"ghostty via client_termname", paneEnv, on, map[string]string{"TERM": "xterm-ghostty"}, kitty.Graphics},
+		{"ghostty via global TERM_PROGRAM", paneEnv, on, map[string]string{"TERM_PROGRAM": "ghostty"}, kitty.Graphics},
+		{"kitty via client_termname", paneEnv, on, map[string]string{"TERM": "xterm-kitty"}, kitty.Graphics},
+		{"wezterm via global TERM_PROGRAM", paneEnv, on, map[string]string{"TERM_PROGRAM": "WezTerm"}, kitty.Graphics},
+		{"konsole via global KONSOLE_VERSION", paneEnv, on, map[string]string{"KONSOLE_VERSION": "240800"}, kitty.Graphics},
+		{"herdr via global HERDR_ENV", paneEnv, on, map[string]string{"HERDR_ENV": "1"}, kitty.Graphics},
+		{"plain xterm outer stays blocks", paneEnv, on, map[string]string{"TERM": "xterm-256color"}, kitty.Blocks},
+		{"passthrough off ignores outer ghostty", paneEnv, off, map[string]string{"TERM": "xterm-ghostty", "TERM_PROGRAM": "ghostty"}, kitty.Blocks},
+		{"MISOKU_IMAGES=blocks beats outer ghostty", map[string]string{
+			"TMUX":          "/tmp/tmux-1000/default,123,0",
+			"TERM":          "tmux-256color",
+			"TERM_PROGRAM":  "tmux",
+			"MISOKU_IMAGES": "blocks",
+		}, on, map[string]string{"TERM": "xterm-ghostty", "TERM_PROGRAM": "ghostty"}, kitty.Blocks},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := kitty.DetectTmux(envOf(tc.env), true, tc.pass, envOf(tc.outer)); got != tc.want {
+				t.Fatalf("DetectTmux = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// Send wraps the transmit and nothing else: frames never carry a DCS.
+func TestPassthroughWriterWrapsOnlyGraphics(t *testing.T) {
+	var buf bytes.Buffer
+	w := kitty.NewWriter(&buf)
+	w.SetPassthrough(true)
+	if err := w.Send("\x1b_Ga=T;x\x1b\\"); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); !strings.HasPrefix(got, "\x1bPtmux;") || !strings.HasSuffix(got, "\x1b\\") {
+		t.Fatalf("send not wrapped: %q", got)
+	}
+	buf.Reset()
+	if _, err := w.Write([]byte("frame")); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != "frame" {
+		t.Fatalf("frame wrapped: %q", got)
+	}
+}
+
+// tmux rewrites 256-colour foreground indices 0…15 into basic 8/16-colour SGR
+// codes (30…37, 90…97), which Ghostty does not recognise as Kitty placeholder
+// image ids. AcquireID must hand out ids >= 16 so 38;5;N survives tmux verbatim.
+func TestAcquireIDSkipsBasicANSIColours(t *testing.T) {
+	var held []int
+	t.Cleanup(func() {
+		for _, id := range held {
+			kitty.ReleaseID(id)
+		}
+	})
+	for i := 0; i < 240; i++ {
+		id, ok := kitty.AcquireID()
+		if !ok {
+			t.Fatalf("AcquireID exhausted early at %d", i)
+		}
+		held = append(held, id)
+		if id < 16 || id > 255 {
+			t.Fatalf("AcquireID = %d, want 16..255 so tmux never collapses 38;5;N to basic SGR", id)
+		}
+	}
+	if id, ok := kitty.AcquireID(); ok {
+		t.Fatalf("AcquireID returned %d after all 240 ids were taken", id)
 	}
 }

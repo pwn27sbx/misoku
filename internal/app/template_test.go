@@ -93,7 +93,7 @@ func TestSlashTemplateWithoutTemplatesNamesTheFolder(t *testing.T) {
 	h := openPlan(t, store)
 	h.keys("i/plantilla")
 	h.key(tea.KeyEnter)
-	if bar := statusBar(h); !strings.Contains(bar, "Plantillas") {
+	if bar := statusBar(h); !strings.Contains(bar, "Templates") {
 		t.Fatalf("the bar should name the templates folder:\n%s", bar)
 	}
 }

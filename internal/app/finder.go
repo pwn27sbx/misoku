@@ -38,6 +38,90 @@ type finder struct {
 	linkSrc     []core.LinkNote
 	current     string
 	currentText string
+	gen         uint64 // matches Model.finderGen so stale async loads are dropped
+	loading     bool   // true while note bodies are being read off the Update loop
+}
+
+// finderLinesLoadedMsg delivers note bodies (and any freshly listed notes) read
+// asynchronously for the finder.
+type finderLinesLoadedMsg struct {
+	gen   uint64
+	notes []core.Page
+	lines map[string][]string
+}
+
+// loadFinderLinesCmd reads the current note list and note bodies off the Update
+// loop for full-text search and finder preview.
+func loadFinderLinesCmd(gen uint64, store *core.Store) tea.Cmd {
+	if store == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		var list []core.Page
+		for _, p := range store.List() {
+			if !p.IsFolder {
+				list = append(list, p)
+			}
+		}
+		lines := make(map[string][]string, len(list))
+		for _, p := range list {
+			if full, err := store.Get(p.ID); err == nil {
+				lines[p.ID] = strings.Split(strings.ReplaceAll(full.Content, "\t", "    "), "\n")
+			}
+		}
+		return finderLinesLoadedMsg{gen: gen, notes: list, lines: lines}
+	}
+}
+
+// applyFinderLines installs asynchronously loaded note bodies when the finder
+// generation still matches, preserving the selected note if possible.
+func (m *Model) applyFinderLines(msg finderLinesLoadedMsg) {
+	f := m.finder
+	if f == nil || f.gen != msg.gen {
+		return
+	}
+	var keepID string
+	var keepLine int
+	if !f.wiki {
+		if p, ok := f.selected(); ok {
+			keepID = p.ID
+			keepLine = f.matches[f.sel].line
+		}
+	}
+	if msg.notes != nil {
+		f.notes = msg.notes
+	}
+	f.lines = msg.lines
+	f.loading = false
+	f.linkSrc = nil
+	f.metas = nil
+	if m.index.idx != nil {
+		f.seedMetas(m.index.idx)
+	}
+	f.refilter()
+	if keepID != "" && !f.wiki {
+		for i, mt := range f.matches {
+			if mt.page.ID == keepID && mt.line == keepLine {
+				f.sel = i
+				break
+			}
+		}
+	}
+}
+
+// seedMetas populates finder status/tag metadata from an already-built LinkIndex
+// so qualifier searches work immediately without reading files from disk.
+func (f *finder) seedMetas(idx *core.LinkIndex) {
+	if idx == nil {
+		return
+	}
+	f.metas = make(map[string]finderMeta, len(f.notes))
+	for _, p := range f.notes {
+		f.metas[p.ID] = finderMeta{
+			status: idx.Status(p.ID),
+			tags:   idx.NoteTags(p.ID),
+		}
+	}
 }
 
 // maxTextHits caps text matches so huge workspaces stay responsive.
@@ -63,23 +147,25 @@ func (m *Model) openFinder() tea.Cmd {
 	in.Cursor.Style = lipgloss.NewStyle().Foreground(th.Blue)
 	in.Cursor.TextStyle = field.Foreground(th.Fg)
 
-	var notes []core.Page
-	for _, p := range m.store.List() {
-		if !p.IsFolder {
-			notes = append(notes, p)
-		}
+	notes := append([]core.Page(nil), m.notes...)
+	m.finderGen++
+	f := &finder{
+		input:     in,
+		root:      filepath.Base(m.store.Root()),
+		notes:     notes,
+		lines:     map[string][]string{},
+		templates: m.templatesFolder(),
+		gen:       m.finderGen,
+		loading:   len(notes) > 0,
 	}
-	f := &finder{input: in, root: filepath.Base(m.store.Root()), notes: notes, lines: map[string][]string{}, templates: m.templatesFolder()}
-	for _, p := range notes {
-		if full, err := m.store.Get(p.ID); err == nil {
-			f.lines[p.ID] = strings.Split(strings.ReplaceAll(full.Content, "\t", "    "), "\n")
-		}
+	if m.index.idx != nil {
+		f.seedMetas(m.index.idx)
 	}
 	f.refilter()
 	m.finder = f
 	m.leaderPending = false
 	m.tutorBFinderOpen("")
-	return f.input.Focus()
+	return tea.Batch(f.input.Focus(), loadFinderLinesCmd(f.gen, m.store))
 }
 
 // openFinderWith opens the finder with query already typed, as ":tags" and

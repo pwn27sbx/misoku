@@ -93,6 +93,8 @@ func (f *finder) view(m *Model) (string, int, int) {
 		help = i18n.T(i18n.AppLinkFinderHelp)
 	case f.statusHint():
 		help = statusHintText
+	case f.loading:
+		help = help + " · " + i18n.T(i18n.AppFinderLoading)
 	}
 	rows = append(rows, bg.Foreground(th.GreyFg).Render(" "+ui.Truncate(help, inner-2)))
 	return panel(th, rows, inner), g.x, g.y

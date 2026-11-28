@@ -264,9 +264,13 @@ func (m *Model) showBuffer(b *buffer) {
 		m.content.CommitChange()
 	}
 	b.relinkedFrom, b.relinkedHist = "", nil
-	m.preview.SetBaseDir(m.noteDir(b))
-	m.preview.SetPage(b.page())
-	m.refreshLinks()
+	// One compile for the page opening: its content, how its links resolve
+	// and its backlinks all change at once.
+	m.preview.Batch(func() {
+		m.preview.SetBaseDir(m.noteDir(b))
+		m.preview.SetPage(b.page())
+		m.refreshLinks()
+	})
 	if b.isGraph() {
 		m.content.SetBuffer(core.Page{}, false)
 		m.previewNote(m.graphSelected())
@@ -276,6 +280,7 @@ func (m *Model) showBuffer(b *buffer) {
 		m.sidebar.SetSelectedID(b.id)
 	}
 	m.viewMode = viewModeWorkspace
+	m.refreshRich()
 }
 
 // clearEditor shows the empty state when no tabs are left.
@@ -587,6 +592,9 @@ func (m *Model) requestQuit(force bool) tea.Cmd {
 		return nil
 	}
 	dirty := m.dirtyBuffers()
+	if m.rich != nil {
+		m.rich.Close() // leave no images behind in the terminal
+	}
 	if force || len(dirty) == 0 {
 		if force {
 			// :q! is the discard form of quitting, changes or none: the

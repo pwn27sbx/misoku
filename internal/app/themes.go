@@ -32,6 +32,7 @@ func (m *Model) applyTheme(th theme.Theme, persist bool) bool {
 	m.preview.SetTheme(th)
 	m.graph.SetTheme(th)
 	m.globalGraph.SetTheme(th)
+	m.refreshRich()
 	if persist && m.configPath != "" {
 		// Settings saves run in the background and rewrite the same
 		// file: take turns with them so neither undoes the other.

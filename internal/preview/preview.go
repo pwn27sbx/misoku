@@ -40,6 +40,12 @@ type Model struct {
 	mentions    []core.UnlinkedMention
 	mentionsFor string
 
+	// batching counts nested Batch calls; while it is above zero, recompile
+	// only marks dirty and Batch compiles once at the end, so a caller that
+	// sets the page, its links and its backlinks compiles the note once.
+	batching int
+	dirty    bool
+
 	display Display // the last compile, cut by source line
 
 	blocks   []Block
@@ -191,8 +197,27 @@ func (m *Model) SetFocused(focused bool) {
 	m.focused = focused
 }
 
+// Batch runs fn with compiles deferred, so a caller that sets several things
+// at once (the page, how its links resolve, its backlinks) parses and styles
+// the note a single time instead of once per setter.
+func (m *Model) Batch(fn func()) {
+	m.batching++
+	defer func() {
+		m.batching--
+		if m.batching == 0 && m.dirty {
+			m.dirty = false
+			m.recompile()
+		}
+	}()
+	fn()
+}
+
 // recompile parses the current rawContent with the compiler.
 func (m *Model) recompile() {
+	if m.batching > 0 {
+		m.dirty = true
+		return
+	}
 	// One image scope for the body and the footer's snippets: a footer compile
 	// of its own would release the pictures the body just drew.
 	defer beginImageRender()()

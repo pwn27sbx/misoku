@@ -4,6 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
+)
+
+const atomicRenameRetries = 5
+
+var (
+	atomicRename      = os.Rename
+	retryAtomicRename = runtime.GOOS == "windows"
+	atomicRetryDelay  = 30 * time.Millisecond
 )
 
 // WriteFileAtomic replaces abs with data in one step: it writes a temporary
@@ -13,8 +22,9 @@ import (
 // complete old version.
 //
 // A symlinked note is written at its target, so the link survives, and an
-// existing file keeps its permissions. On Windows, where a file open in
-// another program cannot be replaced, it falls back to writing in place.
+// existing file keeps its permissions. On Windows, where antivirus or sync
+// clients briefly hold a handle on the target file, it retries the atomic
+// rename before falling back to writing in place.
 func WriteFileAtomic(abs string, data []byte) error {
 	if target, err := filepath.EvalSymlinks(abs); err == nil {
 		abs = target
@@ -48,16 +58,26 @@ func WriteFileAtomic(abs string, data []byte) error {
 	if err := os.Chmod(tmpName, perm); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, abs); err != nil {
-		if runtime.GOOS == "windows" {
-			// Windows refuses to replace a file another program holds open
-			// (a sync client, an editor): write in place, as Misoku always
-			// did there, rather than fail the save. The temp file is removed
-			// by the deferred cleanup.
-			return os.WriteFile(abs, data, perm)
-		}
-		return err
+
+	attempts := 1
+	if retryAtomicRename {
+		attempts = atomicRenameRetries
 	}
-	ok = true
-	return nil
+	var renameErr error
+	for i := 0; i < attempts; i++ {
+		if renameErr = atomicRename(tmpName, abs); renameErr == nil {
+			ok = true
+			return nil
+		}
+		if i+1 < attempts && atomicRetryDelay > 0 {
+			time.Sleep(atomicRetryDelay)
+		}
+	}
+	if runtime.GOOS == "windows" {
+		// Windows refuses to replace a file another program holds open
+		// (a sync client, an editor): write in place after retries rather
+		// than fail the save. The temp file is removed by the deferred cleanup.
+		return os.WriteFile(abs, data, perm)
+	}
+	return renameErr
 }

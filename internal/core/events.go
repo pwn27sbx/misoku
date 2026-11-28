@@ -99,6 +99,10 @@ type GraphMsg struct{}
 // (":graph all").
 type GlobalGraphMsg struct{}
 
+// RichViewMsg opens the rich reading view (":rich"): the note drawn with real
+// fonts, maths and diagrams, images in the page.
+type RichViewMsg struct{}
+
 // ThemeMsg switches the colour theme (":colorscheme name"). An empty Name
 // opens the theme picker.
 type ThemeMsg struct {

@@ -16,7 +16,11 @@ import (
 // a message, and the default one is used.
 func WithTemplatesDir(dir string) Option {
 	return func(m *Model) {
-		d, err := config.VaultFolder(dir, config.DefaultTemplatesDir)
+		if strings.TrimSpace(dir) == "" {
+			m.templates = ""
+			return
+		}
+		d, err := config.VaultFolder(dir, m.defaultTemplatesDir())
 		if err != nil {
 			m.setError(i18n.T(i18n.AppFolderRefused, "templates_dir", err.Error(), d))
 		}
@@ -24,10 +28,19 @@ func WithTemplatesDir(dir string) Option {
 	}
 }
 
+// defaultTemplatesDir returns "Plantillas" for Spanish or vaults that already
+// have a Plantillas/ directory on disk, and "Templates" otherwise.
+func (m *Model) defaultTemplatesDir() string {
+	if i18n.Current() == i18n.ES || m.hasVaultDir(config.DefaultTemplatesDir) {
+		return config.DefaultTemplatesDir
+	}
+	return config.DefaultTemplatesDirEN
+}
+
 // templatesFolder is the folder of the templates in use.
 func (m *Model) templatesFolder() string {
 	if m.templates == "" {
-		return config.DefaultTemplatesDir
+		return m.defaultTemplatesDir()
 	}
 	return m.templates
 }

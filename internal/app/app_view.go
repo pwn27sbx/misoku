@@ -47,6 +47,8 @@ func (m Model) View() string {
 				cols = append(cols, m.globalGraph.View())
 			case m.graphActive():
 				cols = append(cols, m.graph.View())
+			case m.noteView == viewRich && m.rich != nil && m.rich.Ready():
+				cols = append(cols, padNote(m.rich.View(), l.EditorW, l.PadY))
 			default:
 				cols = append(cols, padNote(m.noteRows(), l.EditorW, l.PadY))
 			}

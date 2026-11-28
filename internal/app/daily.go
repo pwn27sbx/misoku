@@ -1,6 +1,10 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pwn27sbx/misoku/internal/config"
@@ -15,7 +19,11 @@ const dailyDateLayout = "2006-01-02"
 // the default one is used.
 func WithDailyDir(dir string) Option {
 	return func(m *Model) {
-		d, err := config.VaultFolder(dir, config.DefaultDailyDir)
+		if strings.TrimSpace(dir) == "" {
+			m.dailyDir = ""
+			return
+		}
+		d, err := config.VaultFolder(dir, m.defaultDailyDir())
 		if err != nil {
 			m.setError(i18n.T(i18n.AppFolderRefused, "daily_dir", err.Error(), d))
 		}
@@ -23,10 +31,28 @@ func WithDailyDir(dir string) Option {
 	}
 }
 
+// defaultDailyDir returns "Diario" for Spanish or vaults that already have a
+// Diario/ directory on disk, and "Daily" otherwise.
+func (m *Model) defaultDailyDir() string {
+	if i18n.Current() == i18n.ES || m.hasVaultDir(config.DefaultDailyDir) {
+		return config.DefaultDailyDir
+	}
+	return config.DefaultDailyDirEN
+}
+
+// hasVaultDir reports whether name exists as a directory at the vault root.
+func (m *Model) hasVaultDir(name string) bool {
+	if m.store == nil {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(m.store.Root(), name))
+	return err == nil && info.IsDir()
+}
+
 // dailyFolder is the folder of the daily notes in use.
 func (m *Model) dailyFolder() string {
 	if m.dailyDir == "" {
-		return config.DefaultDailyDir
+		return m.defaultDailyDir()
 	}
 	return m.dailyDir
 }

@@ -68,7 +68,7 @@ func (s *Store) idToAbs(id string) (string, error) {
 	if id == "" {
 		return s.root, nil
 	}
-	clean := path.Clean(filepath.ToSlash(id))
+	clean := path.Clean(id)
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") ||
 		path.IsAbs(clean) || hasDriveLetter(clean) {
 		return "", ErrPageNotFound

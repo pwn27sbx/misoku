@@ -205,6 +205,7 @@ func (m *Model) applyScannedNote(b *buffer, gone bool, content string, read bool
 		m.content.ResetHistory()
 		m.preview.SetPage(b.page())
 		m.refreshLinks()
+		m.refreshRich()
 	}
 	m.setStatus(i18n.T(i18n.AppReloaded, b.id))
 }

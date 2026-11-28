@@ -75,8 +75,8 @@ Sleep 300ms
 Type "gd"
 Sleep 2.5s
 
-# Reading mode: only the preview, full width.
-Type " r"
+# Reading view: only the preview, full width (space p).
+Type " p"
 Sleep 3s
 
 # Quit and remove the sample workspace, off camera.

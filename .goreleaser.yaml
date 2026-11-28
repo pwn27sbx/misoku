@@ -11,8 +11,7 @@ project_name: misoku
 
 before:
   hooks:
-    - go mod tidy
-    - go test ./...
+    - go test -timeout 5m ./...
 
 builds:
   - id: misoku

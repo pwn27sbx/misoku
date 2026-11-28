@@ -739,6 +739,7 @@ const (
 	AppFinderNoNotes     Key = "app.finder.no_notes"
 	AppFinderNoLinks     Key = "app.finder.no_links"
 	AppFinderHelp        Key = "app.finder.help"
+	AppFinderLoading     Key = "app.finder.loading"
 	AppOpenedNewTab      Key = "app.finder.opened_new_tab"
 	AppFinderLinkTitle   Key = "app.finder.link_title"
 	AppFinderTitle       Key = "app.finder.title"
@@ -759,6 +760,12 @@ const (
 	AppHistorySame       Key = "app.history.same"
 	AppHistoryRestored   Key = "app.history.restored"
 	AppReading           Key = "app.reading"
+	AppRichUnavailable   Key = "app.rich_unavailable"
+	AppRichTmuxOff       Key = "app.rich_tmux_off"
+	AppRichNoOutput      Key = "app.rich_no_output"
+	AppRichNarrow        Key = "app.rich_narrow"
+	AppRichSaveFirst     Key = "app.rich_save_first"
+	AppRichFailed        Key = "app.rich_failed"
 	AppNoLinksInNote     Key = "app.no_links_in_note"
 	AppLeaderFooter      Key = "app.leader.footer"
 	AppLeaderEnlarge     Key = "app.leader.enlarge"
@@ -839,6 +846,7 @@ func init() {
 		AppFinderNoNotes:     "   No matching notes",
 		AppFinderNoLinks:     "   No matching links",
 		AppFinderHelp:        "↑↓ move · Enter open here (jumps to the line) · Ctrl+T new tab · Esc close",
+		AppFinderLoading:     "Indexing text…",
 		AppOpenedNewTab:      "Opened in a new tab — %s has unsaved changes",
 		AppFinderLinkTitle:   "Link to Note",
 		AppFinderTitle:       "Find Note",
@@ -859,6 +867,12 @@ func init() {
 		AppHistorySame:       "The note already holds the version of %s",
 		AppHistoryRestored:   "Restored the version of %s (%s): u undoes it, save to keep it",
 		AppReading:           "Reading…",
+		AppRichUnavailable:   "Rich view unavailable: this terminal or pane cannot draw images",
+		AppRichTmuxOff:       "Rich view needs tmux passthrough: run tmux set -g allow-passthrough on, then reopen the terminal",
+		AppRichNoOutput:      "Rich view unavailable: the program has no image output",
+		AppRichNarrow:        "Rich view needs at least %d columns; this pane has %d",
+		AppRichSaveFirst:     "Rich view needs a saved note: save this draft first",
+		AppRichFailed:        "Rich view failed: %s",
 		AppNoLinksInNote:     "No links in this note",
 		AppLeaderFooter:      " These keys come from config.json · Esc to close",
 		AppLeaderEnlarge:     " … enlarge the terminal to see all",
@@ -937,6 +951,7 @@ func init() {
 		AppFinderNoNotes:     "   Ninguna nota coincide",
 		AppFinderNoLinks:     "   Ningún enlace coincide",
 		AppFinderHelp:        "↑↓ mueve · Enter abre aquí (salta a la línea) · Ctrl+T pestaña nueva · Esc cierra",
+		AppFinderLoading:     "Indexando texto…",
 		AppOpenedNewTab:      "Se abrió en una pestaña nueva — %s tiene cambios sin guardar",
 		AppFinderLinkTitle:   "Enlazar a una nota",
 		AppFinderTitle:       "Buscar nota",
@@ -957,6 +972,12 @@ func init() {
 		AppHistorySame:       "La nota ya tiene la versión del %s",
 		AppHistoryRestored:   "Se restauró la versión del %s (%s): u lo deshace, guarda para conservarla",
 		AppReading:           "Leyendo…",
+		AppRichUnavailable:   "La vista rica no está disponible: esta terminal o este panel no pueden dibujar imágenes",
+		AppRichTmuxOff:       "La vista rica necesita passthrough en tmux: ejecuta tmux set -g allow-passthrough on y vuelve a abrir la terminal",
+		AppRichNoOutput:      "La vista rica no está disponible: el programa no tiene salida de imágenes",
+		AppRichNarrow:        "La vista rica necesita al menos %d columnas; este panel tiene %d",
+		AppRichSaveFirst:     "La vista rica necesita una nota guardada: guarda este borrador primero",
+		AppRichFailed:        "La vista rica falló: %s",
 		AppNoLinksInNote:     "No hay enlaces en esta nota",
 		AppLeaderFooter:      " Estas teclas vienen de config.json · Esc cierra",
 		AppLeaderEnlarge:     " … agranda la terminal para verlas todas",

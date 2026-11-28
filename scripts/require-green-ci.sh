@@ -12,9 +12,13 @@ sha=${2:?usage: require-green-ci.sh <owner/repo> <commit-sha>}
 
 # The tagged commit comes from a push to main, which is what starts CI; a tag
 # does not. The API lists newest first, so the first run on main is the latest
-# one (a re-run wins over the run it replaced).
-runs=$(gh api \
-	"repos/$repo/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=100")
+# one (a re-run wins over the run it replaced). Retry once on transient API
+# failures.
+api_url="repos/$repo/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=100"
+if ! runs=$(gh api "$api_url"); then
+	sleep 2
+	runs=$(gh api "$api_url")
+fi
 
 latest=$(printf '%s' "$runs" | python3 -c '
 import json, sys

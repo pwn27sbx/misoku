@@ -71,6 +71,11 @@ func parseVimCommand(cmdStr, content string) any {
 		return core.VimCloseBufferMsg{Force: true}
 	case "export", "pdf":
 		return core.ExportMsg{Path: arg}
+	case "rich":
+		if arg != "" {
+			return core.StatusMsg{Text: i18n.T(i18n.EditorTrailing, arg, ":rich"), Error: true}
+		}
+		return core.RichViewMsg{}
 	case "graph":
 		switch arg {
 		case "":

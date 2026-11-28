@@ -2,6 +2,7 @@ package kitty
 
 import (
 	"io"
+	"strings"
 	"sync"
 )
 
@@ -18,6 +19,31 @@ import (
 type Writer struct {
 	mu sync.Mutex
 	w  io.Writer
+	// passthrough wraps every transmit for tmux's passthrough DCS: only
+	// graphics are wrapped, frames go out as they are.
+	passthrough bool
+}
+
+// SetPassthrough turns tmux passthrough on or off. Call it once, before any
+// output.
+func (w *Writer) SetPassthrough(on bool) { w.passthrough = on }
+
+// WrapPassthrough wraps one kitty sequence in tmux's passthrough DCS: the
+// payload's own escape bytes are doubled, which is what tmux expects, and the
+// sequence ends the DCS itself.
+func WrapPassthrough(seq string) string {
+	var b strings.Builder
+	b.Grow(len(seq)*2 + 10)
+	b.WriteString("\x1bPtmux;")
+	for i := 0; i < len(seq); i++ {
+		if seq[i] == 0x1b {
+			b.WriteString("\x1b\x1b")
+			continue
+		}
+		b.WriteByte(seq[i])
+	}
+	b.WriteString("\x1b\\")
+	return b.String()
 }
 
 // NewWriter wraps w. A nil w discards everything, which keeps tests and
@@ -47,6 +73,9 @@ func (w *Writer) Send(seqs ...string) error {
 	for _, s := range seqs {
 		if s == "" {
 			continue
+		}
+		if w.passthrough {
+			s = WrapPassthrough(s)
 		}
 		if _, err := io.WriteString(w.w, s); err != nil {
 			return err

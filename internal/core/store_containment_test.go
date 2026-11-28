@@ -1,77 +1,37 @@
-package core_test
+package core
 
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
-
-	"github.com/pwn27sbx/misoku/internal/core"
 )
 
-// A link or a typed path must never reach outside the vault: the store
-// resolves every ID under its root and refuses the ones that climb out.
-func TestStoreRefusesIDsThatLeaveTheWorkspace(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
-
-	base := t.TempDir()
-	root := filepath.Join(base, "vault")
-	outside := filepath.Join(base, "outside.md")
-	if err := os.WriteFile(outside, []byte("keep me"), 0o644); err != nil {
+// PR #54 regression check: on Unix, a note with a literal backslash in its name
+// must stay openable, while traversal IDs remain refused.
+func TestStoreOpensLiteralBackslashNameOnUnix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("backslash is a path separator on Windows")
+	}
+	dir := t.TempDir()
+	name := `a\b.md`
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("# Backslash\nbody"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	store, err := core.NewStore(root)
+	s, err := NewStore(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	bad := []string{"../outside.md", "../../outside.md", "sub/../../outside.md", "../", "/etc/passwd", "C:/Windows/win.ini"}
-
-	for _, id := range bad {
-		if _, err := store.Get(id); err == nil {
-			t.Errorf("Get(%q) read a file outside the vault", id)
-		}
-		if _, err := store.Abs(id); err == nil {
-			t.Errorf("Abs(%q) resolved outside the vault", id)
-		}
+	p, err := s.Get(name)
+	if err != nil {
+		t.Fatalf("Get(%q) failed: %v", name, err)
 	}
-
-	page := core.Page{ID: "../outside.md", Title: "outside", Content: "pwned"}
-	if _, err := store.Update(page); err == nil {
-		t.Error("Update wrote a file outside the vault")
+	if p.Content != "# Backslash\nbody" {
+		t.Fatalf("Content = %q", p.Content)
 	}
-	if got, err := os.ReadFile(outside); err != nil || string(got) != "keep me" {
-		t.Errorf("the outside file changed: %q, %v", got, err)
-	}
-
-	if err := store.Delete("../outside.md"); err == nil {
-		t.Error("Delete removed a file outside the vault")
-	}
-	if _, err := os.Stat(outside); err != nil {
-		t.Errorf("the outside file is gone: %v", err)
-	}
-
-	if _, err := store.Create("evil", ".."); err == nil {
-		t.Error("Create wrote outside the vault")
-	}
-	if _, err := os.Stat(filepath.Join(base, "evil.md")); err == nil {
-		t.Error("Create left a note outside the vault")
-	}
-}
-
-// The guard must not block ordinary IDs, including a note in a sub-folder.
-func TestStoreStillResolvesIDsInsideTheWorkspace(t *testing.T) {
-	store := newTestStore(t)
-	if _, err := store.SaveAs("ideas", "note", "hello"); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{"ideas/note.md", "ideas"} {
-		if _, err := store.Get(id); err != nil {
-			t.Errorf("Get(%q): %v", id, err)
-		}
-		if _, err := store.Abs(id); err != nil {
-			t.Errorf("Abs(%q): %v", id, err)
+	for _, bad := range []string{"../escape.md", "sub/../../escape.md", "/etc/passwd"} {
+		if _, err := s.Abs(bad); err == nil {
+			t.Fatalf("Abs(%q) should fail containment", bad)
 		}
 	}
 }

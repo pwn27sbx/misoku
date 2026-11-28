@@ -1,0 +1,11 @@
+{
+  "name": "misoku",
+  "owner": { "name": "pwn27sbx" },
+  "plugins": [
+    {
+      "name": "misoku-rich",
+      "source": "./",
+      "description": "Shows a Misoku note's rich page in a pane, from misoku --headless"
+    }
+  ]
+}

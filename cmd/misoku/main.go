@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	"github.com/pwn27sbx/misoku/internal/kitty"
 	"github.com/pwn27sbx/misoku/internal/preview"
 	"github.com/pwn27sbx/misoku/internal/syncout"
+	"github.com/pwn27sbx/misoku/internal/termsize"
 	"github.com/pwn27sbx/misoku/internal/theme"
 	"github.com/pwn27sbx/misoku/internal/tutor"
 
@@ -145,6 +147,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	if !opts.headless && (opts.headlessNote != "" || opts.headlessCols != 100 || opts.headlessRows != 40 || opts.headlessCellPx != "") {
+		fmt.Fprintln(os.Stderr, "misoku: --note, --cols, --rows and --cell-px need --headless")
+		os.Exit(2)
+	}
+	if opts.headless {
+		code := 0
+		if opts.headlessNote == "" {
+			fmt.Fprintln(os.Stderr, "misoku --headless needs --note")
+			code = 2
+		} else {
+			cellW, cellH, _ := termsize.Parse(opts.headlessCellPx)
+			code = runHeadless(store, opts.headlessNote, opts.headlessCols, opts.headlessRows, cellW, cellH, themeName, version, os.Stdout)
+		}
+		os.Exit(code)
+	}
+
 	logPath := logFilePath()
 	f, err := tea.LogToFile(logPath, "debug")
 	if err != nil {
@@ -160,15 +178,30 @@ func main() {
 	// the terminal through the same output as the frames, so a chunked image
 	// upload can never be cut in half by a repaint; the mode comes from
 	// ui.images, and MISOKU_IMAGES wins over it.
-	preview.ConfigureImages(cfg.UI.Images, isTerminal(os.Stdout))
+	passthrough := tmuxPassthrough()
+	var outerEnv func(string) string
+	if passthrough {
+		outerEnv = tmuxOuterEnv()
+	}
+	preview.ConfigureImagesTmux(cfg.UI.Images, isTerminal(os.Stdout), func() bool { return passthrough }, outerEnv)
 	// The terminal's own cursor draws the mode, like LazyVim: a block in NORMAL
 	// and a thin bar in INSERT, placed on the editor cell after every frame and
 	// inside the same synchronized update. ui.cursor_shape and
 	// MISOKU_CURSOR_SHAPE decide; without a terminal nothing is emitted.
 	out, images, cur := chain(syncout.ForTerminal(os.Stdout, os.Getenv),
-		cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)))
+		cursor.Enabled(cfg.UI.CursorShape, os.Getenv, isTerminal(os.Stdout)), passthrough)
 	appOpts := []app.Option{app.WithTheme(themeName), app.WithConfigPath(cfgPath), app.WithKeys(cfg.Keys), app.WithUI(cfg.UI),
-		app.WithDailyDir(cfg.DailyDir), app.WithTemplatesDir(cfg.TemplatesDir)}
+		app.WithDailyDir(cfg.DailyDir), app.WithTemplatesDir(cfg.TemplatesDir), app.WithImageSender(images)}
+	// The page is drawn in the terminal's own pixels when it reports them: the
+	// real cell size keeps body text the terminal's size and stops the tiles
+	// being stretched into a different cell aspect (herdr, HiDPI fonts). A
+	// terminal that answers zeros can be told the size in config or env.
+	if w, h, ok := richCellSize(cfg.UI.RichCellPx); ok {
+		appOpts = append(appOpts, app.WithCellSize(w, h))
+	}
+	if tmuxInside() && !passthrough {
+		appOpts = append(appOpts, app.WithRichHint(i18n.T(i18n.AppRichTmuxOff)))
+	}
 	// Unsaved tabs survive a closed terminal or a SIGTERM in the cache
 	// folder, never next to the notes; the next start offers them back.
 	if recDir := app.RecoveryDir(); recDir != "" {
@@ -201,6 +234,18 @@ func main() {
 	// Every motion report is needed for the preview's block handles, but
 	// most of it changes nothing: MouseFilter drops that before Update and
 	// View run.
+	// Another program in this terminal may have left the kitty keyboard
+	// protocol on: then a terminal in tmux forwards keys as CSI-u (Space is
+	// ESC[32u), which the reader drops, so no leader sequence would ever start.
+	// Pushing the classic mode for the whole program gives plain keys back,
+	// and restoring the stack before the cursor leaves the terminal as it was.
+	restoreKeys := classicKeyboard(out, classicKeysOn(runtime.GOOS, isTerminal(os.Stdout)))
+	keysPopped := false
+	defer func() {
+		if !keysPopped {
+			restoreKeys()
+		}
+	}()
 	p := tea.NewProgram(appModel, tea.WithAltScreen(), tea.WithMouseAllMotion(),
 		tea.WithFilter(app.MouseFilter), tea.WithOutput(out),
 		// quitOnHangup owns SIGHUP, SIGTERM and SIGINT below: it must mark
@@ -208,6 +253,10 @@ func main() {
 		tea.WithoutSignalHandler())
 	hup := quitOnHangup(p)
 	final, err := p.Run()
+	// Pop the keyboard mode first: the cursor restore is the last sequence the
+	// shell should see.
+	restoreKeys()
+	keysPopped = true
 	// Give the terminal its own cursor back before anything else, so no bar or
 	// block is left behind in the shell.
 	if cur != nil {
@@ -228,8 +277,9 @@ func main() {
 // chain builds the program output from the terminal: the pictures go through
 // one writer, and the cursor writer, when there is one, sits above it so its
 // placement takes the same lock a chunked picture upload holds.
-func chain(dst io.Writer, withCursor bool) (out io.Writer, images *kitty.Writer, cur *cursor.Writer) {
+func chain(dst io.Writer, withCursor, passthrough bool) (out io.Writer, images *kitty.Writer, cur *cursor.Writer) {
 	images = kitty.NewWriter(dst)
+	images.SetPassthrough(passthrough)
 	out = images
 	if withCursor {
 		cur = cursor.NewWriter(images)
@@ -271,8 +321,12 @@ func welcomeTheme(name string, transparent bool) theme.Theme {
 
 // options are the flags of `misoku` itself.
 type options struct {
-	dir, theme, themesDir string
-	showVer, listThemes   bool
+	dir, theme, themesDir      string
+	showVer, listThemes        bool
+	headless                   bool
+	headlessNote               string
+	headlessCellPx             string
+	headlessCols, headlessRows int
 }
 
 // defineFlags declares misoku's flags on fs.
@@ -283,6 +337,11 @@ func defineFlags(fs *flag.FlagSet) *options {
 	fs.StringVar(&o.theme, "theme", "", i18n.T(i18n.CliFlagTheme))
 	fs.StringVar(&o.themesDir, "themes-dir", "", i18n.T(i18n.CliFlagThemesDir))
 	fs.BoolVar(&o.listThemes, "list-themes", false, i18n.T(i18n.CliFlagListThemes))
+	fs.BoolVar(&o.headless, "headless", false, "render a note's page to PNG tiles and print one JSON line")
+	fs.StringVar(&o.headlessNote, "note", "", "note to render in --headless mode")
+	fs.StringVar(&o.headlessCellPx, "cell-px", "", "cell size in pixels for --headless (\"10x19\")")
+	fs.IntVar(&o.headlessCols, "cols", 100, "page width in cells for --headless")
+	fs.IntVar(&o.headlessRows, "rows", 40, "tile height in cells for --headless")
 	return o
 }
 
@@ -461,4 +520,84 @@ func runExport(args []string) int {
 	}
 	fmt.Println(dest)
 	return 0
+}
+
+// tmuxInside reports whether the program runs inside a tmux pane.
+func tmuxInside() bool {
+	if os.Getenv("TMUX") != "" {
+		return true
+	}
+	return strings.HasPrefix(os.Getenv("TERM"), "tmux")
+}
+
+// tmuxPassthrough asks tmux whether it lets graphics through. It runs the
+// tmux client with a short limit: a missing or wedged tmux means "off", never
+// a hang.
+func tmuxPassthrough() bool {
+	if !tmuxInside() {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", "show", "-gv", "allow-passthrough").Output()
+	if err != nil {
+		return false
+	}
+	return passthroughOn(string(out))
+}
+
+// passthroughOn reads tmux's answer: "on" or "all" let graphics through;
+// anything else (off, an empty answer) does not.
+func passthroughOn(out string) bool {
+	switch strings.ToLower(strings.TrimSpace(out)) {
+	case "on", "all":
+		return true
+	}
+	return false
+}
+
+// tmuxOuterEnv asks tmux for the outer terminal's identity (client_termname
+// and the server's global environment) with a short timeout, because tmux
+// overrides TERM and TERM_PROGRAM inside panes.
+func tmuxOuterEnv() func(string) string {
+	if !tmuxInside() {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	termOut, _ := exec.CommandContext(ctx, "tmux", "display", "-p", "#{client_termname}").Output()
+	envOut, _ := exec.CommandContext(ctx, "tmux", "show-environment", "-g").Output()
+	return parseTmuxOuter(string(termOut), string(envOut))
+}
+
+// parseTmuxOuter builds an env lookup from tmux's client_termname and
+// show-environment -g output. Unset entries ("-VAR") are ignored.
+func parseTmuxOuter(clientTerm, globalEnv string) func(string) string {
+	vars := make(map[string]string)
+	for _, line := range strings.Split(globalEnv, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "-") {
+			continue
+		}
+		if k, v, ok := strings.Cut(line, "="); ok {
+			vars[k] = v
+		}
+	}
+	if t := strings.TrimSpace(clientTerm); t != "" {
+		vars["TERM"] = t
+	}
+	return func(k string) string { return vars[k] }
+}
+
+// richCellSize picks the rich page's cell size: MISOKU_RICH_CELL_PX, then
+// ui.rich_cell_px, then whatever the terminal reports (nothing if it answers
+// zeros, which keeps the 12x24 default).
+func richCellSize(configured string) (int, int, bool) {
+	if w, h, ok := termsize.Parse(os.Getenv("MISOKU_RICH_CELL_PX")); ok {
+		return w, h, true
+	}
+	if w, h, ok := termsize.Parse(configured); ok {
+		return w, h, true
+	}
+	return termsize.Cells(os.Stdout.Fd())
 }
