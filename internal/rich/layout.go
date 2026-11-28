@@ -475,8 +475,15 @@ func (l *layouter) styledLines(b Block, indent int, size float64, col color.RGBA
 				continue
 			}
 			if run.Mark && l.pal.Alert[3].A != 0 {
-				bg := l.pal.Alert[3]
-				bg.A = 72
+				// image.RGBA uses premultiplied alpha: scale RGB by alpha so
+				// draw.Over paints a soft tint that keeps text contrast high.
+				const a = 72
+				bg := color.RGBA{
+					R: uint8(int(l.pal.Alert[3].R) * a / 255),
+					G: uint8(int(l.pal.Alert[3].G) * a / 255),
+					B: uint8(int(l.pal.Alert[3].B) * a / 255),
+					A: a,
+				}
 				l.emit(Item{Kind: ItemRect, X: xCells, Y: l.y, W: w, H: lineCells, Color: bg, XOffPx: xOff})
 			} else if run.Code || run.Kbd {
 				// The background starts at the run's exact pixel: a rect at
@@ -524,6 +531,7 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 	type word struct {
 		text               string
 		bold, italic, code bool
+		mark, kbd, ruby    bool
 		link               bool
 		math               string
 		box                *InlineBox
@@ -544,7 +552,8 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 			// stay "code.", never "code .", and "**bold** text" keeps the
 			// space that ended the previous run.
 			space := (i > 0 || leading || prevEndedSpace) && len(words) > 0
-			words = append(words, word{text: f, bold: r.Bold, italic: r.Italic, code: r.Code, link: r.Link, space: space})
+			words = append(words, word{text: f, bold: r.Bold, italic: r.Italic, code: r.Code,
+				mark: r.Mark, kbd: r.Kbd, ruby: r.Ruby, link: r.Link, space: space})
 			prevEndedSpace = false
 		}
 		prevEndedSpace = strings.HasSuffix(r.Text, " ") || strings.HasSuffix(r.Text, "\n")
@@ -554,13 +563,14 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 		if w.box != nil {
 			return w.box.WidthPx
 		}
-		// Inline code draws at 0.85 of the body size in the mono face, so the
-		// wrap must claim that width, not the body face's.
+		// Inline code and kbd draw at 0.85 in mono; ruby draws at 0.78.
 		wsize := size
-		if w.code {
+		if w.code || w.kbd {
 			wsize = size * 0.85
+		} else if w.ruby {
+			wsize = size * 0.78
 		}
-		return l.f.MeasureStyled(w.text, wsize, w.code, w.bold, w.italic)
+		return l.f.MeasureStyled(w.text, wsize, w.code || w.kbd, w.bold || w.kbd, w.italic)
 	}
 	var lines [][]styledText
 	var line []styledText
@@ -580,7 +590,7 @@ func (l *layouter) wrapRuns(runs []styledText, maxPx int, size float64) [][]styl
 			linePx += space
 		}
 		line = append(line, styledText{Text: w.text, Bold: w.bold, Italic: w.italic, Code: w.code,
-			Link: w.link, Math: w.math, Box: w.box})
+			Mark: w.mark, Kbd: w.kbd, Ruby: w.ruby, Link: w.link, Math: w.math, Box: w.box})
 		linePx += width
 	}
 	if len(line) > 0 {
